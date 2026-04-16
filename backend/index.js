@@ -31,9 +31,14 @@ const server = http.createServer(app);
 initSocket(server);
 
 // Middleware
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:8080';
+console.log('CORS Allowed Origin:', allowedOrigin);
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:8080',
-    credentials: true
+    origin: allowedOrigin,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds
