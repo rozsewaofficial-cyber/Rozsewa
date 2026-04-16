@@ -72,7 +72,7 @@ const ProviderLogin = () => {
                     onChange={(e) => setMobile(e.target.value)}
                     required
                     maxLength="10"
-                    className="block w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm font-medium transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none"
+                    className="block w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm font-medium text-slate-900 transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none"
                     placeholder="Enter mobile number"
                   />
                 </div>
@@ -92,7 +92,7 @@ const ProviderLogin = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="block w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-11 pr-11 text-sm font-medium transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none"
+                    className="block w-full rounded-xl border border-slate-200 bg-white py-3.5 pl-11 pr-11 text-sm font-medium text-slate-900 transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none"
                     placeholder="Enter password"
                   />
                   <button
