@@ -5,8 +5,9 @@ let io;
 const initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: "*",
-            methods: ["GET", "POST"]
+            origin: process.env.FRONTEND_URL || "https://rozsewa.vercel.app",
+            methods: ["GET", "POST"],
+            credentials: true
         }
     });
 
