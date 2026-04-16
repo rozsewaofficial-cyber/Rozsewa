@@ -104,10 +104,8 @@ const App = () => (
                 <AnimatePresence mode="wait">
                   <Routes>
                     {/* Customer Login */}
-                    <Route path="/login" element={<CustomerLogin />} />
-
-                    {/* Customer Routes */}
-                    <Route path="/" element={<Index />} />
+                    <Route path="/" element={<Navigate to="/provider/login" replace />} />
+                    <Route path="/home" element={<Index />} />
                     <Route path="/shops" element={<ShopListing />} />
                     <Route path="/shop/:id" element={<ShopDetail />} />
                     <Route path="/category" element={<SubcategoryPage />} />
