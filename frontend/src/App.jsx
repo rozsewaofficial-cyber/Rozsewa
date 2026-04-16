@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -134,7 +134,7 @@ const App = () => (
                     <Route path="/offers" element={<Offers />} />
 
                     {/* Provider Routes */}
-                    <Route path="/provider" element={<ProviderDashboard />} />
+                    <Route path="/provider" element={<Navigate to="/provider/login" replace />} />
                     <Route path="/provider/login" element={<ProviderLogin />} />
                     <Route path="/provider/register" element={<ProviderRegister />} />
                     <Route path="/provider/profile" element={<ProviderProfile />} />
