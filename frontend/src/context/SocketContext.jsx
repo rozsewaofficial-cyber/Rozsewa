@@ -16,7 +16,11 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const newSocket = io(API_URL);
+        const socketUrl = API_URL.replace('/api', '');
+        const newSocket = io(socketUrl, {
+            withCredentials: true,
+            transports: ['polling', 'websocket']
+        });
         setSocket(newSocket);
 
         newSocket.on("NEW_BOOKING_REQUEST", (data) => {
