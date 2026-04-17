@@ -6,23 +6,22 @@ import {
   Store, User, Phone, MapPin, Briefcase, ArrowRight, ArrowLeft, Loader2,
   ShieldCheck, CreditCard, Gift, CheckCircle, Navigation, Clock,
   Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Image as ImageIcon, ChevronRight, X, Building2,
-  Layers
+  Layers, Sparkles, Map, Heart, Smartphone, Lock
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 
-// User's requested top-level business models
 const businessModels = [
-  { id: 'shop', label: 'Shop Owner', icon: Store },
-  { id: 'service_provider', label: 'Service Provider', icon: Wrench },
-  { id: 'taxi', label: 'Taxi / Transport', icon: Car },
-  { id: 'hotel', label: 'Hotel / Lodge / PG', icon: Building },
-  { id: 'tutor_doc', label: 'Tutor / Doctor', icon: GraduationCap },
-  { id: 'property_dealer', label: 'Property Dealer', icon: Home },
-  { id: 'food', label: 'Food / Tiffin', icon: Utensils },
-  { id: 'labour', label: 'Labour Contractor', icon: HardHat },
-  { id: 'delivery', label: 'Delivery Service', icon: Truck },
+  { id: 'shop', label: 'Retail & Shops', icon: Store, description: 'Traditional brick & mortar outlets' },
+  { id: 'service_provider', label: 'Service Expert', icon: Sparkles, description: 'Independent professionals' },
+  { id: 'taxi', label: 'Logistics / Taxi', icon: Car, description: 'Fleet and transport services' },
+  { id: 'hotel', label: 'Hospitality', icon: Building, description: 'Hotels, PG and long stays' },
+  { id: 'tutor_doc', label: 'Medical / Tutor', icon: GraduationCap, description: 'Professional consultations' },
+  { id: 'property_dealer', label: 'Real Estate', icon: Home, description: 'Brokers and dealers' },
+  { id: 'food', label: 'Dining / Food', icon: Utensils, description: 'Cafes and home kitchens' },
+  { id: 'labour', label: 'Skilled Labour', icon: HardHat, description: 'Contractors and teams' },
+  { id: 'delivery', label: 'Direct Delivery', icon: Truck, description: 'Local courier experts' },
 ];
 
 const ProviderRegister = () => {
@@ -279,31 +278,71 @@ const ProviderRegister = () => {
   };
 
   const stepTitles = [
-    "Verification", "Business Type", "Select Industry", "Add Services",
-    "Business Profile", "Identity Photo", "Referral", "Pro Account", "Success!"
+    "Verify Mobile", "Business Type", "Select Industry", "Add Services",
+    "Business Profile", "Identity Photo", "Referral", "Pro Account", "Success"
   ];
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-8">
-      <div className="w-full max-w-lg space-y-6 pt-6 pb-20 md:py-0">
-        <div className="text-center">
-          <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
-            {step === 9 ? <CheckCircle className="h-8 w-8 text-emerald-600" /> : <Layers className="h-8 w-8 text-emerald-600" />}
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#fdfdfd] px-4 py-4 md:py-8">
+      <div className="w-full max-w-xl space-y-6">
+        <div className="text-center space-y-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mx-auto flex h-20 w-40 items-center justify-center rounded-[24px] bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
+          >
+            <img
+              src="/RozSewa.png"
+              alt="RozSewa Logo"
+              className="h-full w-full object-contain"
+            />
           </motion.div>
-          <h2 className="mt-4 text-2xl font-black text-foreground tracking-tighter">{stepTitles[step - 1]}</h2>
-          <p className="mt-1 text-[10px] font-black text-muted-foreground uppercase tracking-widest">{step < 9 ? `Step ${step} of 8` : 'Verified'}</p>
+
+          <div className="space-y-1">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900">{stepTitles[step - 1]}</h2>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
+                {step < 9 ? `Step ${step} of 8` : 'Completed'}
+              </span>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="max-w-[240px] mx-auto h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(step / 9) * 100}%` }}
+              className="h-full bg-emerald-500 rounded-full"
+            />
+          </div>
         </div>
 
-        <motion.div layout initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative rounded-[2rem] border border-border bg-card p-6 md:p-8 shadow-2xl shadow-emerald-500/5">
+        <motion.div
+          layout
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative rounded-[2rem] border border-slate-100 bg-white p-6 md:p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.05)] overflow-hidden"
+        >
           <AnimatePresence mode="wait">
             {step === 1 && (
-              <motion.div key="s1" className="space-y-6">
-                <form onSubmit={handleSendOtp} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Mobile Number</label>
-                    <div className="relative group transition-all">
-                      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-emerald-600 transition-colors">
-                        <Phone className="h-5 w-5" />
+              <motion.div
+                key="s1"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800">Verify your mobile</h3>
+                  <p className="text-sm text-slate-500">We will send a code to confirm your registration.</p>
+                </div>
+
+                <form onSubmit={handleSendOtp} className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Mobile Number</label>
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <Smartphone className="h-5 w-5" />
                       </div>
                       <input
                         type="tel"
@@ -311,68 +350,155 @@ const ProviderRegister = () => {
                         value={formData.mobile}
                         onChange={e => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '') })}
                         maxLength="10"
-                        className="w-full rounded-2xl border border-border bg-background py-4 pl-14 pr-5 font-bold text-lg tracking-wider focus:ring-4 focus:ring-emerald-500/10 transition-all outline-none"
-                        placeholder="9876543210"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 font-semibold text-base tracking-widest text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none placeholder:text-slate-300"
+                        placeholder="00000 00000"
                       />
                     </div>
                   </div>
-                  <button type="submit" disabled={isLoading} className="w-full rounded-2xl bg-emerald-600 py-4 font-black text-white shadow-lg shadow-emerald-600/20 uppercase text-[10px] tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center gap-2">
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                    {isLoading ? 'Processing...' : 'Send OTP'}
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full group mt-4 h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 overflow-hidden relative"
+                  >
+                    <AnimatePresence mode="wait">
+                      {isLoading ? (
+                        <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        </motion.div>
+                      ) : (
+                        <motion.div key="text" className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                          <span>Send Code</span>
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </button>
                 </form>
+
                 {otpSent && (
-                  <form onSubmit={e => { e.preventDefault(); setStep(2); }} className="space-y-4 mt-6 pt-6 border-t border-dashed border-border animate-in fade-in slide-in-from-top-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-center block text-muted-foreground">Enter 6-Digit OTP</label>
-                      <input type="text" required value={formData.otp} onChange={e => setFormData({ ...formData, otp: e.target.value })} maxLength="6" className="w-full text-center tracking-[0.3em] rounded-2xl border border-border bg-background p-4 text-2xl font-black focus:ring-4 focus:ring-emerald-500/10 outline-none" placeholder="••••••" />
+                  <motion.form
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    onSubmit={e => { e.preventDefault(); setStep(2); }}
+                    className="space-y-6 pt-8 border-t border-slate-100"
+                  >
+                    <div className="space-y-3">
+                      <label className="text-xs font-bold text-slate-700 text-center block uppercase tracking-wider">Authentication Code</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.otp}
+                        onChange={e => setFormData({ ...formData, otp: e.target.value })}
+                        maxLength="6"
+                        className="w-full text-center tracking-[0.4em] rounded-lg border border-emerald-500 bg-white py-2.5 text-xl font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all placeholder:text-slate-200"
+                        placeholder="••••••"
+                      />
                     </div>
-                    <button type="submit" className="w-full rounded-2xl border-2 border-emerald-600/20 py-4 font-black text-emerald-600 uppercase text-[10px] tracking-widest hover:bg-emerald-50 transition-all flex items-center justify-center gap-2">
-                      <ShieldCheck className="h-4 w-4" />
-                      Verify OTP
+                    <button type="submit" className="w-full h-12 rounded-lg border-2 border-emerald-500 text-emerald-600 font-bold hover:bg-emerald-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                      <Lock className="h-5 w-5" />
+                      Verify Security Code
                     </button>
-                  </form>
+                  </motion.form>
                 )}
               </motion.div>
             )}
 
             {step === 2 && (
-              <motion.div key="s2" className="space-y-4">
-                <p className="text-[10.5px] uppercase font-black text-emerald-700 opacity-60 text-center mb-6 tracking-widest">Select your business model</p>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+              <motion.div
+                key="s2"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800">Business Model</h3>
+                  <p className="text-sm text-slate-500">How would you like to operate your business?</p>
+                  <div className="space-y-4">
+                    <div className="flex border border-slate-100 rounded-lg p-1 bg-slate-50/50">
+                      {['Individual', 'Business'].map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setFormData({ ...formData, type: type.toLowerCase(), shopName: type === 'Individual' ? "" : formData.shopName })}
+                          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${formData.type === type.toLowerCase() ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {businessModels.map(m => (
-                    <button key={m.id} onClick={() => { setFormData({ ...formData, businessType: m.id }); setStep(3); }} className="flex flex-col items-center justify-center p-5 rounded-3xl border-2 border-border bg-background hover:border-emerald-500 hover:bg-emerald-50 transition-all group">
-                      <m.icon className="h-7 w-7 mb-3 text-gray-400 group-hover:text-emerald-600 transition-colors" />
-                      <span className="text-[9px] font-black uppercase text-center leading-tight tracking-tighter group-hover:text-emerald-900">{m.label}</span>
+                    <button
+                      key={m.id}
+                      onClick={() => { setFormData({ ...formData, businessType: m.id }); setStep(3); }}
+                      className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all text-left group"
+                    >
+                      <div className="h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-all shadow-sm">
+                        <m.icon className="h-6 w-6" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-800 tracking-tight">{m.label}</p>
+                        <p className="text-[11px] font-medium text-slate-500 group-hover:text-emerald-700/70 transition-colors uppercase tracking-wide mt-0.5">{m.description}</p>
+                      </div>
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setStep(1)} className="w-full py-6 text-xs font-black text-muted-foreground uppercase tracking-widest opacity-50">Go Back</button>
+
+                <button
+                  onClick={() => setStep(1)}
+                  className="w-full py-4 text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-[0.2em] transition-colors"
+                >
+                  Back to Identification
+                </button>
               </motion.div>
             )}
 
             {step === 3 && (
-              <motion.div key="s3" className="space-y-6">
+              <motion.div
+                key="s3"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setStep(2)} className="p-3 bg-muted rounded-2xl hover:bg-emerald-50 transition-colors"><ArrowLeft className="h-4 w-4" /></button>
-                  <span className="text-[11px] font-black uppercase text-emerald-700 tracking-widest">Select Your Industry</span>
+                  <button onClick={() => setStep(2)} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-emerald-500 transition-all text-slate-500">
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="space-y-0.5">
+                    <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Select Industry</h3>
+                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">Target Market</p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-3 gap-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar pb-4">
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar pb-4">
                   {fetchingCats ? (
-                    <div className="col-span-full py-10 text-center text-xs font-bold text-gray-400">Loading Industries...</div>
+                    <div className="col-span-full py-20 flex flex-col items-center justify-center space-y-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-emerald-500 opacity-20" />
+                      <p className="text-xs font-bold text-slate-400 animate-pulse">Synchronizing Markets...</p>
+                    </div>
                   ) : categories.map(c => (
-                    <button key={c._id} onClick={() => { setFormData({ ...formData, vendorType: c._id, subServices: [] }); setStep(4); }} className="flex flex-col items-center p-4 rounded-[1.5rem] border-2 border-border bg-background hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/10 transition-all group overflow-hidden">
-                      <div className="h-10 w-10 bg-emerald-50 rounded-xl flex items-center justify-center mb-2 text-emerald-600 shadow-inner group-hover:scale-110 transition-transform overflow-hidden">
+                    <button
+                      key={c._id}
+                      onClick={() => { setFormData({ ...formData, vendorType: c._id, subServices: [] }); setStep(4); }}
+                      className="flex flex-col items-center p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group relative overflow-hidden h-full"
+                    >
+                      <div className="h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center mb-3 text-emerald-600 shadow-sm group-hover:scale-110 transition-transform relative overflow-hidden">
                         {c.image ? (
                           <img src={c.image} alt={c.name} className="h-full w-full object-cover" />
                         ) : (
                           (() => {
                             const Icon = LucideIcons[c.icon] || LucideIcons.Layers;
-                            return <Icon className="h-5 w-5" />;
+                            return <Icon className="h-6 w-6" />;
                           })()
                         )}
+                        <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition-colors" />
                       </div>
-                      <span className="text-[9px] font-black uppercase text-center leading-tight tracking-tighter line-clamp-2">{c.name}</span>
+                      <span className="text-[10px] font-bold uppercase text-center leading-tight tracking-tight text-slate-600 px-1 group-hover:text-slate-900 line-clamp-2">{c.name}</span>
                     </button>
                   ))}
                 </div>
@@ -380,310 +506,440 @@ const ProviderRegister = () => {
             )}
 
             {step === 4 && (
-              <motion.div key="s4" className="space-y-6">
+              <motion.div
+                key="s4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setStep(3)} className="p-3 bg-muted rounded-2xl hover:bg-emerald-50 transition-colors"><ArrowLeft className="h-4 w-4" /></button>
-                  <span className="text-[11px] font-black uppercase text-emerald-700 tracking-widest">Available Services</span>
+                  <button onClick={() => setStep(3)} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-emerald-500 transition-all text-slate-500">
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="space-y-0.5">
+                    <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Add Services</h3>
+                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">{currentCategory?.name}</p>
+                  </div>
                 </div>
+
                 <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                   {currentCategory?.services.map(s => (
-                    <button key={s.name} onClick={() => toggleSubService(s.name)} className={`flex items-center justify-between p-5 rounded-2xl border-2 transition-all ${formData.subServices.includes(s.name) ? 'border-emerald-500 bg-emerald-50 shadow-inner' : 'border-border hover:border-emerald-200'}`}>
-                      <div className="flex flex-col items-start">
-                        <span className={`text-[11px] font-black uppercase tracking-tight ${formData.subServices.includes(s.name) ? 'text-emerald-900' : 'text-foreground'}`}>{s.name}</span>
-                        <span className="text-[9px] font-bold text-emerald-600">Starts at ₹{s.basePrice}</span>
+                    <button
+                      key={s.name}
+                      onClick={() => toggleSubService(s.name)}
+                      className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all group ${formData.subServices.includes(s.name)
+                        ? 'border-emerald-500 bg-emerald-50/50 shadow-inner'
+                        : 'border-slate-100 bg-slate-50/30 hover:border-emerald-200 hover:bg-white'
+                        }`}
+                    >
+                      <div className="flex flex-col items-start space-y-1">
+                        <span className={`text-[13px] font-bold tracking-tight ${formData.subServices.includes(s.name) ? 'text-emerald-900' : 'text-slate-800'}`}>
+                          {s.name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                            Starting ₹{s.basePrice}
+                          </span>
+                        </div>
                       </div>
-                      <div className={`h-7 w-7 rounded-full flex items-center justify-center transition-all ${formData.subServices.includes(s.name) ? 'bg-emerald-600 scale-110 shadow-lg text-white' : 'bg-muted'}`}>
-                        {formData.subServices.includes(s.name) ? <CheckCircle className="h-4 w-4" /> : <div className="h-2 w-2 rounded-full bg-border" />}
+                      <div className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all shadow-sm ${formData.subServices.includes(s.name)
+                        ? 'bg-emerald-600 text-white scale-110'
+                        : 'bg-white text-slate-300'
+                        }`}>
+                        {formData.subServices.includes(s.name) ? <CheckCircle className="h-5 w-5" /> : <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />}
                       </div>
                     </button>
                   ))}
                   {(!currentCategory?.services || currentCategory.services.length === 0) && (
-                    <div className="py-10 text-center text-xs font-bold text-gray-400 italic">No services listed for this category.</div>
+                    <div className="py-20 text-center space-y-4">
+                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl inline-block">
+                        <Star className="h-8 w-8 text-slate-200" />
+                      </div>
+                      <p className="text-sm font-medium text-slate-400 italic">No services listed for this category yet.</p>
+                    </div>
                   )}
                 </div>
-                <button onClick={() => setStep(5)} disabled={formData.subServices.length === 0} className="w-full mt-2 rounded-2xl bg-emerald-600 py-5 font-black text-white shadow-xl shadow-emerald-600/20 uppercase text-xs tracking-widest transition-all active:scale-95 disabled:opacity-50">Continue</button>
+
+                <div className="pt-4">
+                  <button
+                    onClick={() => setStep(5)}
+                    disabled={formData.subServices.length === 0}
+                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-20 flex items-center justify-center gap-3 shadow-xl shadow-slate-900/10"
+                  >
+                    Continue to Profile
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <p className="text-center text-[10px] font-medium text-slate-400 mt-4 uppercase tracking-[0.2em]">Select at least one expertise</p>
+                </div>
               </motion.div>
             )}
 
             {step === 5 && (
-              <motion.form key="s5" onSubmit={e => { e.preventDefault(); if (formData.kycAadhaarPhoto && formData.kycPanPhoto) setStep(6); else toast({ title: "Photos Required", variant: "destructive" }); }} className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Owner Name</label><input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: e.target.value })} className="w-full rounded-2xl border border-border bg-background p-4 font-bold text-sm" placeholder="e.g. John Doe" /></div>
-                  <div className="space-y-1.5"><label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Shop Name</label><input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value })} className="w-full rounded-2xl border border-border bg-background p-4 font-bold text-sm" placeholder="e.g. Sharma Kirana Store" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">GST (Optional)</label><input value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-2xl border border-border bg-background p-4 font-bold text-sm" placeholder="22AAAAA0000A1Z5" /></div>
-                  <div className="space-y-1.5"><label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Aadhaar/PAN No.</label><input required value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.toUpperCase() })} className="w-full rounded-2xl border border-border bg-background p-4 font-bold text-sm" placeholder="0000 0000 0000" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  {['kycAadhaarPhoto', 'kycPanPhoto'].map(type => (
-                    <label key={type} className={`flex flex-col items-center justify-center h-32 rounded-3xl border-2 border-dashed transition-all cursor-pointer ${formData[type] ? 'border-emerald-500 bg-emerald-50' : 'border-border hover:bg-gray-50'}`}>
-                      <input type="file" className="hidden" onChange={e => handleFileUpload(e, type)} />
-                      {formData[type] ? <img src={formData[type]} className="h-full w-full object-cover rounded-3xl" /> : <div className="flex flex-col items-center"><Camera className="h-7 w-7 text-gray-300 mb-2" /><span className="text-[9px] font-black uppercase text-gray-400">{type.includes('Aadhaar') ? 'Aadhaar Card' : 'PAN Card'}</span></div>}
-                    </label>
-                  ))}
-                </div>
-                <div className="space-y-1.5"><label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Secure Password</label><input type="password" required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-2xl border border-border bg-background p-5 font-bold outline-none focus:ring-4 focus:ring-emerald-500/10" placeholder="••••••••" /></div>
-                <div className="space-y-4 pt-4 border-t border-dashed border-border mt-2">
-                  <div className="flex flex-col gap-3">
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] ml-1 italic">Business Location</label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, address: "", city: "", state: "" }))}
-                        className={`flex-1 py-3 rounded-2xl border-2 text-[10px] font-black uppercase transition-all tracking-widest ${!formData.address ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-inner' : 'border-border text-gray-400 opacity-60'}`}
-                      >
-                        Enter Manually
-                      </button>
-                      <button
-                        type="button"
-                        onClick={fetchLocation}
-                        className={`flex-1 py-3 rounded-2xl border-2 text-[10px] font-black uppercase transition-all tracking-widest ${isFetchingLocation ? 'animate-pulse' : ''} ${coords[0] !== 0 ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-inner' : 'border-border text-gray-400 opacity-60'}`}
-                      >
-                        {isFetchingLocation ? 'Locating...' : coords[0] !== 0 ? 'Location Detected ✓' : 'Use Current Location'}
-                      </button>
+              <motion.form
+                key="s5"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                onSubmit={e => {
+                  e.preventDefault();
+                  if (formData.kycAadhaarPhoto && formData.kycPanPhoto) setStep(6);
+                  else toast({ title: "Documents Required", description: "Please upload both Aadhaar and PAN photos.", variant: "destructive" });
+                }}
+                className="space-y-6"
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Owner Full Name</label>
+                      <input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. John Doe" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>
+                      <input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. Sharma Experts" />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">State</label>
-                      <input type="text" value={formData.state} onChange={e => setFormData(prev => ({ ...prev, state: e.target.value }))} className="w-full rounded-2xl border border-border bg-background p-4 font-bold text-xs" placeholder="Maharashtra" />
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">GST Number (Opt)</label>
+                      <input value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="GST" />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">City</label>
-                      <input type="text" value={formData.city} onChange={e => setFormData(prev => ({ ...prev, city: e.target.value }))} className="w-full rounded-2xl border border-border bg-background p-4 font-bold text-xs" placeholder="Mumbai" />
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Aadhaar Number</label>
+                      <input required value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="12-Digit Aadhaar No" />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Detailed Address</label>
+                  <div className="space-y-1.5 group">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Create Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+                      <input type="password" required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Enter a strong password" />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 space-y-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Document Evidence</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      {['kycAadhaarPhoto', 'kycPanPhoto'].map(type => (
+                        <label key={type} className={`relative group flex flex-col items-center justify-center h-24 rounded-lg border-2 border-dashed transition-all cursor-pointer overflow-hidden ${formData[type] ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50 hover:border-emerald-200'}`}>
+                          <input type="file" className="hidden" onChange={e => handleFileUpload(e, type)} />
+                          {formData[type] ? (
+                            <img src={formData[type]} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center space-y-2">
+                              {isUploading ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : <Camera className="h-6 w-6 text-slate-300 group-hover:text-emerald-500 transition-colors" />}
+                              <span className="text-[9px] font-bold uppercase text-slate-400 group-hover:text-emerald-600 transition-colors">{type.includes('Aadhaar') ? 'Aadhaar' : 'PAN Card'}</span>
+                            </div>
+                          )}
+                          {formData[type] && !isUploading && (
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <ImageIcon className="h-6 w-6 text-white" />
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Business Address</label>
+                      <button type="button" onClick={fetchLocation} className="text-[10px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        Auto-Locate
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="text" placeholder="State" value={formData.state} onChange={e => setFormData(prev => ({ ...prev, state: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300" />
+                      <input type="text" placeholder="City" value={formData.city} onChange={e => setFormData(prev => ({ ...prev, city: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300" />
+                    </div>
                     <textarea
                       required
                       value={formData.address}
                       onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                      className="w-full rounded-2xl border border-border bg-background p-4 font-bold text-xs focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all placeholder:opacity-50"
-                      rows={3}
-                      placeholder="Building, Street, Landmark..."
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 min-h-[80px] outline-none focus:bg-white focus:border-emerald-500 transition-all placeholder:text-slate-300"
+                      placeholder="Full physical address..."
                     />
                   </div>
                 </div>
-                <button type="submit" disabled={isUploading} className="w-full rounded-2xl bg-emerald-600 py-5 font-black text-white shadow-xl shadow-emerald-600/20 uppercase text-xs tracking-widest transition-all active:scale-95">{isUploading ? 'Uploading Docs...' : 'Create Profile'}</button>
+
+                <div className="space-y-4">
+                  <button type="submit" disabled={isUploading} className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs">
+                    {isUploading ? 'Securing Media...' : 'Finalize Profile'}
+                  </button>
+                  <button type="button" onClick={() => setStep(4)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
+                </div>
               </motion.form>
             )}
 
             {step === 6 && (
-              <motion.div key="s6" className="text-center space-y-8">
-                <div className="relative mx-auto w-44 h-44">
-                  <div className={`w-full h-full rounded-[60px] border-4 border-dashed flex items-center justify-center bg-gray-50 overflow-hidden rotate-3 ${formData.profileImage ? 'border-emerald-500 bg-white shadow-2xl' : 'border-gray-200'}`}>
-                    {formData.profileImage ? <img src={formData.profileImage} className="w-full h-full object-cover -rotate-3 scale-110" /> : <User className="h-20 w-20 text-gray-200 -rotate-3" />}
-                  </div>
-                  <label className="absolute -bottom-3 -right-3 h-16 w-16 bg-emerald-600 rounded-[2rem] flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white active:scale-90 transition-transform">
+              <motion.div
+                key="s6"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="text-center space-y-8 py-4"
+              >
+                <div className="relative mx-auto w-40 h-40">
+                  <motion.div
+                    initial={{ rotate: 10 }}
+                    animate={{ rotate: 0 }}
+                    className={`w-full h-full rounded-2xl border-4 border-dashed flex items-center justify-center bg-slate-50 overflow-hidden relative shadow-inner ${formData.profileImage ? 'border-emerald-500 bg-white' : 'border-slate-200'}`}
+                  >
+                    {formData.profileImage ? (
+                      <img src={formData.profileImage} className="w-full h-full object-cover scale-110" />
+                    ) : (
+                      <div className="flex flex-col items-center space-y-3">
+                        <User className="h-16 w-16 text-slate-200" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Selfie</span>
+                      </div>
+                    )}
+                  </motion.div>
+                  <label className="absolute -bottom-4 -right-4 h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white transition-all hover:scale-110 active:scale-90 active:rotate-12 group">
                     <input type="file" className="hidden" onChange={e => handleFileUpload(e, 'profileImage')} />
-                    {isUploading ? <Loader2 className="h-7 w-7 animate-spin" /> : <Camera className="h-7 w-7" />}
+                    {isUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6 group-hover:text-emerald-400 transition-colors" />}
                   </label>
                 </div>
-                <div><h3 className="text-2xl font-black tracking-tight">Identity Photo</h3><p className="text-[11px] font-bold text-gray-400 mt-2 px-10">Please upload a clear selfie for vendor verification and customer trust.</p></div>
-                <div className="flex flex-col gap-3">
-                  <button onClick={() => setStep(7)} disabled={!formData.profileImage} className="w-full rounded-2xl bg-emerald-600 py-5 font-black text-white shadow-xl shadow-emerald-600/20 uppercase text-xs tracking-widest disabled:opacity-50">Continue</button>
-                  <button onClick={() => setStep(5)} className="w-full py-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50 hover:opacity-100 transition-opacity">Back to Profile</button>
+
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-slate-800">Final Verification Photo</h3>
+                  <p className="text-xs text-slate-500 max-w-[280px] mx-auto leading-relaxed">Please capture a clear portrait. This helps build trust with your future customers.</p>
+                </div>
+
+                <div className="space-y-4 pt-6">
+                  <button
+                    onClick={() => setStep(7)}
+                    disabled={!formData.profileImage}
+                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs"
+                  >
+                    Save & Continue
+                  </button>
+                  <button onClick={() => setStep(5)} className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Information Review</button>
                 </div>
               </motion.div>
             )}
 
             {step === 7 && (
-              <motion.div key="s7" className="space-y-6 py-2">
-                <div className="space-y-4">
-                  <p className="text-[10px] font-black uppercase text-emerald-700 opacity-60 text-center tracking-widest">How did you find us?</p>
-
-                  <div className="grid grid-cols-1 gap-3">
-                    {[
-                      { id: 'individual', label: 'Individually', icon: User },
-                      { id: 'vendor_referral', label: 'By Vendor Referral', icon: Store },
-                      { id: 'employee', label: 'By RozSewa Employee', icon: Briefcase }
-                    ].map(type => (
-                      <button
-                        key={type.id}
-                        onClick={() => setFormData({ ...formData, registrationType: type.id, referredBy: "" })}
-                        className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${formData.registrationType === type.id ? 'border-emerald-500 bg-emerald-50 shadow-inner' : 'border-border bg-background hover:border-emerald-200'}`}
-                      >
-                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${formData.registrationType === type.id ? 'bg-emerald-600 text-white' : 'bg-muted text-gray-400'}`}>
-                          <type.icon className="h-5 w-5" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-[11px] font-black uppercase tracking-tight">{type.label}</p>
-                          <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-70">
-                            {type.id === 'individual' ? 'Direct registration' : type.id === 'vendor_referral' ? 'Partner referral' : 'Assisted registration'}
-                          </p>
-                        </div>
-                        {formData.registrationType === type.id && <CheckCircle className="h-4 w-4 text-emerald-600" />}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Conditional Code Input */}
-                  <AnimatePresence>
-                    {formData.registrationType !== 'individual' && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="bg-emerald-50/50 p-6 rounded-[2rem] border-2 border-emerald-100/50 flex flex-col items-center text-center mt-2">
-                          <h3 className="font-black text-emerald-900 text-xs uppercase tracking-tight mb-3">
-                            {formData.registrationType === 'vendor_referral' ? 'Enter Vendor Referral Code' : 'Enter Employee ID'}
-                          </h3>
-                          <div className="relative w-full">
-                            <input
-                              required
-                              value={formData.referredBy || ""}
-                              onChange={e => setFormData({ ...formData, referredBy: e.target.value.toUpperCase() })}
-                              className="w-full rounded-xl border-2 border-emerald-200 bg-white py-3.5 px-4 font-black text-xl text-center tracking-widest text-emerald-900 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all placeholder:opacity-30"
-                              placeholder={formData.registrationType === 'vendor_referral' ? "RSVND..." : "EMP..."}
-                            />
-                            <AnimatePresence>
-                              {verifyingReferral && (
-                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute right-4 top-1/2 -translate-y-1/2">
-                                  <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                          <AnimatePresence>
-                            {referredByName && (
-                              <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mt-3 px-4 py-2 bg-emerald-100 rounded-full border border-emerald-200">
-                                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-tight flex items-center gap-1.5">
-                                  <CheckCircle className="h-3 w-3" /> Referred by: {referredByName}
-                                </p>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                          <p className="text-[9px] font-black text-emerald-600/60 uppercase tracking-widest mt-3 italic">First 3 services will be commission-free! 🎁</p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+              <motion.div
+                key="s7"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Referral Program</h3>
+                  <p className="text-sm text-slate-500">Were you invited by someone or a member of our team?</p>
                 </div>
 
-                <div className="flex flex-col gap-3 px-2">
+                <div className="grid grid-cols-1 gap-3">
+                  {[
+                    { id: 'individual', label: 'Self Registration', icon: User, tag: 'Direct' },
+                    { id: 'vendor_referral', label: 'Partner Referral', icon: Store, tag: 'Via Vendor' },
+                    { id: 'employee', label: 'Expert Assisted', icon: Briefcase, tag: 'RozSewa Agent' }
+                  ].map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => setFormData({ ...formData, registrationType: type.id, referredBy: "" })}
+                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${formData.registrationType === type.id
+                        ? 'border-emerald-500 bg-emerald-50/50 shadow-sm'
+                        : 'border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-200'
+                        }`}
+                    >
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${formData.registrationType === type.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-300 border border-slate-100'
+                        }`}>
+                        <type.icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-sm font-bold tracking-tight ${formData.registrationType === type.id ? 'text-emerald-900' : 'text-slate-700'}`}>{type.label}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{type.tag}</p>
+                      </div>
+                      <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${formData.registrationType === type.id ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-200'
+                        }`}>
+                        {formData.registrationType === type.id && <CheckCircle className="h-3 w-3" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <AnimatePresence>
+                  {formData.registrationType !== 'individual' && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-slate-900 rounded-2xl p-6 text-white space-y-4 shadow-2xl"
+                    >
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-emerald-400 uppercase tracking-widest">Identification Code</h4>
+                        <p className="text-[11px] text-slate-400 italic">Enter the referral or employee ID provided to you.</p>
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          required
+                          value={formData.referredBy || ""}
+                          onChange={e => setFormData({ ...formData, referredBy: e.target.value.toUpperCase() })}
+                          className="w-full rounded-lg border border-white/10 bg-white/5 py-3 px-4 font-black text-xl text-center tracking-[0.3em] text-emerald-400 focus:bg-white/10 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all placeholder:text-white/10"
+                          placeholder="RS____"
+                        />
+                        {verifyingReferral && (
+                          <div className="absolute right-5 top-1/2 -translate-y-1/2">
+                            <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
+                          </div>
+                        )}
+                      </div>
+
+                      {referredByName && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+                          <CheckCircle className="h-4 w-4 text-emerald-400" />
+                          <span className="text-[10px] font-bold text-emerald-50 uppercase">Verified: {referredByName}</span>
+                        </motion.div>
+                      )}
+
+                      <div className="pt-2 flex items-center gap-2 opacity-60">
+                        <Gift className="h-3 w-3 text-emerald-400" />
+                        <span className="text-[10px] font-bold uppercase tracking-wide">3 Services Commission-Free Applied</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="space-y-4 pt-4">
                   <button
                     onClick={() => {
                       if (formData.registrationType !== 'individual' && !formData.referredBy) {
-                        toast({ title: "Code Required", description: "Please enter referral or employee code.", variant: "destructive" });
+                        toast({ title: "Incomplete", description: "Please enter the required code.", variant: "destructive" });
                         return;
                       }
                       setStep(8);
                     }}
-                    className="w-full rounded-2xl bg-emerald-600 py-4 font-black text-white shadow-xl shadow-emerald-600/20 uppercase text-[10px] tracking-[0.2em] transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3"
                   >
-                    Next Step
+                    Proceed to Verification
                     <ArrowRight className="h-4 w-4" />
                   </button>
-                  <button onClick={() => setStep(6)} className="w-full py-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest opacity-50 hover:opacity-100 transition-opacity">Go Back</button>
+                  <button onClick={() => setStep(6)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
                 </div>
               </motion.div>
             )}
 
             {step === 8 && (
-              <motion.form key="s8" onSubmit={handlePayment} className="space-y-6 text-center py-2">
-                <div className="relative rounded-[2rem] bg-gradient-to-br from-emerald-600 to-emerald-800 p-8 text-white shadow-2xl overflow-hidden group">
-                  {/* Glassmorphism Accents */}
-                  <div className="absolute -top-10 -right-10 h-32 w-32 bg-white/10 rounded-full blur-2xl group-hover:scale-125 transition-transform duration-700"></div>
-                  <div className="absolute -bottom-10 -left-10 h-24 w-24 bg-black/20 rounded-full blur-xl"></div>
+              <motion.form
+                key="s8"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                onSubmit={handlePayment}
+                className="space-y-6 py-2"
+              >
+                <div className="relative rounded-2xl bg-slate-950 p-8 text-white shadow-2xl overflow-hidden border border-white/5">
+                  <div className="absolute -top-12 -right-12 h-32 w-32 bg-emerald-500 rounded-full blur-[80px] opacity-20"></div>
+                  <div className="absolute -bottom-12 -left-12 h-32 w-32 bg-emerald-500 rounded-full blur-[60px] opacity-10"></div>
 
-                  <div className="relative flex flex-col items-center">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 mb-6">
-                      <ShieldCheck className="h-3 w-3 text-emerald-300" />
-                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-50">Identity Verified Card</span>
+                  <div className="relative space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-full px-3 py-1 flex items-center gap-1.5">
+                        <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Security Verified</span>
+                      </div>
+                      <div className="h-10 w-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center">
+                        <CreditCard className="h-5 w-5 text-white/40" />
+                      </div>
                     </div>
 
-                    <h3 className="text-xl font-black mb-1 tracking-tighter flex items-center gap-2">
-                      RozSewa <span className="bg-white text-emerald-700 px-1.5 py-0.5 rounded-lg text-[10px] uppercase">PRO</span>
-                    </h3>
-
-                    <div className="flex items-center justify-center gap-1 my-4">
-                      <span className="text-xl font-bold opacity-50">₹</span>
-                      <span className="text-5xl font-black tracking-tighter">{cardConfig.price}</span>
-                      <span className="text-[9px] uppercase font-black opacity-30 ml-2 tracking-widest mt-4">once</span>
+                    <div className="space-y-1">
+                      <h3 className="text-2xl font-bold tracking-tight">Expert Partner <span className="text-emerald-500">Tier</span></h3>
+                      <p className="text-xs text-slate-400 uppercase tracking-widest font-medium">Activation Subscription</p>
                     </div>
 
-                    <div className="w-full space-y-2 bg-black/10 backdrop-blur-md p-4 rounded-2xl border border-white/5 text-left">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-black italic">₹{cardConfig.price}</span>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">One-Time Fee</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 bg-white/5 rounded-2xl p-5 border border-white/10">
                       {[
-                        { icon: CheckCircle, text: "Permanent Partner ID" },
-                        { icon: Star, text: "Priority Business Leads" },
-                        { icon: ShieldCheck, text: "Verified Badge" }
-                      ].map((feature, i) => (
+                        { text: "Permanent Expert Badge", color: "emerald-400" },
+                        { text: "Priority Business Queue", color: "emerald-400" },
+                        { text: "24/7 Premium Support", color: "emerald-400" }
+                      ].map((f, i) => (
                         <div key={i} className="flex items-center gap-3">
-                          <div className="h-5 w-5 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                            <feature.icon className="h-3 w-3 text-emerald-300" />
-                          </div>
-                          <span className="text-[10px] font-black uppercase tracking-tight text-white/80">{feature.text}</span>
+                          <CheckCircle className={`h-3 w-3 text-${f.color}`} />
+                          <span className="text-[11px] font-bold text-slate-300 uppercase tracking-tight">{f.text}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
 
-                <div className="px-2 space-y-3">
-                  <button type="submit" disabled={isLoading} className="w-full rounded-2xl bg-gray-900 py-4 font-black text-white shadow-2xl flex items-center justify-center gap-4 uppercase text-[10px] tracking-widest hover:bg-emerald-600 active:scale-95 transition-all group overflow-hidden relative">
-                    <div className="absolute inset-0 bg-emerald-600 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                    <span className="relative z-10 flex items-center gap-2">
-                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      Finalize & Pay
-                    </span>
+                <div className="space-y-4">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-12 rounded-lg bg-emerald-600 text-white font-bold transition-all hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3 relative overflow-hidden group"
+                  >
+                    <AnimatePresence mode="wait">
+                      {isLoading ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <motion.div key="pay-text" className="flex items-center gap-3">
+                          <span>Activate My Account</span>
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </button>
-                  <button type="button" onClick={() => setStep(7)} className="w-full py-2 text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40 hover:opacity-100 transition-opacity">Go Back</button>
-                  <p className="mt-2 text-[8px] font-bold text-muted-foreground uppercase tracking-[0.3em] opacity-40 uppercase">Secure 256-bit encrypted payment</p>
+                  <div className="flex flex-col items-center gap-4">
+                    <button type="button" onClick={() => setStep(7)} className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous</button>
+                    <p className="text-[9px] font-medium text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <Lock className="h-3 w-3" /> Encrypted Payment Gateway
+                    </p>
+                  </div>
                 </div>
               </motion.form>
             )}
 
             {step === 9 && (
-              <motion.div key="s9" initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="py-6 space-y-6">
-                {/* Status Icon */}
-                <div className="flex flex-col items-center text-center space-y-3">
-                  <div className="h-20 w-20 bg-amber-50 border-4 border-amber-200 rounded-[2rem] flex items-center justify-center shadow-lg shadow-amber-100">
-                    <Clock className="h-10 w-10 text-amber-500 animate-pulse" />
+              <motion.div
+                key="s9"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-8 py-6 text-center"
+              >
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="h-24 w-24 bg-emerald-50 rounded-[2.5rem] flex items-center justify-center shadow-lg shadow-emerald-100 border border-emerald-100">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", damping: 12 }}
+                    >
+                      <CheckCircle className="h-12 w-12 text-emerald-500" />
+                    </motion.div>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-black tracking-tight text-foreground">Under Review</h3>
-                    <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase tracking-widest">Payment Received · Docs Pending</p>
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-bold text-slate-900 tracking-tight">Application Sent</h3>
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Verification in progress</p>
                   </div>
                 </div>
 
-                {/* Partner ID card */}
-                <div className="relative bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-2xl p-6 text-white overflow-hidden shadow-xl shadow-emerald-600/20">
-                  <div className="absolute -top-6 -right-6 h-24 w-24 bg-white/10 rounded-full blur-xl"></div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.3em] opacity-60 mb-1">Your Partner ID</p>
-                  <p className="text-3xl font-black font-mono tracking-widest text-emerald-100">{generatedCode}</p>
-                  <p className="text-[8px] font-bold opacity-40 mt-2 uppercase tracking-widest">Keep this ID safe for future reference</p>
+                <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden text-left shadow-2xl">
+                  <div className="absolute -top-10 -right-10 h-24 w-24 bg-emerald-500 rounded-full blur-[60px] opacity-20"></div>
+                  <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 opacity-60">Partner Identity Code</p>
+                  <p className="text-4xl font-black font-mono tracking-widest text-emerald-400">{generatedCode}</p>
+                  <p className="text-[9px] text-slate-400 italic mt-4">Save this code for your initial login and support inquiries.</p>
                 </div>
 
-                {/* Verification Steps */}
-                <div className="bg-muted/40 rounded-2xl p-4 space-y-3 text-left border border-border">
-                  {[
-                    { label: "Payment Received", done: true },
-                    { label: "Documents Submitted", done: true },
-                    { label: "Admin Verification (24–48 hrs)", done: false },
-                    { label: "Account Activated", done: false },
-                  ].map((step, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 ${step.done ? 'bg-emerald-500 shadow-sm shadow-emerald-300' : 'bg-border'}`}>
-                        {step.done
-                          ? <CheckCircle className="h-3 w-3 text-white" />
-                          : <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />}
-                      </div>
-                      <span className={`text-[10px] font-black uppercase tracking-tight ${step.done ? 'text-foreground' : 'text-muted-foreground opacity-50'}`}>{step.label}</span>
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  <Link to="/provider/login" className="flex h-14 w-full items-center justify-center gap-3 bg-slate-100 text-slate-800 rounded-xl font-bold hover:bg-slate-900 hover:text-white transition-all active:scale-[0.98] group">
+                    Enter Expert Dashboard
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                  <p className="text-[10px] text-slate-400 leading-relaxed max-w-[280px] mx-auto uppercase font-bold tracking-wider">Our team will verify your credentials within 24 hours.</p>
                 </div>
-
-                {/* CTA */}
-                <Link to="/provider/login" className="flex w-full justify-center items-center gap-3 bg-gray-900 py-4 rounded-2xl text-white font-black uppercase text-[10px] tracking-widest shadow-xl hover:bg-emerald-600 transition-all active:scale-95 group">
-                  Go to Dashboard
-                  <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
               </motion.div>
             )}
           </AnimatePresence>

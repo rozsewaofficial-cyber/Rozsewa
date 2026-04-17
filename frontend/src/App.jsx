@@ -99,7 +99,7 @@ const App = () => (
             <QueryClientProvider client={queryClient}>
               <TooltipProvider>
                 <Toaster />
-                <Sonner />
+                <Sonner position="bottom-right" expand={true} richColors />
                 <GlobalAlarm />
                 <AnimatePresence mode="wait">
                   <Routes>
@@ -132,7 +132,7 @@ const App = () => (
                     <Route path="/offers" element={<Offers />} />
 
                     {/* Provider Routes */}
-                    <Route path="/provider" element={<Navigate to="/provider/login" replace />} />
+                    <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider"]}><ProviderDashboard /></ProtectedRoute>} />
                     <Route path="/provider/login" element={<ProviderLogin />} />
                     <Route path="/provider/register" element={<ProviderRegister />} />
                     <Route path="/provider/profile" element={<ProviderProfile />} />

@@ -10,6 +10,7 @@ const AdminKYC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [providers, setProviders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [selectedDoc, setSelectedDoc] = useState(null);
 
     useEffect(() => {
         setTitle("KYC Verification");
@@ -80,7 +81,7 @@ const AdminKYC = () => {
                             <tr>
                                 <th className="px-6 py-5">Req Code</th>
                                 <th className="px-6 py-5">Vendor Detail</th>
-                                <th className="px-6 py-5">KYC Documents</th>
+                                <th className="px-6 py-5 text-center">Identity Proofs</th>
                                 <th className="px-6 py-5">Status</th>
                                 <th className="px-6 py-5 text-center">Actions</th>
                             </tr>
@@ -98,24 +99,52 @@ const AdminKYC = () => {
                                             <p className="font-extrabold text-gray-900 text-sm">{req.shopName}</p>
                                             <div className="flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-tighter">
                                                 <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {req.mobile}</span>
-                                                <span className="flex items-center gap-1 mx-2"><MapPin className="h-3 w-3 text-emerald-500" /> {req.address?.slice(0, 15)}...</span>
+                                                <span className="flex items-center gap-1 mx-2"><MapPin className="h-3 w-3 text-emerald-500" /> {req.city || 'Indore...'}</span>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-14 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-                                                <FileText className="h-5 w-5 text-gray-300" />
+                                        <div className="flex items-center justify-center gap-6">
+                                            {/* Aadhaar */}
+                                            <div className="flex items-center gap-2.5 group/doc">
+                                                <button
+                                                    onClick={() => req.kycAadhaarPhoto && setSelectedDoc({ url: req.kycAadhaarPhoto, label: 'Aadhaar Card' })}
+                                                    className="h-10 w-10 flex-shrink-0 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-200 transition-all cursor-pointer overflow-hidden"
+                                                >
+                                                    {req.kycAadhaarPhoto ? (
+                                                        <img src={req.kycAadhaarPhoto} alt="Aadhaar" className="h-full w-full object-cover transition-transform group-hover/doc:scale-110" />
+                                                    ) : (
+                                                        <FileText className="h-5 w-5 text-slate-300" />
+                                                    )}
+                                                </button>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Aadhaar Card</span>
+                                                    <span className="text-[11px] font-bold text-slate-900">{req.kycAadhaar || 'Not Provided'}</span>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-black text-gray-900 text-[11px] uppercase tracking-wider">{req.kycAadhaar ? 'Aadhaar Card' : 'No Document'}</p>
-                                                <p className="text-[10px] tracking-[0.2em] text-gray-500 font-bold">{req.kycAadhaar || 'N/A'}</p>
+
+                                            {/* PAN */}
+                                            <div className="flex items-center gap-2.5 group/doc">
+                                                <button
+                                                    onClick={() => req.kycPanPhoto && setSelectedDoc({ url: req.kycPanPhoto, label: 'PAN Card' })}
+                                                    className="h-10 w-10 flex-shrink-0 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-200 transition-all cursor-pointer overflow-hidden"
+                                                >
+                                                    {req.kycPanPhoto ? (
+                                                        <img src={req.kycPanPhoto} alt="PAN" className="h-full w-full object-cover transition-transform group-hover/doc:scale-110" />
+                                                    ) : (
+                                                        <FileText className="h-5 w-5 text-slate-300" />
+                                                    )}
+                                                </button>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-tighter">PAN Card</span>
+                                                    <span className="text-[11px] font-bold text-slate-900">{req.kycPan || 'Not Provided'}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border ${req.status === 'verified' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                                                req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-amber-50 text-amber-700 border-amber-100'
+                                            req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-amber-50 text-amber-700 border-amber-100'
                                             }`}>
                                             {req.status}
                                         </span>
@@ -151,6 +180,30 @@ const AdminKYC = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Document Preview Modal */}
+            {selectedDoc && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" onClick={() => setSelectedDoc(null)} />
+                    <div className="relative w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between p-6 border-b border-slate-100">
+                            <div>
+                                <h3 className="text-xl font-black text-slate-900">{selectedDoc.label}</h3>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Identity Verification Document</p>
+                            </div>
+                            <button onClick={() => setSelectedDoc(null)} className="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
+                                <XCircle className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <div className="p-8 flex items-center justify-center bg-slate-50">
+                            <img src={selectedDoc.url} alt="KYC Document" className="max-h-[60vh] w-auto rounded-xl shadow-lg" />
+                        </div>
+                        <div className="p-6 text-center bg-white">
+                            <button onClick={() => setSelectedDoc(null)} className="px-8 py-3 bg-slate-900 text-white font-bold rounded-xl text-xs uppercase tracking-widest">Close View</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

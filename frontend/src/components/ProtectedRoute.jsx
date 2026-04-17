@@ -18,9 +18,14 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role-based access if needed (Role can be customer, provider, admin)
+  // Check role-based access
   if (user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />;
+  }
+
+  // Mandatory check for providers: Must be approved to access features other than the base dashboard
+  if (user?.role === 'provider' && user?.status !== 'approved' && location.pathname !== '/provider') {
+    return <Navigate to="/provider" replace />;
   }
 
   return children;

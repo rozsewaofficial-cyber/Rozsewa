@@ -28,25 +28,27 @@ const ProviderDashboard = () => {
 
   const toggleOnline = async () => {
     const newState = !isOnline;
+    setIsOnline(newState); // Optimistic update
     try {
       await API.patch("/provider/status", { isOnline: newState });
-      setIsOnline(newState);
       toast({
         title: newState ? "You are now ONLINE" : "You are now OFFLINE",
         variant: newState ? "default" : "destructive"
       });
     } catch (err) {
+      setIsOnline(!newState); // Revert on failure
       toast({ title: "Failed to update status", variant: "destructive" });
     }
   };
 
   const toggleEmergency = async () => {
     const newState = !isEmergencyActive;
+    setIsEmergencyActive(newState); // Optimistic update
     try {
       await API.patch("/provider/status", { isEmergencyEnabled: newState });
-      setIsEmergencyActive(newState);
       toast({ title: newState ? "Emergency Mode ON" : "Emergency Mode OFF" });
     } catch (err) {
+      setIsEmergencyActive(!newState); // Revert on failure
       toast({ title: "Failed to update emergency mode", variant: "destructive" });
     }
   };
@@ -97,66 +99,103 @@ const ProviderDashboard = () => {
           <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
           <p className="text-[10px] font-bold text-muted-foreground">Need help? <Link to="/support" className="text-emerald-600 underline">Contact RozSewa Support</Link></p>
         </main>
-        <ProviderBottomNav />
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background pb-20 md:pb-8 relative">
+    <div className="min-h-[100dvh] bg-background pb-20 md:pb-8 relative transition-colors duration-500">
       <ProviderTopNav />
-      <main className="container max-w-6xl px-4 py-6 md:py-8 space-y-6 md:space-y-10">
-        <section className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground">Welcome back, {user?.shopName || "Partner"} 👋</h1>
-            <p className="text-xs md:text-sm text-muted-foreground mt-1 text-balance">Track your daily progress and business insights.</p>
+      <main className="container max-w-6xl px-4 py-6 md:py-10 space-y-8 md:space-y-12 animate-in fade-in duration-700">
+
+        {/* Superior Welcome Bar */}
+        <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+          <div className="space-y-1.5">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+              Welcome back, {user?.shopName || "Partner"} 👋
+            </h1>
+            <p className="text-[10px] md:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em]">
+              RozSewa Verified Professional
+            </p>
           </div>
 
-          <div className="flex bg-card border border-border rounded-xl md:rounded-2xl p-1.5 md:p-2 gap-2 shadow-sm w-full md:w-auto shrink-0">
+          <div className="flex bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl border border-emerald-100 dark:border-white/5 rounded-2xl p-1.5 gap-2 shadow-xl shadow-emerald-900/5 w-full md:w-auto shrink-0">
             <button onClick={toggleOnline}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl font-bold text-xs md:text-sm transition-all ${isOnline ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 border border-emerald-200" : "bg-muted text-muted-foreground border border-transparent"
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isOnline ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" : "bg-emerald-50/50 dark:bg-slate-800 text-emerald-300 dark:text-slate-500 border border-emerald-100 dark:border-slate-700"
                 }`}>
-              <div className={`h-2 w-2 md:h-2.5 md:w-2.5 rounded-full ${isOnline ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`} /> {isOnline ? "Online" : "Offline"}
+              <div className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-white animate-pulse" : "bg-emerald-200"}`} />
+              {isOnline ? "Online" : "Offline"}
             </button>
 
             <button onClick={toggleEmergency}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 md:py-2.5 rounded-lg md:rounded-xl font-bold text-xs md:text-sm transition-all ${isEmergencyActive ? "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border border-red-200" : "bg-muted text-muted-foreground border border-transparent"
+              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isEmergencyActive ? "bg-red-500 text-white shadow-lg shadow-red-500/30" : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-700"
                 }`}>
-              <ShieldAlert className={`h-3.5 w-3.5 md:h-4 md:w-4 ${isEmergencyActive ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`} /> Emergency 24x7
+              <ShieldAlert className="h-3.5 w-3.5" />
+              Emergency
             </button>
           </div>
         </section>
 
-        <section><EarningsWidget /></section>
+        {/* Global Stats */}
+        <section className="animate-in slide-in-from-bottom-5 duration-700 delay-150">
+          <EarningsWidget />
+        </section>
 
-        <section>
-          <div className="mb-3 md:mb-4">
-            <h2 className="text-lg md:text-xl font-black tracking-tight text-foreground">Manage Business</h2>
-            <p className="text-xs md:text-sm text-muted-foreground mt-0.5">Quick access to your platform tools</p>
+        {/* Action Grid */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <div className="space-y-1">
+              <h2 className="text-lg md:text-xl font-black tracking-tight text-slate-900 dark:text-white italic">Business Infrastructure</h2>
+              <div className="h-1 w-12 bg-emerald-500 rounded-full" />
+            </div>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
             {[
-              { icon: Briefcase, title: "Services", path: "/provider/services", color: "text-blue-600 bg-blue-50 border-blue-100" },
-              { icon: CalendarCheck, title: "Availability", path: "/provider/availability", color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
-              { icon: Tag, title: "Offers & Deals", path: "/provider/offers", color: "text-pink-600 bg-pink-50 border-pink-100" },
-              { icon: Wallet, title: "Wallet", path: "/provider/wallet", color: "text-green-600 bg-green-50 border-green-100" },
-              { icon: Star, title: "Reviews", path: "/provider/reviews", color: "text-amber-600 bg-amber-50 border-amber-100" },
-              { icon: CreditCard, title: "99 Card Center", path: "/provider/99card", color: "text-emerald-700 bg-emerald-100 border-emerald-200 shadow-emerald-500/20" },
-              { icon: FileText, title: "Documents", path: "/provider/documents", color: "text-orange-600 bg-orange-50 border-orange-100" },
-              { icon: Headset, title: "Support", path: "/provider/support", color: "text-cyan-600 bg-cyan-50 border-cyan-100" },
-              { icon: Settings, title: "Settings", path: "/provider/settings", color: "text-gray-600 bg-gray-100 border-gray-200" }
-            ].map((item, idx) => (
-              <Link key={idx} to={item.path}>
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }} className={`flex flex-col items-center justify-center p-4 md:p-6 rounded-2xl border border-border bg-card shadow-sm hover:shadow-md transition-all text-center h-full`}>
-                  <div className={`p-3 md:p-4 rounded-full border ${item.color} mb-2 md:mb-3`}><item.icon className="h-5 w-5 md:h-6 md:w-6" /></div>
-                  <h3 className="font-bold text-foreground text-xs md:text-sm">{item.title}</h3>
-                </motion.div>
-              </Link>
-            ))}
+              { iconPath: "/assets/3d_icons/services.png", title: "Services", desc: "Catalog", path: "/provider/services", bgColor: "bg-blue-50/80 dark:bg-blue-900/10", borderColor: "border-blue-100 dark:border-blue-900/20" },
+              { iconPath: "/assets/3d_icons/timing.png", title: "Timing", desc: "Schedule", path: "/provider/availability", bgColor: "bg-amber-50/80 dark:bg-amber-900/10", borderColor: "border-amber-100 dark:border-amber-900/20" },
+              { iconPath: "/assets/3d_icons/offers.png", title: "Offers", desc: "Growth", path: "/provider/offers", bgColor: "bg-pink-50/80 dark:bg-pink-900/10", borderColor: "border-pink-100 dark:border-pink-900/20" },
+              { iconPath: "/assets/3d_icons/wallet.png", title: "Wallet", desc: "Revenue", path: "/provider/wallet", bgColor: "bg-emerald-50/80 dark:bg-emerald-900/10", borderColor: "border-emerald-100 dark:border-emerald-900/20" },
+              { iconPath: "/assets/3d_icons/reviews.png", title: "Reviews", desc: "Ratings", path: "/provider/reviews", bgColor: "bg-yellow-50/80 dark:bg-yellow-900/10", borderColor: "border-yellow-100 dark:border-yellow-900/20" },
+              { iconPath: "/assets/3d_icons/99card.png", title: "99 Card", desc: "Partner Hub", path: "/provider/99card", bgColor: "bg-slate-100 dark:bg-slate-800/30", borderColor: "border-slate-200 dark:border-slate-700" },
+              { iconPath: "/assets/3d_icons/docs.png", title: "Docs", desc: "Vault", path: "/provider/documents", bgColor: "bg-cyan-50/80 dark:bg-cyan-900/10", borderColor: "border-cyan-100 dark:border-cyan-900/20" },
+              { iconPath: "/assets/3d_icons/support.png", title: "Support", desc: "Hotline", path: "/provider/support", bgColor: "bg-indigo-50/80 dark:bg-indigo-900/10", borderColor: "border-indigo-100 dark:border-indigo-900/20" },
+              { iconPath: "/assets/3d_icons/settings.png", title: "Settings", desc: "Admin", path: "/provider/settings", bgColor: "bg-gray-100/80 dark:bg-gray-800/30", borderColor: "border-gray-200 dark:border-gray-700" }
+            ].map((item, idx) => {
+              const miniIcons = [Briefcase, Clock, Tag, Wallet, Star, ShieldCheck, FileText, Headset, Settings];
+              const MiniIcon = miniIcons[idx];
+              return (
+                <Link key={idx} to={item.path} className="group">
+                  <motion.div
+                    whileHover={{ y: -6, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`relative flex flex-col p-6 rounded-[2rem] border ${item.borderColor} ${item.bgColor} shadow-[0_8px_30px_rgb(0,0,0,0.02)] transition-all h-full overflow-hidden text-center`}
+                  >
+                    <div className="h-16 w-16 self-center mb-4 transition-all group-hover:scale-110 flex items-center justify-center">
+                      <img
+                        src={item.iconPath}
+                        alt={item.title}
+                        className={`max-h-full max-w-full object-contain mix-blend-multiply dark:mix-blend-normal ${item.title === "Support" ? "scale-125" : ""}`}
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-center gap-1.5 mb-0.5">
+                        <h3 className="font-black text-slate-900 dark:text-white text-sm tracking-tight">{item.title}</h3>
+                        <MiniIcon className="h-3 w-3 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter">{item.desc}</p>
+                    </div>
+                  </motion.div>
+                </Link>
+              );
+            })}
           </div>
         </section>
 
-        <section><RecentBookingsList /></section>
+        {/* Activity Stream */}
+        <section className="pb-10 md:pb-0">
+          <RecentBookingsList />
+        </section>
       </main>
       <ProviderBottomNav />
 

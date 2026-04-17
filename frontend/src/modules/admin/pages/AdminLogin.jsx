@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, ShieldCheck, Mail, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShieldCheck, Mail, Lock, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -50,91 +50,95 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50 flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 shadow-inner">
-            <ShieldCheck className="h-10 w-10 text-emerald-600" />
-          </div>
-        </motion.div>
-        <motion.h2 initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="mt-6 text-center text-3xl font-extrabold text-gray-900 tracking-tight">
-          Admin Portal
-        </motion.h2>
-        <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="mt-2 text-center text-sm text-gray-600 font-medium">
-          Authorized personnel only
-        </motion.p>
-      </div>
-
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-xl shadow-emerald-900/5 sm:rounded-3xl sm:px-10 border border-gray-100">
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-bold text-gray-700">Email address</label>
-              <div className="mt-2 relative rounded-xl shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium transition-colors"
-                  placeholder="admin@rozsewa.com"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-bold text-gray-700">Password</label>
-              <div className="mt-2 relative rounded-xl shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium transition-colors"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input id="remember-me" name="remember-me" type="checkbox" className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded" />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 font-medium">Remember me</label>
-              </div>
-            </div>
-
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              disabled={isLoading}
-              type="submit"
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-md text-sm font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors disabled:opacity-70 group"
-            >
-              {isLoading ? "Authenticating..." : "Sign in to Dashboard"}
-              {!isLoading && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />}
-            </motion.button>
-          </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Demo Credentials</span>
-              </div>
-            </div>
-            <div className="mt-6 grid grid-cols-1 gap-3 text-center">
-              <p className="text-xs text-gray-500 font-mono">User: admin@rozsewa.com | Pass: admin123</p>
-            </div>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#fdfdfd] px-4 py-8 md:py-16">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center space-y-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mx-auto flex h-20 w-40 items-center justify-center rounded-2xl bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
+          >
+            <img src="/RozSewa.png" alt="RozSewa Logo" className="h-full w-full object-contain" />
+          </motion.div>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Admin Terminal</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Authorized Access Only</p>
           </div>
         </div>
-      </motion.div>
+
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative rounded-[2rem] border border-slate-100 bg-white p-8 md:p-10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.05)] overflow-hidden"
+        >
+          <form className="space-y-6" onSubmit={handleLogin}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Email Terminal</label>
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none placeholder:text-slate-300"
+                    placeholder="admin@rozsewa.com"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Secure Key</label>
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none placeholder:text-slate-300"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                disabled={isLoading}
+                type="submit"
+                className="w-full h-14 rounded-xl bg-slate-950 text-white font-bold transition-all hover:bg-slate-900 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3 group"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    Initialize Admin Session
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </>
+                )}
+              </motion.button>
+            </div>
+          </form>
+
+          <div className="mt-8 border-t border-slate-50 pt-6">
+            <div className="flex flex-col items-center gap-1.5 opacity-40">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
+                RozSewa Infrastructure v3.0<br />End-to-End Encryption Enabled
+              </p>
+            </div>
+          </div>
+        </motion.div>
+
+        <p className="text-center">
+          <Link to="/provider/login" className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-emerald-600 transition-colors">
+            Switch to Provider Portal
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };

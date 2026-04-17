@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 120 20% 98%;
+    --background: 146 35% 93%;
     --foreground: 150 30% 8%;
 
     --card: 0 0% 100%;
@@ -103,6 +103,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
@@ -113,35 +114,57 @@
   .glass {
     @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg dark:bg-[#212121] dark:border-[#212121] dark:shadow-none;
   }
+
   .glass-dark {
     @apply bg-black/30 backdrop-blur-xl border border-white/10 shadow-lg;
   }
+
   .text-gradient-primary {
     @apply bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent;
   }
+
   .shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--primary) / 0.08) 25%,
-      hsl(var(--primary) / 0.18) 50%,
-      hsl(var(--primary) / 0.08) 75%
-    );
+    background: linear-gradient(90deg,
+        hsl(var(--primary) / 0.08) 25%,
+        hsl(var(--primary) / 0.18) 50%,
+        hsl(var(--primary) / 0.08) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px hsl(var(--emergency) / 0.4), 0 0 40px hsl(var(--emergency) / 0.2); }
-  50% { box-shadow: 0 0 30px hsl(var(--emergency) / 0.6), 0 0 60px hsl(var(--emergency) / 0.3); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px hsl(var(--emergency) / 0.4), 0 0 40px hsl(var(--emergency) / 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 30px hsl(var(--emergency) / 0.6), 0 0 60px hsl(var(--emergency) / 0.3);
+  }
 }
 
 @keyframes emergency-pulse {
-  0%, 100% { box-shadow: 0 0 20px hsl(0 84% 60% / 0.3), 0 0 40px hsl(var(--emergency) / 0.2); transform: scale(1); }
-  50% { box-shadow: 0 0 35px hsl(0 84% 60% / 0.5), 0 0 70px hsl(var(--emergency) / 0.3); transform: scale(1.02); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 20px hsl(0 84% 60% / 0.3), 0 0 40px hsl(var(--emergency) / 0.2);
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow: 0 0 35px hsl(0 84% 60% / 0.5), 0 0 70px hsl(var(--emergency) / 0.3);
+    transform: scale(1.02);
+  }
 }

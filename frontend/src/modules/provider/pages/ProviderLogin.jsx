@@ -41,9 +41,13 @@ const ProviderLogin = () => {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500 shadow-lg shadow-emerald-200"
+            className="mx-auto flex h-20 w-40 items-center justify-center rounded-2xl bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
           >
-            <Store className="h-8 w-8 text-white" />
+            <img
+              src="/RozSewa.png"
+              alt="RozSewa Logo"
+              className="h-full w-full object-contain"
+            />
           </motion.div>
           <h2 className="mt-6 text-2xl font-bold tracking-tight text-slate-900">
             Provider Portal
@@ -131,7 +135,7 @@ const ProviderLogin = () => {
             </p>
           </div>
         </motion.div>
-        
+
         <p className="mt-8 text-center text-[11px] text-slate-400 font-medium">
           Protected by Rozsewa Security. Terms apply.
         </p>
