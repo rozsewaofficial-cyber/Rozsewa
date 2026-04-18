@@ -46,6 +46,7 @@ const ShopDetail = () => {
   const [serviceFilter, setServiceFilter] = useState("all");
   const [provider, setProvider] = useState(null);
   const [servicesList, setServicesList] = useState([]);
+  const [combosList, setCombosList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -74,7 +75,10 @@ const ShopDetail = () => {
       }
 
       // 2. Fetch services for this provider
-      const { data: services } = await API.get(`/public/services/${id}`);
+      const { data } = await API.get(`/public/services/${id}`);
+      const services = data.services || [];
+      const combos = data.combos || [];
+
       const mappedServices = services.map(s => ({
         id: s._id,
         name: s.name,
@@ -90,6 +94,16 @@ const ShopDetail = () => {
         ]
       }));
       setServicesList(mappedServices);
+
+      const mappedCombos = combos.map(c => ({
+        id: c._id,
+        name: c.name,
+        description: c.description,
+        price: c.price,
+        image: c.image,
+        services: c.services
+      }));
+      setCombosList(mappedCombos);
 
     } catch (error) {
       console.error("Error loading shop detail:", error);
@@ -117,10 +131,14 @@ const ShopDetail = () => {
   };
 
   const getPlanDetails = (planId) => {
+    // Check individual services
     for (const s of servicesList) {
       const p = s.plans.find(pl => pl.id === planId);
       if (p) return { serviceName: s.name, planName: p.name, price: p.price, duration: s.duration, expressPrice: s.expressPrice };
     }
+    // Check combos
+    const combo = combosList.find(c => c.id === planId);
+    if (combo) return { serviceName: combo.name, planName: "Combo Offer", price: combo.price, duration: "Varries", expressPrice: 0 };
     return null;
   };
 
@@ -225,6 +243,48 @@ const ShopDetail = () => {
         <AnimatePresence mode="wait">
           {tab === "services" && (
             <motion.div key="services" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+
+              {combosList.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-black italic tracking-tight text-slate-800 uppercase">Combo Deals <span className="text-primary text-[10px] bg-primary/10 px-2 py-0.5 rounded-full not-italic">SAVE BIG</span></h2>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4">
+                    {combosList.map((combo) => (
+                      <motion.div key={combo.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                        className="relative rounded-3xl border border-emerald-500/20 bg-emerald-50/30 overflow-hidden flex flex-col sm:flex-row shadow-sm">
+                        {combo.image && (
+                          <div className="h-32 sm:h-auto sm:w-32 shrink-0">
+                            <img src={combo.image} className="h-full w-full object-cover" alt={combo.name} />
+                          </div>
+                        )}
+                        <div className="p-4 flex-1">
+                          <h3 className="text-sm font-black text-slate-900 leading-tight">{combo.name}</h3>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {combo.services.map(s => (
+                              <span key={s._id} className="text-[9px] font-bold text-emerald-700 bg-emerald-100/50 px-2 py-0.5 rounded-md">+ {s.name}</span>
+                            ))}
+                          </div>
+                          <div className="mt-3 flex items-center justify-between">
+                            <span className="text-base font-black text-emerald-600">₹{combo.price}</span>
+                            <div className="shrink-0">
+                              {cart[combo.id] ? (
+                                <div className="flex items-center gap-2 bg-white rounded-xl p-1 border border-emerald-500 shadow-sm">
+                                  <button onClick={() => removeFromCart(combo.id)} className="h-6 w-6 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Minus className="h-3 w-3" /></button>
+                                  <span className="w-4 text-center text-xs font-bold">{cart[combo.id]}</span>
+                                  <button onClick={() => addToCart(combo.id)} className="h-6 w-6 flex items-center justify-center rounded-lg bg-emerald-600 text-white"><Plus className="h-3 w-3" /></button>
+                                </div>
+                              ) : (
+                                <button onClick={() => addToCart(combo.id)} className="px-5 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">ADD BUNDLE</button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex bg-muted p-1 rounded-xl text-xs font-bold mb-4">
                 <button onClick={() => setServiceFilter('all')} className={`flex-1 py-2 rounded-lg transition-all ${serviceFilter === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>All Services</button>

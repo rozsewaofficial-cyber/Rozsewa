@@ -35,7 +35,17 @@ const providerSchema = mongoose.Schema({
     gst: { type: String },
     kycAadhaar: { type: String },
     kycAadhaarPhoto: { type: String },
+    kycAadhaarBackPhoto: { type: String },
+    kycPanNumber: { type: String },
     kycPanPhoto: { type: String },
+    bankDetails: {
+        accountNumber: { type: String },
+        ifscCode: { type: String },
+        bankName: { type: String },
+        accountHolderName: { type: String }
+    },
+    openingTime: { type: String, default: "09:00 AM" },
+    closingTime: { type: String, default: "09:00 PM" },
     status: { type: String, enum: ['pending', 'verified', 'suspended'], default: 'pending' },
     isOnline: { type: Boolean, default: true },
     isEmergencyEnabled: { type: Boolean, default: false },

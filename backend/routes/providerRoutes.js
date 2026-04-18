@@ -8,7 +8,8 @@ const {
     updateProviderProfile,
     getProviderStats,
     checkProviderExistence,
-    uploadDocument
+    uploadDocument,
+    sendEmergencyAlert
 } = require('../controllers/providerController');
 const { getPublicCategories } = require('../controllers/categoryController');
 const { protect } = require('../middleware/authMiddleware');
@@ -26,5 +27,6 @@ router.put('/profile', protect, updateProviderProfile);
 router.get('/stats', protect, getProviderStats);
 router.patch('/status', protect, updateProviderStatus);
 router.post('/documents', protect, upload.single('document'), uploadDocument);
+router.post('/emergency-alert', protect, sendEmergencyAlert || ((req, res) => res.status(501).send("Not Implemented")));
 
 module.exports = router;

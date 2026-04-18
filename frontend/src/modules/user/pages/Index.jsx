@@ -51,9 +51,10 @@ const Index = () => {
   const fetchHomeData = async () => {
     setLoading(true);
     try {
+      const savedCity = localStorage.getItem("rozsewa_user_city");
       const providersEndpoint = userLocation
         ? `/public/featured-providers?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=15`
-        : "/public/featured-providers";
+        : `/public/featured-providers${savedCity ? `?city=${savedCity}` : ""}`;
 
       const [bannersRes, providersRes] = await Promise.all([
         API.get("/public/banners"),
@@ -64,11 +65,6 @@ const Index = () => {
       setBanners(bannersRes.data);
 
       let providersData = providersRes.data;
-      // If no providers in 15km radius, fetch all verified providers as fallback
-      if (providersData.length === 0 && userLocation) {
-        const allRes = await API.get("/public/featured-providers");
-        providersData = allRes.data;
-      }
 
       const mappedProviders = providersData.map(p => ({
         id: p._id,

@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus } from "lucide-react";
+import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink } from "lucide-react";
+import LiveTrackingView from "./LiveTrackingView";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -9,6 +10,7 @@ const RecentBookingsList = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("pending");
   const [staffList, setStaffList] = useState([]);
+  const [activeTracking, setActiveTracking] = useState(null);
   const { toast } = useToast();
 
   const [isUploading, setIsUploading] = useState(false);
@@ -224,6 +226,12 @@ const RecentBookingsList = () => {
                       <p className="text-[10px] font-bold text-amber-600 uppercase">Tell User this OTP to Start</p>
                       <p className="text-2xl font-black text-amber-700 dark:text-amber-400 tracking-[0.5em]">{req.startOTP || "----"}</p>
                     </div>
+                    <button
+                      onClick={() => setActiveTracking(req.location.coordinates)}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest"
+                    >
+                      <MapIcon className="h-4 w-4" /> Open In-App Live Tracking
+                    </button>
                     <p className="text-[10px] text-center text-muted-foreground animate-pulse">Waiting for User to enter code...</p>
                   </div>
                 )}
@@ -415,6 +423,13 @@ const RecentBookingsList = () => {
           </div>
         )}
       </AnimatePresence>
+      {/* LIVE TRACKING MODAL */}
+      {activeTracking && (
+        <LiveTrackingView
+          destination={activeTracking}
+          onClose={() => setActiveTracking(null)}
+        />
+      )}
     </div>
   );
 };

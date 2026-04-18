@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
-import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2 } from "lucide-react";
+import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Clock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -31,7 +31,10 @@ const ProviderProfile = () => {
         mobile: user.mobile || "",
         address: user.address || "",
         profileImage: user.profileImage || null,
-        location: user.location || null
+        location: user.location || null,
+        openingTime: user.openingTime || "09:00 AM",
+        closingTime: user.closingTime || "09:00 PM",
+        bankDetails: user.bankDetails || { accountNumber: "", ifscCode: "", bankName: "", accountHolderName: "" }
       });
     }
   }, [user]);
@@ -41,8 +44,15 @@ const ProviderProfile = () => {
   const toggleEdit = async () => {
     if (isEditing) {
       try {
+        const isShopNameChanged = profileData.shopName !== user.shopName;
+        if (isShopNameChanged && !window.confirm("Changing shop name will reset your verification status to PENDING. Admin will need to re-verify your business. Continue?")) {
+          return;
+        }
         await API.put("/provider/profile", profileData);
         toast({ title: "Profile Updated", description: "Your business details have been saved." });
+        if (isShopNameChanged) {
+          window.location.reload();
+        }
       } catch (err) {
         toast({ title: "Update Failed", variant: "destructive" });
       }
@@ -100,21 +110,40 @@ const ProviderProfile = () => {
           <div className="space-y-4">
             {[
               { icon: User, label: "Owner Name", field: "ownerName", type: "text" },
-              { icon: Store, label: "Shop Name", field: "shopName", type: "text" },
+              { icon: Store, label: "Shop Name", field: "shopName", type: "text", warning: "Changing this resets verification!" },
               { icon: Phone, label: "Mobile Number", field: "mobile", type: "tel", disabled: true },
-              { icon: MapPin, label: "Shop Address", field: "address", type: "textarea" }
+              { icon: MapPin, label: "Shop Address", field: "address", type: "textarea" },
+              { icon: Clock, label: "Opening Time", field: "openingTime", type: "text" },
+              { icon: Clock, label: "Closing Time", field: "closingTime", type: "text" }
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-4 border-b border-border/50 pb-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted"><item.icon className="h-5 w-5 text-muted-foreground" /></div>
                 <div className="flex-1">
                   <p className="text-xs font-medium text-muted-foreground">{item.label}</p>
                   {isEditing && !item.disabled ? (
-                    item.type === "textarea" ? <textarea rows={2} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => setProfileData({ ...profileData, [item.field]: e.target.value })} />
-                      : <input type={item.type} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => setProfileData({ ...profileData, [item.field]: e.target.value })} />
-                  ) : <p className="font-semibold text-foreground">{profileData[item.field]}</p>}
+                    <div className="space-y-1">
+                      {item.type === "textarea"
+                        ? <textarea rows={2} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => setProfileData({ ...profileData, [item.field]: e.target.value })} />
+                        : <input type={item.type} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => setProfileData({ ...profileData, [item.field]: e.target.value })} />
+                      }
+                      {item.warning && <p className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">{item.warning}</p>}
+                    </div>
+                  ) : <p className="font-semibold text-foreground">{profileData[item.field] || 'Not Set'}</p>}
                 </div>
               </div>
             ))}
+
+            {isEditing && (
+              <div className="space-y-4 mt-6 pt-4 border-t border-border text-left">
+                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Bank Payout Info</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input placeholder="Account Number" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountNumber} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountNumber: e.target.value } })} />
+                  <input placeholder="IFSC Code" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.ifscCode} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, ifscCode: e.target.value } })} />
+                  <input placeholder="Bank Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.bankName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, bankName: e.target.value } })} />
+                  <input placeholder="Holder Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountHolderName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountHolderName: e.target.value } })} />
+                </div>
+              </div>
+            )}
             {isEditing && (
               <button
                 type="button"

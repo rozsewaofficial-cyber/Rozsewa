@@ -8,7 +8,8 @@ const Employee = require('../models/Employee');
 const registerProvider = async (req, res) => {
     const {
         mobile, ownerName, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
-        gst, kycAadhaar, kycAadhaarPhoto, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy
+        gst, kycAadhaar, kycAadhaarPhoto, kycAadhaarBackPhoto, kycPanNumber, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy,
+        bankDetails
     } = req.body;
 
     try {
@@ -50,7 +51,8 @@ const registerProvider = async (req, res) => {
 
         // Prepare initial documents array from registration data
         const initialDocs = [];
-        if (kycAadhaarPhoto) initialDocs.push({ id: 'aadhaar', url: kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Registration.jpg' });
+        if (kycAadhaarPhoto) initialDocs.push({ id: 'aadhaar_front', url: kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Front.jpg' });
+        if (kycAadhaarBackPhoto) initialDocs.push({ id: 'aadhaar_back', url: kycAadhaarBackPhoto, status: 'pending', fileName: 'Aadhaar_Back.jpg' });
         if (kycPanPhoto) initialDocs.push({ id: 'pan', url: kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' });
         if (gst) initialDocs.push({ id: 'gst', url: gst, status: 'pending', fileName: 'GST_Registration.jpg' });
 
@@ -70,11 +72,14 @@ const registerProvider = async (req, res) => {
             gst,
             kycAadhaar,
             kycAadhaarPhoto,
+            kycAadhaarBackPhoto,
+            kycPanNumber,
             kycPanPhoto,
             referralCode,
             employeeCode,
             registrationType: registrationType || 'individual',
             referredBy: referredBy || null,
+            bankDetails: bankDetails || null,
             freeServicesLeft,
             documents: initialDocs,
             location: req.body.location,
@@ -144,7 +149,8 @@ const getProviderProfile = async (req, res) => {
             // Auto-sync legacy documents to the new array if it's empty
             if (!provider.documents || provider.documents.length === 0) {
                 let changed = false;
-                if (provider.kycAadhaarPhoto) { provider.documents.push({ id: 'aadhaar', url: provider.kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Registration.jpg' }); changed = true; }
+                if (provider.kycAadhaarPhoto) { provider.documents.push({ id: 'aadhaar_front', url: provider.kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Front.jpg' }); changed = true; }
+                if (provider.kycAadhaarBackPhoto) { provider.documents.push({ id: 'aadhaar_back', url: provider.kycAadhaarBackPhoto, status: 'pending', fileName: 'Aadhaar_Back.jpg' }); changed = true; }
                 if (provider.kycPanPhoto) { provider.documents.push({ id: 'pan', url: provider.kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' }); changed = true; }
                 if (provider.gst && provider.gst.startsWith('http')) { provider.documents.push({ id: 'gst', url: provider.gst, status: 'pending', fileName: 'GST_Registration.jpg' }); changed = true; }
 
@@ -209,15 +215,33 @@ const updateProviderProfile = async (req, res) => {
         const provider = await Provider.findById(req.user._id);
 
         if (provider) {
+            // Check if critical fields are changing
+            const nameChanged = req.body.shopName && req.body.shopName !== provider.shopName;
+
             provider.ownerName = req.body.ownerName || provider.ownerName;
             provider.shopName = req.body.shopName || provider.shopName;
             provider.email = req.body.email || provider.email;
             provider.vendorType = req.body.category || req.body.vendorType || provider.vendorType;
             provider.address = req.body.address || provider.address;
             provider.profileImage = req.body.profileImage || provider.profileImage;
+            provider.openingTime = req.body.openingTime || provider.openingTime;
+            provider.closingTime = req.body.closingTime || provider.closingTime;
+
+            if (req.body.bankDetails) {
+                provider.bankDetails = {
+                    ...provider.bankDetails,
+                    ...req.body.bankDetails
+                };
+            }
 
             if (req.body.location) {
                 provider.location = req.body.location;
+            }
+
+            // Admin Control: If shop name changes, profile needs re-verification
+            if (nameChanged && provider.status === 'verified') {
+                provider.status = 'pending';
+                provider.kycVerified = false; // Require re-verification
             }
 
             const updatedProvider = await provider.save();
@@ -252,30 +276,84 @@ const getProviderStats = async (req, res) => {
             status: 'completed'
         });
 
-        const now = new Date();
-        const startOfDay = new Date(now.setHours(0, 0, 0, 0));
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const week = new Date();
+        week.setDate(week.getDate() - week.getDay());
+        week.setHours(0, 0, 0, 0);
+
+        const month = new Date();
+        month.setDate(1);
+        month.setHours(0, 0, 0, 0);
 
         let todayEarnings = 0;
         let weekEarnings = 0;
         let monthEarnings = 0;
 
+        // Dynamic Chart Data
+        const performance = [];
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            performance.push({
+                day: days[d.getDay()],
+                date: new Date(d).setHours(0, 0, 0, 0),
+                amount: 0
+            });
+        }
+
         bookings.forEach(b => {
             const bDate = new Date(b.createdAt);
-            const amt = b.totalAmount || 0;
+            const amt = b.totalAmount || b.totalPrice || b.amount || 0;
 
-            if (bDate >= startOfDay) todayEarnings += amt;
-            if (bDate >= startOfWeek) weekEarnings += amt;
-            if (bDate >= startOfMonth) monthEarnings += amt;
+            if (bDate >= today) todayEarnings += amt;
+            if (bDate >= week) weekEarnings += amt;
+            if (bDate >= month) monthEarnings += amt;
+
+            const bDayTime = new Date(b.createdAt).setHours(0, 0, 0, 0);
+            const chartDay = performance.find(p => p.date === bDayTime);
+            if (chartDay) chartDay.amount += amt;
         });
 
         res.json({
             today: todayEarnings,
             week: weekEarnings,
             month: monthEarnings,
-            totalBookings: bookings.length
+            totalBookings: bookings.length,
+            chartData: performance.map(({ day, amount }) => ({ day, amount }))
         });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Create an emergency alert
+// @route   POST /api/provider/emergency-alert
+// @access  Private (Provider)
+const sendEmergencyAlert = async (req, res) => {
+    try {
+        const EmergencyAlert = require('../models/EmergencyAlert');
+        const Provider = require('../models/Provider');
+        const { coordinates, address } = req.body;
+        console.log("SOS TRIGGERED for Provider:", req.user._id, "Coords:", coordinates);
+        const provider = await Provider.findById(req.user._id);
+
+        if (!provider) return res.status(404).json({ message: "Provider not found" });
+
+        const alert = await EmergencyAlert.create({
+            providerId: req.user._id,
+            mobile: provider.mobile,
+            location: {
+                type: 'Point',
+                coordinates: coordinates || provider.location?.coordinates || [0, 0]
+            },
+            address: address || provider.address,
+            status: 'pending'
+        });
+
+        res.status(201).json({ success: true, alert });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -346,4 +424,5 @@ module.exports = {
     getProviderStats,
     checkProviderExistence,
     uploadDocument,
+    sendEmergencyAlert
 };

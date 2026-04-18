@@ -40,6 +40,8 @@ const registerUser = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 mobile: user.mobile,
+                city: user.city,
+                address: user.address,
                 role: user.role,
                 token: generateToken(user._id),
             });
@@ -73,6 +75,8 @@ const authUser = async (req, res) => {
                 email: user.email,
                 mobile: user.mobile,
                 role: user.role,
+                city: user.city,
+                address: user.address,
                 avatar: user.avatar,
                 token: generateToken(user._id),
             });
@@ -104,6 +108,8 @@ const getUserProfile = async (req, res) => {
                 role: user.role || (user.ownerName ? 'provider' : 'customer'),
                 avatar: user.avatar || user.profileImage,
                 addresses: user.addresses || [],
+                city: user.city || "",
+                address: user.address || "",
                 favorites: user.favorites || [],
                 vendorCode: user.vendorCode || "",
                 commissionFreeBookings: user.commissionFreeBookings || 0,

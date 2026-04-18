@@ -104,19 +104,31 @@ const AdminKYC = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center justify-center gap-6">
+                                        <div className="flex items-center justify-center gap-10">
                                             {/* Aadhaar */}
                                             <div className="flex items-center gap-2.5 group/doc">
-                                                <button
-                                                    onClick={() => req.kycAadhaarPhoto && setSelectedDoc({ url: req.kycAadhaarPhoto, label: 'Aadhaar Card' })}
-                                                    className="h-10 w-10 flex-shrink-0 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-200 transition-all cursor-pointer overflow-hidden"
-                                                >
-                                                    {req.kycAadhaarPhoto ? (
-                                                        <img src={req.kycAadhaarPhoto} alt="Aadhaar" className="h-full w-full object-cover transition-transform group-hover/doc:scale-110" />
-                                                    ) : (
-                                                        <FileText className="h-5 w-5 text-slate-300" />
-                                                    )}
-                                                </button>
+                                                <div className="flex items-center -space-x-3">
+                                                    <button
+                                                        onClick={() => req.kycAadhaarPhoto && setSelectedDoc({ url: req.kycAadhaarPhoto, label: 'Aadhaar Front' })}
+                                                        className="h-10 w-10 flex-shrink-0 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-200 transition-all cursor-pointer overflow-hidden relative z-10 shadow-sm"
+                                                    >
+                                                        {req.kycAadhaarPhoto ? (
+                                                            <img src={req.kycAadhaarPhoto} alt="Aadhaar Front" className="h-full w-full object-cover transition-transform group-hover/doc:scale-110" />
+                                                        ) : (
+                                                            <FileText className="h-5 w-5 text-slate-300" />
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => req.kycAadhaarBackPhoto && setSelectedDoc({ url: req.kycAadhaarBackPhoto, label: 'Aadhaar Back' })}
+                                                        className="h-10 w-10 flex-shrink-0 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-center hover:bg-emerald-50 hover:border-emerald-200 transition-all cursor-pointer overflow-hidden relative z-0 shadow-sm"
+                                                    >
+                                                        {req.kycAadhaarBackPhoto ? (
+                                                            <img src={req.kycAadhaarBackPhoto} alt="Aadhaar Back" className="h-full w-full object-cover transition-transform group-hover/doc:scale-110" />
+                                                        ) : (
+                                                            <FileText className="h-5 w-5 text-slate-300" />
+                                                        )}
+                                                    </button>
+                                                </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Aadhaar Card</span>
                                                     <span className="text-[11px] font-bold text-slate-900">{req.kycAadhaar || 'Not Provided'}</span>
@@ -137,7 +149,7 @@ const AdminKYC = () => {
                                                 </button>
                                                 <div className="flex flex-col">
                                                     <span className="text-[9px] font-black uppercase text-slate-400 tracking-tighter">PAN Card</span>
-                                                    <span className="text-[11px] font-bold text-slate-900">{req.kycPan || 'Not Provided'}</span>
+                                                    <span className="text-[11px] font-bold text-slate-900">{req.kycPanNumber || 'Not Provided'}</span>
                                                 </div>
                                             </div>
                                         </div>

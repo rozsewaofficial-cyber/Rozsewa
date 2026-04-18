@@ -1,14 +1,14 @@
 import { motion } from "framer-motion";
-import { Home, Calendar, Users, Wallet } from "lucide-react";
+import { Home, Calendar, LayoutGrid, Wallet } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 const ProviderBottomNav = () => {
   const location = useLocation();
 
   const navItems = [
-    { icon: Home, label: "Dashboard", path: "/provider" },
+    { icon: Home, label: "Home", path: "/provider" },
     { icon: Calendar, label: "Bookings", path: "/provider/bookings" },
-    { icon: Users, label: "Staff", path: "/provider/staff" },
+    { icon: LayoutGrid, label: "Services", path: "/provider/services" },
     { icon: Wallet, label: "Wallet", path: "/provider/wallet" },
   ];
 
@@ -19,9 +19,9 @@ const ProviderBottomNav = () => {
           const isActive = location.pathname.startsWith(item.path) && (item.path !== "/provider" || location.pathname === "/provider");
           return (
             <Link key={item.path} to={item.path} className="flex flex-col items-center gap-1 p-2">
-              <motion.div 
+              <motion.div
                 whileTap={{ scale: 0.9 }}
-                animate={{ 
+                animate={{
                   color: isActive ? "#059669" : "var(--muted-foreground)",
                   y: isActive ? -2 : 0
                 }}

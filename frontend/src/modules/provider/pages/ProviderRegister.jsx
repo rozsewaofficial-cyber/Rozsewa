@@ -49,6 +49,8 @@ const ProviderRegister = () => {
     gst: "",
     kycAadhaar: "",
     kycAadhaarPhoto: "",
+    kycAadhaarBackPhoto: "",
+    kycPanNumber: "",
     kycPanPhoto: "",
     profileImage: "",
     serviceRadius: "5",
@@ -58,6 +60,12 @@ const ProviderRegister = () => {
     city: "",
     state: "",
     password: "",
+    bankDetails: {
+      accountNumber: "",
+      ifscCode: "",
+      bankName: "",
+      accountHolderName: "",
+    }
   });
 
   const formDataRef = useRef(formData);
@@ -226,7 +234,7 @@ const ProviderRegister = () => {
         const signupRes = await signup(finalData, 'provider');
         if (signupRes.success) {
           setGeneratedCode(signupRes.data.vendorCode);
-          setStep(9);
+          setStep(10);
         } else {
           toast({
             title: "Signup Failed",
@@ -239,6 +247,20 @@ const ProviderRegister = () => {
       }
     } catch (err) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBankSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await API.put("/provider/profile", { bankDetails: formData.bankDetails });
+      toast({ title: "Bank Details Saved", description: "You are all set!" });
+      setStep(10);
+    } catch (err) {
+      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -279,11 +301,15 @@ const ProviderRegister = () => {
 
   const stepTitles = [
     "Verify Mobile", "Business Type", "Select Industry", "Add Services",
-    "Business Profile", "Identity Photo", "Referral", "Pro Account", "Success"
+    "Business Profile", "Identity Photo", "Referral", "Bank Details", "Pro Account", "Success"
   ];
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#fdfdfd] px-4 py-4 md:py-8">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#f0f9f6] relative overflow-hidden px-4 py-4 md:py-8">
+      {/* Decorative Accents */}
+      <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
+
       <div className="w-full max-w-xl space-y-6">
         <div className="text-center space-y-4">
           <motion.div
@@ -302,7 +328,7 @@ const ProviderRegister = () => {
             <h2 className="text-3xl font-bold tracking-tight text-slate-900">{stepTitles[step - 1]}</h2>
             <div className="flex items-center justify-center gap-2">
               <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
-                {step < 9 ? `Step ${step} of 8` : 'Completed'}
+                {step < 10 ? `Step ${step} of 9` : 'Completed'}
               </span>
             </div>
           </div>
@@ -311,7 +337,7 @@ const ProviderRegister = () => {
           <div className="max-w-[240px] mx-auto h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${(step / 9) * 100}%` }}
+              animate={{ width: `${(step / 10) * 100}%` }}
               className="h-full bg-emerald-500 rounded-full"
             />
           </div>
@@ -583,8 +609,8 @@ const ProviderRegister = () => {
                 exit={{ opacity: 0, x: -20 }}
                 onSubmit={e => {
                   e.preventDefault();
-                  if (formData.kycAadhaarPhoto && formData.kycPanPhoto) setStep(6);
-                  else toast({ title: "Documents Required", description: "Please upload both Aadhaar and PAN photos.", variant: "destructive" });
+                  if (formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto && formData.kycPanPhoto) setStep(6);
+                  else toast({ title: "Documents Required", description: "Please upload Aadhaar (Front & Back) and PAN photos.", variant: "destructive" });
                 }}
                 className="space-y-6"
               >
@@ -599,15 +625,21 @@ const ProviderRegister = () => {
                       <input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. Sharma Experts" />
                     </div>
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Aadhaar Number</label>
+                      <input required value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="12-Digit Aadhaar No" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">PAN Number</label>
+                      <input required value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="PAN Number" />
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">GST Number (Opt)</label>
                       <input value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="GST" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Aadhaar Number</label>
-                      <input required value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="12-Digit Aadhaar No" />
                     </div>
                   </div>
 
@@ -621,16 +653,18 @@ const ProviderRegister = () => {
 
                   <div className="pt-2 space-y-4">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Document Evidence</label>
-                    <div className="grid grid-cols-2 gap-4">
-                      {['kycAadhaarPhoto', 'kycPanPhoto'].map(type => (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {['kycAadhaarPhoto', 'kycAadhaarBackPhoto', 'kycPanPhoto'].map(type => (
                         <label key={type} className={`relative group flex flex-col items-center justify-center h-24 rounded-lg border-2 border-dashed transition-all cursor-pointer overflow-hidden ${formData[type] ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50 hover:border-emerald-200'}`}>
                           <input type="file" className="hidden" onChange={e => handleFileUpload(e, type)} />
                           {formData[type] ? (
                             <img src={formData[type]} className="h-full w-full object-cover" />
                           ) : (
-                            <div className="flex flex-col items-center space-y-2">
+                            <div className="flex flex-col items-center space-y-2 text-center p-2">
                               {isUploading ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : <Camera className="h-6 w-6 text-slate-300 group-hover:text-emerald-500 transition-colors" />}
-                              <span className="text-[9px] font-bold uppercase text-slate-400 group-hover:text-emerald-600 transition-colors">{type.includes('Aadhaar') ? 'Aadhaar' : 'PAN Card'}</span>
+                              <span className="text-[8px] font-bold uppercase text-slate-400 group-hover:text-emerald-600 transition-colors">
+                                {type === 'kycAadhaarPhoto' ? 'Aadh-Front' : type === 'kycAadhaarBackPhoto' ? 'Aadh-Back' : 'PAN Card'}
+                              </span>
                             </div>
                           )}
                           {formData[type] && !isUploading && (
@@ -819,7 +853,7 @@ const ProviderRegister = () => {
                     }}
                     className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3"
                   >
-                    Proceed to Verification
+                    Proceed to Bank Details
                     <ArrowRight className="h-4 w-4" />
                   </button>
                   <button onClick={() => setStep(6)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
@@ -828,8 +862,64 @@ const ProviderRegister = () => {
             )}
 
             {step === 8 && (
-              <motion.form
+              <motion.div
                 key="s8"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Standard Settlement Bank</h3>
+                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">Payout Details</p>
+                </div>
+
+                <form onSubmit={(e) => { e.preventDefault(); setStep(9); }} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
+                    <input required value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="As per bank records" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Number</label>
+                    <input required value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Account Number" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">IFSC Code</label>
+                      <input required value={formData.bankDetails.ifscCode} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase" placeholder="IFSC" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Bank Name</label>
+                      <input required value={formData.bankDetails.bankName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, bankName: e.target.value } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Name" />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
+                    <div className="h-10 w-10 flex-shrink-0 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                      <ShieldCheck className="h-5 w-5" />
+                    </div>
+                    <p className="text-[10px] font-medium text-slate-500 leading-relaxed uppercase tracking-widest">Double check your details. Settlements will be sent to this account weekly.</p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full h-14 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs transition-all hover:bg-slate-800 active:scale-[0.98] flex items-center justify-center gap-3"
+                  >
+                    Continue to Payment <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button type="button" onClick={() => setStep(9)} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors">Skip for now</button>
+                    <button type="button" onClick={() => setStep(7)} className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">Previous</button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+
+            {step === 9 && (
+              <motion.form
+                key="s9"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -894,7 +984,7 @@ const ProviderRegister = () => {
                     </AnimatePresence>
                   </button>
                   <div className="flex flex-col items-center gap-4">
-                    <button type="button" onClick={() => setStep(7)} className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous</button>
+                    <button type="button" onClick={() => setStep(8)} className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous</button>
                     <p className="text-[9px] font-medium text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                       <Lock className="h-3 w-3" /> Encrypted Payment Gateway
                     </p>
@@ -903,9 +993,9 @@ const ProviderRegister = () => {
               </motion.form>
             )}
 
-            {step === 9 && (
+            {step === 10 && (
               <motion.div
-                key="s9"
+                key="s10"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="space-y-8 py-6 text-center"
@@ -951,7 +1041,7 @@ const ProviderRegister = () => {
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
       `}} />
-    </div>
+    </div >
   );
 };
 

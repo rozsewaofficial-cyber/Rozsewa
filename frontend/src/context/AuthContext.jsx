@@ -71,7 +71,21 @@ export const AuthProvider = ({ children }) => {
         try {
           const endpoint = path.startsWith("/provider") ? "/provider/profile" : "/auth/profile";
           const res = await API.get(endpoint);
-          setAuth(prev => (prev ? { ...prev, ...res.data } : null));
+          const userData = res.data;
+          setAuth(prev => (prev ? { ...prev, ...userData } : null));
+
+          // If no live GPS location, use user's saved location (only if it matches the current selected city context)
+          const currentCity = localStorage.getItem("rozsewa_user_city");
+          if (!localStorage.getItem("rozsewa_user_location") && userData.location?.coordinates) {
+            const [lng, lat] = userData.location.coordinates;
+            const isSameCity = !currentCity || currentCity.toLowerCase().includes((userData.city || "").toLowerCase());
+
+            if (lat !== 0 && lng !== 0 && isSameCity) {
+              const loc = { lat, lng };
+              setUserLocation(loc);
+              localStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
+            }
+          }
         } catch (err) {
           console.error("Auth session expired", err);
           if (auth?.role === expectedRole) logout(); // Only logout if it was the active role

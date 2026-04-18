@@ -250,22 +250,23 @@ const toggleBannerStatus = async (req, res) => {
 // @access  Private/Admin
 const getEmergencyData = async (req, res) => {
     try {
-        const incomingSOS = await Booking.countDocuments({ status: 'pending' }); // Fallback to all pending if no SOS flag
-        const activeResponders = await Provider.countDocuments({ status: 'verified', isOnline: true });
+        const EmergencyAlert = require('../models/EmergencyAlert');
+        // Actual SOS Alerts from Providers
+        const activeSOS = await EmergencyAlert.find({ status: 'pending' })
+            .populate('providerId', 'shopName ownerName profileImage mobile')
+            .sort({ createdAt: -1 });
 
-        const sosQueue = await Booking.find({ status: 'pending' })
-            .populate('userId', 'name')
-            .sort({ createdAt: -1 })
-            .limit(5);
+        const incomingSOSCount = activeSOS.length;
+        const activeResponders = await Provider.countDocuments({ status: 'verified', isOnline: true });
 
         const responderStatus = await Provider.find({ status: 'verified' })
             .select('shopName address isOnline businessType')
-            .limit(5);
+            .limit(10);
 
         res.json({
-            incomingSOS,
+            incomingSOS: incomingSOSCount,
             activeResponders,
-            sosQueue,
+            sosQueue: activeSOS, // Use actual SOS alerts here
             responderStatus
         });
     } catch (error) {
@@ -600,6 +601,16 @@ async function updateEmployee(req, res) {
     }
 }
 
+const deleteEmergencyAlert = async (req, res) => {
+    try {
+        const EmergencyAlert = require('../models/EmergencyAlert');
+        await EmergencyAlert.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Emergency alert removed' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     updateProviderStatus,
@@ -632,6 +643,7 @@ module.exports = {
     getEmployees,
     addEmployee,
     updateEmployee,
-    deleteEmployee
+    deleteEmployee,
+    deleteEmergencyAlert
 };
 

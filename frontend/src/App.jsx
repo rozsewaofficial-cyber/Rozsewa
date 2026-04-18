@@ -103,8 +103,9 @@ const App = () => (
                 <GlobalAlarm />
                 <AnimatePresence mode="wait">
                   <Routes>
-                    {/* Customer Login */}
-                    <Route path="/" element={<Navigate to="/provider/login" replace />} />
+                    {/* Provider as Default */}
+                    <Route path="/" element={<Navigate to="/provider" replace />} />
+                    <Route path="/login" element={<CustomerLogin />} />
                     <Route path="/home" element={<Index />} />
                     <Route path="/shops" element={<ShopListing />} />
                     <Route path="/shop/:id" element={<ShopDetail />} />

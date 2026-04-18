@@ -68,7 +68,10 @@ const TopNav = () => {
   const handleCitySelect = (selectedCity) => {
     setCity(selectedCity);
     localStorage.setItem("rozsewa_user_city", selectedCity);
+    // Clear GPS coordinates when city is manually selected to avoid cross-city issues
+    localStorage.removeItem("rozsewa_user_location");
     setShowLocationModal(false);
+    window.location.reload(); // Refresh to re-fetch data with new city
   };
 
   const handleUseCurrentLocation = () => {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { ShieldAlert, PhoneIncoming, AlertTriangle, CheckCircle, ArrowRight, Loader2 } from "lucide-react";
+import { ShieldAlert, PhoneIncoming, AlertTriangle, CheckCircle, ArrowRight, Loader2, MapPin, Navigation, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
@@ -46,6 +46,21 @@ const AdminEmergency = () => {
 
    const handleCall = (user) => {
       toast({ title: "Connecting Call", description: `Dialing register number for ${user}...` });
+   };
+
+   const handleDeleteAlert = async (id) => {
+      if (!window.confirm("Are you sure you want to remove this alert?")) return;
+      try {
+         await API.delete(`/admin/emergency/${id}`);
+         setData(prev => ({
+            ...prev,
+            incomingSOS: prev.incomingSOS - 1,
+            sosQueue: prev.sosQueue.filter(alert => alert._id !== id)
+         }));
+         toast({ title: "Alert Removed", description: "The emergency record has been deleted." });
+      } catch (err) {
+         toast({ title: "Delete Failed", description: "Failed to remove alert record.", variant: "destructive" });
+      }
    };
 
    const getTimeAgo = (date) => {
@@ -100,23 +115,38 @@ const AdminEmergency = () => {
                         <div className="absolute right-0 top-0 h-full w-1 bg-red-500 opacity-20 group-hover:opacity-100 mt-0"></div>
                         <div className="flex justify-between items-start">
                            <div className="flex gap-4">
-                              <div className="h-10 w-10 shrink-0 bg-red-50 text-red-500 flex items-center justify-center rounded-xl font-black text-xs">SOS</div>
+                              <div className="h-10 w-10 shrink-0 bg-red-50 text-red-500 flex items-center justify-center rounded-xl font-black text-[10px] border border-red-100">VND SOS</div>
                               <div>
-                                 <h4 className="font-black text-red-900">{sos.serviceName}</h4>
-                                 <p className="text-xs font-bold text-gray-500 mt-0.5">{sos.userId?.name || 'User'} • {sos.address?.slice(0, 30)}...</p>
+                                 <h4 className="font-black text-red-900">{sos.providerId?.shopName || 'Unknown Provider'}</h4>
+                                 <p className="text-[10px] font-bold text-red-600 uppercase tracking-tighter mb-1">Owner: {sos.providerId?.ownerName}</p>
+                                 <p className="text-xs font-bold text-gray-500 mt-0.5 max-w-[250px] leading-relaxed">
+                                    <MapPin className="h-3 w-3 inline mr-1" /> {sos.address}
+                                 </p>
                               </div>
                            </div>
                            <span className="text-[10px] font-black text-red-600 bg-red-50 px-2 py-1 rounded-lg animate-pulse">{getTimeAgo(sos.createdAt)}</span>
                         </div>
                         <div className="mt-4 flex gap-2">
                            <a
-                              href={`tel:${sos.userId?.mobile || '#'}`}
-                              onClick={() => handleCall(sos.userId?.name)}
+                              href={`tel:${sos.mobile || sos.providerId?.mobile || '#'}`}
                               className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black shadow-lg shadow-red-200 hover:bg-red-700 active:scale-95 transition flex items-center justify-center gap-1.5"
                            >
-                              <PhoneIncoming className="h-3.5 w-3.5" /> Call User
+                              <PhoneIncoming className="h-3.5 w-3.5" /> Call Provider
                            </a>
-                           <button className="flex items-center justify-center w-12 bg-gray-100 text-gray-400 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 transition"><CheckCircle className="h-5 w-5" /></button>
+                           <a
+                              href={`https://www.google.com/maps?q=${sos.location?.coordinates[1]},${sos.location?.coordinates[0]}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-xs font-black shadow-lg hover:bg-black active:scale-95 transition flex items-center justify-center gap-1.5"
+                           >
+                              <Navigation className="h-3.5 w-3.5" /> View on Map
+                           </a>
+                           <button
+                              onClick={() => handleDeleteAlert(sos._id)}
+                              className="w-12 h-10 flex items-center justify-center bg-gray-100 text-gray-400 rounded-xl hover:bg-red-50 hover:text-red-600 transition active:scale-90"
+                           >
+                              <Trash2 className="h-5 w-5" />
+                           </button>
                         </div>
                      </div>
                   ))

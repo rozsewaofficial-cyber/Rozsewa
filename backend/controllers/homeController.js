@@ -4,6 +4,7 @@ const Provider = require('../models/Provider');
 const Service = require('../models/Service');
 const Coupon = require('../models/Coupon');
 const Zone = require('../models/Zone');
+const Combo = require('../models/Combo');
 
 // @desc    Get all active zones/cities
 // @route   GET /api/public/zones
@@ -77,7 +78,7 @@ const getPublicProviderById = async (req, res) => {
 // @access  Public
 const getFeaturedProviders = async (req, res) => {
     try {
-        const { lat, lng, radius = 15 } = req.query;
+        const { lat, lng, city, radius = 15 } = req.query;
         let query = { status: 'verified', isOnline: true };
 
         if (lat && lng) {
@@ -90,6 +91,8 @@ const getFeaturedProviders = async (req, res) => {
                     $maxDistance: parseInt(radius) * 1000
                 }
             };
+        } else if (city) {
+            query.city = { $regex: new RegExp('^' + city.split(' ')[0], 'i') };
         }
 
         const providers = await Provider.find(query)
@@ -108,7 +111,7 @@ const getFeaturedProviders = async (req, res) => {
 // @access  Public
 const getPublicProviders = async (req, res) => {
     try {
-        const { category, search, lat, lng, radius = 15 } = req.query;
+        const { category, search, lat, lng, city, radius = 15 } = req.query;
         let query = { status: 'verified', isOnline: true };
 
         // Geolocation filtering
@@ -122,6 +125,8 @@ const getPublicProviders = async (req, res) => {
                     $maxDistance: parseInt(radius) * 1000 // Convert km to meters
                 }
             };
+        } else if (city) {
+            query.city = { $regex: new RegExp('^' + city.split(' ')[0], 'i') };
         }
 
         if (category) {
@@ -184,7 +189,8 @@ const getPublicConfig = async (req, res) => {
 const getPublicServiceByProvider = async (req, res) => {
     try {
         const services = await Service.find({ providerId: req.params.providerId, visible: true });
-        res.json(services);
+        const combos = await Combo.find({ providerId: req.params.providerId, isActive: true }).populate('services');
+        res.json({ services, combos });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

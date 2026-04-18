@@ -41,18 +41,12 @@ const ShopListing = () => {
         params.lat = userLocation.lat;
         params.lng = userLocation.lng;
         params.radius = 15;
+      } else {
+        const savedCity = localStorage.getItem("rozsewa_user_city");
+        if (savedCity) params.city = savedCity;
       }
       let { data } = await API.get(`/public/providers`, { params });
-
-      // Fallback if no local providers found
-      if (data.length === 0 && userLocation) {
-        const { data: allData } = await API.get(`/public/providers`, {
-          params: { category, search: searchQuery }
-        });
-        setProviders(allData);
-      } else {
-        setProviders(data);
-      }
+      setProviders(data);
     } catch (error) {
       console.error("Error fetching providers:", error);
     } finally {

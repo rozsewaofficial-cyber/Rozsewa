@@ -172,9 +172,15 @@ const AdminBookings = () => {
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex gap-2">
-                        {booking.beforeImage ? (
+                        {/* Before Image */}
+                        {(booking.beforeImage || booking.workProof?.before) ? (
                           <div className="group/img relative h-10 w-10 overflow-hidden rounded-lg border border-gray-200 shadow-sm cursor-zoom-in">
-                            <img src={booking.beforeImage} alt="Before" className="h-full w-full object-cover transition-transform group-hover/img:scale-125" onClick={() => window.open(booking.beforeImage, '_blank')} />
+                            <img
+                              src={booking.beforeImage || booking.workProof?.before}
+                              alt="Before"
+                              className="h-full w-full object-cover transition-transform group-hover/img:scale-125"
+                              onClick={() => window.open(booking.beforeImage || booking.workProof?.before, '_blank')}
+                            />
                             <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-[8px] font-black text-white text-center py-0.5">BEFORE</span>
                           </div>
                         ) : (
@@ -182,9 +188,16 @@ const AdminBookings = () => {
                             <Image className="h-4 w-4" />
                           </div>
                         )}
-                        {booking.afterImage ? (
+
+                        {/* After Image */}
+                        {(booking.afterImage || booking.workProof?.after) ? (
                           <div className="group/img relative h-10 w-10 overflow-hidden rounded-lg border border-gray-200 shadow-sm cursor-zoom-in">
-                            <img src={booking.afterImage} alt="After" className="h-full w-full object-cover transition-transform group-hover/img:scale-125" onClick={() => window.open(booking.afterImage, '_blank')} />
+                            <img
+                              src={booking.afterImage || booking.workProof?.after}
+                              alt="After"
+                              className="h-full w-full object-cover transition-transform group-hover/img:scale-125"
+                              onClick={() => window.open(booking.afterImage || booking.workProof?.after, '_blank')}
+                            />
                             <span className="absolute bottom-0 left-0 right-0 bg-emerald-600/90 text-[8px] font-black text-white text-center py-0.5">AFTER</span>
                           </div>
                         ) : (

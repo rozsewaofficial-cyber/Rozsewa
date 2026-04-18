@@ -32,7 +32,8 @@ const {
     getEmployees,
     addEmployee,
     updateEmployee,
-    deleteEmployee
+    deleteEmployee,
+    deleteEmergencyAlert
 } = require('../controllers/adminController');
 
 const { protect, admin } = require('../middleware/authMiddleware');
@@ -70,6 +71,7 @@ router.get('/stats', protect, admin, getAdminStats);
 // Emergency control
 router.get('/emergency', protect, admin, getEmergencyData);
 router.post('/emergency/broadcast', protect, admin, broadcastEmergency);
+router.delete('/emergency/:id', protect, admin, deleteEmergencyAlert);
 
 // 99 Card management
 router.get('/99cards', protect, admin, get99CardData);

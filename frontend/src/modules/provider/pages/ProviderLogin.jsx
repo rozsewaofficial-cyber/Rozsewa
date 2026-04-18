@@ -35,7 +35,11 @@ const ProviderLogin = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] px-4 py-12">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-[#f0f9f6] relative overflow-hidden px-4 py-4 md:py-8">
+      {/* Decorative Accents */}
+      <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
+
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <motion.div
