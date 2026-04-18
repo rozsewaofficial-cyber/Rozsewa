@@ -15,7 +15,9 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
 
   // Check if authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    const loginPath = location.pathname.startsWith('/provider') ? "/provider/login" :
+      location.pathname.startsWith('/admin') ? "/admin/login" : "/login";
+    return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
   // Check role-based access
