@@ -83,7 +83,8 @@ import AdminSystem from "./modules/admin/pages/AdminSystem";
 import AdminPromotions from "./modules/admin/pages/AdminPromotions";
 import AdminHelpTraining from "./modules/admin/pages/AdminHelpTraining";
 import AdminHRM from "./modules/admin/pages/AdminHRM";
-
+import AdminSuper from "./modules/admin/pages/AdminSuper";
+import SewakManagement from "./modules/admin/pages/SewakManagement";
 
 // Admin Layout
 import AdminLayout from "./modules/admin/components/AdminLayout";
@@ -157,6 +158,7 @@ const App = () => (
                       <Route path="users" element={<AdminUsers />} />
                       <Route path="hrm" element={<AdminHRM />} />
                       <Route path="providers" element={<AdminProviders />} />
+                      <Route path="sewaks" element={<SewakManagement />} />
                       <Route path="bookings" element={<AdminBookings />} />
                       <Route path="earnings" element={<AdminEarnings />} />
                       <Route path="coupons" element={<AdminCoupons />} />
@@ -180,6 +182,7 @@ const App = () => (
                       <Route path="promotions" element={<AdminPromotions />} />
 
                       <Route path="help-training" element={<AdminHelpTraining />} />
+                      <Route path="super" element={<AdminSuper />} />
                     </Route>
 
                     <Route path="/admin/login" element={<AdminLogin />} />

@@ -52,7 +52,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       const path = location.pathname;
-      const expectedRole = path.startsWith("/admin") ? "admin" : path.startsWith("/provider") ? "provider" : "customer";
+      const isPageAdmin = path.startsWith("/admin");
+      const isPageProvider = path.startsWith("/provider");
+
+      let expectedRole = "customer";
+      if (isPageAdmin) {
+        expectedRole = (auth?.role === 'superadmin') ? "superadmin" : "admin";
+      } else if (isPageProvider) {
+        expectedRole = "provider";
+      }
 
       // If the current auth doesn't match the panel we are in, re-sync
       if (auth?.role !== expectedRole) {
@@ -127,6 +135,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    localStorage.removeItem("rozsewa_auth_user");
+    localStorage.removeItem("rozsewa_auth_admin");
+    localStorage.removeItem("rozsewa_auth_provider");
+    localStorage.removeItem("rozsewa_auth");
     setAuth(null);
   };
 

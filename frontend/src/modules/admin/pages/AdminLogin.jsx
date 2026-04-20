@@ -14,10 +14,12 @@ const AdminLogin = () => {
 
   const { login } = useAuth();
 
+  const isAdminRole = (role) => role === 'admin' || role === 'superadmin';
+
   useEffect(() => {
     // Redirect if already logged in via context
     const auth = JSON.parse(localStorage.getItem("rozsewa_auth_admin"));
-    if (auth?.token && auth?.role === 'admin') {
+    if (auth?.token && isAdminRole(auth?.role)) {
       navigate("/admin");
     }
   }, [navigate]);
@@ -33,7 +35,7 @@ const AdminLogin = () => {
     try {
       const res = await login(email, password, 'admin');
       if (res.success) {
-        if (res.data.role !== 'admin') {
+        if (!isAdminRole(res.data.role)) {
           toast({ title: "Access Denied", description: "This account is not an admin.", variant: "destructive" });
         } else {
           toast({ title: "Welcome back", description: "Successfully logged in to Admin Panel." });

@@ -289,10 +289,43 @@ const verifyEndOTP = async (req, res) => {
                 let providerPayout = booking.totalAmount;
                 let commissionStatus = 'free';
 
-                if (provider.freeServicesLeft > 0) {
+                if (provider.providerCategory === 'sewak') {
+                    adminCommission = booking.totalAmount;
+                    providerPayout = 0;
+                    commissionStatus = 'sewak_revenue';
+                } else if (provider.freeServicesLeft > 0) {
                     provider.freeServicesLeft -= 1;
+                } else if (provider.isSubscribed && provider.subscriptionExpiry && new Date(provider.subscriptionExpiry) > new Date()) {
+                    // Subscription Logic (e.g., 5%)
+                    const rate = provider.subscriptionRate || 5;
+                    const type = provider.subscriptionType || 'percentage';
+
+                    if (type === 'percentage') {
+                        adminCommission = (booking.totalAmount * rate) / 100;
+                    } else {
+                        adminCommission = rate; // Fixed amount
+                    }
+                    providerPayout = booking.totalAmount - adminCommission;
+                    commissionStatus = 'subscription_discount';
                 } else {
-                    const rate = provider.commissionRate || commissionRate;
+                    // Tiered Management
+                    let tierRate = commissionRate; // Default
+
+                    try {
+                        const tierKey = `commission_${provider.planType || 'basic'}`;
+                        const tierSetting = await Setting.findOne({ key: tierKey });
+                        if (tierSetting) {
+                            tierRate = parseFloat(tierSetting.value);
+                        } else {
+                            // Fallback rates if settings not initialized
+                            const fallbacks = { basic: 25, standard: 20, premium: 15 };
+                            tierRate = fallbacks[provider.planType] || 25;
+                        }
+                    } catch (err) {
+                        console.log("Error fetching tier setting, using default");
+                    }
+
+                    const rate = provider.commissionRate || tierRate;
                     adminCommission = (booking.totalAmount * rate) / 100;
                     providerPayout = booking.totalAmount - adminCommission;
                     commissionStatus = 'commissioned';
@@ -322,7 +355,9 @@ const verifyEndOTP = async (req, res) => {
                     type: 'credit',
                     status: 'completed',
                     bookingId: booking._id,
-                    description: commissionStatus === 'free' ? 'Zero Commission Booking (Free Plan)' : `Commission Applied (${provider.commissionRate || commissionRate}%)`
+                    description: commissionStatus === 'free' ? 'Zero Commission Booking' :
+                        commissionStatus === 'subscription_discount' ? `Subscription Discount Applied (${provider.subscriptionRate || 5}${provider.subscriptionType === 'fixed' ? ' Fixed' : '%'})` :
+                            `Tiered Commission Applied (${provider.planType || 'basic'})`
                 });
 
                 provider.walletBalance = wallet.balance;

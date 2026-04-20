@@ -3,7 +3,10 @@ import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
-import { Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset, Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp } from "lucide-react";
+import {
+  Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
+  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
@@ -33,6 +36,8 @@ const ProviderDashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [supportNum, setSupportNum] = useState("91XXXXXXXXXX");
   const [dynamicChartData, setDynamicChartData] = useState(chartDataFallback);
+  const [plans, setPlans] = useState([]);
+  const [isSubscribed, setIsSubscribed] = useState(user?.isSubscribed || false);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -47,9 +52,68 @@ const ProviderDashboard = () => {
         if (data.chartData) setDynamicChartData(data.chartData);
       } catch (err) { }
     };
+    const fetchPlans = async () => {
+      try {
+        const { data } = await API.get("/provider/subscription-plans");
+        setPlans(data);
+      } catch (err) { }
+    };
+
+    const loadRazorpay = () => {
+      if (!window.Razorpay) {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.async = true;
+        document.body.appendChild(script);
+      }
+    };
+
     fetchConfig();
     fetchStats();
+    fetchPlans();
+    loadRazorpay();
   }, []);
+
+  const handleUpgrade = async () => {
+    if (plans.length === 0) return;
+    const plan = plans[0]; // Get the first active plan (e.g., 999 Elite)
+
+    setIsLoading(true);
+    try {
+      const { data: order } = await API.post("/payment/order", { amount: plan.price });
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa Elite",
+        description: plan.name,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            const { data } = await API.post("/payment/verify-subscription", {
+              ...response,
+              planId: plan._id
+            });
+            if (data.success) {
+              toast({ title: "Welcome to Elite!", description: "Subscription activated successfully." });
+              setIsSubscribed(true);
+              window.location.reload(); // Refresh to update user context
+            }
+          } catch (err) {
+            toast({ title: "Activation Failed", variant: "destructive" });
+          }
+        },
+        prefill: { contact: user?.mobile },
+        theme: { color: "#059669" },
+        modal: { ondismiss: () => setIsLoading(false) }
+      };
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      toast({ title: "Payment Initialization Failed", variant: "destructive" });
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -280,6 +344,58 @@ const ProviderDashboard = () => {
         <section className="animate-in slide-in-from-bottom-5 duration-700 delay-150">
           <EarningsWidget />
         </section>
+
+        {/* Elite Subscription Banner */}
+        <AnimatePresence>
+          {!isSubscribed && plans.length > 0 && (
+            <motion.section
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="animate-in slide-in-from-bottom-5 duration-700 delay-100 overflow-hidden"
+            >
+              <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-4 md:p-6 text-white shadow-2xl shadow-emerald-500/20 border border-white/10 group">
+                <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
+
+                <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
+                  {/* Left Side: Icon + Headline */}
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="h-12 w-12 md:h-16 md:w-16 shrink-0 rounded-2xl bg-white/20 backdrop-blur-xl flex items-center justify-center border border-white/30 shadow-2xl group-hover:rotate-12 transition-transform duration-500">
+                      <Crown className="h-6 w-6 md:h-8 md:w-8 text-amber-400 fill-amber-400" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-400/20 rounded-full border border-amber-400/30">
+                        <Zap className="h-2.5 w-2.5 text-amber-400 fill-amber-400" />
+                        <span className="text-[8px] font-black uppercase tracking-widest text-amber-200">Elite Hub</span>
+                      </div>
+                      <h2 className="text-base md:text-2xl font-black tracking-tighter leading-tight">
+                        Reduce Commission to <span className="text-amber-400">5% Yearly</span>
+                      </h2>
+                      <p className="text-[10px] md:text-xs font-bold text-emerald-100/70 italic hidden sm:block">
+                        Keep 95% of your earnings on every booking.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right Side: Price + Button */}
+                  <div className="flex items-center justify-between md:flex-col md:items-end gap-3 border-t border-white/10 pt-3 md:border-none md:pt-0">
+                    <div className="text-left md:text-right">
+                      <p className="text-[8px] font-black text-emerald-300 uppercase tracking-widest leading-none">Starting At</p>
+                      <p className="text-xl md:text-3xl font-black tracking-tighter mt-0.5">₹{plans[0]?.price || 999}<span className="text-xs opacity-60">/yr</span></p>
+                    </div>
+                    <button
+                      onClick={handleUpgrade}
+                      disabled={isLoading}
+                      className="px-6 py-2.5 md:px-8 md:py-3 bg-white text-emerald-900 rounded-xl font-black uppercase text-[10px] tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/20"
+                    >
+                      {isLoading ? "Wait..." : "Upgrade Now"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.section>
+          )}
+        </AnimatePresence>
 
         {/* Performance Graph Section */}
         <section className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[32px] p-6 shadow-xl shadow-slate-100/50 dark:shadow-none overflow-hidden animate-in slide-in-from-bottom-5 duration-700 delay-200">

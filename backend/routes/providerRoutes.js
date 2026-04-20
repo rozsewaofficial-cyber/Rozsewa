@@ -9,7 +9,9 @@ const {
     getProviderStats,
     checkProviderExistence,
     uploadDocument,
-    sendEmergencyAlert
+    sendEmergencyAlert,
+    verifyProviderCredentials,
+    getSubscriptionPlans
 } = require('../controllers/providerController');
 const { getPublicCategories } = require('../controllers/categoryController');
 const { protect } = require('../middleware/authMiddleware');
@@ -18,6 +20,7 @@ const { upload } = require('../config/cloudinary');
 // Public routes
 router.post('/register', registerProvider);
 router.post('/login', authProvider);
+router.post('/verify-credentials', verifyProviderCredentials);
 router.post('/check-existence', checkProviderExistence);
 router.get('/categories', getPublicCategories);
 
@@ -26,6 +29,7 @@ router.get('/profile', protect, getProviderProfile);
 router.put('/profile', protect, updateProviderProfile);
 router.get('/stats', protect, getProviderStats);
 router.patch('/status', protect, updateProviderStatus);
+router.get('/subscription-plans', protect, getSubscriptionPlans);
 router.post('/documents', protect, upload.single('document'), uploadDocument);
 router.post('/emergency-alert', protect, sendEmergencyAlert || ((req, res) => res.status(501).send("Not Implemented")));
 

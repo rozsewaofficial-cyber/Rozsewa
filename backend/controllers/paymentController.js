@@ -50,7 +50,44 @@ const verifyPayment = async (req, res) => {
     }
 };
 
+// @desc    Verify Razorpay Payment for Subscription
+// @route   POST /api/payment/verify-subscription
+// @access  Private (Provider)
+const verifySubscriptionPayment = async (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId } = req.body;
+
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(sign.toString())
+        .digest("hex");
+
+    if (razorpay_signature === expectedSign) {
+        const Provider = require('../models/Provider');
+        const SubscriptionPlan = require('../models/SubscriptionPlan');
+
+        const plan = await SubscriptionPlan.findById(planId);
+        if (!plan) return res.status(404).json({ message: "Subscription plan not found" });
+
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) return res.status(404).json({ message: "Provider not found" });
+
+        // Update provider subscription status
+        provider.isSubscribed = true;
+        provider.subscriptionExpiry = new Date(Date.now() + plan.validityDays * 24 * 60 * 60 * 1000);
+        provider.subscriptionRate = plan.offeredCommissionRate;
+        provider.subscriptionType = plan.offeredCommissionType;
+
+        await provider.save();
+
+        res.json({ message: "Elite Subscription activated successfully!", success: true });
+    } else {
+        res.status(400).json({ message: "Invalid payment signature", success: false });
+    }
+};
+
 module.exports = {
     createOrder,
     verifyPayment,
+    verifySubscriptionPayment
 };

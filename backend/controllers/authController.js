@@ -113,6 +113,7 @@ const getUserProfile = async (req, res) => {
                 favorites: user.favorites || [],
                 vendorCode: user.vendorCode || "",
                 commissionFreeBookings: user.commissionFreeBookings || 0,
+                permissions: user.permissions || [],
             });
         } else {
             res.status(404).json({ message: 'User not found' });

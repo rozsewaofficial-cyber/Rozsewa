@@ -25,7 +25,7 @@ const AdminTopNav = ({ title = "Dashboard" }) => {
 
         {/* Mobile Profile Avatar (Desktop has it in sidebar) */}
         <motion.div whileTap={{ scale: 0.9 }} className="md:hidden">
-          <Link to="/admin/settings" className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-sm">
+          <Link to="/admin/settings" className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold text-sm">
             AD
           </Link>
         </motion.div>

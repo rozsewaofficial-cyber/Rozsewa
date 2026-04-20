@@ -10,11 +10,22 @@ const ProviderWallet = () => {
   const { toast } = useToast();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
+  const [provider, setProvider] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchWallet();
+    fetchProfile();
   }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const { data } = await API.get("/provider/profile");
+      setProvider(data);
+    } catch (err) {
+      console.error("Failed to load profile");
+    }
+  };
 
   const fetchWallet = async () => {
     try {
@@ -77,28 +88,41 @@ const ProviderWallet = () => {
           </section>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Compact Bank Card */}
-            <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4 group cursor-pointer hover:border-emerald-500/30 transition-all shadow-sm">
-              <div className="flex h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 items-center justify-center shrink-0"><Building2 className="h-5 w-5" /></div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-sm text-foreground truncate">HDFC •••• 9012</h4>
-                  <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">Primary</span>
+            {/* Dynamic Bank Card */}
+            {provider?.bankDetails?.accountNumber ? (
+              <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4 transition-all shadow-sm">
+                <div className="flex h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 items-center justify-center shrink-0">
+                  <Building2 className="h-5 w-5" />
                 </div>
-                <p className="text-[10px] text-muted-foreground font-medium truncate">Verified Account • Rozsewa</p>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-foreground truncate">
+                      {provider.bankDetails.bankName} •••• {provider.bankDetails.accountNumber.slice(-4)}
+                    </h4>
+                    <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
+                      Primary
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-medium truncate uppercase tracking-widest">
+                    {provider.bankDetails.verified ? 'Verified Account • Rozsewa' : 'Verification Pending'}
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <motion.div whileHover={{ scale: 0.99 }} onClick={() => setIsAddingBank(true)}
-              className="rounded-2xl border-2 border-dashed border-border p-4 flex items-center gap-4 cursor-pointer hover:bg-muted/50 transition-all group">
-              <div className="h-11 w-11 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                <LinkIcon className="h-5 w-5 text-muted-foreground group-hover:text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm text-muted-foreground group-hover:text-foreground">Add Bank</h3>
-                <p className="text-[10px] text-muted-foreground font-medium">New payout method</p>
-              </div>
-            </motion.div>
+            ) : (
+              <motion.div
+                whileHover={{ scale: 0.99 }}
+                onClick={() => setIsAddingBank(true)}
+                className="rounded-2xl border-2 border-dashed border-border p-4 flex items-center gap-4 cursor-pointer hover:bg-muted/50 transition-all group"
+              >
+                <div className="h-11 w-11 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                  <LinkIcon className="h-5 w-5 text-muted-foreground group-hover:text-emerald-600" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-bold text-sm text-muted-foreground group-hover:text-foreground">Add Bank Account</h3>
+                  <p className="text-[10px] text-muted-foreground font-medium">Link your payout method</p>
+                </div>
+              </motion.div>
+            )}
           </div>
 
           <section>

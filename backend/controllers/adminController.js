@@ -388,10 +388,18 @@ const getSettings = async (req, res) => {
         res.json({
             commissionRate: config.commissionRate || 10,
             minBookingAmount: config.minBookingAmount || 199,
-            emergencyEnabled: config.emergencyEnabled !== undefined ? config.emergencyEnabled : true,
-            autoAssign: config.autoAssign !== undefined ? config.autoAssign : true,
-            vendorCardEnabled: config.vendorCardEnabled !== undefined ? config.vendorCardEnabled : true,
+            emergencyEnabled: config.emergencyEnabled !== undefined ? (config.emergencyEnabled === 'true' || config.emergencyEnabled === true) : true,
+            autoAssign: config.autoAssign !== undefined ? (config.autoAssign === 'true' || config.autoAssign === true) : true,
+            vendorCardEnabled: config.vendorCardEnabled !== undefined ? (config.vendorCardEnabled === 'true' || config.vendorCardEnabled === true) : true,
             vendorCardPrice: config.vendorCardPrice || 99,
+            // New Tiered Commission Keys
+            commission_basic: config.commission_basic || 25,
+            commission_standard: config.commission_standard || 20,
+            commission_premium: config.commission_premium || 15,
+            // Subscriptions
+            subscription_price: config.subscription_price || 999,
+            subscription_commission_rate: config.subscription_commission_rate || 5,
+            subscription_enabled: config.subscription_enabled !== undefined ? (config.subscription_enabled === 'true' || config.subscription_enabled === true) : true,
             terms: config.terms || "Standard Terms",
             privacy: config.privacy || "Standard Privacy",
             cancellation: config.cancellation || "Standard Cancellation",
@@ -611,9 +619,194 @@ const deleteEmergencyAlert = async (req, res) => {
     }
 };
 
+// ... Super Admin Methods ...
+
+const getAllAdmins = async (req, res) => {
+    try {
+        const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } }).select('-password').sort({ createdAt: -1 });
+        res.json(admins);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const createAdmin = async (req, res) => {
+    try {
+        const { name, email, mobile, password, permissions, city, state } = req.body;
+        const exists = await User.findOne({ email });
+        if (exists) return res.status(400).json({ message: 'User already exists with this email' });
+
+        const admin = await User.create({
+            name,
+            email,
+            mobile,
+            password,
+            role: 'admin',
+            permissions: permissions || [],
+            city: city || 'Delhi',
+            state: state || 'Delhi'
+        });
+
+        res.status(201).json({
+            message: 'Admin created successfully',
+            admin: {
+                id: admin._id,
+                name: admin.name,
+                email: admin.email,
+                role: admin.role,
+                permissions: admin.permissions
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateAdminPermissions = async (req, res) => {
+    try {
+        const { permissions } = req.body;
+        const admin = await User.findById(req.params.id);
+        if (!admin) return res.status(404).json({ message: 'Admin not found' });
+
+        admin.permissions = permissions;
+        await admin.save();
+
+        res.json({ message: 'Permissions updated successfully', permissions: admin.permissions });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateAdmin = async (req, res) => {
+    try {
+        const { name, email, mobile, password, permissions } = req.body;
+        const admin = await User.findById(req.params.id);
+        if (!admin) return res.status(404).json({ message: 'Admin not found' });
+
+        admin.name = name || admin.name;
+        admin.email = email || admin.email;
+        admin.mobile = mobile || admin.mobile;
+        admin.permissions = permissions || admin.permissions;
+
+        if (password) {
+            admin.password = password;
+        }
+
+        await admin.save();
+        res.json({ message: 'Admin updated successfully', admin });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getAllSewaks = async (req, res) => {
+    try {
+        const sewaks = await Provider.find({ providerCategory: 'sewak' }).select('-password').sort({ createdAt: -1 });
+        res.json(sewaks);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const createSewak = async (req, res) => {
+    try {
+        const { ownerName, mobile, password, email, address, city, state, businessType } = req.body;
+
+        const providerExists = await Provider.findOne({ mobile });
+        if (providerExists) {
+            return res.status(400).json({ message: 'Mobile number already registered as a provider' });
+        }
+
+        // Generate a vendor code for Sewak
+        const count = await Provider.countDocuments();
+        const vendorCode = `RSSEW${String(count + 1).padStart(5, '0')}`;
+
+        const sewak = await Provider.create({
+            ownerName,
+            shopName: `${ownerName} (Sewak)`,
+            mobile,
+            password,
+            email,
+            address,
+            city,
+            state,
+            businessType: businessType || 'Internal Service',
+            vendorCode,
+            status: 'verified', // Automatically verified
+            providerCategory: 'sewak',
+            commissionRate: 100, // 100% to Admin
+            isOnline: true,
+            documents: req.body.documents || []
+        });
+
+        res.status(201).json(sewak);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const verifySuperAdminPin = async (req, res) => {
+    try {
+        const { pin } = req.body;
+        const savedPin = await Setting.findOne({ key: 'SUPER_ADMIN_PIN' });
+        const actualPin = savedPin ? savedPin.value : '1234';
+
+        if (pin === actualPin) {
+            res.json({ success: true });
+        } else {
+            res.status(401).json({ success: false, message: 'Invalid PIN' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateSuperAdminPin = async (req, res) => {
+    try {
+        const { pin } = req.body;
+        await Setting.findOneAndUpdate(
+            { key: 'SUPER_ADMIN_PIN' },
+            { value: pin, updatedAt: Date.now() },
+            { upsert: true, new: true }
+        );
+        res.json({ success: true, message: 'PIN updated successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const deleteAdmin = async (req, res) => {
+    try {
+        const admin = await User.findById(req.params.id);
+        if (!admin) return res.status(404).json({ message: 'Admin not found' });
+        if (admin.role === 'superadmin') return res.status(400).json({ message: 'Super Admin cannot be deleted' });
+
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Admin deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateProviderPlan = async (req, res) => {
+    try {
+        const { planType } = req.body;
+        const provider = await Provider.findByIdAndUpdate(
+            req.params.id,
+            { planType },
+            { new: true }
+        );
+        if (!provider) return res.status(404).json({ message: 'Provider not found' });
+        res.json(provider);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     updateProviderStatus,
+    updateProviderPlan,
     getAdminStats,
     getBookings,
     getCategories,
@@ -644,6 +837,14 @@ module.exports = {
     addEmployee,
     updateEmployee,
     deleteEmployee,
-    deleteEmergencyAlert
+    deleteEmergencyAlert,
+    getAllAdmins,
+    createAdmin,
+    updateAdminPermissions,
+    verifySuperAdminPin,
+    updateSuperAdminPin,
+    deleteAdmin,
+    updateAdmin,
+    getAllSewaks,
+    createSewak
 };
-

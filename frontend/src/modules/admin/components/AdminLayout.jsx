@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Outlet } from "react-router-dom";
+import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import AdminSidebar from "./AdminSidebar";
 import AdminTopNav from "./AdminTopNav";
 import AdminMobileNav from "./AdminMobileNav";
@@ -8,15 +8,28 @@ import { useAuth } from "@/context/AuthContext";
 const AdminLayout = () => {
   const { user, role, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [title, setTitle] = useState("Dashboard");
 
   useEffect(() => {
-    if (!loading && (!user || role !== 'admin')) {
+    const isAdmin = role === 'admin' || role === 'superadmin';
+    if (!loading && (!user || !isAdmin)) {
       navigate("/admin/login");
+      return;
     }
+
+    // Permission check for regular admins
+    if (!loading && role === 'admin' && location.pathname !== '/admin') {
+      const currentPath = location.pathname;
+      const isAllowed = user.permissions?.some(p => currentPath === p || currentPath.startsWith(`${p}/`));
+      if (!isAllowed) {
+        navigate("/admin"); // Redirect to dashboard
+      }
+    }
+
     // Force light mode for admin module
     document.documentElement.classList.remove("dark");
-  }, [navigate, user, role, loading]);
+  }, [navigate, user, role, loading, location.pathname]);
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -25,7 +38,7 @@ const AdminLayout = () => {
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-50 text-gray-900 font-sans light selection:bg-emerald-200">
+    <div className="flex min-h-screen bg-[#f1f7fe] text-gray-900 font-sans light selection:bg-blue-200">
       <AdminSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <AdminTopNav title={title} />

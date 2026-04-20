@@ -110,9 +110,10 @@ const ProviderRegister = () => {
     const fetchConfig = async () => {
       try {
         const { data } = await API.get("/public/config");
-        if (data.registrationPrice) {
-          setCardConfig(prev => ({ ...prev, price: data.registrationPrice }));
-        }
+        setCardConfig({
+          enabled: data.registrationEnabled !== undefined ? data.registrationEnabled : true,
+          price: data.registrationPrice || 99
+        });
       } catch (err) {
         console.error("Failed to fetch register config:", err);
       }
@@ -252,17 +253,37 @@ const ProviderRegister = () => {
     }
   };
 
-  const handleBankSubmit = async (e) => {
-    e.preventDefault();
+  const finalizeSignupDirectly = async () => {
     setIsLoading(true);
     try {
-      await API.put("/provider/profile", { bankDetails: formData.bankDetails });
-      toast({ title: "Bank Details Saved", description: "You are all set!" });
-      setStep(10);
+      const finalData = {
+        ...formDataRef.current,
+        location: { type: 'Point', coordinates: coordsRef.current }
+      };
+      const signupRes = await signup(finalData, 'provider');
+      if (signupRes.success) {
+        setGeneratedCode(signupRes.data.vendorCode);
+        setStep(10);
+      } else {
+        toast({
+          title: "Signup Failed",
+          description: signupRes.error,
+          variant: "destructive"
+        });
+      }
     } catch (err) {
-      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleBankSubmit = async (e) => {
+    e.preventDefault();
+    if (!cardConfig.enabled) {
+      await finalizeSignupDirectly();
+    } else {
+      setStep(9);
     }
   };
 
@@ -874,7 +895,7 @@ const ProviderRegister = () => {
                   <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">Payout Details</p>
                 </div>
 
-                <form onSubmit={(e) => { e.preventDefault(); setStep(9); }} className="space-y-5">
+                <form onSubmit={handleBankSubmit} className="space-y-5">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
                     <input required value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="As per bank records" />
@@ -907,10 +928,13 @@ const ProviderRegister = () => {
                     type="submit"
                     className="w-full h-14 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs transition-all hover:bg-slate-800 active:scale-[0.98] flex items-center justify-center gap-3"
                   >
-                    Continue to Payment <ArrowRight className="h-4 w-4" />
+                    {cardConfig.enabled ? "Continue to Payment" : "Complete Registration"} <ArrowRight className="h-4 w-4" />
                   </button>
                   <div className="flex flex-col items-center gap-2">
-                    <button type="button" onClick={() => setStep(9)} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors">Skip for now</button>
+                    <button type="button" onClick={async () => {
+                      if (!cardConfig.enabled) await finalizeSignupDirectly();
+                      else setStep(9);
+                    }} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors">Skip for now</button>
                     <button type="button" onClick={() => setStep(7)} className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">Previous</button>
                   </div>
                 </form>

@@ -6,7 +6,7 @@ import StatCard from "../components/StatCard";
 import API from "@/lib/api";
 
 const statusColors = {
-  completed: "bg-emerald-100 text-emerald-700",
+  completed: "bg-blue-100 text-blue-700",
   active: "bg-blue-100 text-blue-700",
   pending: "bg-amber-100 text-amber-700",
 };
@@ -62,7 +62,7 @@ const AdminDashboard = () => {
         <div className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-bold text-gray-900">Recent Bookings</h3>
-            <Link to="/admin/bookings" className="text-sm font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+            <Link to="/admin/bookings" className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1">
               View All <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -130,15 +130,15 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-emerald-900 mb-2">Platform Health</h3>
-            <p className="text-sm text-emerald-700 mb-4">All systems are running smoothly. No critical issues reported.</p>
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-blue-900 mb-2">Platform Health</h3>
+            <p className="text-sm text-blue-700 mb-4">All systems are running smoothly. No critical issues reported.</p>
             <div className="flex gap-2">
-              <span className="inline-flex items-center rounded-full bg-emerald-200 px-2.5 py-1 text-xs font-bold text-emerald-800">
-                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+              <span className="inline-flex items-center rounded-full bg-blue-200 px-2.5 py-1 text-xs font-bold text-blue-800">
+                <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse"></span>
                 API Online
               </span>
-              <span className="inline-flex items-center rounded-full bg-emerald-200 px-2.5 py-1 text-xs font-bold text-emerald-800">
+              <span className="inline-flex items-center rounded-full bg-blue-200 px-2.5 py-1 text-xs font-bold text-blue-800">
                 Database Fast
               </span>
             </div>

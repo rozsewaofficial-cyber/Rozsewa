@@ -167,16 +167,25 @@ const getPublicProviders = async (req, res) => {
     }
 };
 
+const Setting = require('../models/Setting');
+
 // @desc    Get public configuration (e.g. registration price)
 // @route   GET /api/public/config
 // @access  Public
 const getPublicConfig = async (req, res) => {
     try {
-        // This could be fetched from a Settings model in the future
+        const settings = await Setting.find({
+            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber'] }
+        });
+
+        const config = {};
+        settings.forEach(s => config[s.key] = s.value);
+
         res.json({
-            registrationPrice: 99,
+            registrationEnabled: config.vendorCardEnabled !== undefined ? config.vendorCardEnabled : true,
+            registrationPrice: config.vendorCardPrice || 99,
             currency: "INR",
-            supportNumber: "91XXXXXXXXXX"
+            supportNumber: config.supportNumber || "91XXXXXXXXXX"
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

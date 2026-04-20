@@ -46,7 +46,7 @@ const providerSchema = mongoose.Schema({
     },
     openingTime: { type: String, default: "09:00 AM" },
     closingTime: { type: String, default: "09:00 PM" },
-    status: { type: String, enum: ['pending', 'verified', 'suspended'], default: 'pending' },
+    status: { type: String, enum: ['pending', 'verified', 'suspended', 'rejected'], default: 'pending' },
     isOnline: { type: Boolean, default: true },
     isEmergencyEnabled: { type: Boolean, default: false },
     rating: { type: Number, default: 0 },
@@ -84,14 +84,32 @@ const providerSchema = mongoose.Schema({
     },
     planType: {
         type: String,
-        enum: ['standard', 'pro', 'premium'],
-        default: 'pro'
+        enum: ['basic', 'standard', 'premium'],
+        default: 'basic'
     },
-    planExpiry: {
+    isSubscribed: {
+        type: Boolean,
+        default: false
+    },
+    subscriptionExpiry: {
         type: Date,
-        default: () => new Date(+new Date() + 30 * 24 * 60 * 60 * 1000) // Default 30 days from now
+        default: null
     },
-    joinedDate: { type: Date, default: Date.now }
+    subscriptionRate: {
+        type: Number,
+        default: null // e.g., 5
+    },
+    subscriptionType: {
+        type: String,
+        enum: ['percentage', 'fixed'],
+        default: 'percentage'
+    },
+    joinedDate: { type: Date, default: Date.now },
+    providerCategory: {
+        type: String,
+        enum: ['partner', 'sewak'],
+        default: 'partner'
+    }
 }, {
     timestamps: true
 });

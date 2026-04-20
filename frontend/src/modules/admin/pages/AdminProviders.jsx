@@ -55,6 +55,16 @@ const AdminProviders = () => {
     }
   };
 
+  const handleUpdatePlan = async (id, newPlan) => {
+    try {
+      const { data } = await API.put(`/admin/providers/${id}/plan`, { planType: newPlan });
+      setProviders(providers.map(p => p._id === id ? { ...p, planType: newPlan } : p));
+      toast({ title: "Plan Updated", description: `Provider plan changed to ${newPlan}.` });
+    } catch (err) {
+      toast({ title: "Plan Update Failed", variant: "destructive" });
+    }
+  };
+
   const deleteProvider = async (id) => {
     if (!window.confirm("Are you sure you want to remove this provider?")) return;
     try {
@@ -186,9 +196,20 @@ const AdminProviders = () => {
 
                     <td className="py-4 px-6">
                       <div className="flex flex-col gap-1.5">
-                        <span className="inline-flex w-fit items-center rounded-lg bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-700 border border-blue-100">
-                          {provider.vendorType}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center rounded-lg bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-700 border border-blue-100">
+                            {provider.vendorType}
+                          </span>
+                          <select
+                            value={provider.planType || 'basic'}
+                            onChange={(e) => handleUpdatePlan(provider._id, e.target.value)}
+                            className="bg-gray-50 border border-gray-200 text-[9px] font-black uppercase rounded-lg px-2 py-0.5 outline-none focus:ring-1 focus:ring-emerald-500"
+                          >
+                            <option value="basic">Basic (25%)</option>
+                            <option value="standard">Standard (20%)</option>
+                            <option value="premium">Premium (15%)</option>
+                          </select>
+                        </div>
                         <div className="flex flex-col gap-0.5 text-[10px] text-gray-500 font-bold tracking-tight">
                           <span className="flex items-center gap-1.5 truncate"><MapPin className="h-3 w-3 text-gray-400" /> {provider.address?.slice(0, 30)}...</span>
                           <span className="flex items-center gap-1.5 text-gray-400"><Clock className="h-3 w-3" /> Joined {new Date(provider.createdAt).toLocaleDateString()}</span>

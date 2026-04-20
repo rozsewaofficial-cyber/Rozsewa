@@ -415,6 +415,36 @@ const uploadDocument = async (req, res) => {
     }
 };
 
+// @desc    Verify credentials without login
+// @route   POST /api/provider/verify-credentials
+// @access  Public
+const verifyProviderCredentials = async (req, res) => {
+    const { mobile, password } = req.body;
+    try {
+        const provider = await Provider.findOne({ mobile });
+        if (provider && (await provider.matchPassword(password))) {
+            res.json({ success: true, providerCategory: provider.providerCategory });
+        } else {
+            res.status(401).json({ message: 'Invalid mobile or password' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get active subscription plans
+// @route   GET /api/provider/subscription-plans
+// @access  Private (Provider)
+const getSubscriptionPlans = async (req, res) => {
+    try {
+        const SubscriptionPlan = require('../models/SubscriptionPlan');
+        const plans = await SubscriptionPlan.find({ isActive: true });
+        res.json(plans);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     registerProvider,
     authProvider,
@@ -424,5 +454,7 @@ module.exports = {
     getProviderStats,
     checkProviderExistence,
     uploadDocument,
-    sendEmergencyAlert
+    sendEmergencyAlert,
+    verifyProviderCredentials,
+    getSubscriptionPlans
 };

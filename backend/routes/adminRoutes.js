@@ -3,6 +3,7 @@ const router = express.Router();
 const {
     getProviders,
     updateProviderStatus,
+    updateProviderPlan,
     getAdminStats,
     getBookings,
     getCategories,
@@ -33,10 +34,19 @@ const {
     addEmployee,
     updateEmployee,
     deleteEmployee,
-    deleteEmergencyAlert
+    deleteEmergencyAlert,
+    getAllAdmins,
+    createAdmin,
+    updateAdminPermissions,
+    verifySuperAdminPin,
+    updateSuperAdminPin,
+    deleteAdmin,
+    updateAdmin,
+    getAllSewaks,
+    createSewak
 } = require('../controllers/adminController');
 
-const { protect, admin } = require('../middleware/authMiddleware');
+const { protect, admin, superadmin } = require('../middleware/authMiddleware');
 
 // HRM Management
 
@@ -48,6 +58,7 @@ router.delete('/employees/:id', protect, admin, deleteEmployee);
 // Provider management
 router.get('/providers', protect, admin, getProviders);
 router.put('/providers/:id/status', protect, admin, updateProviderStatus);
+router.put('/providers/:id/plan', protect, admin, updateProviderPlan);
 
 // Category management
 router.get('/categories', protect, admin, getCategories);
@@ -100,5 +111,17 @@ router.get('/zones', protect, admin, getZones);
 router.post('/zones', protect, admin, addZone);
 router.delete('/zones/:id', protect, admin, deleteZone);
 
-module.exports = router;
+// Super Admin & Admin Management
+router.get('/admins', protect, superadmin, getAllAdmins);
+router.post('/admins', protect, superadmin, createAdmin);
+router.put('/admins/:id', protect, superadmin, updateAdmin);
+router.put('/admins/:id/permissions', protect, superadmin, updateAdminPermissions);
+router.post('/verify-pin', protect, admin, verifySuperAdminPin);
+router.post('/update-pin', protect, superadmin, updateSuperAdminPin);
+router.delete('/admins/:id', protect, superadmin, deleteAdmin);
 
+// Sewak Management
+router.get('/sewaks', protect, admin, getAllSewaks);
+router.post('/sewaks', protect, admin, createSewak);
+
+module.exports = router;
