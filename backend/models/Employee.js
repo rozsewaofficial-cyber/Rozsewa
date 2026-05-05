@@ -21,6 +21,11 @@ const employeeSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false // Optional if created without a user account initially
+    },
     registrationCommission: {
         type: Number,
         default: 50, // Fixed commission per registration
@@ -31,7 +36,19 @@ const employeeSchema = new mongoose.Schema({
     },
     role: {
         type: String,
+        enum: ['supervisor', 'field_staff', 'wfh', 'employee'],
         default: 'employee',
+    },
+    ownCode: {
+        type: String,
+        unique: true,
+    },
+    supervisorCode: {
+        type: String, // Code of the supervisor for field_staff
+    },
+    managedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Employee', // Reference to the supervisor
     },
     totalEarnings: {
         type: Number,
@@ -40,6 +57,12 @@ const employeeSchema = new mongoose.Schema({
     referralCount: {
         type: Number,
         default: 0,
+    },
+    panCard: { type: String, trim: true },
+    aadharCard: { type: String, trim: true },
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
     },
     createdAt: {
         type: Date,

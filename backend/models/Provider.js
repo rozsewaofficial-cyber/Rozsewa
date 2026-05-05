@@ -74,6 +74,9 @@ const providerSchema = mongoose.Schema({
         }
     ],
     kycVerified: { type: Boolean, default: false },
+    onboardedByStaff: { type: String }, // Code of field staff who onboarded
+    isWFHVerified: { type: Boolean, default: false },
+    wfhVerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     freeServicesLeft: {
         type: Number,
         default: 3
@@ -84,7 +87,7 @@ const providerSchema = mongoose.Schema({
     },
     planType: {
         type: String,
-        enum: ['basic', 'standard', 'premium'],
+        enum: ['basic', 'standard', 'premium', 'pro'],
         default: 'basic'
     },
     isSubscribed: {

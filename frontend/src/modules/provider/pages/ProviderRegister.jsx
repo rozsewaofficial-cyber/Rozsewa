@@ -200,16 +200,44 @@ const ProviderRegister = () => {
     }
     setIsLoading(true);
     try {
-      const { data } = await API.post("/provider/check-existence", { mobile: formData.mobile });
-      if (data.exists) {
+      const { data: existData } = await API.post("/auth/check-existence", { mobile: formData.mobile });
+      if (existData.exists) {
         toast({ title: "Already Registered", description: "Use another number or login.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
-      setOtpSent(true);
-      toast({ title: "OTP Sent" });
-    } catch { toast({ title: "Error", variant: "destructive" }); }
+
+      const { data } = await API.post("/auth/send-otp", { mobile: formData.mobile });
+      if (data.success) {
+        setOtpSent(true);
+        toast({ title: "OTP Sent", description: "Identity verification code sent." });
+      }
+    } catch (err) {
+      toast({ title: "Failed to send OTP", description: err.response?.data?.message || "Error", variant: "destructive" });
+    }
     finally { setIsLoading(false); }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!formData.otp) return;
+
+    setIsLoading(true);
+    try {
+      const { data } = await API.post("/auth/verify-otp", {
+        mobile: formData.mobile,
+        otp: formData.otp
+      });
+
+      if (data.success) {
+        setStep(2);
+        toast({ title: "Mobile Verified", description: "You can now proceed with business details." });
+      }
+    } catch (err) {
+      toast({ title: "Invalid OTP", description: "Please enter the correct verification code.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const currentCategory = categories.find(c => c._id === formData.vendorType);
@@ -427,7 +455,7 @@ const ProviderRegister = () => {
                   <motion.form
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
-                    onSubmit={e => { e.preventDefault(); setStep(2); }}
+                    onSubmit={handleVerifyOtp}
                     className="space-y-6 pt-8 border-t border-slate-100"
                   >
                     <div className="space-y-3">

@@ -4,6 +4,42 @@ const Provider = require('../models/Provider');
 const Employee = require('../models/Employee');
 const { emitToProvider } = require('../config/socket');
 const mongoose = require('mongoose');
+const Service = require('../models/Service');
+const Category = require('../models/Category');
+const Setting = require('../models/Setting');
+const SewakIncentiveLog = require('../models/SewakIncentiveLog');
+
+// Helper to check if time is within night window
+const isNightTime = (timeStr, startStr, endStr) => {
+    const toMinutes = (s) => {
+        // Handle "HH:mm AM/PM" format or "HH:mm"
+        const parts = s.split(' ');
+        const [h_str, m_str] = parts[0].split(':');
+        let h = parseInt(h_str);
+        let m = parseInt(m_str);
+        
+        if (parts[1]) {
+            const period = parts[1].toUpperCase();
+            if (period === 'PM' && h < 12) h += 12;
+            if (period === 'AM' && h === 12) h = 0;
+        }
+        return h * 60 + m;
+    };
+
+    try {
+        const current = toMinutes(timeStr);
+        const start = toMinutes(startStr);
+        const end = toMinutes(endStr);
+
+        if (start < end) {
+            return current >= start && current <= end;
+        } else {
+            return current >= start || current <= end;
+        }
+    } catch (err) {
+        return false;
+    }
+};
 
 // @desc    Create new booking
 // @route   POST /api/bookings
@@ -12,6 +48,36 @@ const createBooking = async (req, res) => {
     const { providerId, serviceName, serviceId, bookingDate, bookingTime, totalAmount, address, couponCode, discountAmount, paymentMode } = req.body;
 
     try {
+        let finalTotalAmount = totalAmount;
+        let nightChargeAmount = 0;
+        let appliedNightChargePercent = 0;
+
+        // --- Night Charge Logic ---
+        try {
+            const config = await Setting.findOne({ key: 'night_charge_config' });
+            if (config && config.value.enabled) {
+                const { startTime, endTime, defaultPercent } = config.value;
+                
+                if (isNightTime(bookingTime, startTime, endTime)) {
+                    const service = await Service.findById(serviceId);
+                    if (service) {
+                        const category = await Category.findOne({ name: service.category });
+                        let percent = defaultPercent;
+                        
+                        if (category && category.hasNightCharge) {
+                            percent = category.nightChargePercent;
+                        }
+                        
+                        appliedNightChargePercent = percent;
+                        nightChargeAmount = (totalAmount * percent) / 100;
+                        finalTotalAmount = totalAmount + nightChargeAmount;
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Night charge calculation error:", err);
+        }
+
         const booking = await Booking.create({
             userId: req.user._id,
             providerId,
@@ -19,12 +85,13 @@ const createBooking = async (req, res) => {
             serviceId,
             bookingDate,
             bookingTime,
-            totalAmount,
+            totalAmount: finalTotalAmount,
             address,
             location: req.body.location,
             couponCode,
             discountAmount,
-            paymentMode
+            paymentMode,
+            extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
         });
 
         if (booking) {
@@ -361,6 +428,56 @@ const verifyEndOTP = async (req, res) => {
                 });
 
                 provider.walletBalance = wallet.balance;
+
+                // --- Sewak Daily Incentive Logic ---
+                if (provider.providerCategory === 'sewak') {
+                    try {
+                        const today = new Date().toISOString().split('T')[0];
+                        
+                        // Fetch global incentive settings
+                        const settings = await Setting.find({ key: { $in: ['DAILY_BOOKING_THRESHOLD', 'BONUS_PER_EXTRA_BOOKING'] } });
+                        const threshold = Number(settings.find(s => s.key === 'DAILY_BOOKING_THRESHOLD')?.value || 5);
+                        const bonusAmount = Number(settings.find(s => s.key === 'BONUS_PER_EXTRA_BOOKING')?.value || 50);
+
+                        // Count bookings completed by this sewak today
+                        const startOfDay = new Date();
+                        startOfDay.setHours(0, 0, 0, 0);
+                        const endOfDay = new Date();
+                        endOfDay.setHours(23, 59, 59, 999);
+
+                        const dailyCount = await Booking.countDocuments({
+                            providerId: provider._id,
+                            status: 'completed',
+                            updatedAt: { $gte: startOfDay, $lte: endOfDay }
+                        });
+
+                        if (dailyCount > threshold) {
+                            // Apply bonus
+                            await SewakIncentiveLog.create({
+                                sewakId: provider._id,
+                                bookingId: booking._id,
+                                date: today,
+                                dailyBookingCount: dailyCount,
+                                bonusEarned: bonusAmount
+                            });
+
+                            // Add bonus to wallet
+                            wallet.balance += bonusAmount;
+                            await Transaction.create({
+                                providerId: provider._id,
+                                title: `Daily Performance Bonus`,
+                                amount: bonusAmount,
+                                type: 'credit',
+                                status: 'completed',
+                                bookingId: booking._id,
+                                description: `Incentive for completing ${dailyCount} bookings today (Threshold: ${threshold})`
+                            });
+                            provider.walletBalance = wallet.balance;
+                        }
+                    } catch (incError) {
+                        console.error("Incentive Calculation Error:", incError);
+                    }
+                }
 
                 await Promise.all([booking.save(), provider.save(), wallet.save()]);
 

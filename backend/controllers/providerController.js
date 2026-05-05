@@ -25,27 +25,29 @@ const registerProvider = async (req, res) => {
         // Core dynamic logic for First 3 Free services & Payouts
         let freeServicesLeft = 3; // Always 3 free for new vendors per request
 
-        // Handle referral logic
-        if (registrationType === 'vendor_referral' && referredBy) {
-            // Find referring vendor and give them 3 more free services
-            const referringVendor = await Provider.findOne({ vendorCode: referredBy });
-            if (referringVendor) {
-                referringVendor.freeServicesLeft = (referringVendor.freeServicesLeft || 0) + 3;
-                await referringVendor.save();
-                console.log(`Referral Bonus: 3 free services added to Provider ${referringVendor.vendorCode}`);
-            } else {
-                console.log(`Warning: Referring vendor ${referredBy} not found.`);
-            }
-        } else if (registrationType === 'employee' && referredBy) {
-            // Find employee and update stats
-            const employee = await Employee.findOne({ employeeId: referredBy });
+        // Handle referral and onboarding logic
+        let onboardedByStaff = null;
+        if (referredBy) {
+            // Check for both Field Staff and General Employees
+            const employee = await Employee.findOne({ ownCode: referredBy });
             if (employee) {
+                if (employee.role === 'field_staff') {
+                    onboardedByStaff = employee.ownCode;
+                }
+                
                 employee.referralCount = (employee.referralCount || 0) + 1;
                 employee.totalEarnings = (employee.totalEarnings || 0) + (employee.registrationCommission || 50);
                 await employee.save();
-                console.log(`Employee Bonus: Commission added to Employee ${employee.employeeId}`);
+                console.log(`Bonus: Commission added to ${employee.role} ${employee.ownCode}`);
+            } else if (registrationType === 'vendor_referral') {
+                 // Existing vendor referral logic
+                 const referringVendor = await Provider.findOne({ vendorCode: referredBy });
+                 if (referringVendor) {
+                     referringVendor.freeServicesLeft = (referringVendor.freeServicesLeft || 0) + 3;
+                     await referringVendor.save();
+                 }
             } else {
-                console.log(`Warning: Referring employee ${referredBy} not found.`);
+                return res.status(400).json({ message: 'Invalid referral or staff code' });
             }
         }
 
@@ -79,6 +81,7 @@ const registerProvider = async (req, res) => {
             employeeCode,
             registrationType: registrationType || 'individual',
             referredBy: referredBy || null,
+            onboardedByStaff: onboardedByStaff,
             bankDetails: bankDetails || null,
             freeServicesLeft,
             documents: initialDocs,
@@ -432,13 +435,22 @@ const verifyProviderCredentials = async (req, res) => {
     }
 };
 
-// @desc    Get active subscription plans
-// @route   GET /api/provider/subscription-plans
-// @access  Private (Provider)
 const getSubscriptionPlans = async (req, res) => {
     try {
         const SubscriptionPlan = require('../models/SubscriptionPlan');
-        const plans = await SubscriptionPlan.find({ isActive: true });
+        const Provider = require('../models/Provider');
+        
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) return res.status(404).json({ message: 'Provider not found' });
+
+        const plans = await SubscriptionPlan.find({ 
+            isActive: true, 
+            $or: [
+                { category: provider.vendorType },
+                { category: { $exists: false } },
+                { category: null }
+            ]
+        });
         res.json(plans);
     } catch (error) {
         res.status(500).json({ message: error.message });

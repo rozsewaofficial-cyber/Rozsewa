@@ -2,6 +2,71 @@ const User = require('../models/User');
 const Provider = require('../models/Provider');
 const { Wallet } = require('../models/Wallet');
 const generateToken = require('../utils/generateToken');
+const OTP = require('../models/OTP');
+const { sendSMSOTP } = require('../utils/smsService');
+
+// @desc    Send OTP to mobile
+// @route   POST /api/auth/send-otp
+// @access  Public
+const sendOTP = async (req, res) => {
+    const { mobile } = req.body;
+    if (!mobile) return res.status(400).json({ message: 'Mobile number is required' });
+
+    try {
+        // Handle test number bypass
+        if (mobile === '9999900000') {
+            await OTP.findOneAndUpdate(
+                { mobile },
+                { otp: '123456', createdAt: new Date() },
+                { upsert: true, new: true }
+            );
+            return res.json({ success: true, message: 'Test OTP generated' });
+        }
+
+        // Generate 6 digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Save OTP to DB (upsert)
+        await OTP.findOneAndUpdate(
+            { mobile },
+            { otp, createdAt: new Date() },
+            { upsert: true, new: true }
+        );
+
+        // Send SMS
+        const result = await sendSMSOTP(mobile, otp);
+
+        if (result.success) {
+            res.json({ success: true, message: 'OTP sent successfully' });
+        } else {
+            res.status(500).json({ message: 'Failed to send SMS', error: result.error });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Verify OTP
+// @route   POST /api/auth/verify-otp
+// @access  Public
+const verifyOTP = async (req, res) => {
+    const { mobile, otp } = req.body;
+    if (!mobile || !otp) return res.status(400).json({ message: 'Mobile and OTP required' });
+
+    try {
+        const otpDoc = await OTP.findOne({ mobile, otp });
+
+        if (otpDoc) {
+            // Delete OTP after verification
+            await OTP.deleteOne({ _id: otpDoc._id });
+            res.json({ success: true, message: 'OTP verified successfully' });
+        } else {
+            res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 // @desc    Register a new user
 // @route   POST /api/auth/register
@@ -53,14 +118,64 @@ const registerUser = async (req, res) => {
     }
 };
 
+// @desc    Auth user with OTP & get token
+// @route   POST /api/auth/login-otp
+// @access  Public
+const loginWithOTP = async (req, res) => {
+    const { mobile, otp } = req.body;
+    if (!mobile || !otp) return res.status(400).json({ message: 'Mobile and OTP required' });
+
+    try {
+        // Handle test number bypass
+        if (mobile === '9999900000' && otp === '123456') {
+            // Allow bypass
+        } else {
+            const otpDoc = await OTP.findOne({ mobile, otp });
+            if (!otpDoc) {
+                return res.status(400).json({ message: 'Invalid or expired OTP' });
+            }
+            // Delete OTP after successful login
+            await OTP.deleteOne({ _id: otpDoc._id });
+        }
+
+        // OTP is valid, now find user (Customer or Provider)
+        let user = await User.findOne({ mobile });
+        let isProvider = false;
+
+        if (!user) {
+            user = await Provider.findOne({ mobile });
+            isProvider = !!user;
+        }
+
+        if (!user) {
+            return res.status(404).json({ message: 'No account found with this mobile number' });
+        }
+
+        res.json({
+            _id: user._id,
+            name: user.name || user.ownerName,
+            email: user.email,
+            mobile: user.mobile,
+            role: user.role || (isProvider ? 'provider' : 'customer'),
+            city: user.city || "",
+            address: user.address || "",
+            avatar: user.avatar || user.profileImage,
+            providerCategory: user.providerCategory || "partner",
+            token: generateToken(user._id),
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Auth user & get token
 // @route   POST /api/auth/login
 // @access  Public
 const authUser = async (req, res) => {
-    const { identifier, password } = req.body; // 'identifier' can be email or phone
+    const { identifier, password } = req.body;
+    console.log(`Login attempt for: ${identifier}`);
 
     try {
-        // Search for user by email OR mobile
         const user = await User.findOne({
             $or: [
                 { email: identifier },
@@ -68,22 +183,32 @@ const authUser = async (req, res) => {
             ]
         });
 
-        if (user && (await user.matchPassword(password))) {
-            res.json({
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                mobile: user.mobile,
-                role: user.role,
-                city: user.city,
-                address: user.address,
-                avatar: user.avatar,
-                token: generateToken(user._id),
-            });
+        if (user) {
+            console.log(`User found in DB: ${user.email}, ${user.role}`);
+            const isMatch = await user.matchPassword(password);
+            console.log(`Password match result: ${isMatch}`);
+
+            if (isMatch) {
+                res.json({
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    mobile: user.mobile,
+                    role: user.role,
+                    city: user.city,
+                    address: user.address,
+                    avatar: user.avatar,
+                    token: generateToken(user._id),
+                });
+            } else {
+                res.status(401).json({ message: 'Invalid email/mobile or password' });
+            }
         } else {
+            console.log(`User NOT found for identifier: ${identifier}`);
             res.status(401).json({ message: 'Invalid email/mobile or password' });
         }
     } catch (error) {
+        console.error('Login Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -114,6 +239,8 @@ const getUserProfile = async (req, res) => {
                 vendorCode: user.vendorCode || "",
                 commissionFreeBookings: user.commissionFreeBookings || 0,
                 permissions: user.permissions || [],
+                providerCategory: user.providerCategory || "partner",
+                employeeCode: user.role === 'supervisor' || user.role === 'employee' ? (await require('../models/Employee').findOne({ userId: user._id }))?.ownCode : ""
             });
         } else {
             res.status(404).json({ message: 'User not found' });
@@ -168,6 +295,7 @@ const updateUserProfile = async (req, res) => {
                 avatar: updatedUser.avatar || updatedUser.profileImage,
                 addresses: updatedUser.addresses,
                 favorites: updatedUser.favorites,
+                providerCategory: updatedUser.providerCategory || "partner",
                 token: generateToken(updatedUser._id),
             });
         } else {
@@ -233,6 +361,22 @@ const checkUserExistence = async (req, res) => {
     }
 };
 
+const verifyCredentials = async (req, res) => {
+    const { mobile, password } = req.body;
+    try {
+        let user = await User.findOne({ mobile });
+        if (!user) user = await Provider.findOne({ mobile });
+
+        if (user && (await user.matchPassword(password))) {
+            res.json({ success: true });
+        } else {
+            res.status(401).json({ success: false, message: 'Invalid mobile or password' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
     authUser,
@@ -241,4 +385,8 @@ module.exports = {
     updatePassword,
     deleteUserAccount,
     checkUserExistence,
+    sendOTP,
+    verifyOTP,
+    loginWithOTP,
+    verifyCredentials,
 };

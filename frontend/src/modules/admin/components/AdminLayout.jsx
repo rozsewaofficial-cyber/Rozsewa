@@ -12,10 +12,13 @@ const AdminLayout = () => {
   const [title, setTitle] = useState("Dashboard");
 
   useEffect(() => {
-    const isAdmin = role === 'admin' || role === 'superadmin';
-    if (!loading && (!user || !isAdmin)) {
-      navigate("/admin/login");
-      return;
+    const isAdmin = role === 'admin' || role === 'superadmin' || role === 'supervisor';
+    
+    if (!loading) {
+      if (!user || !isAdmin) {
+        navigate("/admin/login");
+        return;
+      }
     }
 
     // Permission check for regular admins

@@ -31,9 +31,14 @@ const AdminUsers = () => {
 
   const handleToggleStatus = async (id, currentStatus) => {
     try {
-      // Assuming a generic user update route or dedicated block route
-      // For now we'll just mock the toggle logic until dedicated backend action is added
-      toast({ title: "Action Successful", description: "User status updated." });
+      const { data } = await API.put(`/admin/users/${id}/toggle-status`);
+      if (data.success) {
+        setUsers(prev => prev.map(u => u._id === id ? { ...u, isActive: data.isActive } : u));
+        toast({ 
+          title: data.isActive ? "User Unblocked" : "User Blocked", 
+          description: `The account is now ${data.isActive ? 'active' : 'restricted'}.` 
+        });
+      }
     } catch (err) {
       toast({ title: "Action Failed", variant: "destructive" });
     }
@@ -135,10 +140,18 @@ const AdminUsers = () => {
                     <td className="py-5 px-8 text-right">
                       <div className="flex items-center justify-end gap-3">
                         <button
-                          onClick={() => handleToggleStatus(user._id, 'active')}
-                          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95"
+                          onClick={() => handleToggleStatus(user._id, user.isActive)}
+                          className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 ${
+                            user.isActive === false 
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100" 
+                            : "bg-white text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100"
+                          }`}
                         >
-                          <Ban className="h-3.5 w-3.5" /> Block
+                          {user.isActive === false ? (
+                            <><CheckCircle2 className="h-3.5 w-3.5" /> Unblock</>
+                          ) : (
+                            <><Ban className="h-3.5 w-3.5" /> Block</>
+                          )}
                         </button>
                         <button className="p-2.5 text-gray-300 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all">
                           <MoreVertical className="h-5 w-5" />

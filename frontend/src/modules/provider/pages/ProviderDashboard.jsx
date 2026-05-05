@@ -5,7 +5,7 @@ import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
-  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap
+  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -75,7 +75,7 @@ const ProviderDashboard = () => {
   }, []);
 
   const handleUpgrade = async () => {
-    if (plans.length === 0) return;
+    if (plans.length === 0 || user?.providerCategory === 'sewak') return;
     const plan = plans[0]; // Get the first active plan (e.g., 999 Elite)
 
     setIsLoading(true);
@@ -202,6 +202,62 @@ const ProviderDashboard = () => {
       setShowEmergencyMenu(false);
     }
   };
+  // KYC Check for Sewaks
+  if (user?.providerCategory === 'sewak' && !user?.kycVerified) {
+    const hasUploaded = user?.documents && user.documents.length > 0;
+
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white rounded-[40px] p-10 shadow-2xl shadow-slate-200 border border-slate-100">
+          <div className="h-24 w-24 bg-amber-50 rounded-[32px] flex items-center justify-center mb-8 mx-auto border-2 border-amber-100/50">
+            {hasUploaded ? (
+              <Clock className="h-12 w-12 text-amber-500 animate-pulse" />
+            ) : (
+              <ShieldAlert className="h-12 w-12 text-amber-500" />
+            )}
+          </div>
+
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-4">
+            {hasUploaded ? "Verification Pending" : "Identity KYC Required"}
+          </h1>
+
+          <p className="text-slate-500 font-medium leading-relaxed mb-10">
+            {hasUploaded
+              ? "Your documents have been submitted and are being reviewed by the admin panel. Access will be granted after verification."
+              : "To start receiving service requests, you must first complete your identity verification by uploading required documents."}
+          </p>
+
+          {hasUploaded ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                  <CheckCircle className="h-4 w-4 text-white" />
+                </div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Documents Submitted Successfully</p>
+              </div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-amber-50 text-amber-600 py-3 rounded-xl border border-amber-100/50">
+                ETA: 24-48 Business Hours
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="w-full py-4 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Refresh Status
+              </button>
+            </div>
+          ) : (
+            <Link
+              to="/provider/documents"
+              className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-16 rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-4"
+            >
+              <Upload className="h-5 w-5" />
+              <span>START KYC PROCESS</span>
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Approval Overlay / Pending Screen
   if (user?.status === 'pending' || user?.status === 'suspended') {
@@ -347,7 +403,7 @@ const ProviderDashboard = () => {
 
         {/* Elite Subscription Banner */}
         <AnimatePresence>
-          {!isSubscribed && plans.length > 0 && (
+          {!isSubscribed && plans.length > 0 && user?.providerCategory !== 'sewak' && (
             <motion.section
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
@@ -369,10 +425,10 @@ const ProviderDashboard = () => {
                         <span className="text-[8px] font-black uppercase tracking-widest text-amber-200">Elite Hub</span>
                       </div>
                       <h2 className="text-base md:text-2xl font-black tracking-tighter leading-tight">
-                        Reduce Commission to <span className="text-amber-400">5% Yearly</span>
+                        Reduce Commission to <span className="text-amber-400">{plans[0]?.offeredCommissionRate || 5}% Yearly</span>
                       </h2>
                       <p className="text-[10px] md:text-xs font-bold text-emerald-100/70 italic hidden sm:block">
-                        Keep 95% of your earnings on every booking.
+                        Keep {100 - (plans[0]?.offeredCommissionRate || 5)}% of your earnings on every booking.
                       </p>
                     </div>
                   </div>

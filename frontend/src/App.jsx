@@ -65,6 +65,7 @@ import AdminEarnings from "./modules/admin/pages/AdminEarnings";
 import AdminCoupons from "./modules/admin/pages/AdminCoupons";
 import AdminFeedback from "./modules/admin/pages/AdminFeedback";
 import AdminServices from "./modules/admin/pages/AdminServices";
+import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
 import AdminBanners from "./modules/admin/pages/AdminBanners";
@@ -73,18 +74,24 @@ import AdminActivityLog from "./modules/admin/pages/AdminActivityLog";
 import AdminKYC from "./modules/admin/pages/AdminKYC";
 import Admin99Card from "./modules/admin/pages/Admin99Card";
 import AdminCommission from "./modules/admin/pages/AdminCommission";
-import AdminOffers from "./modules/admin/pages/AdminOffers";
+
 import AdminZones from "./modules/admin/pages/AdminZones";
 import AdminDispatch from "./modules/admin/pages/AdminDispatch";
 import AdminEmergency from "./modules/admin/pages/AdminEmergency";
 import AdminFinance from "./modules/admin/pages/AdminFinance";
 import AdminQuality from "./modules/admin/pages/AdminQuality";
-import AdminSystem from "./modules/admin/pages/AdminSystem";
-import AdminPromotions from "./modules/admin/pages/AdminPromotions";
+
+
 import AdminHelpTraining from "./modules/admin/pages/AdminHelpTraining";
 import AdminHRM from "./modules/admin/pages/AdminHRM";
 import AdminSuper from "./modules/admin/pages/AdminSuper";
 import SewakManagement from "./modules/admin/pages/SewakManagement";
+import AdminVerifySewak from "./modules/admin/pages/AdminVerifySewak";
+import AdminSubscriptions from "./modules/admin/pages/AdminSubscriptions";
+import AdminAuditLogs from "./modules/admin/pages/AdminAuditLogs";
+import AdminNightCharge from "./modules/admin/pages/AdminNightCharge";
+import AdminSewakIncentives from "./modules/admin/pages/AdminSewakIncentives";
+
 
 // Admin Layout
 import AdminLayout from "./modules/admin/components/AdminLayout";
@@ -157,13 +164,18 @@ const App = () => (
                       <Route index element={<AdminDashboard />} />
                       <Route path="users" element={<AdminUsers />} />
                       <Route path="hrm" element={<AdminHRM />} />
+                      <Route path="supervisors" element={<AdminHRM view="supervisor" />} />
+                      <Route path="employees" element={<AdminHRM view="employee" />} />
                       <Route path="providers" element={<AdminProviders />} />
                       <Route path="sewaks" element={<SewakManagement />} />
+                      <Route path="verify-sewaks" element={<AdminVerifySewak />} />
                       <Route path="bookings" element={<AdminBookings />} />
                       <Route path="earnings" element={<AdminEarnings />} />
                       <Route path="coupons" element={<AdminCoupons />} />
                       <Route path="feedback" element={<AdminFeedback />} />
                       <Route path="services" element={<AdminServices />} />
+                      <Route path="subscriptions" element={<AdminSubscriptions />} />
+                      <Route path="sewak-pricing" element={<SewakPricing />} />
                       <Route path="settings" element={<AdminSettings />} />
                       <Route path="disputes" element={<AdminDisputes />} />
                       <Route path="banners" element={<AdminBanners />} />
@@ -172,14 +184,17 @@ const App = () => (
                       <Route path="kyc" element={<AdminKYC />} />
                       <Route path="99cards" element={<Admin99Card />} />
                       <Route path="commission" element={<AdminCommission />} />
-                      <Route path="offers" element={<AdminOffers />} />
+                      <Route path="audit-logs" element={<AdminAuditLogs />} />
+                      <Route path="night-charge" element={<AdminNightCharge />} />
+                      <Route path="sewak-incentives" element={<AdminSewakIncentives />} />
+
+
                       <Route path="zones" element={<AdminZones />} />
                       <Route path="dispatch" element={<AdminDispatch />} />
                       <Route path="emergency" element={<AdminEmergency />} />
                       <Route path="finance" element={<AdminFinance />} />
                       <Route path="quality" element={<AdminQuality />} />
-                      <Route path="master-data" element={<AdminSystem />} />
-                      <Route path="promotions" element={<AdminPromotions />} />
+
 
                       <Route path="help-training" element={<AdminHelpTraining />} />
                       <Route path="super" element={<AdminSuper />} />

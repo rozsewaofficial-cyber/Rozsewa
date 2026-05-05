@@ -74,9 +74,21 @@ const verifySubscriptionPayment = async (req, res) => {
 
         // Update provider subscription status
         provider.isSubscribed = true;
-        provider.subscriptionExpiry = new Date(Date.now() + plan.validityDays * 24 * 60 * 60 * 1000);
+        
+        // Calculate expiry based on planType
+        const expiryDate = new Date();
+        if (plan.planType === 'monthly') {
+            expiryDate.setDate(expiryDate.getDate() + 30);
+        } else {
+            expiryDate.setDate(expiryDate.getDate() + 365);
+        }
+        
+        provider.subscriptionExpiry = expiryDate;
         provider.subscriptionRate = plan.offeredCommissionRate;
         provider.subscriptionType = plan.offeredCommissionType;
+        
+        // Crucial: Update the actual commission rate used for bookings
+        provider.commissionRate = plan.offeredCommissionRate;
 
         await provider.save();
 

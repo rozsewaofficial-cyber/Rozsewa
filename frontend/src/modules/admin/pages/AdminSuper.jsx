@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
     Users, Plus, Shield, Lock, Trash2, CheckCircle2, XCircle,
-    ChevronRight, Save, UserPlus, Fingerprint, CreditCard, Percent, Zap
+    ChevronRight, Save, UserPlus, Fingerprint, CreditCard, Percent, Zap,
+    MoreVertical, Mail, Phone, Calendar, Info, X
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -16,9 +18,11 @@ import { adminSidebarLinks } from "../components/AdminSidebar";
 
 const AdminSuper = () => {
     const [admins, setAdmins] = useState([]);
+    const [sewaks, setSewaks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newPin, setNewPin] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [showSewakForm, setShowSewakForm] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingAdminId, setEditingAdminId] = useState(null);
     const [newAdmin, setNewAdmin] = useState({
@@ -26,7 +30,26 @@ const AdminSuper = () => {
         email: '',
         mobile: '',
         password: '',
-        permissions: []
+        permissions: [],
+        kycAccess: false,
+        kycLimit: 50,
+        kycBonusPerVerification: 10
+    });
+    const [kycPerformance, setKycPerformance] = useState([]);
+    const [selectedAdmin, setSelectedAdmin] = useState(null);
+    const [showDrawer, setShowDrawer] = useState(false);
+
+    const [newSewak, setNewSewak] = useState({
+        ownerName: '',
+        mobile: '',
+        password: '',
+        email: '',
+        address: '',
+        city: '',
+        state: '',
+        latitude: '',
+        longitude: '',
+        businessType: 'Internal Service'
     });
 
     const [settings, setSettings] = useState({
@@ -61,14 +84,40 @@ const AdminSuper = () => {
             setAdmins(response.data);
         } catch (error) {
             toast.error("Failed to fetch admins");
-        } finally {
-            setLoading(false);
+        }
+    };
+
+    const fetchKycPerformance = async () => {
+        try {
+            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
+            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/kyc-performance`, {
+                headers: { Authorization: `Bearer ${auth?.token}` }
+            });
+            setKycPerformance(response.data);
+        } catch (error) {
+            console.error("Failed to fetch performance");
+        }
+    };
+
+    const fetchSewaks = async () => {
+        try {
+            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
+            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/sewaks`, {
+                headers: { Authorization: `Bearer ${auth?.token}` }
+            });
+            setSewaks(response.data);
+        } catch (error) {
+            toast.error("Failed to fetch sewaks");
         }
     };
 
     useEffect(() => {
-        fetchAdmins();
-        fetchSettings();
+        const loadAllData = async () => {
+            setLoading(true);
+            await Promise.all([fetchAdmins(), fetchSettings(), fetchSewaks(), fetchKycPerformance()]);
+            setLoading(false);
+        };
+        loadAllData();
     }, []);
 
     const updateAdminSetting = async (key, value) => {
@@ -102,10 +151,31 @@ const AdminSuper = () => {
             setShowCreateForm(false);
             setIsEditing(false);
             setEditingAdminId(null);
-            setNewAdmin({ name: '', email: '', mobile: '', password: '', permissions: [] });
+            setNewAdmin({ name: '', email: '', mobile: '', password: '', permissions: [], kycAccess: false, kycLimit: 50, kycBonusPerVerification: 10 });
             fetchAdmins();
+            fetchKycPerformance();
         } catch (error) {
             toast.error(error.response?.data?.message || "Operation failed");
+        }
+    };
+
+    const handleCreateSewak = async (e) => {
+        e.preventDefault();
+        try {
+            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
+            await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewaks`, newSewak, {
+                headers: { Authorization: `Bearer ${auth?.token}` }
+            });
+            toast.success("Sewak created successfully");
+            setShowSewakForm(false);
+            setNewSewak({
+                ownerName: '', mobile: '', password: '', email: '',
+                address: '', city: '', state: '', latitude: '', longitude: '',
+                businessType: 'Internal Service'
+            });
+            fetchSewaks();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to create sewak");
         }
     };
 
@@ -129,7 +199,10 @@ const AdminSuper = () => {
             email: admin.email,
             mobile: admin.mobile,
             password: '', // Leave password empty for editing
-            permissions: admin.permissions || []
+            permissions: admin.permissions || [],
+            kycAccess: admin.kycAccess || false,
+            kycLimit: admin.kycLimit || 50,
+            kycBonusPerVerification: admin.kycBonusPerVerification || 10
         });
         setEditingAdminId(admin._id);
         setIsEditing(true);
@@ -160,6 +233,9 @@ const AdminSuper = () => {
             });
             toast.success(`Permissions updated for ${admin.name}`);
             setAdmins(admins.map(a => a._id === admin._id ? { ...a, isModified: false } : a));
+            if (selectedAdmin?._id === admin._id) {
+                setSelectedAdmin({ ...admin, isModified: false });
+            }
         } catch (error) {
             toast.error("Failed to save permissions");
         }
@@ -213,7 +289,7 @@ const AdminSuper = () => {
                             if (showCreateForm) {
                                 setIsEditing(false);
                                 setEditingAdminId(null);
-                                setNewAdmin({ name: '', email: '', mobile: '', password: '', permissions: [] });
+                                setNewAdmin({ name: '', email: '', mobile: '', password: '', permissions: [], kycAccess: false, kycLimit: 50, kycBonusPerVerification: 10 });
                             }
                             setShowCreateForm(!showCreateForm);
                         }}
@@ -284,6 +360,50 @@ const AdminSuper = () => {
                                         {isEditing ? "Update" : "Create"}
                                     </Button>
                                 </div>
+                            </div>
+
+                            {/* KYC Incentive Controls */}
+                            <div className="md:col-span-2 lg:col-span-4 p-4 bg-white rounded-2xl border border-emerald-100 flex flex-col md:flex-row items-center gap-6 shadow-sm">
+                                <div className="flex items-center gap-3">
+                                    <Switch 
+                                        checked={newAdmin.kycAccess}
+                                        onCheckedChange={(val) => setNewAdmin({ ...newAdmin, kycAccess: val })}
+                                        className="data-[state=checked]:bg-emerald-600"
+                                    />
+                                    <div className="space-y-0.5">
+                                        <Label className="text-xs font-black text-gray-900 uppercase">KYC Incentive Access</Label>
+                                        <p className="text-[10px] font-bold text-gray-400">Allow this admin to earn bonuses on KYC verification</p>
+                                    </div>
+                                </div>
+
+                                {newAdmin.kycAccess && (
+                                    <motion.div 
+                                        initial={{ opacity: 0, x: -20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className="flex flex-col sm:flex-row items-center gap-4 flex-1"
+                                    >
+                                        <div className="w-full sm:w-auto flex-1 space-y-1">
+                                            <Label className="text-[10px] font-black text-gray-500 uppercase ml-1">Verification Limit</Label>
+                                            <Input 
+                                                type="number"
+                                                placeholder="e.g. 50"
+                                                value={newAdmin.kycLimit}
+                                                onChange={(e) => setNewAdmin({ ...newAdmin, kycLimit: Number(e.target.value) })}
+                                                className="h-10 rounded-xl font-black text-xs"
+                                            />
+                                        </div>
+                                        <div className="w-full sm:w-auto flex-1 space-y-1">
+                                            <Label className="text-[10px] font-black text-gray-500 uppercase ml-1">Bonus per KYC (₹)</Label>
+                                            <Input 
+                                                type="number"
+                                                placeholder="e.g. 10"
+                                                value={newAdmin.kycBonusPerVerification}
+                                                onChange={(e) => setNewAdmin({ ...newAdmin, kycBonusPerVerification: Number(e.target.value) })}
+                                                className="h-10 rounded-xl font-black text-xs"
+                                            />
+                                        </div>
+                                    </motion.div>
+                                )}
                             </div>
                         </form>
                     </CardContent>
@@ -380,194 +500,400 @@ const AdminSuper = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Elite Subscription Card */}
-                    <Card className="border-gray-200 shadow-xl shadow-gray-50 bg-emerald-900 group overflow-hidden">
-                        <CardHeader className="bg-emerald-950/20 border-b border-emerald-800/50">
-                            <CardTitle className="text-xl flex items-center gap-3 text-white">
-                                <Zap className="h-5 w-5 text-amber-400 fill-amber-400" />
-                                Subscription Plan
-                            </CardTitle>
-                            <CardDescription className="text-emerald-300/80">Manage the elite provider subscription (₹999)</CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-6">
-                            <div className="flex items-center justify-between p-4 bg-emerald-950/40 rounded-2xl border border-emerald-800 transition-all hover:bg-emerald-950/60">
-                                <div className="space-y-1">
-                                    <Label className="text-sm font-black text-white">Active Status</Label>
-                                    <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Enable Subscriptions</p>
-                                </div>
-                                <Switch
-                                    checked={settings.subscription_enabled}
-                                    onCheckedChange={(val) => updateAdminSetting('subscription_enabled', val)}
-                                    className="data-[state=checked]:bg-amber-400"
-                                />
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-3">
-                                    <Label className="text-[10px] font-black text-emerald-400 uppercase">Plan Price (₹)</Label>
-                                    <Input
-                                        type="number"
-                                        className="bg-emerald-950/40 border-emerald-800 text-white font-black rounded-xl h-10"
-                                        value={settings.subscription_price}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, subscription_price: e.target.value }))}
-                                    />
-                                    <Button
-                                        onClick={() => updateAdminSetting('subscription_price', Number(settings.subscription_price))}
-                                        className="w-full bg-emerald-700 hover:bg-white hover:text-emerald-900 text-white font-bold h-9 rounded-xl text-xs transition-all"
-                                    >
-                                        Update Price
-                                    </Button>
-                                </div>
-                                <div className="space-y-3">
-                                    <Label className="text-[10px] font-black text-emerald-400 uppercase">Disc. Rate (%)</Label>
-                                    <Input
-                                        type="number"
-                                        className="bg-emerald-950/40 border-emerald-800 text-white font-black rounded-xl h-10"
-                                        value={settings.subscription_commission_rate}
-                                        onChange={(e) => setSettings(prev => ({ ...prev, subscription_commission_rate: e.target.value }))}
-                                    />
-                                    <Button
-                                        onClick={() => updateAdminSetting('subscription_commission_rate', Number(settings.subscription_commission_rate))}
-                                        className="w-full bg-emerald-700 hover:bg-white hover:text-emerald-900 text-white font-bold h-9 rounded-xl text-xs transition-all"
-                                    >
-                                        Update Rate
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
                 </div>
 
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                        <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
-                            <Users className="h-6 w-6 text-emerald-600" />
-                            Administrative Accounts
-                        </h2>
-                        <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-3 py-1 rounded-full border border-emerald-100">
-                            {admins.length} ACTIVE STAFF
-                        </span>
-                    </div>
-                    {admins.map((admin) => (
-                        <Card key={admin._id} className="border-gray-200 hover:border-emerald-200 transition-all shadow-sm overflow-hidden group">
-                            <div className="flex flex-col">
-                                {/* Admin Info Header */}
-                                <div className="bg-gray-50/50 p-6 md:p-8 border-b border-gray-100">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                        <div className="flex items-center gap-5">
-                                            <div className={`h-16 w-16 rounded-3xl flex items-center justify-center font-black text-2xl shadow-inner ${admin.role === 'superadmin' ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                <div className="lg:col-span-2 space-y-12">
+                    {/* Administrative Accounts Section */}
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between px-2">
+                            <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                                <Users className="h-6 w-6 text-emerald-600" />
+                                Administrative Accounts
+                            </h2>
+                            <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-3 py-1 rounded-full border border-emerald-100">
+                                {admins.length} ACTIVE STAFF
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4">
+                            {admins.map((admin) => (
+                                <Card key={admin._id} className="border-gray-100 hover:border-blue-200 transition-all shadow-sm overflow-hidden group bg-white">
+                                    <div className="p-5 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm ${admin.role === 'superadmin' ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-700"}`}>
                                                 {admin.name.charAt(0)}
                                             </div>
                                             <div>
-                                                <div className="flex items-center gap-3">
-                                                    <h3 className="text-xl font-black text-gray-900">{admin.name}</h3>
-                                                    <span className={`text-[10px] uppercase tracking-widest font-black px-3 py-1 rounded-full ${admin.role === 'superadmin' ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="text-base font-black text-gray-900">{admin.name}</h3>
+                                                    <span className={`text-[9px] uppercase tracking-widest font-black px-2 py-0.5 rounded-md ${admin.role === 'superadmin' ? "bg-amber-100 text-amber-700" : "bg-blue-100/50 text-blue-700"}`}>
                                                         {admin.role}
                                                     </span>
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${admin.isActive !== false ? 'bg-emerald-500' : 'bg-gray-300'}`} />
                                                 </div>
-                                                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 mt-2">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                                                        <Shield className="h-3.5 w-3.5 text-gray-400" /> {admin.email}
-                                                    </div>
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                                                        <Shield className="h-3.5 w-3.5 text-gray-400" /> {admin.mobile}
-                                                    </div>
-                                                </div>
+                                                <p className="text-xs font-bold text-gray-400 mt-0.5">{admin.email} • {admin.mobile}</p>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-4">
-                                            {admin.role !== 'superadmin' && (
-                                                <>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => startEditing(admin)}
-                                                        className="border-gray-200 hover:border-emerald-200 hover:bg-emerald-50 text-gray-600 font-bold rounded-xl"
-                                                    >
-                                                        <Fingerprint className="h-4 w-4 mr-2" /> Edit Details
-                                                    </Button>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteAdmin(admin._id)}
-                                                        className="bg-red-50 hover:bg-red-100 text-red-600 border-none font-bold rounded-xl"
-                                                    >
-                                                        <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                                    </Button>
-                                                    <Button
-                                                        disabled={!admin.isModified}
-                                                        onClick={() => savePermissions(admin)}
-                                                        className={`font-black text-sm px-6 rounded-xl transition-all ${admin.isModified
-                                                            ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-100"
-                                                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                                            }`}
-                                                    >
-                                                        <Save className="h-4 w-4 mr-2" />
-                                                        Save Access
-                                                    </Button>
-                                                </>
-                                            )}
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() => {
+                                                setSelectedAdmin(admin);
+                                                setShowDrawer(true);
+                                            }}
+                                            className="group/btn flex items-center gap-2 rounded-xl border border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 px-4 py-2 text-xs font-black transition-all"
+                                        >
+                                            View Details
+                                            <ChevronRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-0.5" />
+                                        </Button>
+                                    </div>
+                                </Card>
+                            ))}
+                        </div>
+
+                        {/* Details Drawer */}
+                        <AnimatePresence>
+                            {showDrawer && selectedAdmin && (
+                                <>
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        onClick={() => setShowDrawer(false)}
+                                        className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[100]"
+                                    />
+                                    <motion.div
+                                        initial={{ x: '100%' }}
+                                        animate={{ x: 0 }}
+                                        exit={{ x: '100%' }}
+                                        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                                        className="fixed right-0 top-0 h-screen w-full max-w-md bg-white shadow-2xl z-[101] flex flex-col"
+                                    >
+                                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                                            <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                                                <Info className="h-5 w-5 text-blue-600" />
+                                                Admin Details
+                                            </h3>
+                                            <Button variant="ghost" size="sm" onClick={() => setShowDrawer(false)} className="rounded-xl">
+                                                <X className="h-5 w-5" />
+                                            </Button>
                                         </div>
+
+                                        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                                            {/* Profile Section */}
+                                            <div className="space-y-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={`h-20 w-20 rounded-3xl flex items-center justify-center font-black text-3xl shadow-inner ${selectedAdmin.role === 'superadmin' ? "bg-amber-100 text-amber-700" : "bg-blue-50 text-blue-700"}`}>
+                                                        {selectedAdmin.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="text-2xl font-black text-gray-900">{selectedAdmin.name}</h4>
+                                                        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">{selectedAdmin.role}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 gap-3 pt-4">
+                                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                                                        <Mail className="h-4 w-4 text-gray-400" />
+                                                        <div className="min-w-0">
+                                                            <p className="text-[10px] font-black text-gray-400 uppercase">Email Address</p>
+                                                            <p className="text-sm font-bold text-gray-900 truncate">{selectedAdmin.email}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                                                        <Phone className="h-4 w-4 text-gray-400" />
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-gray-400 uppercase">Mobile Number</p>
+                                                            <p className="text-sm font-bold text-gray-900">{selectedAdmin.mobile}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                                                        <Calendar className="h-4 w-4 text-gray-400" />
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-gray-400 uppercase">Account Created</p>
+                                                            <p className="text-sm font-bold text-gray-900">{new Date(selectedAdmin.createdAt).toLocaleDateString()}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* KYC Incentive Badge Section */}
+                                            {selectedAdmin.role === 'admin' && (
+                                                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center gap-4">
+                                                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${selectedAdmin.kycAccess ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-gray-100 text-gray-400'}`}>
+                                                        <Zap className="h-5 w-5" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">KYC Incentive</p>
+                                                        <h5 className="text-sm font-black text-gray-900">
+                                                            {selectedAdmin.kycAccess ? `₹${selectedAdmin.kycBonusPerVerification} per KYC` : 'Disabled'}
+                                                        </h5>
+                                                        {selectedAdmin.kycAccess && (
+                                                            <p className="text-[10px] font-bold text-emerald-600 uppercase">Limit: {selectedAdmin.kycLimit} verifications</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Actions Section */}
+                                            {selectedAdmin.role !== 'superadmin' && (
+                                                <div className="space-y-4">
+                                                    <h5 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] px-1">Management Actions</h5>
+                                                    <div className="flex gap-3">
+                                                        <Button
+                                                            variant="outline"
+                                                            className="flex-1 rounded-2xl font-black text-xs h-12 border-gray-200 hover:bg-gray-50"
+                                                            onClick={() => {
+                                                                startEditing(selectedAdmin);
+                                                                setShowDrawer(false);
+                                                            }}
+                                                        >
+                                                            Edit Profile
+                                                        </Button>
+                                                        <Button
+                                                            variant="destructive"
+                                                            className="flex-1 rounded-2xl font-black text-xs h-12 bg-red-50 text-red-600 hover:bg-red-100 border-none"
+                                                            onClick={() => {
+                                                                handleDeleteAdmin(selectedAdmin._id);
+                                                                setShowDrawer(false);
+                                                            }}
+                                                        >
+                                                            Delete Account
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Permissions Section */}
+                                            <div className="space-y-4 pt-4">
+                                                <div className="flex items-center justify-between px-1">
+                                                    <h5 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">Module Permissions</h5>
+                                                    {selectedAdmin.role !== 'superadmin' && (
+                                                        <Button
+                                                            size="sm"
+                                                            disabled={!selectedAdmin.isModified}
+                                                            onClick={() => savePermissions(selectedAdmin)}
+                                                            className={`rounded-full px-4 h-8 text-[10px] font-black uppercase transition-all ${selectedAdmin.isModified ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-gray-100 text-gray-300"}`}
+                                                        >
+                                                            Save Changes
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                {selectedAdmin.role === 'superadmin' ? (
+                                                    <div className="p-8 bg-amber-50 rounded-[2rem] border border-dashed border-amber-200 flex flex-col items-center text-center gap-3">
+                                                        <Shield className="h-8 w-8 text-amber-500" />
+                                                        <p className="text-xs font-black text-amber-700 uppercase leading-relaxed tracking-widest">
+                                                            Full System Override <br /> No Restrictions
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {adminSidebarLinks.map((section) => (
+                                                            <div
+                                                                key={section.path}
+                                                                className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${selectedAdmin.permissions?.includes(section.path) ? "bg-blue-50/50 border-blue-100" : "bg-white border-gray-100"}`}
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${selectedAdmin.permissions?.includes(section.path) ? "bg-blue-100 text-blue-600" : "bg-gray-50 text-gray-400"}`}>
+                                                                        <section.icon className="h-4 w-4" />
+                                                                    </div>
+                                                                    <span className="text-xs font-bold text-gray-700 uppercase tracking-tight">{section.label}</span>
+                                                                </div>
+                                                                <Switch
+                                                                    checked={selectedAdmin.permissions?.includes(section.path)}
+                                                                    onCheckedChange={() => {
+                                                                        const currentPermissions = selectedAdmin.permissions || [];
+                                                                        const newPermissions = currentPermissions.includes(section.path)
+                                                                            ? currentPermissions.filter(p => p !== section.path)
+                                                                            : [...currentPermissions, section.path];
+
+                                                                        const updatedAdmin = { ...selectedAdmin, permissions: newPermissions, isModified: true };
+                                                                        setSelectedAdmin(updatedAdmin);
+
+                                                                        // Also sync with the list
+                                                                        setAdmins(admins.map(a => a._id === selectedAdmin._id ? updatedAdmin : a));
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                </>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Sewak Management Section (Compact) */}
+                    <div className="space-y-4 pt-8 border-t border-gray-100">
+                        <div className="flex items-center justify-between px-2">
+                            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                                <Shield className="h-5 w-5 text-blue-600" />
+                                Sewak Management
+                            </h2>
+                            <Button onClick={() => setShowSewakForm(!showSewakForm)} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-[36px] px-4 text-xs font-black flex items-center gap-2 transition-all">
+                                {showSewakForm ? <XCircle className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                {showSewakForm ? "Cancel" : "Add Sewak"}
+                            </Button>
+                        </div>
+
+                        {showSewakForm && (
+                            <Card className="border-blue-100 shadow-lg bg-blue-50/20 overflow-hidden animate-in slide-in-from-top-2 duration-200">
+                                <CardContent className="p-4 space-y-4">
+                                    <form onSubmit={handleCreateSewak} className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-gray-500">Sewak Name</Label><Input required value={newSewak.ownerName} onChange={(e) => setNewSewak({ ...newSewak, ownerName: e.target.value })} className="bg-white h-9 text-sm" /></div>
+                                            <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-gray-500">Mobile</Label><Input required value={newSewak.mobile} onChange={(e) => setNewSewak({ ...newSewak, mobile: e.target.value })} className="bg-white h-9 text-sm" /></div>
+                                            <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-gray-500">Password</Label><Input required type="password" value={newSewak.password} onChange={(e) => setNewSewak({ ...newSewak, password: e.target.value })} className="bg-white h-9 text-sm" /></div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-gray-500">Complete Address</Label><Input required value={newSewak.address} onChange={(e) => setNewSewak({ ...newSewak, address: e.target.value })} className="bg-white h-9 text-sm" /></div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-gray-500">City</Label><Input required value={newSewak.city} onChange={(e) => setNewSewak({ ...newSewak, city: e.target.value })} className="bg-white h-9 text-sm" /></div>
+                                                <div className="space-y-1"><Label className="text-[9px] font-black uppercase text-gray-500">State</Label><Input required value={newSewak.state} onChange={(e) => setNewSewak({ ...newSewak, state: e.target.value })} className="bg-white h-9 text-sm" /></div>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="text-[9px] font-black text-amber-900 uppercase">Location Mapping (Manual)</h3>
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (navigator.geolocation) {
+                                                            navigator.geolocation.getCurrentPosition((position) => {
+                                                                setNewSewak(prev => ({
+                                                                    ...prev,
+                                                                    latitude: position.coords.latitude.toString(),
+                                                                    longitude: position.coords.longitude.toString()
+                                                                }));
+                                                                toast.success("Live location fetched");
+                                                            }, () => {
+                                                                toast.error("Location access denied");
+                                                            });
+                                                        }
+                                                    }}
+                                                    className="h-6 px-2 text-[8px] bg-amber-600 hover:bg-amber-700 text-white rounded-md font-black flex items-center gap-1"
+                                                >
+                                                    <Zap className="h-2.5 w-2.5" /> Fetch Live Location
+                                                </Button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1"><Label className="text-[9px] font-black uppercase">Latitude</Label><Input value={newSewak.latitude} onChange={(e) => setNewSewak({ ...newSewak, latitude: e.target.value })} className="bg-white border-amber-200 h-8 text-xs" placeholder="e.g. 28.70" /></div>
+                                                <div className="space-y-1"><Label className="text-[9px] font-black uppercase">Longitude</Label><Input value={newSewak.longitude} onChange={(e) => setNewSewak({ ...newSewak, longitude: e.target.value })} className="bg-white border-amber-200 h-8 text-xs" placeholder="e.g. 77.10" /></div>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end pt-2">
+                                            <Button type="submit" className="bg-blue-600 hover:bg-black text-white font-black rounded-lg h-9 px-8 text-xs">Register Sewak</Button>
+                                        </div>
+                                    </form>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        <div className="space-y-3">
+                            {sewaks.length === 0 ? (
+                                <div className="p-8 text-center border-2 border-dashed border-gray-100 rounded-2xl">
+                                    <p className="text-gray-400 font-bold text-sm">No internal sewaks registered yet.</p>
+                                </div>
+                            ) : (
+                                sewaks.map((sewak) => (
+                                    <Card key={sewak._id} className="border-gray-100 hover:border-blue-100 transition-all shadow-sm">
+                                        <div className="flex items-center p-3 sm:p-4 gap-4">
+                                            <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-black text-sm">{sewak.ownerName.charAt(0)}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-black text-gray-900 text-sm truncate">{sewak.ownerName} <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded ml-1">{sewak.vendorCode}</span></h3>
+                                                <p className="text-[10px] font-bold text-gray-500 mt-0.5 truncate">{sewak.mobile} • {sewak.city} • GPS: [{sewak.location?.coordinates[1]?.toFixed(4)}, {sewak.location?.coordinates[0]?.toFixed(4)}]</p>
+                                            </div>
+                                            <Button variant="ghost" onClick={() => {
+                                                if (window.confirm("Remove this sewak?")) {
+                                                    const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
+                                                    axios.delete(`${import.meta.env.VITE_API_URL}/admin/providers/${sewak._id}`, {
+                                                        headers: { Authorization: `Bearer ${auth?.token}` }
+                                                    }).then(() => { toast.success("Sewak removed"); fetchSewaks(); });
+                                                }
+                                            }} className="h-8 w-8 text-gray-300 hover:text-red-600 rounded-lg shrink-0">
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    </Card>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Admin Performance Section */}
+            <div className="space-y-6 pt-12 border-t border-gray-100">
+                <div className="flex items-center justify-between px-2">
+                    <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                        <Zap className="h-6 w-6 text-amber-500" />
+                        Admin KYC Performance
+                    </h2>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={fetchKycPerformance}
+                        className="rounded-xl hover:bg-amber-50 text-amber-600 font-black text-[10px] uppercase tracking-widest"
+                    >
+                        Refresh Data
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {kycPerformance.map((perf) => (
+                        <Card key={perf.adminId} className="border-gray-100 hover:border-amber-200 transition-all shadow-sm overflow-hidden bg-white group">
+                            <CardContent className="p-6 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="h-12 w-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-black text-xl">
+                                        {perf.name.charAt(0)}
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bonus Earned</p>
+                                        <p className="text-2xl font-black text-emerald-600 leading-none">₹{perf.totalBonus}</p>
                                     </div>
                                 </div>
+                                
+                                <div>
+                                    <h3 className="text-sm font-black text-gray-900">{perf.name}</h3>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase">Limit: {perf.kycLimit} KYC • Bonus: ₹{perf.bonusPerKyc}/ea</p>
+                                </div>
 
-                                {/* Permissions Section */}
-                                <div className="p-6 md:p-8">
-                                    <div className="flex items-center justify-between mb-8">
-                                        <div>
-                                            <h4 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                                                <Shield className="h-4 w-4 text-emerald-600" />
-                                                Module Access Permissions
-                                            </h4>
-                                            <p className="text-[11px] text-gray-500 font-bold mt-1">Select which dashboard modules this administrator can access</p>
-                                        </div>
-                                        <span className="bg-emerald-50 text-emerald-700 text-[10px] font-black px-4 py-2 rounded-xl border border-emerald-100">
-                                            {admin.role === 'superadmin' ? 'UNRESTRICTED ACCESS' : `${admin.permissions?.length || 0} MODULES ALLOWED`}
-                                        </span>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between items-end">
+                                        <span className="text-[10px] font-black text-gray-500">PROGRESS</span>
+                                        <span className="text-xs font-black text-amber-600">{perf.totalVerified} / {perf.kycLimit}</span>
                                     </div>
-
-                                    {admin.role === 'superadmin' ? (
-                                        <div className="bg-amber-50/50 border-2 border-dashed border-amber-100 rounded-2xl p-10 text-center">
-                                            <Shield className="h-10 w-10 text-amber-400 mx-auto mb-3 opacity-50" />
-                                            <p className="font-black text-amber-700 uppercase tracking-widest text-xs">Super Admin has full system access</p>
-                                        </div>
+                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                        <motion.div 
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${Math.min(100, (perf.totalVerified / perf.kycLimit) * 100)}%` }}
+                                            className={`h-full ${perf.totalVerified >= perf.kycLimit ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                        />
+                                    </div>
+                                    {perf.remainingForBonus > 0 ? (
+                                        <p className="text-[10px] font-bold text-gray-400 text-center italic">
+                                            Need {perf.remainingForBonus} more to start earning
+                                        </p>
                                     ) : (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-                                            {adminSidebarLinks.map((section) => (
-                                                <label
-                                                    key={section.path}
-                                                    htmlFor={`${admin._id}-${section.path}`}
-                                                    className={`group relative flex flex-col items-center text-center p-5 rounded-[1.5rem] border transition-all cursor-pointer min-h-[150px] select-none ${admin.permissions?.includes(section.path)
-                                                        ? "bg-emerald-50 border-emerald-200 shadow-lg shadow-emerald-100/50"
-                                                        : "bg-white border-gray-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-gray-200/50"
-                                                        }`}
-                                                >
-                                                    <div className={`p-3 rounded-2xl mb-3 transition-all ${admin.permissions?.includes(section.path) ? "bg-emerald-200 text-emerald-800 scale-110" : "bg-gray-50 text-gray-400 group-hover:bg-emerald-100 group-hover:text-emerald-600"}`}>
-                                                        <section.icon className="h-5 w-5" />
-                                                    </div>
-
-                                                    <div className="flex-1 flex flex-col justify-center mb-4 min-w-0 w-full">
-                                                        <span className={`text-[10px] font-black leading-tight uppercase tracking-widest break-words ${admin.permissions?.includes(section.path) ? "text-emerald-900" : "text-gray-500 group-hover:text-emerald-600"
-                                                            }`}>
-                                                            {section.label}
-                                                        </span>
-                                                    </div>
-
-                                                    <Switch
-                                                        id={`${admin._id}-${section.path}`}
-                                                        checked={admin.permissions?.includes(section.path)}
-                                                        onCheckedChange={() => togglePermission(admin._id, section.path)}
-                                                        className="data-[state=checked]:bg-emerald-600 shadow-sm pointer-events-none"
-                                                    />
-                                                </label>
-                                            ))}
-                                        </div>
+                                        <p className="text-[10px] font-bold text-emerald-600 text-center flex items-center justify-center gap-1">
+                                            <CheckCircle2 className="h-3 w-3" /> Bonus Threshold Reached
+                                        </p>
                                     )}
                                 </div>
-                            </div>
+                            </CardContent>
                         </Card>
                     ))}
+
+                    {kycPerformance.length === 0 && (
+                        <div className="col-span-full p-12 text-center border-2 border-dashed border-gray-100 rounded-[2.5rem] bg-gray-50/30">
+                            <Info className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-gray-400">No performance data available yet. Verifications will show up here.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

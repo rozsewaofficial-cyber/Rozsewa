@@ -205,6 +205,30 @@ const ProviderDocuments = () => {
             <p className="text-[11px] text-amber-700 font-medium leading-relaxed">All data is encrypted. Required documents must be verified before payouts are enabled. Verification usually takes 24-48 business hours.</p>
           </div>
         </div>
+
+        {/* Submit Button for Sewaks */}
+        {provider?.providerCategory === 'sewak' && (
+          <div className="pt-2 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => {
+                toast({ title: "Identity Submitted", description: "Verification team will review your docs shortly." });
+                navigate("/provider");
+              }}
+              disabled={!getDocStatus('aadhaar') || !getDocStatus('pan')}
+              className={`w-full h-16 rounded-[24px] font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${(getDocStatus('aadhaar') && getDocStatus('pan'))
+                  ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20'
+                  : 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed'
+                }`}
+            >
+              <CheckCircle2 className="h-5 w-5" />
+              <span>Finish & Submit Identity</span>
+            </motion.button>
+            <p className="text-[9px] text-center text-muted-foreground font-black uppercase tracking-[0.2em] mt-4 px-10 leading-relaxed">
+              By submitting, you agree that the information provided is accurate and belongs to you.
+            </p>
+          </div>
+        )}
       </main>
       <ProviderBottomNav />
     </div>

@@ -14,7 +14,7 @@ const AdminLogin = () => {
 
   const { login } = useAuth();
 
-  const isAdminRole = (role) => role === 'admin' || role === 'superadmin';
+  const isAdminRole = (role) => role === 'admin' || role === 'superadmin' || role === 'supervisor';
 
   useEffect(() => {
     // Redirect if already logged in via context

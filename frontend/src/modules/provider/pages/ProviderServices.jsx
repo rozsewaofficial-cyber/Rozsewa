@@ -125,13 +125,19 @@ const ProviderServices = () => {
   };
 
   const handleQuickAdd = async (s) => {
+    const isSewak = user?.providerCategory === 'sewak';
     const payload = {
       name: s.name,
       description: s.description || `Professional ${s.name} service`,
       duration: "1 hour",
       visible: true,
       category: categoryName,
-      pricing: { basic: s.basePrice || 299, standard: (s.basePrice || 299) * 1.5, premium: (s.basePrice || 299) * 2, express: 99 }
+      pricing: {
+        basic: isSewak ? (s.sewakPriceBasic || s.basePrice || 299) : (s.basePrice || 299),
+        standard: isSewak ? (s.sewakPriceStandard || 0) : ((s.basePrice || 299) * 1.5),
+        premium: isSewak ? (s.sewakPricePremium || 0) : ((s.basePrice || 299) * 2),
+        express: isSewak ? (s.sewakPriceExpress || 0) : 99
+      }
     };
     try {
       await API.post("/services", payload);
@@ -143,13 +149,14 @@ const ProviderServices = () => {
   };
 
   const handleAddSuggested = (s) => {
+    const isSewak = user?.providerCategory === 'sewak';
     setForm({
       name: s.name,
       description: s.description || `Professional ${s.name} service`,
-      basic: s.basePrice || 299,
-      standard: (s.basePrice || 299) * 1.5,
-      premium: (s.basePrice || 299) * 2,
-      express: 99,
+      basic: isSewak ? (s.sewakPriceBasic || s.basePrice || 299) : (s.basePrice || 299),
+      standard: isSewak ? (s.sewakPriceStandard || 0) : ((s.basePrice || 299) * 1.5),
+      premium: isSewak ? (s.sewakPricePremium || 0) : ((s.basePrice || 299) * 2),
+      express: isSewak ? (s.sewakPriceExpress || 0) : 99,
       duration: "1 hour",
       visible: true,
       image: ""
@@ -226,12 +233,14 @@ const ProviderServices = () => {
       {!showForm && !showComboForm && <ProviderTopNav title="Service Hub" showBack={true} />}
       <main className="container max-w-3xl px-4 py-6 space-y-6">
         <div className="flex flex-col gap-6">
-          <div className="flex items-center justify-end">
-            <motion.button whileTap={{ scale: 0.95 }} onClick={() => { activeTab === "services" ? (resetForm(), setShowForm(true)) : (resetComboForm(), setShowComboForm(true)) }}
-              className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20">
-              <Plus className="h-4 w-4" /> {activeTab === "services" ? "Add Service" : "Create Combo"}
-            </motion.button>
-          </div>
+          {user?.providerCategory !== 'sewak' && (
+            <div className="flex items-center justify-end">
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => { activeTab === "services" ? (resetForm(), setShowForm(true)) : (resetComboForm(), setShowComboForm(true)) }}
+                className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20">
+                <Plus className="h-4 w-4" /> {activeTab === "services" ? "Add Service" : "Create Combo"}
+              </motion.button>
+            </div>
+          )}
 
           <div className="flex p-1 bg-muted rounded-xl">
             {["services", "combos"].map((t) => (
@@ -251,7 +260,7 @@ const ProviderServices = () => {
         ) : (
           <>
             {/* Suggested Services Catalog */}
-            {categoryServices.length > 0 && !showForm && !showComboForm && activeTab === "services" && (
+            {categoryServices.length > 0 && !showForm && !showComboForm && activeTab === "services" && user?.providerCategory !== 'sewak' && (
               <section className="space-y-4 mb-8">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -440,10 +449,14 @@ const ProviderServices = () => {
                         value={form.name}
                         onChange={e => {
                           const selected = categoryServices.find(s => s.name === e.target.value);
+                          const isSewak = user?.providerCategory === 'sewak';
                           setForm({
                             ...form,
                             name: e.target.value,
-                            basic: selected ? selected.basePrice : form.basic
+                            basic: isSewak ? (selected?.sewakPriceBasic || selected?.basePrice) : (selected ? selected.basePrice : form.basic),
+                            standard: isSewak ? (selected?.sewakPriceStandard || 0) : form.standard,
+                            premium: isSewak ? (selected?.sewakPricePremium || 0) : form.premium,
+                            express: isSewak ? (selected?.sewakPriceExpress || 0) : form.express
                           });
                         }}
                         className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none"
@@ -466,30 +479,46 @@ const ProviderServices = () => {
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Pricing Tiers (₹)</label>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="text-left">
-                        <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground">Basic</label>
+                        <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground flex items-center justify-between">
+                          Basic
+                          {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 px-1 rounded uppercase">Master Rate</span>}
+                        </label>
                         <input type="number" min="1" value={form.basic} onChange={e => setForm({ ...form, basic: e.target.value })}
-                          className="w-full rounded-xl border border-border bg-background p-3 text-xs font-black focus:border-primary" placeholder="299" />
+                          readOnly={user?.providerCategory === 'sewak'}
+                          className={`w-full rounded-xl border border-border p-3 text-xs font-black focus:border-primary ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="299" />
                       </div>
                       <div className="text-left">
-                        <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground">Standard</label>
+                        <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground flex items-center justify-between">
+                          Standard
+                          {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 px-1 rounded uppercase">Master Rate</span>}
+                        </label>
                         <input type="number" value={form.standard} onChange={e => setForm({ ...form, standard: e.target.value })}
-                          className="w-full rounded-xl border border-border bg-background p-3 text-xs font-black focus:border-primary" placeholder="499" />
+                          readOnly={user?.providerCategory === 'sewak'}
+                          className={`w-full rounded-xl border border-border p-3 text-xs font-black focus:border-primary ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="499" />
                       </div>
                       <div className="text-left">
-                        <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground">Premium</label>
+                        <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground flex items-center justify-between">
+                          Premium
+                          {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 px-1 rounded uppercase">Master Rate</span>}
+                        </label>
                         <input type="number" value={form.premium} onChange={e => setForm({ ...form, premium: e.target.value })}
-                          className="w-full rounded-xl border border-border bg-background p-3 text-xs font-black focus:border-primary" placeholder="799" />
+                          readOnly={user?.providerCategory === 'sewak'}
+                          className={`w-full rounded-xl border border-border p-3 text-xs font-black focus:border-primary ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="799" />
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 text-left">
                     <div>
-                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground flex items-center gap-1.5">
-                        <Zap className="h-3 w-3 text-amber-500 fill-amber-500" /> Express Fee ₹
+                      <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="h-3 w-3 text-amber-500 fill-amber-500" /> Express Fee ₹
+                        </div>
+                        {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 px-1 rounded uppercase">Master Rate</span>}
                       </label>
                       <input type="number" value={form.express} onChange={e => setForm({ ...form, express: e.target.value })}
-                        className="w-full rounded-2xl border border-amber-500/30 bg-amber-50/10 p-4 text-xs font-black text-amber-700 focus:border-amber-500" placeholder="99" />
+                        readOnly={user?.providerCategory === 'sewak'}
+                        className={`w-full rounded-2xl border border-amber-500/30 p-4 text-xs font-black text-amber-700 focus:border-amber-500 ${user?.providerCategory === 'sewak' ? 'bg-amber-50/20 cursor-not-allowed' : 'bg-amber-50/10'}`} placeholder="99" />
                     </div>
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Duration</label>

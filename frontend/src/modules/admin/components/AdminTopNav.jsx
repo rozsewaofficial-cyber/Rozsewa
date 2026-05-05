@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 
 const AdminTopNav = ({ title = "Dashboard" }) => {
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-8 shadow-sm">
+    <header className="sticky top-0 z-30 flex h-20 shrink-0 items-center justify-between border-b border-gray-100 bg-white/70 backdrop-blur-xl px-4 md:px-10 transition-all duration-300">
       <div className="flex items-center gap-4">
         <button className="md:hidden text-gray-500 hover:text-gray-900">
           <Menu className="h-6 w-6" />

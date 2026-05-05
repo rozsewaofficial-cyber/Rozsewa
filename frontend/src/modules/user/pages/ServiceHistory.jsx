@@ -235,7 +235,22 @@ const ServiceHistory = () => {
                   <div className="rounded-2xl border border-border p-4">
                     <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-3">Payment Details</h4>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="font-semibold">₹{selectedBooking.total}</span></div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Service Price</span>
+                        <span className="font-semibold">₹{selectedBooking.total - (selectedBooking.extraCharges?.reduce((sum, c) => sum + c.amount, 0) || 0)}</span>
+                      </div>
+                      
+                      {selectedBooking.extraCharges && selectedBooking.extraCharges.length > 0 && (
+                        <div className="space-y-1 py-1">
+                          {selectedBooking.extraCharges.map((extra, idx) => (
+                            <div key={idx} className="flex justify-between text-sm italic text-muted-foreground/80">
+                              <span>+ {extra.item}</span>
+                              <span>₹{extra.amount}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       <div className="flex justify-between text-sm"><span className="text-muted-foreground">Taxes & Fee</span><span className="font-semibold">₹0</span></div>
                       <div className="border-t border-border mt-3 pt-3 flex justify-between items-center">
                         <span className="font-black text-foreground">Total Paid</span>

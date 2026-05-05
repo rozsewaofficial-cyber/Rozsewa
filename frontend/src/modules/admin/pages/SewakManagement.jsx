@@ -29,7 +29,13 @@ const SewakManagement = () => {
         city: '',
         state: '',
         businessType: '',
-        documents: []
+        documents: [],
+        bankDetails: {
+            accountNumber: '',
+            ifscCode: '',
+            bankName: '',
+            accountHolderName: ''
+        }
     });
 
     const fetchCategories = async () => {
@@ -43,15 +49,24 @@ const SewakManagement = () => {
 
     const fetchSewaks = async () => {
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/sewaks`, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
-            setSewaks(response.data);
+            const { data } = await API.get('/admin/sewaks');
+            setSewaks(data);
         } catch (error) {
             toast.error("Failed to fetch Sewak list");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDeleteSewak = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this Sewak? All their services and combos will also be removed.")) return;
+
+        try {
+            await API.delete(`/admin/providers/${id}`);
+            toast.success("Sewak deleted successfully");
+            fetchSewaks();
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to delete Sewak");
         }
     };
 
@@ -71,7 +86,8 @@ const SewakManagement = () => {
             setShowCreateForm(false);
             setNewSewak({
                 ownerName: '', email: '', mobile: '', password: '',
-                address: '', city: '', state: '', businessType: 'Internal Service'
+                address: '', city: '', state: '', businessType: 'Internal Service',
+                bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
             });
             fetchSewaks();
         } catch (error) {
@@ -212,45 +228,33 @@ const SewakManagement = () => {
                                 </div>
                             </div>
 
-                            <div className="space-y-4 pt-4 border-t border-gray-100">
-                                <Label className="font-black text-gray-900 uppercase text-[11px] tracking-[0.2em] flex items-center gap-2">
-                                    <Shield className="h-4 w-4 text-blue-600" />
-                                    Identity Documents (KYC)
-                                </Label>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {[
-                                        { id: 'aadhaar_front', label: 'Aadhaar Front' },
-                                        { id: 'aadhaar_back', label: 'Aadhaar Back' },
-                                        { id: 'pan_card', label: 'PAN Card' }
-                                    ].map(doc => (
-                                        <div key={doc.id} className="space-y-3">
-                                            <Label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{doc.label}</Label>
-                                            <label className={`relative block h-32 rounded-2xl border-2 border-dashed transition-all cursor-pointer overflow-hidden ${getDoc(doc.id) ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                                                <input type="file" className="hidden" onChange={(e) => handleFileUpload(e, doc.id)} accept="image/*" />
-                                                {getDoc(doc.id) ? (
-                                                    <div className="h-full w-full relative">
-                                                        <img src={getDoc(doc.id).url} className="h-full w-full object-cover opacity-60" />
-                                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-600/10">
-                                                            <FileCheck className="h-6 w-6 text-blue-600" />
-                                                            <span className="text-[8px] font-black text-blue-600 mt-1 uppercase">Uploaded</span>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div className="h-full w-full flex flex-col items-center justify-center">
-                                                        {uploadingDoc === doc.id ? (
-                                                            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                                                        ) : (
-                                                            <>
-                                                                <Camera className="h-6 w-6 text-gray-300" />
-                                                                <span className="text-[8px] font-black text-gray-300 mt-1 uppercase tracking-widest">Click to Upload</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </label>
-                                        </div>
-                                    ))}
+                            <div className="pt-6 border-t border-gray-100">
+                                <h3 className="text-sm font-black text-gray-900 mb-6 flex items-center gap-2">
+                                    <Fingerprint className="h-4 w-4 text-blue-600" />
+                                    Bank Account Details
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Account Holder Name</Label>
+                                        <Input placeholder="As per bank passbook" value={newSewak.bankDetails.accountHolderName} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Bank Name</Label>
+                                        <Input placeholder="e.g. HDFC Bank, SBI" value={newSewak.bankDetails.bankName} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, bankName: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Account Number</Label>
+                                        <Input placeholder="Bank account number" value={newSewak.bankDetails.accountNumber} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountNumber: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">IFSC Code</Label>
+                                        <Input placeholder="11 digit IFSC" value={newSewak.bankDetails.ifscCode} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, ifscCode: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
+                                    </div>
                                 </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-100 italic text-[10px] text-gray-500 font-bold uppercase tracking-widest text-center">
+                                Identity documents will be uploaded by the sewak upon their first login.
                             </div>
 
                             <div className="pt-6 border-t border-gray-100">
@@ -282,7 +286,7 @@ const SewakManagement = () => {
                                 <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center font-black text-xl text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shrink-0">
                                     {sewak.ownerName.charAt(0)}
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                     <h3 className="font-black text-base text-gray-900 leading-tight truncate">{sewak.ownerName}</h3>
                                     <div className="flex items-center gap-1.5 mt-1">
                                         <span className="text-[8px] uppercase tracking-widest font-black bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded-full">
@@ -293,6 +297,14 @@ const SewakManagement = () => {
                                         </span>
                                     </div>
                                 </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteSewak(sewak._id)}
+                                    className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shrink-0"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
                             </div>
 
                             <div className="space-y-2">

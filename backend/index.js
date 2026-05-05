@@ -16,6 +16,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const supportRoutes = require('./routes/supportRoutes');
+const wfhRoutes = require('./routes/wfhRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -55,6 +56,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/wfh', wfhRoutes);
 
 app.get('/', (req, res) => {
     res.send('Rojsewa API is running...');

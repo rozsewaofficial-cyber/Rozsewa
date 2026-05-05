@@ -6,15 +6,18 @@ import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
   Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert,
-  Database, HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut
+  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon
 } from "lucide-react";
 
 export const adminSidebarLinks = [
   { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { path: "/admin/users", label: "Users", icon: Users },
-  { path: "/admin/hrm", label: "HRM & Employees", icon: Briefcase },
+  { path: "/admin/supervisors", label: "Supervisors", icon: ShieldCheck },
+  { path: "/admin/employees", label: "Staff / Employees", icon: Users },
   { path: "/admin/providers", label: "Providers", icon: UserCheck },
   { path: "/admin/sewaks", label: "Sewak Management", icon: Users },
+  { path: "/admin/verify-sewaks", label: "Verify Sewaks", icon: UserPlus },
+  { path: "/admin/sewak-pricing", label: "Sewak Pricing Management", icon: IndianRupee },
   { path: "/admin/kyc", label: "KYC Verification", icon: ShieldCheck },
   { path: "/admin/bookings", label: "Bookings", icon: CalendarDays },
   { path: "/admin/dispatch", label: "Job Dispatching", icon: Zap },
@@ -23,14 +26,14 @@ export const adminSidebarLinks = [
   { path: "/admin/commission", label: "Settlements", icon: Landmark },
   { path: "/admin/finance", label: "Finance & GST", icon: Wallet },
   { path: "/admin/earnings", label: "Earnings", icon: IndianRupee },
-  { path: "/admin/offers", label: "Offers Approval", icon: Percent },
+
   { path: "/admin/coupons", label: "Coupons", icon: Tag },
   { path: "/admin/quality", label: "Quality & Disputes", icon: BarChart4 },
   { path: "/admin/zones", label: "Zones & Cities", icon: Map },
-  { path: "/admin/promotions", label: "Global Promotions", icon: Megaphone },
-  { path: "/admin/master-data", label: "Master Data", icon: Database },
+
   { path: "/admin/feedback", label: "Feedback", icon: MessageSquare },
   { path: "/admin/services", label: "Services Catalog", icon: Briefcase },
+  { path: "/admin/subscriptions", label: "Subscription Plans", icon: CreditCard },
   { path: "/admin/banners", label: "App Banners", icon: Image },
   { path: "/admin/help-training", label: "Help & Training", icon: HelpCircle },
   { path: "/admin/activity-log", label: "System Logs", icon: Terminal },
@@ -50,6 +53,12 @@ const AdminSidebar = () => {
       // If permissions array is empty, maybe allow all by default or strictly filter?
       // Usually, it should be strictly filtered.
       return user.permissions?.includes(link.path);
+    }
+    if (user?.role === 'supervisor') {
+      return link.path === "/admin/employees" || link.path === "/admin";
+    }
+    if (user?.role === 'employee') {
+      return link.path === "/admin";
     }
     return false;
   });
@@ -72,6 +81,7 @@ const AdminSidebar = () => {
       <div className="flex-1 overflow-y-auto px-4 space-y-1.5 scrollbar-hide">
         {filteredLinks.map((link) => {
           const isActive = location.pathname === link.path;
+          const label = (link.path === "/admin/employees" && user?.role === 'supervisor') ? "My Team" : link.label;
           return (
             <Link
               key={link.path}
@@ -82,13 +92,13 @@ const AdminSidebar = () => {
                 }`}
             >
               <link.icon className={`h-4.5 w-4.5 ${isActive ? "text-blue-600" : "text-slate-400 group-hover:text-blue-500"}`} />
-              {link.label}
+              {label}
             </Link>
           );
         })}
 
         {user?.role === 'superadmin' && (
-          <div className="pt-4 mt-4 border-t border-gray-100">
+          <div className="pt-4 mt-4 border-t border-gray-100 space-y-1">
             <button
               onClick={handleSuperAdminClick}
               className={`w-full flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/super"
@@ -102,6 +112,39 @@ const AdminSidebar = () => {
               </div>
               <Lock className="h-3.5 w-3.5 opacity-50" />
             </button>
+            
+            <Link
+              to="/admin/audit-logs"
+              className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/audit-logs"
+                ? "bg-blue-50 text-blue-700 shadow-sm"
+                : "text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+                }`}
+            >
+              <History className={`h-4.5 w-4.5 ${location.pathname === "/admin/audit-logs" ? "text-blue-600" : "text-slate-400"}`} />
+              Audit Logs
+            </Link>
+
+            <Link
+              to="/admin/sewak-incentives"
+              className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/sewak-incentives"
+                ? "bg-emerald-50 text-emerald-700 shadow-sm"
+                : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"
+                }`}
+            >
+              <Zap className={`h-4.5 w-4.5 ${location.pathname === "/admin/sewak-incentives" ? "text-emerald-600" : "text-slate-400"}`} />
+              Sewak Incentives
+            </Link>
+
+            <Link
+              to="/admin/night-charge"
+              className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/night-charge"
+                ? "bg-indigo-50 text-indigo-700 shadow-sm"
+                : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                }`}
+            >
+              <Moon className={`h-4.5 w-4.5 ${location.pathname === "/admin/night-charge" ? "text-indigo-600" : "text-slate-400"}`} />
+              Night Charges
+            </Link>
           </div>
         )}
       </div>
@@ -115,7 +158,9 @@ const AdminSidebar = () => {
           <div>
             <p className="text-xs font-black text-gray-900">{user?.name || 'Admin'}</p>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-              {user?.role === 'superadmin' ? 'Super Administrator' : 'Administrator'}
+              {user?.role === 'superadmin' ? 'Super Administrator' : 
+               user?.role === 'supervisor' ? 'Supervisor' : 
+               user?.role === 'employee' ? 'Employee' : 'Administrator'}
             </p>
           </div>
           <button

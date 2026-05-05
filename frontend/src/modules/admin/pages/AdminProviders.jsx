@@ -54,6 +54,16 @@ const AdminProviders = () => {
       toast({ title: "Update Failed", variant: "destructive" });
     }
   };
+  
+  const handleUpdateCategory = async (id, newCategory) => {
+    try {
+      const { data } = await API.put(`/admin/providers/${id}/category-role`, { providerCategory: newCategory });
+      setProviders(providers.map(p => p._id === id ? { ...p, providerCategory: newCategory } : p));
+      toast({ title: "Category Updated", description: `Provider role changed to ${newCategory}.` });
+    } catch (err) {
+      toast({ title: "Update Failed", variant: "destructive" });
+    }
+  };
 
   const handleUpdatePlan = async (id, newPlan) => {
     try {
@@ -208,6 +218,14 @@ const AdminProviders = () => {
                             <option value="basic">Basic (25%)</option>
                             <option value="standard">Standard (20%)</option>
                             <option value="premium">Premium (15%)</option>
+                          </select>
+                          <select
+                            value={provider.providerCategory || 'partner'}
+                            onChange={(e) => handleUpdateCategory(provider._id, e.target.value)}
+                            className="bg-emerald-50 border border-emerald-100 text-[9px] font-black uppercase rounded-lg px-2 py-0.5 outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-700"
+                          >
+                            <option value="partner">Partner</option>
+                            <option value="sewak">Sewak</option>
                           </select>
                         </div>
                         <div className="flex flex-col gap-0.5 text-[10px] text-gray-500 font-bold tracking-tight">

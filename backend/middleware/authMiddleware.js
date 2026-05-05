@@ -54,4 +54,28 @@ const superadmin = (req, res, next) => {
     }
 };
 
-module.exports = { protect, admin, superadmin };
+const wfh = (req, res, next) => {
+    if (req.user && (req.user.role === 'wfh' || req.user.role === 'admin' || req.user.role === 'superadmin')) {
+        next();
+    } else {
+        res.status(401).json({ message: 'Not authorized as a WFH staff' });
+    }
+};
+
+const supervisor = (req, res, next) => {
+    if (req.user && (req.user.role === 'supervisor' || req.user.role === 'admin' || req.user.role === 'superadmin')) {
+        next();
+    } else {
+        res.status(401).json({ message: 'Not authorized as a supervisor' });
+    }
+};
+
+const employee = (req, res, next) => {
+    if (req.user && (req.user.role === 'employee' || req.user.role === 'supervisor' || req.user.role === 'admin' || req.user.role === 'superadmin')) {
+        next();
+    } else {
+        res.status(401).json({ message: 'Not authorized as an employee' });
+    }
+};
+
+module.exports = { protect, admin, superadmin, wfh, supervisor, employee };

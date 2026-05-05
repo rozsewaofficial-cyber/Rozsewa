@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
 
       let expectedRole = "customer";
       if (isPageAdmin) {
-        expectedRole = (auth?.role === 'superadmin') ? "superadmin" : "admin";
+        expectedRole = (auth?.role === 'superadmin' || auth?.role === 'supervisor') ? auth.role : "admin";
       } else if (isPageProvider) {
         expectedRole = "provider";
       }
@@ -116,10 +116,20 @@ export const AuthProvider = ({ children }) => {
       const loginData = type === 'provider' ? { mobile: identifier, password } : { identifier, password };
 
       const { data } = await API.post(endpoint, loginData);
-      setAuth({ ...data, role: type }); // Ensure role is updated
+      setAuth({ ...data, role: data.role || type }); // Use backend role if provided
       return { success: true, data };
     } catch (error) {
       return { success: false, error: error.response?.data?.message || "Login failed" };
+    }
+  };
+
+  const loginWithOTP = async (mobile, otp, type = 'customer') => {
+    try {
+      const { data } = await API.post("/auth/login-otp", { mobile, otp });
+      setAuth({ ...data, role: type });
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.message || "OTP Verification failed" };
     }
   };
 
@@ -150,6 +160,7 @@ export const AuthProvider = ({ children }) => {
     detectLocation,
     loading,
     login,
+    loginWithOTP,
     signup,
     logout,
   };

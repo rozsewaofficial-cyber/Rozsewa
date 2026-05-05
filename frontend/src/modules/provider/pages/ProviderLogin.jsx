@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import axios from "axios";
+import API from "@/lib/api";
 
 const ProviderLogin = () => {
   const navigate = useNavigate();
@@ -13,7 +15,7 @@ const ProviderLogin = () => {
   const [loginType, setLoginType] = useState('partner');
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
-  const { login } = useAuth();
+  const { login, loginWithOTP } = useAuth();
 
   const [step, setStep] = useState(1);
   const [userOtp, setUserOtp] = useState("");
@@ -21,46 +23,61 @@ const ProviderLogin = () => {
 
   const handleVerifyLogin = async (e) => {
     e.preventDefault();
-    if (!mobile || !password) {
-      toast({ title: "Error", description: "Mobile and password are required", variant: "destructive" });
+    if (!mobile) {
+      toast({ title: "Error", description: "Mobile number is required", variant: "destructive" });
       return;
     }
 
     setIsLoading(true);
     try {
-      if (loginType === 'sewak' && step === 1) {
-        // Pre-verify credentials
-        const { data } = await API.post("/provider/verify-credentials", { mobile, password });
-        if (data.success) {
-          setStep(2);
-          toast({ title: "OTP Sent", description: "Use 123456 for testing." });
-        }
-      } else if (loginType === 'sewak' && step === 2) {
-        // Verify OTP
-        if (userOtp === "123456") {
-          const res = await login(mobile, password, "provider");
-          if (res.success) {
-            toast({ title: "Login Successful", description: `Welcome back!` });
-            navigate("/provider");
-          } else {
-            toast({ title: "Login Failed", description: res.error, variant: "destructive" });
+      if (step === 1) {
+        // Step 1: Verify Password first
+        const { data: verifyRes } = await API.post("/auth/verify-credentials", { mobile, password });
+
+        if (verifyRes.success) {
+          // Credentials OK, now Send actual OTP
+          const { data } = await API.post("/auth/send-otp", { mobile });
+          if (data.success) {
+            setStep(2);
+            toast({ title: "OTP Sent", description: "Credentials verified. Please enter the code sent to your mobile." });
           }
-        } else {
-          setShowOtpError(true);
-          toast({ title: "Invalid OTP", description: "Please enter the correct OTP.", variant: "destructive" });
         }
-      } else {
-        // Regular Partner Login
-        const res = await login(mobile, password, "provider");
+      } else if (step === 2) {
+        // Verify OTP - Login using the new login-otp endpoint
+        if (!userOtp) {
+          toast({ title: "Error", description: "Please enter the OTP.", variant: "destructive" });
+          setIsLoading(false);
+          return;
+        }
+
+        const res = await loginWithOTP(mobile, userOtp, "provider");
+
         if (res.success) {
           toast({ title: "Login Successful", description: `Welcome back!` });
-          navigate("/provider");
+
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(async (position) => {
+              const { latitude, longitude } = position.coords;
+              try {
+                await API.put(`/provider/profile`, {
+                  location: { type: 'Point', coordinates: [longitude, latitude] }
+                });
+              } catch (err) { console.error("Location sync failed", err); }
+              navigate("/provider");
+            }, () => {
+              navigate("/provider");
+            });
+          } else {
+            navigate("/provider");
+          }
         } else {
           toast({ title: "Login Failed", description: res.error, variant: "destructive" });
+          setShowOtpError(true);
         }
       }
     } catch (err) {
-      toast({ title: "Error", description: err.response?.data?.message || "Verification failed", variant: "destructive" });
+      toast({ title: "Login Failed", description: err.response?.data?.message || "Invalid OTP or User not found", variant: "destructive" });
+      if (step === 2) setShowOtpError(true);
     } finally {
       setIsLoading(false);
     }
@@ -161,6 +178,12 @@ const ProviderLogin = () => {
                     </button>
                   </div>
                 </div>
+
+                <div className="space-y-4 pt-2">
+                  <p className="text-[11px] text-slate-400 font-bold px-1 leading-relaxed">
+                    A 6-digit verification code will be sent to your registered mobile number after credential check.
+                  </p>
+                </div>
               </div>
             ) : (
               <motion.div
@@ -184,8 +207,8 @@ const ProviderLogin = () => {
                       setUserOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
                       setShowOtpError(false);
                     }}
-                    placeholder="Enter 6-digit OTP"
-                    className={`block w-full rounded-2xl border ${showOtpError ? 'border-red-500 ring-4 ring-red-500/10' : 'border-slate-200'} bg-slate-50/30 py-5 text-center text-2xl font-black tracking-[0.5em] text-slate-900 transition-all outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10`}
+                    className={`block w-full rounded-2xl border ${showOtpError ? 'border-red-500 ring-4 ring-red-500/10' : 'border-slate-200'} bg-slate-50/30 py-5 text-center text-2xl font-semibold ${userOtp ? 'tracking-[0.5em]' : 'tracking-normal'} text-slate-900 transition-all outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10`}
+                    placeholder="000000"
                   />
                   {showOtpError && <p className="text-[10px] text-red-500 font-bold mt-2 text-center">Incorrect OTP. Please try again.</p>}
                 </div>

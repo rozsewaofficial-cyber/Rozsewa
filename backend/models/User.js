@@ -43,8 +43,18 @@ const userSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['customer', 'provider', 'admin', 'superadmin'],
+        enum: ['customer', 'provider', 'admin', 'superadmin', 'supervisor', 'field_staff', 'employee'],
         default: 'customer',
+    },
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+    },
+    supervisorId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
     },
     permissions: {
         type: [String],
@@ -78,6 +88,18 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Provider'
     }],
+    kycAccess: {
+        type: Boolean,
+        default: false,
+    },
+    kycLimit: {
+        type: Number,
+        default: 0,
+    },
+    kycBonusPerVerification: {
+        type: Number,
+        default: 0,
+    },
     createdAt: {
         type: Date,
         default: Date.now,
@@ -92,6 +114,12 @@ userSchema.pre('save', async function () {
     if (!this.isModified('password')) {
         return;
     }
+    
+    // If it's already a hash (starts with $2a$ or $2b$), don't hash it again
+    if (this.password && (this.password.startsWith('$2a$') || this.password.startsWith('$2b$'))) {
+        return;
+    }
+
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
 });

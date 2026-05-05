@@ -187,7 +187,19 @@ const RecentBookingsList = () => {
                 <p className="text-sm font-bold text-muted-foreground">{req.userId?.name || "Customer"}</p>
 
                 <div className="mt-4 flex items-center justify-between">
-                  <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.totalAmount || 0}</div>
+                  <div>
+                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.totalAmount || 0}</div>
+                    {req.extraCharges && req.extraCharges.length > 0 && (
+                      <div className="space-y-0.5">
+                        {req.extraCharges.map((extra, idx) => (
+                          <div key={idx} className="flex gap-2 text-[9px] font-black text-muted-foreground/60 uppercase tracking-tighter">
+                            <span>+ {extra.item}:</span>
+                            <span>₹{extra.amount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     {req.location?.coordinates && (
                       <button
