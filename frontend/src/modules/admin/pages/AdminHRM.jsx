@@ -36,6 +36,9 @@ const AdminHRM = ({ view }) => {
         panCard: "",
         aadharCard: ""
     });
+    const [panPhotoFile, setPanPhotoFile] = useState(null);
+    const [aadharPhotoFile, setAadharPhotoFile] = useState(null);
+    const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         setFormData(prev => ({ ...prev, role: getDefaultRole() }));
@@ -63,6 +66,11 @@ const AdminHRM = ({ view }) => {
             filtered = allEmployees.filter(e => e.role !== 'supervisor');
         }
         
+        // Hide pending employees for supervisors
+        if (user?.role === 'supervisor') {
+            filtered = filtered.filter(e => e.status !== 'pending');
+        }
+        
         if (search) {
             filtered = filtered.filter(e => 
                 e.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -71,17 +79,50 @@ const AdminHRM = ({ view }) => {
             );
         }
         setEmployees(filtered);
-    }, [allEmployees, view, search]);
+    }, [allEmployees, view, search, user]);
 
     const handleAddEmployee = async (e) => {
         e.preventDefault();
+        
+        // Validation: Documents and numbers are required for new registration
+        if (!editId) {
+            if (!formData.panCard || !formData.aadharCard) {
+                toast({ title: "Validation Error", description: "Please enter both PAN and Aadhaar card numbers.", variant: "destructive" });
+                return;
+            }
+            if (!panPhotoFile || !aadharPhotoFile) {
+                toast({ title: "Documents Required", description: "Please upload both PAN and Aadhaar card photos.", variant: "destructive" });
+                return;
+            }
+        }
+
+        setUploading(true);
         try {
+            let panCardPhoto = "";
+            let aadharCardPhoto = "";
+
+            if (panPhotoFile) {
+                const uploadData = new FormData();
+                uploadData.append('image', panPhotoFile);
+                const { data } = await API.post('/upload', uploadData);
+                panCardPhoto = data.url;
+            }
+
+            if (aadharPhotoFile) {
+                const uploadData = new FormData();
+                uploadData.append('image', aadharPhotoFile);
+                const { data } = await API.post('/upload', uploadData);
+                aadharCardPhoto = data.url;
+            }
+
+            const submitData = { ...formData, panCardPhoto, aadharCardPhoto };
+
             if (editId) {
-                const { data } = await API.put(`/admin/employees/${editId}`, formData);
+                const { data } = await API.put(`/admin/employees/${editId}`, submitData);
                 setAllEmployees(allEmployees.map(emp => emp._id === editId ? data : emp));
                 toast({ title: "Employee updated successfully!" });
             } else {
-                const { data } = await API.post("/admin/employees", formData);
+                const { data } = await API.post("/admin/employees", submitData);
                 setAllEmployees([data.employee, ...allEmployees]);
                 
                 const description = data.employee.role === 'supervisor' 
@@ -96,12 +137,16 @@ const AdminHRM = ({ view }) => {
             }
             setShowAddModal(false);
             resetForm();
+            setPanPhotoFile(null);
+            setAadharPhotoFile(null);
         } catch (err) {
             toast({ 
                 title: editId ? "Update failed" : "Registration failed", 
                 description: err.response?.data?.message || "Something went wrong",
                 variant: "destructive" 
             });
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -144,6 +189,26 @@ const AdminHRM = ({ view }) => {
             toast({ title: "Staff member removed" });
         } catch (err) {
             toast({ title: "Delete failed", variant: "destructive" });
+        }
+    };
+
+    const handleVerify = async (id) => {
+        try {
+            await API.put(`/admin/employees/${id}/verify`);
+            setAllEmployees(allEmployees.map(emp => emp._id === id ? { ...emp, status: 'verified', isActive: true } : emp));
+            toast({ title: "Employee Verified" });
+        } catch (err) {
+            toast({ title: "Verification Failed", variant: "destructive" });
+        }
+    };
+
+    const handleReject = async (id) => {
+        try {
+            await API.put(`/admin/employees/${id}/reject`);
+            setAllEmployees(allEmployees.map(emp => emp._id === id ? { ...emp, status: 'rejected' } : emp));
+            toast({ title: "Employee Rejected" });
+        } catch (err) {
+            toast({ title: "Action Failed", variant: "destructive" });
         }
     };
 
@@ -281,7 +346,17 @@ const AdminHRM = ({ view }) => {
                                                     <p className="font-black">{emp.name}</p>
                                                     {getRoleIcon(emp.role)}
                                                 </div>
-                                                <p className="text-[10px] text-emerald-600 uppercase font-black tracking-tighter">{emp.ownCode || emp.employeeId}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-[10px] text-emerald-600 uppercase font-black tracking-tighter">{emp.ownCode || emp.employeeId}</p>
+                                                    {emp.status && (
+                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                                                            emp.status === 'verified' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                                            emp.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
+                                                        }`}>
+                                                            {emp.status}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </td>
@@ -308,6 +383,24 @@ const AdminHRM = ({ view }) => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-2">
+                                            {(user?.role === 'admin' || user?.role === 'superadmin') && emp.status === 'pending' && (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleVerify(emp._id)}
+                                                        className="p-2 text-emerald-500 hover:text-emerald-700 transition-colors"
+                                                        title="Approve"
+                                                    >
+                                                        <BadgeCheck className="h-5 w-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleReject(emp._id)}
+                                                        className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                                                        title="Reject"
+                                                    >
+                                                        <AlertCircle className="h-5 w-5" />
+                                                    </button>
+                                                </>
+                                            )}
                                             <button
                                                 onClick={() => openEditModal(emp)}
                                                 className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
@@ -370,7 +463,6 @@ const AdminHRM = ({ view }) => {
                                             {user?.role === 'supervisor' && (
                                                 <>
                                                     <option value="employee">General Employee</option>
-                                                    <option value="field_staff">Field Staff</option>
                                                 </>
                                             )}
                                             {!user && (
@@ -450,6 +542,11 @@ const AdminHRM = ({ view }) => {
                                             className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-5 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all uppercase"
                                             placeholder="ABCDE1234F"
                                         />
+                                        <input
+                                            type="file"
+                                            onChange={(e) => setPanPhotoFile(e.target.files[0])}
+                                            className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                                        />
                                     </div>
                                     <div className="space-y-1.5">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Aadhaar Card</label>
@@ -459,6 +556,11 @@ const AdminHRM = ({ view }) => {
                                             onChange={(e) => setFormData({ ...formData, aadharCard: e.target.value })}
                                             className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-5 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
                                             placeholder="XXXX XXXX XXXX"
+                                        />
+                                        <input
+                                            type="file"
+                                            onChange={(e) => setAadharPhotoFile(e.target.files[0])}
+                                            className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
                                         />
                                     </div>
                                 </div>
@@ -496,8 +598,8 @@ const AdminHRM = ({ view }) => {
 
                                 <div className="pt-4 flex gap-3">
                                     <button type="button" onClick={() => { setShowAddModal(false); resetForm(); }} className="flex-1 rounded-2xl border border-gray-100 bg-white py-4 text-sm font-black text-gray-500 hover:bg-gray-50 transition-all uppercase tracking-widest">Cancel</button>
-                                    <button type="submit" className="flex-1 rounded-2xl bg-emerald-600 py-4 text-sm font-black text-white shadow-xl shadow-emerald-600/20 hover:shadow-2xl transition-all uppercase tracking-widest">
-                                        {editId ? "Update Details" : "Register Staff"}
+                                    <button type="submit" disabled={uploading} className="flex-1 rounded-2xl bg-emerald-600 py-4 text-sm font-black text-white shadow-xl shadow-emerald-600/20 hover:shadow-2xl transition-all uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed">
+                                        {uploading ? "Uploading..." : (editId ? "Update Details" : "Register Staff")}
                                     </button>
                                 </div>
                             </form>

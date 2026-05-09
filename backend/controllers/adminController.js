@@ -199,7 +199,16 @@ const updateCategory = async (req, res) => {
         const category = await Category.findById(req.params.id);
         if (!category) return res.status(404).json({ message: 'Category not found' });
 
-        Object.assign(category, req.body);
+        if (req.body.services) {
+            category.services = [];
+            category.services.push(...req.body.services);
+            category.markModified('services');
+        }
+        if (req.body.combos) {
+            category.combos = [];
+            category.combos.push(...req.body.combos);
+            category.markModified('combos');
+        }
         const updated = await category.save();
 
         // If Sewak pricing fields are present in services, sync them across all Sewak providers
@@ -218,10 +227,10 @@ const updateCategory = async (req, res) => {
                             },
                             {
                                 $set: {
-                                    'pricing.basic': sub.sewakPriceBasic || sub.basePrice || 299,
-                                    'pricing.standard': sub.sewakPriceStandard || 0,
-                                    'pricing.premium': sub.sewakPricePremium || 0,
-                                    'pricing.express': sub.sewakPriceExpress || 0
+                                    'pricing.basic': sub.sewakPriceBasic ?? sub.basePrice ?? 299,
+                                    'pricing.standard': sub.sewakPriceStandard ?? 0,
+                                    'pricing.premium': sub.sewakPricePremium ?? 0,
+                                    'pricing.express': sub.sewakPriceExpress ?? 0
                                 }
                             }
                         );
@@ -428,18 +437,23 @@ const broadcastEmergency = async (req, res) => {
 // @access  Private/Admin
 const get99CardData = async (req, res) => {
     try {
+        const Setting = require('../models/Setting');
+        const cardPriceSetting = await Setting.findOne({ key: 'vendorCardPrice' });
+        const cardPrice = cardPriceSetting ? parseFloat(cardPriceSetting.value) : 99;
+
         const totalSales = await Provider.countDocuments();
         const activeSubscribers = await Provider.countDocuments({ status: 'verified' });
         const recentActivations = await Provider.find()
-            .select('ownerName shopName joinedDate referralCode employeeCode commissionFreeBookings')
+            .select('ownerName shopName joinedDate vendorCode employeeCode freeServicesLeft referredBy')
             .sort({ joinedDate: -1 })
             .limit(10);
 
         res.json({
             totalSales,
             activeSubscribers,
-            totalRevenue: totalSales * 99,
-            recentActivations
+            totalRevenue: totalSales * cardPrice,
+            recentActivations,
+            cardPrice // Send card price to frontend too
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -672,10 +686,13 @@ const Employee = require('../models/Employee');
 // @access  Private/Admin
 async function getEmployees(req, res) {
     try {
-        let query = {};
+        const { status } = req.query;
+        let query = status ? { status } : {};
+        
         if (req.user.role === 'supervisor') {
-            query = { $or: [{ managedBy: req.user._id }, { createdBy: req.user._id }] };
+            query = { ...query, $or: [{ managedBy: req.user._id }, { createdBy: req.user._id }] };
         }
+        
         const employees = await Employee.find(query).sort({ createdAt: -1 });
         res.json(employees);
     } catch (error) {
@@ -688,7 +705,12 @@ async function getEmployees(req, res) {
 // @access  Private/Admin
 async function addEmployee(req, res) {
     try {
-        const { name, email, mobile, password, role, supervisorCode, registrationCommission, city, state, panCard, aadharCard } = req.body;
+        const { name, email, mobile, password, role, supervisorCode, registrationCommission, city, state, panCard, aadharCard, panCardPhoto, aadharCardPhoto } = req.body;
+
+        // Validation: Documents and numbers are required
+        if (!panCard || !aadharCard || !panCardPhoto || !aadharCardPhoto) {
+            return res.status(400).json({ message: 'PAN and Aadhaar numbers and photos are required' });
+        }
 
         // 1. Hierarchy Validation and Restriction
         if (req.user.role === 'supervisor') {
@@ -712,7 +734,7 @@ async function addEmployee(req, res) {
         let supervisorId = null;
 
         if (req.user.role === 'supervisor') {
-            managedBy = req.user._id; 
+            managedBy = req.user._id;
             supervisorId = req.user._id;
         } else if (role === 'field_staff') {
             if (!supervisorCode) {
@@ -731,7 +753,7 @@ async function addEmployee(req, res) {
         let prefix = 'REMP';
         if (role === 'supervisor') prefix = 'RSUP';
         else if (role === 'field_staff') prefix = 'RSTF';
-        
+
         const ownCode = `${prefix}${1000 + count + 1}`;
 
         // 5. Create User Account for Login
@@ -761,6 +783,10 @@ async function addEmployee(req, res) {
             registrationCommission: registrationCommission || 50,
             panCard,
             aadharCard,
+            panCardPhoto,
+            aadharCardPhoto,
+            status: req.user.role === 'supervisor' ? 'pending' : 'verified',
+            isActive: req.user.role === 'supervisor' ? false : true,
             createdBy: req.user._id
         });
 
@@ -782,8 +808,16 @@ async function addEmployee(req, res) {
 // @access  Private/Admin
 async function deleteEmployee(req, res) {
     try {
+        const employee = await Employee.findById(req.params.id);
+        if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+        // Delete linked User record if exists
+        if (employee.userId) {
+            await User.findByIdAndDelete(employee.userId);
+        }
+
         await Employee.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Employee removed' });
+        res.json({ message: 'Employee and user account removed' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -797,7 +831,7 @@ async function updateEmployee(req, res) {
         const employee = await Employee.findById(req.params.id);
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
-        const { name, email, mobile, registrationCommission, isActive } = req.body;
+        const { name, email, mobile, registrationCommission, isActive, panCard, aadharCard, panCardPhoto, aadharCardPhoto, status } = req.body;
 
         employee.name = name || employee.name;
         employee.email = email || employee.email;
@@ -806,9 +840,49 @@ async function updateEmployee(req, res) {
         employee.isActive = isActive !== undefined ? isActive : employee.isActive;
         employee.panCard = panCard || employee.panCard;
         employee.aadharCard = aadharCard || employee.aadharCard;
+        employee.panCardPhoto = panCardPhoto || employee.panCardPhoto;
+        employee.aadharCardPhoto = aadharCardPhoto || employee.aadharCardPhoto;
+        employee.status = status || employee.status;
 
         const updated = await employee.save();
         res.json(updated);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+}
+
+// @desc    Verify employee
+// @route   PUT /api/admin/employees/:id/verify
+// @access  Private/Admin
+async function verifyEmployee(req, res) {
+    try {
+        const employee = await Employee.findById(req.params.id);
+        if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+        employee.status = 'verified';
+        employee.isActive = true; // Ensure they are active when verified
+
+        await employee.save();
+
+        res.json({ success: true, message: 'Employee verified successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+}
+
+// @desc    Reject employee
+// @route   PUT /api/admin/employees/:id/reject
+// @access  Private/Admin
+async function rejectEmployee(req, res) {
+    try {
+        const employee = await Employee.findById(req.params.id);
+        if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+        employee.status = 'rejected';
+        
+        await employee.save();
+
+        res.json({ success: true, message: 'Employee verification rejected' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -898,7 +972,7 @@ const updateAdmin = async (req, res) => {
         admin.email = email || admin.email;
         admin.mobile = mobile || admin.mobile;
         admin.permissions = permissions || admin.permissions;
-        
+
         if (kycAccess !== undefined) admin.kycAccess = kycAccess;
         if (kycLimit !== undefined) admin.kycLimit = kycLimit;
         if (kycBonusPerVerification !== undefined) admin.kycBonusPerVerification = kycBonusPerVerification;
@@ -1126,7 +1200,7 @@ const verifySewak = async (req, res) => {
                 actionType: "VERIFY",
                 entityType: "SEWAK"
             });
-            
+
             if (totalKYCs >= req.user.kycLimit) {
                 bonusEarned = req.user.kycBonusPerVerification;
             }
@@ -1242,10 +1316,10 @@ const getAuditLogs = async (req, res) => {
     try {
         const { adminId, entityType, startDate, endDate, search, page = 1, limit = 20 } = req.query;
         let query = {};
-        
+
         if (adminId) query.verifiedBy = adminId;
         if (entityType) query.entityType = entityType;
-        
+
         if (startDate || endDate) {
             query.timestamp = {};
             if (startDate) query.timestamp.$gte = new Date(startDate);
@@ -1284,7 +1358,7 @@ const getNightChargeSettings = async (req, res) => {
     try {
         const globalSetting = await Setting.findOne({ key: 'night_charge_config' });
         const categories = await Category.find({}, 'name hasNightCharge nightChargePercent');
-        
+
         res.json({
             global: globalSetting ? globalSetting.value : { enabled: false, defaultPercent: 10, startTime: '21:00', endTime: '06:00' },
             categories
@@ -1300,7 +1374,7 @@ const getNightChargeSettings = async (req, res) => {
 const updateGlobalNightCharge = async (req, res) => {
     try {
         const { enabled, defaultPercent, startTime, endTime } = req.body;
-        
+
         let setting = await Setting.findOne({ key: 'night_charge_config' });
         if (setting) {
             setting.value = { enabled, defaultPercent, startTime, endTime };
@@ -1312,7 +1386,7 @@ const updateGlobalNightCharge = async (req, res) => {
                 value: { enabled, defaultPercent, startTime, endTime }
             });
         }
-        
+
         res.json(setting.value);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1326,15 +1400,15 @@ const updateCategoryNightCharge = async (req, res) => {
     try {
         const { hasNightCharge, nightChargePercent } = req.body;
         const category = await Category.findById(req.params.id);
-        
+
         if (!category) {
             return res.status(404).json({ message: 'Category not found' });
         }
-        
+
         category.hasNightCharge = hasNightCharge;
         category.nightChargePercent = nightChargePercent;
         await category.save();
-        
+
         res.json(category);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1350,14 +1424,14 @@ const applyGlobalNightChargeToAll = async (req, res) => {
         if (!globalSetting) {
             return res.status(404).json({ message: 'Global settings not found' });
         }
-        
+
         const { defaultPercent, enabled } = globalSetting.value;
-        
+
         await Category.updateMany({}, {
             hasNightCharge: enabled,
             nightChargePercent: defaultPercent
         });
-        
+
         res.json({ message: 'Applied to all categories successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1388,7 +1462,7 @@ const getAdminKycPerformance = async (req, res) => {
 
         // Merge with Admin details to show limit etc.
         const admins = await User.find({ role: 'admin' }, 'name kycLimit kycBonusPerVerification kycAccess');
-        
+
         const report = admins.map(admin => {
             const perf = performance.find(p => p._id.toString() === admin._id.toString()) || { totalVerified: 0, totalBonus: 0 };
             return {
@@ -1443,7 +1517,7 @@ const getSewakIncentives = async (req, res) => {
 const updateSewakIncentiveSettings = async (req, res) => {
     try {
         const { threshold, bonusAmount } = req.body;
-        
+
         await Promise.all([
             Setting.findOneAndUpdate({ key: 'DAILY_BOOKING_THRESHOLD' }, { value: threshold, updatedAt: Date.now() }, { upsert: true }),
             Setting.findOneAndUpdate({ key: 'BONUS_PER_EXTRA_BOOKING' }, { value: bonusAmount, updatedAt: Date.now() }, { upsert: true })
@@ -1490,6 +1564,8 @@ module.exports = {
     addEmployee,
     updateEmployee,
     deleteEmployee,
+    verifyEmployee,
+    rejectEmployee,
     deleteEmergencyAlert,
     getAllAdmins,
     createAdmin,

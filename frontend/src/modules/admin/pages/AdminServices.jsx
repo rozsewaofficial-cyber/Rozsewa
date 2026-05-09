@@ -20,6 +20,9 @@ const AdminServices = () => {
     icon: "Scissors",
     description: "",
     image: "",
+    partnerCommissionBasic: 25,
+    partnerCommissionStandard: 20,
+    partnerCommissionPremium: 15,
     services: [] // Default sub-services
   });
 
@@ -72,7 +75,7 @@ const AdminServices = () => {
       }
       setShowModal(false);
       setEditingCat(null);
-      setNewCat({ name: "", icon: "Scissors", description: "", image: "", services: [] });
+      setNewCat({ name: "", icon: "Scissors", description: "", image: "", partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
     } catch (err) {
       toast({ title: "Save Failed", variant: "destructive" });
     }
@@ -112,6 +115,9 @@ const AdminServices = () => {
       icon: cat.icon || "Scissors",
       description: cat.description || "",
       image: cat.image || "",
+      partnerCommissionBasic: cat.partnerCommissionBasic || 25,
+      partnerCommissionStandard: cat.partnerCommissionStandard || 20,
+      partnerCommissionPremium: cat.partnerCommissionPremium || 15,
       services: cat.services || []
     });
     setShowModal(true);
@@ -204,6 +210,21 @@ const AdminServices = () => {
                   <div className="col-span-2 md:col-span-1">
                     <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Icon Name (Lucide)</label>
                     <input type="text" value={newCat.icon} onChange={e => setNewCat({ ...newCat, icon: e.target.value })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. Scissors" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Basic Comm (%)</label>
+                    <input type="number" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. 25" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Std Comm (%)</label>
+                    <input type="number" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. 20" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Prem Comm (%)</label>
+                    <input type="number" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. 15" />
                   </div>
                 </div>
 

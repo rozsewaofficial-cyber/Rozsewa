@@ -17,7 +17,7 @@ const isNightTime = (timeStr, startStr, endStr) => {
         const [h_str, m_str] = parts[0].split(':');
         let h = parseInt(h_str);
         let m = parseInt(m_str);
-        
+
         if (parts[1]) {
             const period = parts[1].toUpperCase();
             if (period === 'PM' && h < 12) h += 12;
@@ -57,17 +57,17 @@ const createBooking = async (req, res) => {
             const config = await Setting.findOne({ key: 'night_charge_config' });
             if (config && config.value.enabled) {
                 const { startTime, endTime, defaultPercent } = config.value;
-                
+
                 if (isNightTime(bookingTime, startTime, endTime)) {
                     const service = await Service.findById(serviceId);
                     if (service) {
                         const category = await Category.findOne({ name: service.category });
                         let percent = defaultPercent;
-                        
+
                         if (category && category.hasNightCharge) {
                             percent = category.nightChargePercent;
                         }
-                        
+
                         appliedNightChargePercent = percent;
                         nightChargeAmount = (totalAmount * percent) / 100;
                         finalTotalAmount = totalAmount + nightChargeAmount;
@@ -338,7 +338,7 @@ const verifyEndOTP = async (req, res) => {
 
             if (booking.endOTP === otp) {
                 // Update Provider stats and Commission logic
-                const provider = await Provider.findById(booking.providerId);
+                const provider = await Provider.findById(booking.providerId).populate('vendorType');
 
                 const Setting = require('../models/Setting');
                 let commissionRate = 10; // Default fallback
@@ -375,27 +375,40 @@ const verifyEndOTP = async (req, res) => {
                     providerPayout = booking.totalAmount - adminCommission;
                     commissionStatus = 'subscription_discount';
                 } else {
-                    // Tiered Management
-                    let tierRate = commissionRate; // Default
-
+                    // Use category-specific tier commission with fallbacks to global settings
+                    const category = provider.vendorType;
+                    const planType = provider.planType || 'basic';
+                    
+                    // Fetch global default for this tier from settings
+                    const tierKey = `commission_${planType}`;
+                    const Setting = require('../models/Setting');
+                    let defaultRate = planType === 'premium' ? 15 : planType === 'standard' ? 20 : 25; // Hardcoded fallbacks
+                    
                     try {
-                        const tierKey = `commission_${provider.planType || 'basic'}`;
                         const tierSetting = await Setting.findOne({ key: tierKey });
                         if (tierSetting) {
-                            tierRate = parseFloat(tierSetting.value);
-                        } else {
-                            // Fallback rates if settings not initialized
-                            const fallbacks = { basic: 25, standard: 20, premium: 15 };
-                            tierRate = fallbacks[provider.planType] || 25;
+                            defaultRate = parseFloat(tierSetting.value);
                         }
                     } catch (err) {
-                        console.log("Error fetching tier setting, using default");
+                        console.log(`Error fetching global ${tierKey} setting`);
                     }
 
-                    const rate = provider.commissionRate || tierRate;
+                    let rate = defaultRate;
+                    if (category) {
+                        if (planType === 'premium') {
+                            rate = category.partnerCommissionPremium ?? defaultRate;
+                        } else if (planType === 'standard') {
+                            rate = category.partnerCommissionStandard ?? defaultRate;
+                        } else {
+                            rate = category.partnerCommissionBasic ?? defaultRate;
+                        }
+                    }
+                    
                     adminCommission = (booking.totalAmount * rate) / 100;
                     providerPayout = booking.totalAmount - adminCommission;
                     commissionStatus = 'commissioned';
+                    
+                    console.log(`Applied commission (${rate}%) for plan: ${planType}, category: ${category?.name || 'None'}`);
                 }
 
                 // Update booking with commission details
@@ -433,7 +446,7 @@ const verifyEndOTP = async (req, res) => {
                 if (provider.providerCategory === 'sewak') {
                     try {
                         const today = new Date().toISOString().split('T')[0];
-                        
+
                         // Fetch global incentive settings
                         const settings = await Setting.find({ key: { $in: ['DAILY_BOOKING_THRESHOLD', 'BONUS_PER_EXTRA_BOOKING'] } });
                         const threshold = Number(settings.find(s => s.key === 'DAILY_BOOKING_THRESHOLD')?.value || 5);

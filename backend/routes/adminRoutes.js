@@ -36,6 +36,8 @@ const {
     addEmployee,
     updateEmployee,
     deleteEmployee,
+    verifyEmployee,
+    rejectEmployee,
     deleteEmergencyAlert,
     getAllAdmins,
     createAdmin,
@@ -64,6 +66,13 @@ const {
     updateSewakIncentiveSettings
 } = require('../controllers/adminController');
 
+const {
+    getBenefitPolicies,
+    createBenefitPolicy,
+    updateBenefitPolicy,
+    deleteBenefitPolicy
+} = require('../controllers/benefitPolicyController');
+
 const { protect, admin, superadmin, supervisor, employee } = require('../middleware/authMiddleware');
 
 // HRM Management
@@ -72,6 +81,8 @@ router.get('/employees', protect, supervisor, getEmployees);
 router.post('/employees', protect, supervisor, addEmployee);
 router.put('/employees/:id', protect, supervisor, updateEmployee);
 router.delete('/employees/:id', protect, supervisor, deleteEmployee);
+router.put('/employees/:id/verify', protect, admin, verifyEmployee);
+router.put('/employees/:id/reject', protect, admin, rejectEmployee);
 
 // Provider management
 router.get('/providers', protect, admin, getProviders);
@@ -145,11 +156,11 @@ router.put('/admins/:id', protect, superadmin, updateAdmin);
 router.put('/admins/:id/permissions', protect, superadmin, updateAdminPermissions);
 router.post('/verify-pin', protect, admin, verifySuperAdminPin);
 router.post('/update-pin', protect, superadmin, updateSuperAdminPin);
-    router.delete('/admins/:id', protect, superadmin, deleteAdmin);
-    router.get('/audit-logs', protect, superadmin, getAuditLogs);
-        router.get('/kyc-performance', protect, superadmin, getAdminKycPerformance);
-    router.get('/sewak-incentives', protect, superadmin, getSewakIncentives);
-    router.post('/sewak-incentive-settings', protect, superadmin, updateSewakIncentiveSettings);
+router.delete('/admins/:id', protect, superadmin, deleteAdmin);
+router.get('/audit-logs', protect, superadmin, getAuditLogs);
+router.get('/kyc-performance', protect, superadmin, getAdminKycPerformance);
+router.get('/sewak-incentives', protect, superadmin, getSewakIncentives);
+router.post('/sewak-incentive-settings', protect, superadmin, updateSewakIncentiveSettings);
 
 // Subscription Plans Management
 router.get('/subscriptions', protect, admin, getAdminSubscriptionPlans);
@@ -163,5 +174,11 @@ router.post('/sewaks', protect, admin, createSewak);
 router.get('/sewaks/pending-kyc', protect, admin, getPendingSewaks);
 router.put('/sewaks/:id/verify', protect, admin, verifySewak);
 router.put('/sewaks/:id/reject', protect, admin, rejectSewak);
+
+// Benefit Policy Management
+router.get('/benefit-policies', protect, admin, getBenefitPolicies);
+router.post('/benefit-policies', protect, admin, createBenefitPolicy);
+router.put('/benefit-policies/:id', protect, admin, updateBenefitPolicy);
+router.delete('/benefit-policies/:id', protect, admin, deleteBenefitPolicy);
 
 module.exports = router;

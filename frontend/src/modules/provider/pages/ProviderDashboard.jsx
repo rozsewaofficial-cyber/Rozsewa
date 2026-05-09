@@ -37,7 +37,7 @@ const ProviderDashboard = () => {
   const [supportNum, setSupportNum] = useState("91XXXXXXXXXX");
   const [dynamicChartData, setDynamicChartData] = useState(chartDataFallback);
   const [plans, setPlans] = useState([]);
-  const [isSubscribed, setIsSubscribed] = useState(user?.isSubscribed || false);
+  const isSubscribed = user?.isSubscribed || false;
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -75,8 +75,29 @@ const ProviderDashboard = () => {
   }, []);
 
   const handleUpgrade = async () => {
-    if (plans.length === 0 || user?.providerCategory === 'sewak') return;
-    const plan = plans[0]; // Get the first active plan (e.g., 999 Elite)
+    console.log("Upgrade button clicked. Current plans:", plans);
+    if (plans.length === 0) {
+      toast({ 
+        title: "No plans found", 
+        description: "Checking for available registration plans... please wait or refresh.", 
+        variant: "destructive" 
+      });
+      fetchPlans(); // Retry fetching plans
+      return;
+    }
+    
+    const plan = plans[0];
+    console.log("Selected plan for upgrade:", plan);
+    if (!plan) return;
+
+    if (!window.Razorpay) {
+      toast({ 
+        title: "Payment system not ready", 
+        description: "Razorpay script is still loading. Please wait 2 seconds and try again.", 
+        variant: "destructive" 
+      });
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -95,22 +116,30 @@ const ProviderDashboard = () => {
               planId: plan._id
             });
             if (data.success) {
-              toast({ title: "Welcome to Elite!", description: "Subscription activated successfully." });
-              setIsSubscribed(true);
-              window.location.reload(); // Refresh to update user context
+              toast({ title: "Welcome to Elite!", description: "Registration activated successfully." });
+              // Force clear cache and reload to get new profile status
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
             }
           } catch (err) {
             toast({ title: "Activation Failed", variant: "destructive" });
+          } finally {
+            setIsLoading(false);
           }
         },
-        prefill: { contact: user?.mobile },
+        prefill: { 
+          name: user?.ownerName,
+          contact: user?.mobile 
+        },
         theme: { color: "#059669" },
         modal: { ondismiss: () => setIsLoading(false) }
       };
       const rzp = new window.Razorpay(options);
       rzp.open();
     } catch (err) {
-      toast({ title: "Payment Initialization Failed", variant: "destructive" });
+      console.error("Razorpay Error:", err);
+      toast({ title: "Payment Initialization Failed", description: err.response?.data?.message || "Check your internet or contact support.", variant: "destructive" });
       setIsLoading(false);
     }
   };
@@ -320,9 +349,16 @@ const ProviderDashboard = () => {
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
               Welcome back, {user?.shopName || "Partner"} 👋
             </h1>
-            <p className="text-[10px] md:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em]">
-              RozSewa Verified Professional
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] md:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em]">
+                RozSewa Verified Professional
+              </span>
+              {isSubscribed && user?.providerCategory !== 'sewak' && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-[9px] font-black text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 uppercase tracking-widest">
+                  Valid till: {user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' }) : 'Lifetime'}
+                </span>
+              )}
+            </div>
           </div>
 
           <div className="flex bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl border border-emerald-100 dark:border-white/5 rounded-2xl p-1.5 gap-2 shadow-xl shadow-emerald-900/5 w-full md:w-auto shrink-0">
@@ -401,20 +437,39 @@ const ProviderDashboard = () => {
           <EarningsWidget />
         </section>
 
-        {/* Elite Subscription Banner */}
-        <AnimatePresence>
-          {!isSubscribed && plans.length > 0 && user?.providerCategory !== 'sewak' && (
-            <motion.section
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="animate-in slide-in-from-bottom-5 duration-700 delay-100 overflow-hidden"
-            >
-              <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-4 md:p-6 text-white shadow-2xl shadow-emerald-500/20 border border-white/10 group">
+        {/* Registration Status / Elite Banner */}
+        {user?.providerCategory !== 'sewak' && (
+          <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {isSubscribed ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative overflow-hidden rounded-[2rem] bg-slate-900 p-6 text-white border border-slate-800 shadow-2xl"
+              >
+                <div className="absolute top-0 right-0 h-32 w-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-4 text-left">
+                    <div className="h-14 w-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
+                      <Crown className="h-8 w-8 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1">Active Registration</p>
+                      <h2 className="text-xl font-black uppercase tracking-tight">{user?.planType || 'Pro'} Member</h2>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                        Valid till: {user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' }) : 'Lifetime'} ✓
+                      </p>
+                    </div>
+                  </div>
+                  <Link to="/provider/99card" className="px-5 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                    View Benefits
+                  </Link>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-4 md:p-6 text-white shadow-2xl shadow-emerald-500/20 border border-white/10 group text-left">
                 <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
 
                 <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
-                  {/* Left Side: Icon + Headline */}
                   <div className="flex items-center gap-3 md:gap-4">
                     <div className="h-12 w-12 md:h-16 md:w-16 shrink-0 rounded-2xl bg-white/20 backdrop-blur-xl flex items-center justify-center border border-white/30 shadow-2xl group-hover:rotate-12 transition-transform duration-500">
                       <Crown className="h-6 w-6 md:h-8 md:w-8 text-amber-400 fill-amber-400" />
@@ -422,18 +477,17 @@ const ProviderDashboard = () => {
                     <div className="space-y-0.5">
                       <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-400/20 rounded-full border border-amber-400/30">
                         <Zap className="h-2.5 w-2.5 text-amber-400 fill-amber-400" />
-                        <span className="text-[8px] font-black uppercase tracking-widest text-amber-200">Elite Hub</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-amber-200">Registration Hub</span>
                       </div>
                       <h2 className="text-base md:text-2xl font-black tracking-tighter leading-tight">
                         Reduce Commission to <span className="text-amber-400">{plans[0]?.offeredCommissionRate || 5}% Yearly</span>
                       </h2>
-                      <p className="text-[10px] md:text-xs font-bold text-emerald-100/70 italic hidden sm:block">
-                        Keep {100 - (plans[0]?.offeredCommissionRate || 5)}% of your earnings on every booking.
+                      <p className="text-[10px] md:text-xs font-bold text-emerald-100/70 italic hidden sm:block uppercase tracking-widest">
+                        Keep more earnings on every booking.
                       </p>
                     </div>
                   </div>
 
-                  {/* Right Side: Price + Button */}
                   <div className="flex items-center justify-between md:flex-col md:items-end gap-3 border-t border-white/10 pt-3 md:border-none md:pt-0">
                     <div className="text-left md:text-right">
                       <p className="text-[8px] font-black text-emerald-300 uppercase tracking-widest leading-none">Starting At</p>
@@ -449,9 +503,9 @@ const ProviderDashboard = () => {
                   </div>
                 </div>
               </div>
-            </motion.section>
-          )}
-        </AnimatePresence>
+            )}
+          </section>
+        )}
 
         {/* Performance Graph Section */}
         <section className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[32px] p-6 shadow-xl shadow-slate-100/50 dark:shadow-none overflow-hidden animate-in slide-in-from-bottom-5 duration-700 delay-200">
@@ -522,14 +576,14 @@ const ProviderDashboard = () => {
             {[
               { iconPath: "/assets/3d_icons/services.png", title: "Services", desc: "Catalog", path: "/provider/services", bgColor: "bg-blue-50/80 dark:bg-blue-900/10", borderColor: "border-blue-100 dark:border-blue-900/20" },
               { iconPath: "/assets/3d_icons/timing.png", title: "Timing", desc: "Schedule", path: "/provider/availability", bgColor: "bg-amber-50/80 dark:bg-amber-900/10", borderColor: "border-amber-100 dark:border-amber-900/20" },
-              { iconPath: "/assets/3d_icons/offers.png", title: "Offers", desc: "Growth", path: "/provider/offers", bgColor: "bg-pink-50/80 dark:bg-pink-900/10", borderColor: "border-pink-100 dark:border-pink-900/20" },
+
               { iconPath: "/assets/3d_icons/wallet.png", title: "Wallet", desc: "Revenue", path: "/provider/wallet", bgColor: "bg-emerald-50/80 dark:bg-emerald-900/10", borderColor: "border-emerald-100 dark:border-emerald-900/20" },
               { iconPath: "/assets/3d_icons/reviews.png", title: "Reviews", desc: "Ratings", path: "/provider/reviews", bgColor: "bg-yellow-50/80 dark:bg-yellow-900/10", borderColor: "border-yellow-100 dark:border-yellow-900/20" },
-              { iconPath: "/assets/3d_icons/99card.png", title: "99 Card", desc: "Partner Hub", path: "/provider/99card", bgColor: "bg-slate-100 dark:bg-slate-800/30", borderColor: "border-slate-200 dark:border-slate-700" },
+              { iconPath: "/assets/3d_icons/99card.png", title: "Registration", desc: "Plan & Status", path: "/provider/99card", bgColor: "bg-slate-100 dark:bg-slate-800/30", borderColor: "border-slate-200 dark:border-slate-700" },
               { iconPath: "/assets/3d_icons/docs.png", title: "Docs", desc: "Vault", path: "/provider/documents", bgColor: "bg-cyan-50/80 dark:bg-cyan-900/10", borderColor: "border-cyan-100 dark:border-cyan-900/20" },
               { iconPath: "/assets/3d_icons/support.png", title: "Support", desc: "Hotline", path: "/provider/support", bgColor: "bg-indigo-50/80 dark:bg-indigo-900/10", borderColor: "border-indigo-100 dark:border-indigo-900/20" },
               { iconPath: "/assets/3d_icons/settings.png", title: "Settings", desc: "Admin", path: "/provider/settings", bgColor: "bg-gray-100/80 dark:bg-gray-800/30", borderColor: "border-gray-200 dark:border-gray-700" }
-            ].map((item, idx) => {
+            ].filter(item => user?.providerCategory !== 'sewak' || item.title !== "Registration").map((item, idx) => {
               const miniIcons = [Briefcase, Clock, Tag, Wallet, Star, ShieldCheck, FileText, Headset, Settings];
               const MiniIcon = miniIcons[idx];
               return (

@@ -9,7 +9,7 @@ const checkCategories = async () => {
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('Connected to DB');
 
-        const categories = await Category.find().select('name subServices');
+        const categories = await Category.find().select('name services');
         console.log('Categories found:', JSON.stringify(categories, null, 2));
 
         process.exit();

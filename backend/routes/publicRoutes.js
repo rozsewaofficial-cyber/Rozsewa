@@ -14,5 +14,6 @@ router.post('/coupons/validate', validateCoupon);
 router.get('/verify-referral/:code', verifyReferralCode);
 router.get('/config', getPublicConfig);
 router.get('/zones', getPublicZones);
+router.get('/benefit-policies', require('../controllers/benefitPolicyController').getPublicBenefitPolicies);
 
 module.exports = router;

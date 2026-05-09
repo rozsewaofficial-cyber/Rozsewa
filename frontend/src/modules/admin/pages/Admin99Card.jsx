@@ -60,7 +60,7 @@ const Admin99Card = () => {
                     <IndianRupee className="h-8 w-8 text-amber-600 mb-4" />
                     <p className="text-sm font-bold text-amber-800 uppercase tracking-wider mb-1">Card Revenue</p>
                     <h2 className="text-4xl font-black text-amber-900">₹{(stats.totalRevenue / 100000).toFixed(1)}L</h2>
-                    <p className="text-xs text-amber-600 font-bold mt-2">All time generated (₹99/unit)</p>
+                    <p className="text-xs text-amber-600 font-bold mt-2">All time generated (₹{stats.cardPrice || 99}/unit)</p>
                 </div>
             </div>
 
@@ -88,16 +88,16 @@ const Admin99Card = () => {
                             ) : (
                                 stats.recentActivations.map((item, i) => (
                                     <tr key={item._id} className="hover:bg-gray-50/50 transition">
-                                        <td className="px-6 py-4 font-mono font-bold text-emerald-700">{item.referralCode || 'N/A'}</td>
+                                        <td className="px-6 py-4 font-mono font-bold text-emerald-700">{item.vendorCode || 'N/A'}</td>
                                         <td className="px-6 py-4 font-bold text-gray-900">{item.shopName}</td>
                                         <td className="px-6 py-4">
                                             <span className="px-2 py-1 bg-gray-100 rounded text-xs font-bold text-gray-700">
-                                                {item.employeeCode || 'Organic'}
+                                                {item.referredBy || 'Organic'}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest ${item.commissionFreeBookings > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                {item.commissionFreeBookings > 0 ? `${item.commissionFreeBookings} Left` : '0/5'}
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest ${item.freeServicesLeft > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                {item.freeServicesLeft > 0 ? `${item.freeServicesLeft} Left` : '0/3'}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
@@ -107,7 +107,7 @@ const Admin99Card = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-xs font-bold text-gray-500">
-                                            {new Date(item.joinedDate).toLocaleDateString()}
+                                            {item.joinedDate ? new Date(item.joinedDate).toLocaleDateString() : 'N/A'}
                                         </td>
                                     </tr>
                                 ))

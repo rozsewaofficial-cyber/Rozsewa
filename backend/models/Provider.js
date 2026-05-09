@@ -46,6 +46,14 @@ const providerSchema = mongoose.Schema({
     },
     openingTime: { type: String, default: "09:00 AM" },
     closingTime: { type: String, default: "09:00 PM" },
+    availability: [
+        {
+            day: { type: String },
+            startTime: { type: String, default: "09:00" },
+            endTime: { type: String, default: "18:00" },
+            isActive: { type: Boolean, default: true }
+        }
+    ],
     status: { type: String, enum: ['pending', 'verified', 'suspended', 'rejected'], default: 'pending' },
     isOnline: { type: Boolean, default: true },
     isEmergencyEnabled: { type: Boolean, default: false },
@@ -96,6 +104,14 @@ const providerSchema = mongoose.Schema({
     },
     subscriptionExpiry: {
         type: Date,
+        default: null
+    },
+    subscriptionPurchaseDate: {
+        type: Date,
+        default: null
+    },
+    subscriptionPrice: {
+        type: Number,
         default: null
     },
     subscriptionRate: {

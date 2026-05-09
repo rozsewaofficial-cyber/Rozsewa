@@ -42,16 +42,27 @@ const SewakPricing = () => {
     };
 
     const updatePrice = (catIdx, serviceIdx, field, newPrice) => {
-        const updated = [...categories];
-        updated[catIdx].services[serviceIdx][field] = Number(newPrice);
-        setCategories(updated);
+        setCategories(prev => {
+            const updated = [...prev];
+            const cat = { ...updated[catIdx] };
+            const svcs = [...cat.services];
+            svcs[serviceIdx] = { ...svcs[serviceIdx], [field]: Number(newPrice) };
+            cat.services = svcs;
+            updated[catIdx] = cat;
+            return updated;
+        });
     };
 
     const updateComboPrice = (catIdx, comboIdx, newPrice) => {
-        const updated = [...categories];
-        if (!updated[catIdx].combos) updated[catIdx].combos = [];
-        updated[catIdx].combos[comboIdx].sewakPrice = Number(newPrice);
-        setCategories(updated);
+        setCategories(prev => {
+            const updated = [...prev];
+            const cat = { ...updated[catIdx] };
+            const combos = [...(cat.combos || [])];
+            combos[comboIdx] = { ...combos[comboIdx], sewakPrice: Number(newPrice) };
+            cat.combos = combos;
+            updated[catIdx] = cat;
+            return updated;
+        });
     };
 
     const addMasterCombo = (catIdx) => {
@@ -87,9 +98,30 @@ const SewakPricing = () => {
 
     const handleSaveCategoryPricing = async (category) => {
         setSavingId(category._id);
+        
+        // Merge the latest selectedService into the category's services array
+        const updatedServices = category.services.map(s => {
+            if (s._id === selectedService?._id) {
+                return {
+                    ...s,
+                    sewakPriceBasic: Number(selectedService.sewakPriceBasic) || 0,
+                    sewakPriceStandard: Number(selectedService.sewakPriceStandard) || 0,
+                    sewakPricePremium: Number(selectedService.sewakPricePremium) || 0,
+                    sewakPriceExpress: Number(selectedService.sewakPriceExpress) || 0
+                };
+            }
+            return s;
+        });
+
+        // Debug toast
+        toast({
+            title: "Saving Data",
+            description: `Basic Price: ${updatedServices.find(s => s._id === selectedService?._id)?.sewakPriceBasic}`
+        });
+
         try {
             await API.put(`/admin/categories/${category._id}`, {
-                services: category.services,
+                services: updatedServices,
                 combos: category.combos || []
             });
             toast({
@@ -159,13 +191,15 @@ const SewakPricing = () => {
 
             {/* Pricing Grid */}
             <div className="grid grid-cols-1 xl:grid-cols-1 gap-8">
-                {filteredCategories.map((cat, catIdx) => (
-                    <motion.div
-                        key={cat._id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: catIdx * 0.1 }}
-                    >
+                {filteredCategories.map((cat, filteredIdx) => {
+                    const catIdx = categories.findIndex(c => c._id === cat._id);
+                    return (
+                        <motion.div
+                            key={cat._id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: filteredIdx * 0.1 }}
+                        >
                         <Card className="rounded-[2.5rem] border-0 shadow-xl shadow-gray-200/50 overflow-hidden group">
                             <CardHeader className="bg-white border-b border-gray-50 p-8">
                                 <div className="flex items-center justify-between">
@@ -201,7 +235,7 @@ const SewakPricing = () => {
                                                 <div>
                                                     <h4 className="text-sm font-black text-gray-800 tracking-tight">{svc.name}</h4>
                                                     <p className="text-[9px] font-bold text-gray-400 mt-0.5 uppercase tracking-widest">
-                                                        ID: {svc._id?.slice(-6)} • Basic: ₹{svc.sewakPriceBasic || svc.basePrice}
+                                                        ID: {svc._id?.slice(-6)} • Basic: ₹{svc.sewakPriceBasic ?? svc.basePrice}
                                                     </p>
                                                 </div>
                                             </div>
@@ -328,8 +362,9 @@ const SewakPricing = () => {
                                 </div>
                             </CardContent>
                         </Card>
-                    </motion.div>
-                ))}
+                        </motion.div>
+                    );
+                })}
             </div>
 
             {/* Details Drawer */}
@@ -398,11 +433,11 @@ const SewakPricing = () => {
                                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-black text-sm">₹</div>
                                                     <Input
                                                         type="number"
-                                                        value={selectedService[tier.key] || (tier.key === 'sewakPriceBasic' ? selectedService.basePrice : 0)}
+                                                        value={selectedService[tier.key] ?? (tier.key === 'sewakPriceBasic' ? selectedService.basePrice : 0)}
                                                         onChange={(e) => {
                                                             const val = e.target.value;
                                                             updatePrice(selectedCatIdx, selectedSvcIdx, tier.key, val);
-                                                            setSelectedService(prev => ({ ...prev, [tier.key]: Number(val) }));
+                                                            setSelectedService(prev => ({ ...prev, [tier.key]: val }));
                                                         }}
                                                         className="h-12 pl-10 rounded-xl border-gray-200 bg-white font-black text-sm focus:ring-blue-500/10 focus:border-blue-500"
                                                     />
@@ -421,7 +456,7 @@ const SewakPricing = () => {
                                     <div className="flex items-end justify-between">
                                         <div>
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Starting From</p>
-                                            <h3 className="text-3xl font-black">₹{selectedService.sewakPriceBasic || selectedService.basePrice}</h3>
+                                            <h3 className="text-3xl font-black">₹{selectedService.sewakPriceBasic ?? selectedService.basePrice}</h3>
                                         </div>
                                         <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center">
                                             <TrendingUp className="h-5 w-5 text-emerald-400" />

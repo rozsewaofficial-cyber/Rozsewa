@@ -49,7 +49,7 @@ import ProviderAvailability from "./modules/provider/pages/ProviderAvailability"
 import ProviderDocuments from "./modules/provider/pages/ProviderDocuments";
 import ProviderReviews from "./modules/provider/pages/ProviderReviews";
 import Provider99Card from "./modules/provider/pages/Provider99Card";
-import ProviderOffers from "./modules/provider/pages/ProviderOffers";
+import ProviderBenefitPolicy from "./modules/provider/pages/ProviderBenefitPolicy";
 import ProviderSettings from "./modules/provider/pages/ProviderSettings";
 import ProviderSupport from "./modules/provider/pages/ProviderSupport";
 import ProviderNotifications from "./modules/provider/pages/ProviderNotifications";
@@ -71,6 +71,7 @@ import AdminDisputes from "./modules/admin/pages/AdminDisputes";
 import AdminBanners from "./modules/admin/pages/AdminBanners";
 import AdminNotifications from "./modules/admin/pages/AdminNotifications";
 import AdminActivityLog from "./modules/admin/pages/AdminActivityLog";
+import AdminProviderSubscriptions from "./modules/admin/pages/AdminProviderSubscriptions";
 import AdminKYC from "./modules/admin/pages/AdminKYC";
 import Admin99Card from "./modules/admin/pages/Admin99Card";
 import AdminCommission from "./modules/admin/pages/AdminCommission";
@@ -87,7 +88,9 @@ import AdminHRM from "./modules/admin/pages/AdminHRM";
 import AdminSuper from "./modules/admin/pages/AdminSuper";
 import SewakManagement from "./modules/admin/pages/SewakManagement";
 import AdminVerifySewak from "./modules/admin/pages/AdminVerifySewak";
+import AdminVerifyEmployee from "./modules/admin/pages/AdminVerifyEmployee";
 import AdminSubscriptions from "./modules/admin/pages/AdminSubscriptions";
+import AdminBenefitPolicies from "./modules/admin/pages/AdminBenefitPolicies";
 import AdminAuditLogs from "./modules/admin/pages/AdminAuditLogs";
 import AdminNightCharge from "./modules/admin/pages/AdminNightCharge";
 import AdminSewakIncentives from "./modules/admin/pages/AdminSewakIncentives";
@@ -153,7 +156,7 @@ const App = () => (
                     <Route path="/provider/documents" element={<ProviderDocuments />} />
                     <Route path="/provider/reviews" element={<ProviderReviews />} />
                     <Route path="/provider/99card" element={<Provider99Card />} />
-                    <Route path="/provider/offers" element={<ProviderOffers />} />
+                    <Route path="/provider/benefit-policy" element={<ProviderBenefitPolicy />} />
                     <Route path="/provider/settings" element={<ProviderSettings />} />
                     <Route path="/provider/support" element={<ProviderSupport />} />
                     <Route path="/provider/notifications" element={<ProviderNotifications />} />
@@ -169,14 +172,17 @@ const App = () => (
                       <Route path="providers" element={<AdminProviders />} />
                       <Route path="sewaks" element={<SewakManagement />} />
                       <Route path="verify-sewaks" element={<AdminVerifySewak />} />
+                      <Route path="verify-employees" element={<AdminVerifyEmployee />} />
                       <Route path="bookings" element={<AdminBookings />} />
                       <Route path="earnings" element={<AdminEarnings />} />
                       <Route path="coupons" element={<AdminCoupons />} />
                       <Route path="feedback" element={<AdminFeedback />} />
                       <Route path="services" element={<AdminServices />} />
                       <Route path="subscriptions" element={<AdminSubscriptions />} />
+                      <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
                       <Route path="sewak-pricing" element={<SewakPricing />} />
                       <Route path="settings" element={<AdminSettings />} />
+                      <Route path="benefit-policies" element={<AdminBenefitPolicies />} />
                       <Route path="disputes" element={<AdminDisputes />} />
                       <Route path="banners" element={<AdminBanners />} />
                       <Route path="notifications" element={<AdminNotifications />} />

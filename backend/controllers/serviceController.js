@@ -8,13 +8,46 @@ const Provider = require('../models/Provider');
 // @access  Private (Provider)
 const getMyServices = async (req, res) => {
     try {
-        const services = await Service.find({ providerId: req.user._id });
-        const combos = await Combo.find({ providerId: req.user._id }).populate('services');
-
-        // Fetch Category Master Services
         const provider = await Provider.findById(req.user._id).populate('vendorType');
+        const isSewak = provider?.providerCategory === 'sewak';
+
+        let services = await Service.find({ providerId: req.user._id });
+        let combos = await Combo.find({ providerId: req.user._id }).populate('services');
+
         const categoryServices = provider?.vendorType?.services || [];
+        const categoryCombos = provider?.vendorType?.combos || [];
         const categoryName = provider?.vendorType?.name || 'Your Category';
+
+        if (isSewak) {
+            // For Sewaks, we override the services list with category services using admin prices
+            services = categoryServices.map(catSvc => ({
+                _id: catSvc._id,
+                name: catSvc.name,
+                description: catSvc.description || `Professional ${catSvc.name} service`,
+                duration: "1 hour",
+                visible: true,
+                category: categoryName,
+                pricing: {
+                    basic: catSvc.sewakPriceBasic ?? catSvc.basePrice ?? 299,
+                    standard: catSvc.sewakPriceStandard ?? 0,
+                    premium: catSvc.sewakPricePremium ?? 0,
+                    express: catSvc.sewakPriceExpress ?? 0
+                }
+            }));
+
+            // Map category combos to the format expected by frontend
+            combos = categoryCombos.map(catCombo => ({
+                _id: catCombo._id,
+                name: catCombo.name,
+                description: catCombo.description,
+                price: catCombo.sewakPrice || 0,
+                image: catCombo.image,
+                services: catCombo.services.map(svcName => {
+                    const s = services.find(s => s.name === svcName);
+                    return s || { name: svcName };
+                })
+            }));
+        }
 
         res.json({ services, combos, categoryServices, categoryName });
     } catch (error) {

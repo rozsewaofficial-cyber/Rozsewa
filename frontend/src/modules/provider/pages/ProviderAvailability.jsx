@@ -5,6 +5,8 @@ import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
+import API from "@/lib/api";
+import { useEffect } from "react";
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const timeSlots = ["06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
@@ -16,9 +18,30 @@ const getDefault = () => days.reduce((acc, d) => ({
 const ProviderAvailability = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [schedule, setSchedule] = useState(() => JSON.parse(localStorage.getItem("rozsewa_provider_availability") || "null") || getDefault());
-  const [holidays, setHolidays] = useState(() => JSON.parse(localStorage.getItem("rozsewa_provider_holidays") || "[]"));
-  const [newHoliday, setNewHoliday] = useState("");
+  const [schedule, setSchedule] = useState(() => getDefault());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchAvailability();
+  }, []);
+
+  const fetchAvailability = async () => {
+    try {
+      const { data } = await API.get("/provider/profile");
+      if (data.availability && data.availability.length > 0) {
+        const newSchedule = { ...getDefault() };
+        data.availability.forEach(item => {
+          newSchedule[item.day] = { enabled: item.isActive, start: item.startTime, end: item.endTime };
+        });
+        setSchedule(newSchedule);
+      }
+    } catch (err) {
+      console.error("Failed to fetch availability:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleDay = (day) => {
     setSchedule(s => ({ ...s, [day]: { ...s[day], enabled: !s[day].enabled } }));
@@ -28,19 +51,23 @@ const ProviderAvailability = () => {
     setSchedule(s => ({ ...s, [day]: { ...s[day], [field]: value } }));
   };
 
-  const addHoliday = () => {
-    if (!newHoliday) return;
-    const updated = [...holidays, newHoliday];
-    setHolidays(updated);
-    setNewHoliday("");
-  };
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const availabilityArray = Object.keys(schedule).map(day => ({
+        day,
+        startTime: schedule[day].start,
+        endTime: schedule[day].end,
+        isActive: schedule[day].enabled
+      }));
 
-  const removeHoliday = (i) => setHolidays(holidays.filter((_, idx) => idx !== i));
-
-  const handleSave = () => {
-    localStorage.setItem("rozsewa_provider_availability", JSON.stringify(schedule));
-    localStorage.setItem("rozsewa_provider_holidays", JSON.stringify(holidays));
-    toast({ title: "Schedule Saved ✓", description: "Your availability has been updated." });
+      await API.put("/provider/profile", { availability: availabilityArray });
+      toast({ title: "Schedule Saved ✓", description: "Your availability has been updated." });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to save schedule.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -59,7 +86,12 @@ const ProviderAvailability = () => {
         </div>
 
         {/* Weekly Schedule */}
-        <div className="space-y-3">
+        {loading ? (
+          <div className="flex h-64 items-center justify-center">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
+        ) : (
+          <div className="space-y-3">
           <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Weekly Schedule</h3>
           {days.map((day, i) => (
             <motion.div key={day} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
@@ -94,30 +126,23 @@ const ProviderAvailability = () => {
               {!schedule[day].enabled && <p className="text-xs text-muted-foreground">Day Off</p>}
             </motion.div>
           ))}
-        </div>
-
-        {/* Holidays */}
-        <div className="space-y-3">
-          <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> Holiday / Off Days</h3>
-          <div className="flex gap-2">
-            <input type="date" value={newHoliday} onChange={e => setNewHoliday(e.target.value)}
-              className="flex-1 rounded-xl border border-border bg-background py-2.5 px-3 text-sm focus:border-primary focus:outline-none" />
-            <motion.button whileTap={{ scale: 0.95 }} onClick={addHoliday}
-              className="rounded-xl bg-primary px-4 text-xs font-bold text-primary-foreground">Add</motion.button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {holidays.map((h, i) => (
-              <span key={i} className="flex items-center gap-1.5 rounded-full bg-rose-50 dark:bg-rose-900/20 px-3 py-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
-                {new Date(h).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                <button onClick={() => removeHoliday(i)} className="hover:text-rose-900">×</button>
-              </span>
-            ))}
-          </div>
-        </div>
+        )}
 
-        <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-extrabold text-primary-foreground shadow-xl shadow-primary/20">
-          <Save className="h-4 w-4" /> Save Schedule
+         {/* Holidays Hidden for now as it needs separate model or field */}
+
+
+        <motion.button 
+          whileTap={{ scale: 0.97 }} 
+          onClick={handleSave}
+          disabled={saving}
+          className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-extrabold text-primary-foreground shadow-xl shadow-primary/20 ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
+        >
+          {saving ? (
+             <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          ) : (
+            <><Save className="h-4 w-4" /> Save Schedule</>
+          )}
         </motion.button>
       </main>
       <BottomNav />

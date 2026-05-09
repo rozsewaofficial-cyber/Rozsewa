@@ -34,6 +34,11 @@ const employeeSchema = new mongoose.Schema({
         type: Boolean,
         default: true,
     },
+    status: {
+        type: String,
+        enum: ['pending', 'verified', 'rejected'],
+        default: 'pending',
+    },
     role: {
         type: String,
         enum: ['supervisor', 'field_staff', 'wfh', 'employee'],
@@ -60,6 +65,8 @@ const employeeSchema = new mongoose.Schema({
     },
     panCard: { type: String, trim: true },
     aadharCard: { type: String, trim: true },
+    panCardPhoto: { type: String, trim: true },
+    aadharCardPhoto: { type: String, trim: true },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',

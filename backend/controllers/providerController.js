@@ -100,6 +100,8 @@ const registerProvider = async (req, res) => {
                 vendorType: provider.vendorType,
                 businessType: provider.businessType,
                 freeServicesLeft: provider.freeServicesLeft,
+                isSubscribed: provider.isSubscribed,
+                planType: provider.planType,
                 token: generateToken(provider._id),
             });
         } else {
@@ -130,6 +132,8 @@ const authProvider = async (req, res) => {
                 vendorType: provider.vendorType,
                 businessType: provider.businessType,
                 freeServicesLeft: provider.freeServicesLeft,
+                isSubscribed: provider.isSubscribed,
+                planType: provider.planType,
                 role: 'provider',
                 token: generateToken(provider._id),
             });
@@ -229,6 +233,10 @@ const updateProviderProfile = async (req, res) => {
             provider.profileImage = req.body.profileImage || provider.profileImage;
             provider.openingTime = req.body.openingTime || provider.openingTime;
             provider.closingTime = req.body.closingTime || provider.closingTime;
+            
+            if (req.body.availability) {
+                provider.availability = req.body.availability;
+            }
 
             if (req.body.bankDetails) {
                 provider.bankDetails = {

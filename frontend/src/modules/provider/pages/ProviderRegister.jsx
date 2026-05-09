@@ -34,6 +34,9 @@ const ProviderRegister = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const videoRef = useRef(null);
 
   const [categories, setCategories] = useState([]);
   const [fetchingCats, setFetchingCats] = useState(false);
@@ -190,6 +193,71 @@ const ProviderRegister = () => {
       toast({ title: "Photo Uploaded" });
     } catch { toast({ title: "Upload Failed", variant: "destructive" }); }
     finally { setIsUploading(false); }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      setCameraStream(stream);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+      setIsCameraOpen(true);
+    } catch (err) {
+      toast({ title: "Camera Error", description: "Could not access camera. Please check permissions.", variant: "destructive" });
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraOpen(false);
+  };
+
+  const dataURLtoFile = (dataurl, filename) => {
+    let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+    bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, {type:mime});
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg");
+    
+    const file = dataURLtoFile(dataUrl, "selfie.jpg");
+    uploadSelfie(file);
+    
+    stopCamera();
+  };
+
+  const uploadSelfie = async (file) => {
+    const upData = new FormData();
+    upData.append("image", file);
+    setIsUploading(true);
+    try {
+      const { data } = await API.post("/upload", upData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      setFormData({ ...formData, profileImage: data.url });
+      toast({ title: "Photo Captured & Uploaded" });
+    } catch { 
+      toast({ title: "Upload Failed", variant: "destructive" }); 
+    } finally { 
+      setIsUploading(false); 
+    }
   };
 
   const handleSendOtp = async (e) => {
@@ -772,7 +840,9 @@ const ProviderRegister = () => {
                     animate={{ rotate: 0 }}
                     className={`w-full h-full rounded-2xl border-4 border-dashed flex items-center justify-center bg-slate-50 overflow-hidden relative shadow-inner ${formData.profileImage ? 'border-emerald-500 bg-white' : 'border-slate-200'}`}
                   >
-                    {formData.profileImage ? (
+                    {isCameraOpen ? (
+                      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                    ) : formData.profileImage ? (
                       <img src={formData.profileImage} className="w-full h-full object-cover scale-110" />
                     ) : (
                       <div className="flex flex-col items-center space-y-3">
@@ -781,10 +851,29 @@ const ProviderRegister = () => {
                       </div>
                     )}
                   </motion.div>
-                  <label className="absolute -bottom-4 -right-4 h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white transition-all hover:scale-110 active:scale-90 active:rotate-12 group">
-                    <input type="file" className="hidden" onChange={e => handleFileUpload(e, 'profileImage')} />
-                    {isUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6 group-hover:text-emerald-400 transition-colors" />}
-                  </label>
+                  
+                  {/* Camera Control Button */}
+                  <button 
+                    type="button"
+                    onClick={isCameraOpen ? capturePhoto : startCamera}
+                    className="absolute -bottom-4 -right-4 h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white transition-all hover:scale-110 active:scale-90 active:rotate-12 group"
+                  >
+                    {isUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : isCameraOpen ? <CheckCircle className="h-6 w-6 text-emerald-400" /> : <Camera className="h-6 w-6 group-hover:text-emerald-400 transition-colors" />}
+                  </button>
+
+                  {/* Fallback File Input (Hidden) */}
+                  <input type="file" accept="image/*" className="hidden" id="fallback-file-input" onChange={e => handleFileUpload(e, 'profileImage')} />
+                  
+                  {/* Option to cancel camera */}
+                  {isCameraOpen && (
+                    <button 
+                      type="button"
+                      onClick={stopCamera}
+                      className="absolute -top-4 -right-4 h-8 w-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 shadow-lg transition-all"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-2">

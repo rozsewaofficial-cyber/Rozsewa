@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { CreditCard, ShieldCheck, Gift, CheckCircle, Copy, Share2, Award, ArrowUpRight, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
@@ -53,9 +54,28 @@ const Provider99Card = () => {
     </div>
   );
 
+  if (provider?.providerCategory === 'sewak') {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center bg-background p-6 text-center">
+        <div className="max-w-md w-full bg-white dark:bg-card rounded-[40px] p-10 shadow-2xl border border-border">
+          <div className="h-24 w-24 bg-amber-50 rounded-[32px] flex items-center justify-center mb-8 mx-auto border-2 border-amber-100/50">
+            <ShieldCheck className="h-12 w-12 text-amber-500" />
+          </div>
+          <h1 className="text-3xl font-black text-foreground tracking-tight mb-4">Access Restricted</h1>
+          <p className="text-muted-foreground font-medium leading-relaxed mb-10">
+            This section is only available for Partner Providers.
+          </p>
+          <Link to="/provider" className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-16 rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center">
+            Go to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const vendorCode = provider?.vendorCode || "RSVND----";
   const commissionRemaining = provider?.freeServicesLeft || 0;
-  const planExpiry = provider?.planExpiry ? new Date(provider.planExpiry).toLocaleDateString("en-IN", {
+  const planExpiry = provider?.subscriptionExpiry ? new Date(provider.subscriptionExpiry).toLocaleDateString("en-IN", {
     day: "numeric", month: "long", year: "numeric"
   }) : "Lifetime";
 
@@ -65,7 +85,7 @@ const Provider99Card = () => {
       <main className="container max-w-4xl px-4 py-6 md:py-8 space-y-6 md:space-y-8">
         <div className="text-left">
           <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground uppercase">RozSewa 99 Card Center</h1>
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Manage your active subscription and referral benefits.</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Manage your active registration and referral benefits.</p>
         </div>
 
         {/* Card Status */}
@@ -76,17 +96,24 @@ const Provider99Card = () => {
           <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
             <div className="space-y-4 text-left">
               <div className="inline-flex items-center rounded-full bg-white/20 px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-white border border-white/30 backdrop-blur-md">
-                <ShieldCheck className="mr-2 h-4 w-4" /> {provider?.planType || 'Pro'} Member
+                <ShieldCheck className="mr-2 h-4 w-4" /> {provider?.isSubscribed ? `${provider?.planType || 'Pro'} Member` : 'Free Member'}
               </div>
               <div>
-                <h2 className="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none">Subscription Active</h2>
-                <p className="text-sm text-emerald-100 font-bold mt-3 opacity-90">Valid until: <span className="text-white font-black bg-white/10 px-2 py-0.5 rounded-lg">{planExpiry}</span></p>
+                <h2 className="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none">
+                  {provider?.isSubscribed ? 'Registration Active' : 'Not Registered'}
+                </h2>
+                <p className="text-sm text-emerald-100 font-bold mt-3 opacity-90">
+                  {provider?.isSubscribed ? `Valid until: ` : 'Upgrade to unlock Elite benefits'} 
+                  {provider?.isSubscribed && <span className="text-white font-black bg-white/10 px-2 py-0.5 rounded-lg">{planExpiry}</span>}
+                </p>
               </div>
             </div>
 
-            <button className="w-full md:w-auto shrink-0 rounded-2xl bg-white px-8 py-4 text-xs font-black uppercase tracking-widest text-emerald-700 shadow-xl transition-all hover:scale-105 active:scale-95">
-              Renew Plan
-            </button>
+            {!provider?.isSubscribed && (
+              <button onClick={() => window.location.href='/provider'} className="w-full md:w-auto shrink-0 rounded-2xl bg-white px-8 py-4 text-xs font-black uppercase tracking-widest text-emerald-700 shadow-xl transition-all hover:scale-105 active:scale-95">
+                Register Now
+              </button>
+            )}
           </div>
         </section>
 
@@ -129,9 +156,9 @@ const Provider99Card = () => {
             </div>
             <h3 className="text-lg font-black text-foreground uppercase tracking-tight">Zero Commission</h3>
             <p className="text-xs text-muted-foreground mt-2 font-medium">Available for next <strong className="text-emerald-600 font-black">{commissionRemaining} bookings!</strong></p>
-            <button className="mt-6 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 hover:text-blue-700 transition-colors">
+            <Link to="/provider/benefit-policy" className="mt-6 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 hover:text-blue-700 transition-colors">
               Benefit Policy <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
+            </Link>
           </div>
         </div>
 

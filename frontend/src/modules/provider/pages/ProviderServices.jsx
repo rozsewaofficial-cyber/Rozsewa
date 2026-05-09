@@ -336,11 +336,13 @@ const ProviderServices = () => {
                         {s.name}
                         {!s.visible && <span className="ml-2 text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md uppercase align-middle">Combo Only</span>}
                       </h3>
-                      <div className="flex gap-1 shrink-0">
-                        <button onClick={() => toggleVisibility(s)} className="p-1.5 rounded-lg hover:bg-muted">{s.visible ? <Eye className="h-3.5 w-3.5 text-emerald-500" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</button>
-                        <button onClick={() => handleEdit(s)} className="p-1.5 rounded-lg hover:bg-muted"><Edit3 className="h-3.5 w-3.5 text-blue-500" /></button>
-                        <button onClick={() => handleDelete(s._id)} className="p-1.5 rounded-lg hover:bg-muted"><Trash2 className="h-3.5 w-3.5 text-rose-500" /></button>
-                      </div>
+                      {user?.providerCategory !== 'sewak' && (
+                        <div className="flex gap-1 shrink-0">
+                          <button onClick={() => toggleVisibility(s)} className="p-1.5 rounded-lg hover:bg-muted">{s.visible ? <Eye className="h-3.5 w-3.5 text-emerald-500" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</button>
+                          <button onClick={() => handleEdit(s)} className="p-1.5 rounded-lg hover:bg-muted"><Edit3 className="h-3.5 w-3.5 text-blue-500" /></button>
+                          <button onClick={() => handleDelete(s._id)} className="p-1.5 rounded-lg hover:bg-muted"><Trash2 className="h-3.5 w-3.5 text-rose-500" /></button>
+                        </div>
+                      )}
                     </div>
                     {s.description && <p className="text-[10px] text-muted-foreground mb-2 line-clamp-1 italic">{s.description}</p>}
                     <div className="flex gap-2 flex-wrap items-center">
@@ -382,10 +384,12 @@ const ProviderServices = () => {
                             <h3 className="text-base font-black text-slate-900 tracking-tight leading-tight">{c.name}</h3>
                             <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Combo Price: ₹{c.price}</p>
                           </div>
-                          <div className="flex gap-1 shrink-0">
-                            <button onClick={() => handleEditCombo(c)} className="p-2 rounded-xl bg-white border border-slate-100 hover:border-blue-200 hover:text-blue-500 transition-all shadow-sm"><Edit3 className="h-4 w-4" /></button>
-                            <button onClick={() => handleDeleteCombo(c._id)} className="p-2 rounded-xl bg-white border border-slate-100 hover:border-rose-200 hover:text-rose-500 transition-all shadow-sm"><Trash2 className="h-4 w-4" /></button>
-                          </div>
+                          {user?.providerCategory !== 'sewak' && (
+                            <div className="flex gap-1 shrink-0">
+                              <button onClick={() => handleEditCombo(c)} className="p-2 rounded-xl bg-white border border-slate-100 hover:border-blue-200 hover:text-blue-500 transition-all shadow-sm"><Edit3 className="h-4 w-4" /></button>
+                              <button onClick={() => handleDeleteCombo(c._id)} className="p-2 rounded-xl bg-white border border-slate-100 hover:border-rose-200 hover:text-rose-500 transition-all shadow-sm"><Trash2 className="h-4 w-4" /></button>
+                            </div>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {c.services.map(s => (
