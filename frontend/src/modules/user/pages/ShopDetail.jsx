@@ -71,7 +71,8 @@ const ShopDetail = () => {
           about: found.about || defaultProviderFallback.about,
           qualifications: found.qualifications?.length > 0 ? found.qualifications : defaultProviderFallback.qualifications,
           warranty: found.warranty || defaultProviderFallback.warranty,
-          isOnline: found.isOnline !== undefined ? found.isOnline : true
+          isOnline: found.isOnline !== undefined ? found.isOnline : true,
+          portfolio: found.portfolio || []
         });
       }
 
@@ -364,23 +365,38 @@ const ShopDetail = () => {
 
           {tab === "reviews" && (
             <motion.div key="reviews" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-              <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
-                <div className="text-center w-20">
-                  <p className="text-4xl font-black text-foreground">{provider.rating}</p>
-                  <div className="flex justify-center gap-0.5 mt-1">
-                    {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`h-3 w-3 ${s <= Math.round(provider.rating) ? "fill-amber-400 text-amber-400" : "text-border"}`} />)}
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">{provider.reviews} ratings</p>
-                </div>
-                <div className="flex-1 space-y-1.5 border-l border-border pl-4">
-                  {[5, 4, 3, 2, 1].map((n, i) => (
-                    <div key={n} className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold w-2">{n}</span><Star className="h-2 w-2 text-muted-foreground" />
-                      <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden"><div className="h-full bg-amber-400" style={{ width: `${100 - i * 20}%` }} /></div>
+              {(() => {
+                const totalReviews = reviewsList.length;
+                const avgRating = totalReviews > 0 
+                  ? (reviewsList.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
+                  : "0.0";
+                
+                return (
+                  <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
+                    <div className="text-center w-20">
+                      <p className="text-4xl font-black text-foreground">{avgRating}</p>
+                      <div className="flex justify-center gap-0.5 mt-1">
+                        {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`h-3 w-3 ${s <= Math.round(parseFloat(avgRating)) ? "fill-amber-400 text-amber-400" : "text-border"}`} />)}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">{totalReviews} ratings</p>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="flex-1 space-y-1.5 border-l border-border pl-4">
+                      {[5, 4, 3, 2, 1].map((n) => {
+                        const starCount = reviewsList.filter(r => Math.round(r.rating) === n).length;
+                        const percentage = totalReviews > 0 ? (starCount / totalReviews) * 100 : 0;
+                        return (
+                          <div key={n} className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold w-2">{n}</span><Star className="h-2 w-2 text-muted-foreground" />
+                            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                              <div className="h-full bg-amber-400" style={{ width: `${percentage}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="space-y-3">
                 {reviewsList.length === 0 ? (
@@ -415,14 +431,30 @@ const ShopDetail = () => {
               <div>
                 <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Camera className="h-4 w-4 text-primary" /> Previous Work</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {fakePortfolio.map(p => (
-                    <div key={p.id} className="group relative rounded-2xl overflow-hidden aspect-video border border-border">
-                      <img src={p.after} className="w-full h-full object-cover" alt="Portfolio" />
-                      <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[10px] font-bold text-white uppercase tracking-widest border border-white/50 px-2 py-1 rounded-full backdrop-blur-sm">After</span>
+                  {provider.portfolio?.length > 0 ? (
+                    provider.portfolio.map((p, i) => (
+                      <div key={i} className="col-span-2 grid grid-cols-2 gap-3">
+                        {p.before && (
+                          <div className="group relative rounded-2xl overflow-hidden aspect-video border border-border">
+                            <img src={p.before} className="w-full h-full object-cover" alt="Before" />
+                            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[10px] font-bold text-white uppercase tracking-widest border border-white/50 px-2 py-1 rounded-full backdrop-blur-sm">Before</span>
+                            </div>
+                          </div>
+                        )}
+                        {p.after && (
+                          <div className="group relative rounded-2xl overflow-hidden aspect-video border border-border">
+                            <img src={p.after} className="w-full h-full object-cover" alt="After" />
+                            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[10px] font-bold text-white uppercase tracking-widest border border-white/50 px-2 py-1 rounded-full backdrop-blur-sm">After</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground col-span-2 text-center py-4">No previous work uploaded yet.</p>
+                  )}
                 </div>
               </div>
             </motion.div>

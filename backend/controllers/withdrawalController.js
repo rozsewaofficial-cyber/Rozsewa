@@ -36,6 +36,28 @@ const requestWithdrawal = async (req, res) => {
             bankDetails: provider.bankDetails
         });
 
+        // Push Notification for Admins
+        try {
+            const User = require('../models/User');
+            const { sendNotificationToUser } = require('../config/notificationService');
+            
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            
+            for (const admin of admins) {
+                await sendNotificationToUser(admin._id, 'admin', {
+                    title: 'New Withdrawal Request',
+                    body: `Partner ${provider.ownerName} requested a payout of ₹${amount}.`,
+                    data: {
+                        type: 'withdrawal',
+                        id: withdrawal._id.toString(),
+                        link: '/admin/finance'
+                    }
+                });
+            }
+        } catch (err) {
+            console.log('Admin push notification failed (skipping):', err.message);
+        }
+
         // Deduct balance
         wallet.balance -= amount;
         await wallet.save();
@@ -90,6 +112,29 @@ const updateWithdrawalStatus = async (req, res) => {
         }
 
         await withdrawal.save();
+
+        // Push Notification for Provider
+        if (status === 'approved' || status === 'rejected') {
+            try {
+                const { sendNotificationToUser } = require('../config/notificationService');
+                const message = status === 'approved' 
+                    ? `Your withdrawal request of ₹${withdrawal.amount} has been approved.`
+                    : `Your withdrawal request of ₹${withdrawal.amount} was rejected. Reason: ${reason || 'N/A'}`;
+                
+                await sendNotificationToUser(withdrawal.providerId, 'provider', {
+                    title: `Withdrawal ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+                    body: message,
+                    data: {
+                        type: 'withdrawal',
+                        id: withdrawal._id.toString(),
+                        link: '/provider/wallet'
+                    }
+                });
+            } catch (err) {
+                console.log('Push notification failed (skipping):', err.message);
+            }
+        }
+
         res.json({ message: `Withdrawal request ${status}`, withdrawal });
     } catch (error) {
         res.status(500).json({ message: error.message });

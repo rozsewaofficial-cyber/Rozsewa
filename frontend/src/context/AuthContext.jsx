@@ -116,6 +116,36 @@ export const AuthProvider = ({ children }) => {
     else if (auth === null) localStorage.removeItem(key);
   }, [auth]);
 
+  // Foreground Notification Listener
+  useEffect(() => {
+    let unsubscribe;
+    const setup = async () => {
+      try {
+        const { onMessage } = await import("firebase/messaging");
+        const { messaging } = await import("@/lib/firebase");
+        
+        unsubscribe = onMessage(messaging, (payload) => {
+          console.log('Foreground message received:', payload);
+          
+          if (Notification.permission === 'granted') {
+            new Notification(payload.notification.title, {
+              body: payload.notification.body,
+              icon: '/logo.png',
+            });
+          }
+        });
+      } catch (err) {
+        console.error("Error setting up foreground listener:", err);
+      }
+    };
+    
+    setup();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
   const login = async (identifier, password, type = 'customer') => {
     try {
       const endpoint = type === 'provider' ? "/provider/login" : "/auth/login";
@@ -123,6 +153,21 @@ export const AuthProvider = ({ children }) => {
 
       const { data } = await API.post(endpoint, loginData);
       setAuth({ ...data, role: data.role || type }); // Use backend role if provided
+      
+      // Fetch and save FCM Token
+      try {
+        const { requestForToken } = await import("@/lib/firebase");
+        const token = await requestForToken();
+        if (token) {
+          await API.post("/notifications/fcm-tokens/save", 
+            { token, platform: 'web' },
+            { headers: { Authorization: `Bearer ${data.token}` } }
+          );
+        }
+      } catch (err) {
+        console.error("Error saving FCM token on login", err);
+      }
+
       return { success: true, data };
     } catch (error) {
       return { success: false, error: error.response?.data?.message || "Login failed" };
@@ -144,6 +189,21 @@ export const AuthProvider = ({ children }) => {
       const endpoint = type === 'provider' ? "/provider/register" : "/auth/register";
       const { data } = await API.post(endpoint, userData);
       setAuth({ ...data, role: type });
+      
+      // Fetch and save FCM Token
+      try {
+        const { requestForToken } = await import("@/lib/firebase");
+        const token = await requestForToken();
+        if (token) {
+          await API.post("/notifications/fcm-tokens/save", 
+            { token, platform: 'web' },
+            { headers: { Authorization: `Bearer ${data.token}` } }
+          );
+        }
+      } catch (err) {
+        console.error("Error saving FCM token on signup", err);
+      }
+
       return { success: true, data };
     } catch (error) {
       return { success: false, error: error.response?.data?.message || "Registration failed" };

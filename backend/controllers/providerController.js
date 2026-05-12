@@ -89,6 +89,28 @@ const registerProvider = async (req, res) => {
             status: 'pending' // Verification required by admin
         });
 
+        // Push Notification for Admins (New KYC Request)
+        try {
+            const User = require('../models/User');
+            const { sendNotificationToUser } = require('../config/notificationService');
+            
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            
+            for (const admin of admins) {
+                await sendNotificationToUser(admin._id, 'admin', {
+                    title: 'New KYC Request',
+                    body: `New Partner ${ownerName} uploaded documents. Verify now.`,
+                    data: {
+                        type: 'kyc',
+                        id: provider._id.toString(),
+                        link: '/admin/kyc'
+                    }
+                });
+            }
+        } catch (err) {
+            console.log('Admin push notification failed (skipping):', err.message);
+        }
+
         if (provider) {
             res.status(201).json({
                 _id: provider._id,
@@ -364,6 +386,28 @@ const sendEmergencyAlert = async (req, res) => {
             status: 'pending'
         });
 
+        // Push Notification for Admins (Emergency SOS)
+        try {
+            const User = require('../models/User');
+            const { sendNotificationToUser } = require('../config/notificationService');
+            
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            
+            for (const admin of admins) {
+                await sendNotificationToUser(admin._id, 'admin', {
+                    title: '⚠️ Emergency SOS Triggered!',
+                    body: `Provider ${provider.ownerName} (${provider.shopName}) has triggered an SOS emergency!`,
+                    data: {
+                        type: 'sos',
+                        id: provider._id.toString(),
+                        link: '/admin/live-map'
+                    }
+                });
+            }
+        } catch (err) {
+            console.log('Admin push notification failed (skipping):', err.message);
+        }
+
         res.status(201).json({ success: true, alert });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -416,6 +460,28 @@ const uploadDocument = async (req, res) => {
         }
 
         await provider.save();
+
+        // Push Notification for Admins (New KYC Request)
+        try {
+            const User = require('../models/User');
+            const { sendNotificationToUser } = require('../config/notificationService');
+            
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            
+            for (const admin of admins) {
+                await sendNotificationToUser(admin._id, 'admin', {
+                    title: 'New KYC Request',
+                    body: `Partner ${provider.ownerName} uploaded a new document (${docId}). Verify now.`,
+                    data: {
+                        type: 'kyc',
+                        id: provider._id.toString(),
+                        link: '/admin/kyc'
+                    }
+                });
+            }
+        } catch (err) {
+            console.log('Admin push notification failed (skipping):', err.message);
+        }
 
         res.json({
             message: 'Document uploaded successfully',

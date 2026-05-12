@@ -63,6 +63,13 @@ const providerSchema = mongoose.Schema({
     referralCode: { type: String },
     employeeCode: { type: String },
     profileImage: { type: String },
+    portfolio: [
+        {
+            before: { type: String },
+            after: { type: String },
+            description: { type: String }
+        }
+    ],
     registrationType: {
         type: String,
         enum: ['individual', 'vendor_referral', 'employee'],
@@ -124,6 +131,8 @@ const providerSchema = mongoose.Schema({
         default: 'percentage'
     },
     joinedDate: { type: Date, default: Date.now },
+    fcmTokens: [String],
+    fcmTokenMobile: [String],
     providerCategory: {
         type: String,
         enum: ['partner', 'sewak'],

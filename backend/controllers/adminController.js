@@ -46,6 +46,28 @@ const updateProviderStatus = async (req, res) => {
 
         const updatedProvider = await provider.save();
 
+        // Push Notification for KYC Update
+        if (req.body.status === 'verified' || req.body.status === 'rejected') {
+            try {
+                const { sendNotificationToUser } = require('../config/notificationService');
+                const message = req.body.status === 'verified'
+                    ? 'Your KYC is approved! You can start working now.'
+                    : 'Your KYC request was rejected. Please check your documents.';
+                
+                await sendNotificationToUser(provider._id, 'provider', {
+                    title: `KYC ${req.body.status === 'verified' ? 'Approved' : 'Rejected'}`,
+                    body: message,
+                    data: {
+                        type: 'kyc',
+                        id: provider._id.toString(),
+                        link: '/provider/profile'
+                    }
+                });
+            } catch (err) {
+                console.log('Push notification failed (skipping):', err.message);
+            }
+        }
+
         // Log Verification Action
         if (req.body.status) {
             await AuditLog.create({

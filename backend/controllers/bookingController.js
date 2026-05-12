@@ -2,6 +2,7 @@ const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const Provider = require('../models/Provider');
 const Employee = require('../models/Employee');
+const User = require('../models/User');
 const { emitToProvider } = require('../config/socket');
 const mongoose = require('mongoose');
 const Service = require('../models/Service');
@@ -163,6 +164,18 @@ const createBooking = async (req, res) => {
                         type: 'booking',
                         bookingId: booking._id
                     });
+
+                    // Push Notification (English)
+                    const { sendNotificationToUser } = require('../config/notificationService');
+                    await sendNotificationToUser(provider._id, 'provider', {
+                        title: 'Urgent: Service Request!',
+                        body: `You received a new request for ${booking.serviceName}. Accept now!`,
+                        data: {
+                            type: 'booking',
+                            id: booking._id.toString(),
+                            link: `/provider/bookings`
+                        }
+                    });
                 } catch (err) {
                     console.log('Notification persistence failed (skipping):', err.message);
                 }
@@ -211,6 +224,25 @@ const updateBooking = async (req, res) => {
             booking.bookingTime = bookingTime || booking.bookingTime;
 
             const updatedBooking = await booking.save();
+            
+            // Push Notification if cancelled
+            if (status === 'cancelled' && booking.providerId) {
+                try {
+                    const { sendNotificationToUser } = require('../config/notificationService');
+                    await sendNotificationToUser(booking.providerId, 'provider', {
+                        title: 'Booking Cancelled',
+                        body: `User has cancelled booking ID #${booking._id.toString().slice(-6)}.`,
+                        data: {
+                            type: 'booking',
+                            id: booking._id.toString(),
+                            link: `/provider/bookings`
+                        }
+                    });
+                } catch (err) {
+                    console.log('Push notification failed (skipping):', err.message);
+                }
+            }
+
             res.json(updatedBooking);
         } else {
             res.status(404).json({ message: 'Booking not found' });
@@ -266,8 +298,27 @@ const updateBookingStatusByProvider = async (req, res) => {
             if (req.body.extraCharges) {
                 booking.extraCharges = req.body.extraCharges;
             }
+            if (req.body.beforeImage) {
+                booking.beforeImage = req.body.beforeImage;
+            }
             if (req.body.staffId) {
                 booking.staffId = req.body.staffId;
+
+                // Push Notification for Sewak (Staff)
+                try {
+                    const { sendNotificationToUser } = require('../config/notificationService');
+                    await sendNotificationToUser(req.body.staffId, 'provider', {
+                        title: 'New Task Assigned',
+                        body: 'Partner assigned you a new task.',
+                        data: {
+                            type: 'task',
+                            id: booking._id.toString(),
+                            link: '/provider/tasks'
+                        }
+                    });
+                } catch (err) {
+                    console.log('Push notification failed (skipping):', err.message);
+                }
             }
 
             // Generate OTP if status is changed to 'on_the_way'
@@ -301,6 +352,30 @@ const updateBookingStatusByProvider = async (req, res) => {
 
             booking.status = newStatus;
             const updatedBooking = await booking.save();
+
+            // If cancelled by provider, notify Admin
+            if (newStatus === 'cancelled') {
+                try {
+                    const User = require('../models/User');
+                    const { sendNotificationToUser } = require('../config/notificationService');
+                    
+                    const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+                    
+                    for (const admin of admins) {
+                        await sendNotificationToUser(admin._id, 'admin', {
+                            title: 'Booking Cancelled by Provider',
+                            body: `Provider ${req.user.ownerName} cancelled booking #${booking._id.toString().slice(-6)}.`,
+                            data: {
+                                type: 'booking',
+                                id: booking._id.toString(),
+                                link: '/admin/bookings'
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.log('Admin push notification failed (skipping):', err.message);
+                }
+            }
 
             // If confirmed, notify other potential providers to stop their alarms
             if (newStatus === 'confirmed') {
@@ -481,6 +556,39 @@ const verifyEndOTP = async (req, res) => {
 
                 provider.walletBalance = wallet.balance;
 
+                // Push Notification for Provider
+                try {
+                    const { sendNotificationToUser } = require('../config/notificationService');
+                    
+                    // 1. Wallet Credited (If payout > 0)
+                    if (providerPayout > 0) {
+                        await sendNotificationToUser(booking.providerId, 'provider', {
+                            title: 'Wallet Credited!',
+                            body: `₹${providerPayout} credited to your wallet for booking #${booking._id.toString().slice(-6)}.`,
+                            data: {
+                                type: 'wallet',
+                                id: booking._id.toString(),
+                                link: '/provider/wallet'
+                            }
+                        });
+                    }
+
+                    // 2. Sewak Completed Task (Notify Partner if staff was assigned)
+                    if (booking.staffId) {
+                        await sendNotificationToUser(booking.providerId, 'provider', {
+                            title: 'Task Completed by Sewak',
+                            body: `Your assigned task #${booking._id.toString().slice(-6)} has been completed.`,
+                            data: {
+                                type: 'booking',
+                                id: booking._id.toString(),
+                                link: '/provider/bookings'
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.log('Push notification failed (skipping):', err.message);
+                }
+
                 // --- Sewak Daily Incentive Logic ---
                 if (provider.providerCategory === 'sewak') {
                     try {
@@ -615,6 +723,23 @@ const submitReview = async (req, res) => {
         booking.tags = tags || [];
         
         await booking.save();
+
+        // Push Notification for Provider (New Review)
+        try {
+            const { sendNotificationToUser } = require('../config/notificationService');
+            await sendNotificationToUser(booking.providerId, 'provider', {
+                title: 'New Review Received!',
+                body: `A customer gave you a ${rating} star review!`,
+                data: {
+                    type: 'review',
+                    id: booking._id.toString(),
+                    link: '/provider/reviews'
+                }
+            });
+        } catch (err) {
+            console.log('Push notification failed (skipping):', err.message);
+        }
+
         res.json({ message: 'Review submitted successfully', booking });
     } catch (error) {
         res.status(500).json({ message: error.message });

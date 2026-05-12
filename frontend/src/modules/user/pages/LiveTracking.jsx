@@ -99,8 +99,11 @@ const LiveTracking = () => {
   const fetchBookingStatus = async () => {
     try {
       const { data } = await API.get('/bookings');
-      // Find the most recent active booking (including pending and completed)
-      const active = data.find(b => ['pending', 'confirmed', 'on_the_way', 'started', 'completed'].includes(b.status));
+      // Find the most recent active booking (only include completed if not reviewed)
+      const active = data.find(b => 
+        ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status) || 
+        (b.status === 'completed' && (!b.rating || b.rating === 0))
+      );
       if (active) {
         setBookingDetails(active);
         // Map status to currentStep

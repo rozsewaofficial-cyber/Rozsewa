@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Plus, Ticket, Clock, CheckCircle2, MessageCircle, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
+import API from "@/lib/api";
 
 const SupportTickets = () => {
   const navigate = useNavigate();
@@ -12,24 +13,45 @@ const SupportTickets = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
-  const [tickets, setTickets] = useState(() => JSON.parse(localStorage.getItem("rozsewa_support_tickets") || "[]"));
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  const fetchTickets = async () => {
+    try {
+      const res = await API.get("/support/tickets");
+      setTickets(res.data);
+    } catch (err) {
+      console.error("Failed to fetch tickets", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const statusColors = { open: "bg-blue-100 text-blue-700", closed: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700" };
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
     if (!subject || !message) return;
-    const ticket = {
-      id: `TKT-${Date.now().toString(36).toUpperCase()}`,
-      subject, message, status: "open",
-      createdAt: new Date().toISOString(),
-      replies: [],
-    };
-    const updated = [ticket, ...tickets];
-    setTickets(updated);
-    localStorage.setItem("rozsewa_support_tickets", JSON.stringify(updated));
-    toast({ title: "Ticket Created", description: `ID: ${ticket.id}` });
-    setSubject(""); setMessage(""); setShowCreate(false);
+    
+    try {
+      const res = await API.post("/support/tickets", {
+        subject,
+        description: message,
+        category: "other", // Default category
+        priority: "low" // Default priority
+      });
+      
+      const ticket = res.data;
+      setTickets([ticket, ...tickets]);
+      toast({ title: "Ticket Created", description: `ID: ${ticket._id}` });
+      setSubject(""); setMessage(""); setShowCreate(false);
+    } catch (err) {
+      toast({ title: "Failed to create ticket", description: err.response?.data?.message || "Something went wrong", variant: "destructive" });
+    }
   };
 
   return (
@@ -60,16 +82,16 @@ const SupportTickets = () => {
             </div>
           )}
           {tickets.map((t, i) => (
-            <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+            <motion.div key={t._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               className="rounded-2xl border border-border bg-card p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-mono text-muted-foreground">{t.id}</span>
+                    <span className="text-[10px] font-mono text-muted-foreground">{t._id}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${statusColors[t.status]}`}>{t.status}</span>
                   </div>
                   <h3 className="text-sm font-bold text-foreground truncate">{t.subject}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.message}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.description}</p>
                 </div>
               </div>
               <div className="flex items-center justify-between border-t border-border/50 pt-3">
@@ -77,9 +99,9 @@ const SupportTickets = () => {
                   <Clock className="h-3 w-3" />
                   {new Date(t.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                 </div>
-                {t.replies?.length > 0 && (
+                {t.reply && (
                   <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
-                    <MessageCircle className="h-3 w-3" /> {t.replies.length} replies
+                    <MessageCircle className="h-3 w-3" /> 1 reply
                   </span>
                 )}
               </div>

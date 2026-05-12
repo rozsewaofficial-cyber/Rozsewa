@@ -4,7 +4,12 @@ const supportTicketSchema = new mongoose.Schema({
     providerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Provider',
-        required: true,
+        required: false,
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: false,
     },
     subject: {
         type: String,
@@ -28,6 +33,10 @@ const supportTicketSchema = new mongoose.Schema({
         type: String,
         enum: ['low', 'medium', 'high'],
         default: 'low',
+    },
+    reply: {
+        type: String,
+        default: '',
     },
     createdAt: {
         type: Date,

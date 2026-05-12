@@ -102,8 +102,47 @@ const verifySubscriptionPayment = async (req, res) => {
     }
 };
 
+// @desc    Check for expiring subscriptions and notify providers
+// This function should be called by a cron job daily!
+const checkExpiringSubscriptions = async () => {
+    try {
+        const Provider = require('../models/Provider');
+        const { sendNotificationToUser } = require('../config/notificationService');
+        
+        const today = new Date();
+        const twoDaysLater = new Date();
+        twoDaysLater.setDate(today.getDate() + 2);
+        
+        // Find providers whose subscription expires in exactly 2 days
+        const providers = await Provider.find({
+            isSubscribed: true,
+            subscriptionExpiry: {
+                $gte: today,
+                $lte: twoDaysLater
+            }
+        });
+        
+        for (const provider of providers) {
+            await sendNotificationToUser(provider._id, 'provider', {
+                title: 'Plan Expiring Soon!',
+                body: 'Your plan expires in 2 days. Please renew now.',
+                data: {
+                    type: 'plan',
+                    id: provider._id.toString(),
+                    link: '/provider/99card'
+                }
+            });
+        }
+        
+        console.log(`Checked expiring subscriptions. Notified ${providers.length} providers.`);
+    } catch (error) {
+        console.error('Error checking expiring subscriptions:', error.message);
+    }
+};
+
 module.exports = {
     createOrder,
     verifyPayment,
-    verifySubscriptionPayment
+    verifySubscriptionPayment,
+    checkExpiringSubscriptions
 };

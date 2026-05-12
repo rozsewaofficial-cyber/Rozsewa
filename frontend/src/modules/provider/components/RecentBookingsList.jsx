@@ -255,7 +255,8 @@ const RecentBookingsList = () => {
                         if (req.location?.coordinates && req.location.coordinates.length >= 2 && req.location.coordinates[0] !== 0) {
                           setActiveTracking(req.location.coordinates);
                         } else {
-                          toast({ title: "Location not available for this booking", variant: "destructive" });
+                          toast({ title: "Location missing. Opening Google Maps with address.", variant: "warning" });
+                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(req.address)}`, "_blank");
                         }
                       }}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest"
@@ -268,6 +269,43 @@ const RecentBookingsList = () => {
 
                 {req.status === "started" && (
                   <div className="mt-5 space-y-4">
+                    {/* Before Work Photo Display/Upload */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Before Work Photo</p>
+                      {req.beforeImage ? (
+                        <div className="w-full h-24 rounded-xl overflow-hidden border border-border">
+                          <img src={req.beforeImage} className="w-full h-full object-cover" alt="Before Work" />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center">
+                          <label className={`w-full h-24 rounded-xl border-2 border-dashed border-border bg-muted/50 hover:bg-muted transition-all cursor-pointer flex flex-col items-center justify-center gap-2 overflow-hidden relative ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                            {beforeWorkPhoto ? (
+                              <>
+                                <img src={beforeWorkPhoto} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                  <p className="text-[10px] font-bold text-white uppercase tracking-tighter">Click to Change</p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase">{isUploading ? 'Uploading...' : 'Tap to Upload Before Photo'}</span>
+                              </>
+                            )}
+                            <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                              const url = await handleImageUpload(e.target.files[0]);
+                              if (url) {
+                                setBeforeWorkPhoto(url);
+                                await API.patch(`/bookings/${req._id}/status`, { beforeImage: url });
+                                toast({ title: "Before photo updated!" });
+                                fetchBookings();
+                              }
+                            }} />
+                          </label>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Extra Charges Section */}
                     {(!req.extraStatus || req.extraStatus === 'none') && (
                       <button
@@ -366,7 +404,7 @@ const RecentBookingsList = () => {
 
               {/* Upload Before Photo */}
               <div className="mb-8 space-y-3">
-                <p className="text-[10px] font-black uppercase text-muted-foreground text-center tracking-widest">Before Work Photo (Recommended)</p>
+                <p className="text-[10px] font-black uppercase text-muted-foreground text-center tracking-widest">Before Work Photo (Mandatory)</p>
                 <div className="flex flex-col items-center">
                   <label className={`w-full h-32 rounded-2xl border-2 border-dashed border-border bg-muted/50 hover:bg-muted transition-all cursor-pointer flex flex-col items-center justify-center gap-2 overflow-hidden relative ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                     {beforeWorkPhoto ? (
@@ -392,8 +430,8 @@ const RecentBookingsList = () => {
 
               <div className="flex gap-3">
                 <button onClick={() => setOtpBooking(null)} className="flex-1 py-3 text-xs font-bold text-muted-foreground">Cancel</button>
-                <button onClick={handleOtpVerify} disabled={isVerifyingOtp} className="flex-1 py-3 rounded-xl bg-primary text-xs font-black text-white disabled:opacity-50">
-                  {isVerifyingOtp ? "Verifying..." : "Verify & Start"}
+                <button onClick={handleOtpVerify} disabled={isVerifyingOtp || !beforeWorkPhoto} className={`flex-1 py-3 rounded-xl text-xs font-black text-white shadow-lg transition-all ${(!beforeWorkPhoto || isVerifyingOtp) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}>
+                  {!beforeWorkPhoto ? "Upload Photo to Start" : (isVerifyingOtp ? "Verifying..." : "Verify & Start")}
                 </button>
               </div>
             </motion.div>

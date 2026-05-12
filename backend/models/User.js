@@ -100,6 +100,8 @@ const userSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    fcmTokens: [String],
+    fcmTokenMobile: [String],
     createdAt: {
         type: Date,
         default: Date.now,

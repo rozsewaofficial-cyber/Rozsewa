@@ -30,8 +30,8 @@ const PostService = () => {
   const fetchBooking = async () => {
     try {
       const { data } = await API.get('/bookings');
-      // Most recent completed or started booking
-      const active = data.find(b => ['completed', 'started'].includes(b.status));
+      // Most recent completed or started booking that hasn't been reviewed
+      const active = data.find(b => ['completed', 'started'].includes(b.status) && (!b.rating || b.rating === 0));
       if (active) {
         setBooking(active);
         setPaymentDone(active.paymentStatus === 'paid');
