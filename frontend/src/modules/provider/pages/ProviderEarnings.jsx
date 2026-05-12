@@ -5,20 +5,26 @@ import { Download, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Check } from "lucide-react";
+import API from "@/lib/api";
 
 const ProviderEarnings = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
-    const allBookings = JSON.parse(localStorage.getItem("rozsewa_bookings") || "[]");
-    const completed = allBookings.filter(b => b.status === "completed").sort((a,b) => {
-       const dA = new Date(a.date || a.timestamp || Date.now());
-       const dB = new Date(b.date || b.timestamp || Date.now());
-       return dB - dA;
-    });
-    setTransactions(completed);
+    const fetchTransactions = async () => {
+      try {
+        const { data } = await API.get("/wallet");
+        setTransactions(data.transactions);
+      } catch (err) {
+        toast({ title: "Failed to load transactions", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTransactions();
   }, []);
 
   const handleExport = () => {
@@ -68,18 +74,20 @@ const ProviderEarnings = () => {
 
         <div className="mt-8 rounded-2xl border border-border bg-card p-6 shadow-sm">
           <h3 className="font-bold tracking-tight text-foreground">Recent Transactions</h3>
-          {transactions.length === 0 ? (
+          {loading ? (
+            <div className="mt-4 flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : transactions.length === 0 ? (
             <div className="mt-4 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
               <p className="text-sm">No transactions to display yet.</p>
             </div>
           ) : (
             <div className="mt-4 space-y-3">
               {transactions.slice(0, 10).map((t, idx) => (
-                <div key={t.id || idx} className="flex items-center justify-between p-4 rounded-xl border border-border bg-background shadow-sm">
+                <div key={t._id || idx} className="flex items-center justify-between p-4 rounded-xl border border-border bg-background shadow-sm">
                   <div>
-                    <h4 className="text-sm font-bold text-foreground truncate">{t.service}</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5">{t.user || "Customer"} • {new Date(t.date || t.timestamp || Date.now()).toLocaleDateString()}</p>
-                    <p className="text-[10px] text-muted-foreground font-mono mt-1">Ref: {t.id}</p>
+                    <h4 className="text-sm font-bold text-foreground truncate">{t.title}</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">{new Date(t.createdAt).toLocaleDateString()}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono mt-1">Ref: {t._id?.slice(-6).toUpperCase()}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-base font-black text-emerald-600">+ ₹{t.amount || 0}</p>

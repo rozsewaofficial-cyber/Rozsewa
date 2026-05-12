@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import axios from 'axios';
+import API from "@/lib/api";
 import { adminSidebarLinks } from "../components/AdminSidebar";
 
 
@@ -65,10 +65,7 @@ const AdminSuper = () => {
 
     const fetchSettings = async () => {
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/settings`, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            const response = await API.get('/admin/settings');
             setSettings(response.data);
         } catch (error) {
             console.error("Failed to fetch settings", error);
@@ -77,10 +74,7 @@ const AdminSuper = () => {
 
     const fetchAdmins = async () => {
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/admins`, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            const response = await API.get('/admin/admins');
             setAdmins(response.data);
         } catch (error) {
             toast.error("Failed to fetch admins");
@@ -89,10 +83,7 @@ const AdminSuper = () => {
 
     const fetchKycPerformance = async () => {
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/kyc-performance`, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            const response = await API.get('/admin/kyc-performance');
             setKycPerformance(response.data);
         } catch (error) {
             console.error("Failed to fetch performance");
@@ -101,10 +92,7 @@ const AdminSuper = () => {
 
     const fetchSewaks = async () => {
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/sewaks`, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            const response = await API.get('/admin/sewaks');
             setSewaks(response.data);
         } catch (error) {
             toast.error("Failed to fetch sewaks");
@@ -122,10 +110,7 @@ const AdminSuper = () => {
 
     const updateAdminSetting = async (key, value) => {
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            await axios.post(`${import.meta.env.VITE_API_URL}/admin/settings`, { key, value }, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            await API.post('/admin/settings', { key, value });
             setSettings(prev => ({ ...prev, [key]: value }));
             toast.success("Settings updated");
         } catch (error) {
@@ -136,16 +121,11 @@ const AdminSuper = () => {
     const handleCreateOrUpdateAdmin = async (e) => {
         e.preventDefault();
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
             if (isEditing) {
-                await axios.put(`${import.meta.env.VITE_API_URL}/admin/admins/${editingAdminId}`, newAdmin, {
-                    headers: { Authorization: `Bearer ${auth?.token}` }
-                });
+                await API.put(`/admin/admins/${editingAdminId}`, newAdmin);
                 toast.success("Admin updated successfully");
             } else {
-                await axios.post(`${import.meta.env.VITE_API_URL}/admin/admins`, newAdmin, {
-                    headers: { Authorization: `Bearer ${auth?.token}` }
-                });
+                await API.post('/admin/admins', newAdmin);
                 toast.success("Admin created successfully");
             }
             setShowCreateForm(false);
@@ -162,10 +142,7 @@ const AdminSuper = () => {
     const handleCreateSewak = async (e) => {
         e.preventDefault();
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewaks`, newSewak, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            await API.post('/admin/sewaks', newSewak);
             toast.success("Sewak created successfully");
             setShowSewakForm(false);
             setNewSewak({
@@ -182,10 +159,7 @@ const AdminSuper = () => {
     const handleDeleteAdmin = async (id) => {
         if (!window.confirm("Are you sure you want to delete this admin?")) return;
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            await axios.delete(`${import.meta.env.VITE_API_URL}/admin/admins/${id}`, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            await API.delete(`/admin/admins/${id}`);
             toast.success("Admin deleted successfully");
             fetchAdmins();
         } catch (error) {
@@ -225,11 +199,8 @@ const AdminSuper = () => {
 
     const savePermissions = async (admin) => {
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            await axios.put(`${import.meta.env.VITE_API_URL}/admin/admins/${admin._id}/permissions`, {
+            await API.put(`/admin/admins/${admin._id}/permissions`, {
                 permissions: admin.permissions
-            }, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
             });
             toast.success(`Permissions updated for ${admin.name}`);
             setAdmins(admins.map(a => a._id === admin._id ? { ...a, isModified: false } : a));
@@ -244,10 +215,7 @@ const AdminSuper = () => {
     const handleUpdatePin = async () => {
         if (newPin.length !== 4) return toast.error("PIN must be 4 digits");
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            await axios.post(`${import.meta.env.VITE_API_URL}/admin/update-pin`, { pin: newPin }, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            await API.post('/admin/update-pin', { pin: newPin });
             toast.success("Super Admin PIN updated successfully");
             setNewPin('');
         } catch (error) {
@@ -809,10 +777,8 @@ const AdminSuper = () => {
                                             </div>
                                             <Button variant="ghost" onClick={() => {
                                                 if (window.confirm("Remove this sewak?")) {
-                                                    const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-                                                    axios.delete(`${import.meta.env.VITE_API_URL}/admin/providers/${sewak._id}`, {
-                                                        headers: { Authorization: `Bearer ${auth?.token}` }
-                                                    }).then(() => { toast.success("Sewak removed"); fetchSewaks(); });
+                                                    API.delete(`/admin/providers/${sewak._id}`)
+                                                        .then(() => { toast.success("Sewak removed"); fetchSewaks(); });
                                                 }
                                             }} className="h-8 w-8 text-gray-300 hover:text-red-600 rounded-lg shrink-0">
                                                 <Trash2 className="h-3.5 w-3.5" />

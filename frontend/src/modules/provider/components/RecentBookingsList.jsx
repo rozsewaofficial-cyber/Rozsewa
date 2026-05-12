@@ -41,7 +41,10 @@ const RecentBookingsList = () => {
         status: b.status === "confirmed" ? "active" : b.status
       }));
       setRequests(mapped);
-      setStaffList(JSON.parse(localStorage.getItem("rozsewa_provider_staff") || "[]"));
+      
+      // Fetch staff from API
+      const { data: staffData } = await API.get("/provider/staff");
+      setStaffList(staffData);
     } catch (err) {
       toast({ title: "Failed to fetch bookings", variant: "destructive" });
     } finally {
@@ -69,9 +72,14 @@ const RecentBookingsList = () => {
     }
   };
 
-  const assignStaff = (bookingId, staffId) => {
-    // Staff assignment still uses local storage for now until we have Staff API
-    toast({ title: "Note", description: "Staff assignment is currently saved locally." });
+  const assignStaff = async (bookingId, staffId) => {
+    try {
+      await API.patch(`/bookings/${bookingId}/status`, { staffId });
+      toast({ title: "Staff Assigned", description: "Worker has been assigned to this booking." });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to assign staff", variant: "destructive" });
+    }
   };
 
   const filteredRequests = requests.filter(req => {

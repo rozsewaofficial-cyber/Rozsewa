@@ -76,6 +76,9 @@ const {
     deleteBenefitPolicy
 } = require('../controllers/benefitPolicyController');
 
+const { getWithdrawals, updateWithdrawalStatus } = require('../controllers/withdrawalController');
+const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updateIncentiveSettings } = require('../controllers/commissionController');
+
 const { protect, admin, superadmin, supervisor, employee } = require('../middleware/authMiddleware');
 
 // HRM Management
@@ -188,5 +191,16 @@ router.get('/benefit-policies', protect, admin, getBenefitPolicies);
 router.post('/benefit-policies', protect, admin, createBenefitPolicy);
 router.put('/benefit-policies/:id', protect, admin, updateBenefitPolicy);
 router.delete('/benefit-policies/:id', protect, admin, deleteBenefitPolicy);
+
+// Withdrawal Management
+router.get('/withdrawals', protect, admin, getWithdrawals);
+router.patch('/withdrawals/:id', protect, admin, updateWithdrawalStatus);
+
+// Commission Management
+router.get('/commission', protect, admin, getCommissionData);
+router.get('/finance', protect, admin, getFinanceData);
+router.get('/earnings', protect, admin, getEarningsData);
+router.get('/sewak-incentives', protect, admin, getIncentives);
+router.post('/sewak-incentive-settings', protect, admin, updateIncentiveSettings);
 
 module.exports = router;

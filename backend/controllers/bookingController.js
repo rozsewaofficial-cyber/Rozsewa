@@ -266,6 +266,9 @@ const updateBookingStatusByProvider = async (req, res) => {
             if (req.body.extraCharges) {
                 booking.extraCharges = req.body.extraCharges;
             }
+            if (req.body.staffId) {
+                booking.staffId = req.body.staffId;
+            }
 
             // Generate OTP if status is changed to 'on_the_way'
             if (newStatus === 'on_the_way' && !booking.startOTP) {

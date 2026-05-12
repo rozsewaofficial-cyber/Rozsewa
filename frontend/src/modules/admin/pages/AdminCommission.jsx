@@ -1,13 +1,32 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Landmark, ArrowRightLeft, CalendarCheck } from "lucide-react";
+import API from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 const AdminCommission = () => {
     const { setTitle } = useOutletContext();
+    const { toast } = useToast();
+    const [stats, setStats] = useState({ platformRevenue: 0, pendingPayouts: 0, processedToday: 0, disputedHold: 0 });
+    const [queue, setQueue] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         setTitle("Commission & Settlements");
+        fetchData();
     }, [setTitle]);
+
+    const fetchData = async () => {
+        try {
+            const { data } = await API.get('/admin/commission');
+            setStats(data.stats);
+            setQueue(data.queue);
+            setLoading(false);
+        } catch (error) {
+            toast({ title: "Error", description: "Failed to fetch commission data", variant: "destructive" });
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -21,10 +40,10 @@ const AdminCommission = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    { title: "Platform Revenue", value: "₹45,200", subtitle: "This Month (Post-Pmt. G/W)", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-                    { title: "Pending Payouts", value: "₹1,12,450", subtitle: "To 14 Vendors", color: "text-amber-700 bg-amber-50 border-amber-200" },
-                    { title: "Processed Today", value: "₹24,000", subtitle: "Via IMPS/NEFT", color: "text-blue-700 bg-blue-50 border-blue-200" },
-                    { title: "Disputed Hold", value: "₹4,500", subtitle: "2 Bookings under review", color: "text-red-700 bg-red-50 border-red-200" },
+                    { title: "Platform Revenue", value: `₹${stats.platformRevenue.toLocaleString()}`, subtitle: "All Time", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+                    { title: "Pending Payouts", value: `₹${stats.pendingPayouts.toLocaleString()}`, subtitle: "In Queue", color: "text-amber-700 bg-amber-50 border-amber-200" },
+                    { title: "Processed Today", value: `₹${stats.processedToday.toLocaleString()}`, subtitle: "Via Withdrawals", color: "text-blue-700 bg-blue-50 border-blue-200" },
+                    { title: "Disputed Hold", value: `₹${stats.disputedHold.toLocaleString()}`, subtitle: "Under Review", color: "text-red-700 bg-red-50 border-red-200" },
                 ].map((s, i) => (
                     <div key={i} className={`rounded-xl border p-5 ${s.color}`}>
                         <p className="text-xs font-bold uppercase tracking-wider mb-2 opacity-80">{s.title}</p>
@@ -52,15 +71,20 @@ const AdminCommission = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {[
-                                { vendor: "Royal Salon (ICICI •••• 4011)", jobV: "₹5,000", com: "₹500", pay: "₹4,500", status: "Ready to Pay" },
-                                { vendor: "Fresh Foods (HDFC •••• 1234)", jobV: "₹1,200", com: "₹0 (Free Trial)", pay: "₹1,200", status: "Processed" },
-                            ].map((row, i) => (
-                                <tr key={i} className="hover:bg-gray-50/50 transition">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                                </tr>
+                            ) : queue.length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No jobs in queue.</td>
+                                </tr>
+                            ) : queue.map((row) => (
+                                <tr key={row._id} className="hover:bg-gray-50/50 transition">
                                     <td className="px-6 py-4 font-bold text-gray-900">{row.vendor}</td>
-                                    <td className="px-6 py-4 font-medium text-gray-700">{row.jobV}</td>
-                                    <td className="px-6 py-4 font-bold text-red-600">-{row.com}</td>
-                                    <td className="px-6 py-4 font-black text-emerald-700">{row.pay}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-700">₹{row.jobV.toLocaleString()}</td>
+                                    <td className="px-6 py-4 font-bold text-red-600">-₹{row.com.toLocaleString()}</td>
+                                    <td className="px-6 py-4 font-black text-emerald-700">₹{row.pay.toLocaleString()}</td>
                                     <td className="px-6 py-4">
                                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${row.status === 'Processed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{row.status}</span>
                                     </td>

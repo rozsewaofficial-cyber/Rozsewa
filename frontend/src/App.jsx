@@ -75,6 +75,7 @@ import AdminProviderSubscriptions from "./modules/admin/pages/AdminProviderSubsc
 import AdminKYC from "./modules/admin/pages/AdminKYC";
 import Admin99Card from "./modules/admin/pages/Admin99Card";
 import AdminCommission from "./modules/admin/pages/AdminCommission";
+import AdminWithdrawals from "./modules/admin/pages/AdminWithdrawals";
 
 import AdminZones from "./modules/admin/pages/AdminZones";
 import AdminDispatch from "./modules/admin/pages/AdminDispatch";
@@ -199,6 +200,7 @@ const App = () => (
                       <Route path="emergency" element={<AdminEmergency />} />
                       <Route path="finance" element={<AdminFinance />} />
                       <Route path="quality" element={<AdminQuality />} />
+                      <Route path="withdrawals" element={<AdminWithdrawals />} />
 
 
                       <Route path="help-training" element={<AdminHelpTraining />} />

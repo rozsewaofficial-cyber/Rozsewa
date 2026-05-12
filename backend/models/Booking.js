@@ -11,6 +11,11 @@ const bookingSchema = new mongoose.Schema({
         ref: 'Provider',
         required: false,
     },
+    staffId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Staff',
+        required: false,
+    },
     serviceName: {
         type: String,
         required: true,

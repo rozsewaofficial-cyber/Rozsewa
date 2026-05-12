@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
-import { Wallet, ArrowDownRight, ArrowUpRight, History, Download, Link as LinkIcon, Building2, CheckCircle, Loader2 } from "lucide-react";
+import { Wallet, ArrowDownRight, ArrowUpRight, History, Download, Link as LinkIcon, Building2, CheckCircle, Loader2, Landmark } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
@@ -10,12 +10,23 @@ const ProviderWallet = () => {
   const { toast } = useToast();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
   const [provider, setProvider] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchWithdrawals = async () => {
+    try {
+      const { data } = await API.get('/provider/withdrawals');
+      setWithdrawals(data);
+    } catch (err) {
+      console.error("Failed to fetch withdrawals", err);
+    }
+  };
 
   useEffect(() => {
     fetchWallet();
     fetchProfile();
+    fetchWithdrawals();
   }, []);
 
   const fetchProfile = async () => {
@@ -40,16 +51,63 @@ const ProviderWallet = () => {
   };
 
   const [isAddingBank, setIsAddingBank] = useState(false);
-  const [bankData, setBankData] = useState({ holderName: "", accountNumber: "", bankName: "", ifsc: "" });
+  const [bankData, setBankData] = useState({ accountHolderName: "", accountNumber: "", bankName: "", ifscCode: "" });
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
 
-  const handleWithdraw = () => {
-    toast({ title: "Withdrawal Requested", description: "Withdrawal feature will be active after KYC verification." });
+  const handleWithdraw = async () => {
+    if (!provider?.kycVerified) {
+      toast({ title: "KYC Required", description: "Withdrawal feature will be active after KYC verification.", variant: "destructive" });
+      return;
+    }
+
+    if (!provider?.bankDetails?.accountNumber) {
+      toast({ title: "Bank Account Required", description: "Please link your bank account first.", variant: "destructive" });
+      return;
+    }
+
+    setIsWithdrawing(true);
   };
 
-  const saveBank = (e) => {
+  const submitWithdrawal = async (e) => {
     e.preventDefault();
-    toast({ title: "Bank Details Saved", description: "Your payout information has been updated successfully." });
-    setIsAddingBank(false);
+    const amount = parseFloat(withdrawAmount);
+    if (isNaN(amount) || amount <= 0 || amount > balance) {
+      toast({ title: "Invalid Amount", description: "Please enter a valid amount within your balance.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await API.post("/provider/withdraw", { amount });
+      toast({ title: "Withdrawal Requested", description: "Your request has been submitted successfully." });
+      setIsWithdrawing(false);
+      setWithdrawAmount("");
+      fetchWallet(); // Refresh balance
+    } catch (err) {
+      toast({ title: "Withdrawal Failed", description: err.response?.data?.message || "Failed to submit request", variant: "destructive" });
+    }
+  };
+
+  const saveBank = async (e) => {
+    e.preventDefault();
+    try {
+      await API.put('/provider/profile', { bankDetails: bankData });
+      toast({ title: "Bank Details Saved", description: "Your payout information has been updated successfully." });
+      setIsAddingBank(false);
+      fetchProfile();
+    } catch (err) {
+      toast({ title: "Failed to save bank details", variant: "destructive" });
+    }
+  };
+
+  const handleEditBank = () => {
+    setBankData({
+      accountHolderName: provider?.bankDetails?.accountHolderName || "",
+      accountNumber: provider?.bankDetails?.accountNumber || "",
+      bankName: provider?.bankDetails?.bankName || "",
+      ifscCode: provider?.bankDetails?.ifscCode || ""
+    });
+    setIsAddingBank(true);
   };
 
   return (
@@ -99,9 +157,14 @@ const ProviderWallet = () => {
                     <h4 className="font-bold text-sm text-foreground truncate">
                       {provider.bankDetails.bankName} •••• {provider.bankDetails.accountNumber.slice(-4)}
                     </h4>
-                    <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
-                      Primary
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
+                        Primary
+                      </span>
+                      <button onClick={handleEditBank} className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-700 transition-colors">
+                        Edit
+                      </button>
+                    </div>
                   </div>
                   <p className="text-[10px] text-muted-foreground font-medium truncate uppercase tracking-widest">
                     {provider.bankDetails.verified ? 'Verified Account • Rozsewa' : 'Verification Pending'}
@@ -124,6 +187,49 @@ const ProviderWallet = () => {
               </motion.div>
             )}
           </div>
+
+          {/* Withdrawal Status Section */}
+          {withdrawals.length > 0 && (
+            <section className="mb-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                  <Landmark className="h-3.5 w-3.5" /> Withdrawal Requests
+                </h3>
+              </div>
+              <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border mb-6">
+                {withdrawals.map((req) => (
+                  <div key={req._id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                        req.status === 'approved' ? 'bg-emerald-50 text-emerald-600' : 
+                        req.status === 'rejected' ? 'bg-rose-50 text-rose-600' : 
+                        'bg-amber-50 text-amber-600'
+                      }`}>
+                        <ArrowUpRight className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-bold text-foreground">Withdrawal Request</p>
+                          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
+                            req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 
+                            req.status === 'rejected' ? 'bg-rose-100 text-rose-700' : 
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {req.status}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{new Date(req.createdAt).toLocaleDateString()} • {req._id.slice(-6).toUpperCase()}</p>
+                        {req.reason && <p className="text-[9px] text-rose-600 mt-1 italic">Reason: {req.reason}</p>}
+                      </div>
+                    </div>
+                    <div className={`font-black text-sm text-right text-rose-600`}>
+                      - ₹{req.amount.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section>
             <div className="flex justify-between items-center mb-4">
@@ -174,23 +280,49 @@ const ProviderWallet = () => {
             <form onSubmit={saveBank} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Account Holder Name</label>
-                <input required className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="John Doe" />
+                <input required value={bankData.accountHolderName} onChange={e => setBankData({...bankData, accountHolderName: e.target.value})} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="John Doe" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Account Number</label>
-                <input required className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="0000 0000 0000 0000" />
+                <input required value={bankData.accountNumber} onChange={e => setBankData({...bankData, accountNumber: e.target.value})} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="0000 0000 0000 0000" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">IFSC Code</label>
-                  <input required className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="HDFC0001234" />
+                  <input required value={bankData.ifscCode} onChange={e => setBankData({...bankData, ifscCode: e.target.value})} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="HDFC0001234" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Bank Name</label>
-                  <input required className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="HDFC Bank" />
+                  <input required value={bankData.bankName} onChange={e => setBankData({...bankData, bankName: e.target.value})} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="HDFC Bank" />
                 </div>
               </div>
               <button type="submit" className="w-full h-16 mt-4 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all">Save Bank Details</button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Withdrawal Modal */}
+      {isWithdrawing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md rounded-[40px] bg-card p-8 border border-border shadow-2xl relative">
+            <button onClick={() => setIsWithdrawing(false)} className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"><ArrowDownRight className="h-5 w-5 rotate-45" /></button>
+            <h2 className="text-2xl font-black tracking-tighter mb-1">Request Withdrawal</h2>
+            <p className="text-sm text-muted-foreground mb-8">Enter the amount you want to withdraw.</p>
+
+            <form onSubmit={submitWithdrawal} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Amount (Max: ₹{balance})</label>
+                <input required type="number" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="500" />
+                
+                {/* Quick Presets */}
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <button type="button" onClick={() => setWithdrawAmount("500")} className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors">₹500</button>
+                  <button type="button" onClick={() => setWithdrawAmount("1000")} className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors">₹1000</button>
+                  <button type="button" onClick={() => setWithdrawAmount(balance.toString())} className="h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 hover:bg-emerald-100 font-bold text-xs transition-colors">All</button>
+                </div>
+              </div>
+              <button type="submit" className="w-full h-16 mt-4 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all">Submit Request</button>
             </form>
           </motion.div>
         </div>

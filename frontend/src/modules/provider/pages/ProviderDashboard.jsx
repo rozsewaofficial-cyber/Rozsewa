@@ -23,6 +23,17 @@ const chartDataFallback = [
   { day: 'Sat', amount: 0 },
   { day: 'Sun', amount: 0 },
 ];
+const defaultMenu = [
+  { iconPath: "/assets/3d_icons/services.png", title: "Services", desc: "Catalog", path: "/provider/services", bgColor: "bg-blue-50/80 dark:bg-blue-900/10", borderColor: "border-blue-100 dark:border-blue-900/20" },
+  { iconPath: "/assets/3d_icons/timing.png", title: "Timing", desc: "Schedule", path: "/provider/availability", bgColor: "bg-amber-50/80 dark:bg-amber-900/10", borderColor: "border-amber-100 dark:border-amber-900/20" },
+  { iconPath: "/assets/3d_icons/wallet.png", title: "Wallet", desc: "Revenue", path: "/provider/wallet", bgColor: "bg-emerald-50/80 dark:bg-emerald-900/10", borderColor: "border-emerald-100 dark:border-emerald-900/20" },
+  { iconPath: "/assets/3d_icons/reviews.png", title: "Reviews", desc: "Ratings", path: "/provider/reviews", bgColor: "bg-yellow-50/80 dark:bg-yellow-900/10", borderColor: "border-yellow-100 dark:border-yellow-900/20" },
+  { iconPath: "/assets/3d_icons/99card.png", title: "Registration", desc: "Plan & Status", path: "/provider/99card", bgColor: "bg-slate-100 dark:bg-slate-800/30", borderColor: "border-slate-200 dark:border-slate-700" },
+  { iconPath: "/assets/3d_icons/docs.png", title: "Docs", desc: "Vault", path: "/provider/documents", bgColor: "bg-cyan-50/80 dark:bg-cyan-900/10", borderColor: "border-cyan-100 dark:border-cyan-900/20" },
+  { iconPath: "/assets/3d_icons/support.png", title: "Support", desc: "Hotline", path: "/provider/support", bgColor: "bg-indigo-50/80 dark:bg-indigo-900/10", borderColor: "border-indigo-100 dark:border-indigo-900/20" },
+  { iconPath: "/assets/3d_icons/settings.png", title: "Settings", desc: "Admin", path: "/provider/settings", bgColor: "bg-gray-100/80 dark:bg-gray-800/30", borderColor: "border-gray-200 dark:border-gray-700" }
+];
+
 import { useSocket } from "@/context/SocketContext";
 import IncomingRequestModal from "@/modules/provider/components/IncomingRequestModal";
 
@@ -37,6 +48,7 @@ const ProviderDashboard = () => {
   const [supportNum, setSupportNum] = useState("91XXXXXXXXXX");
   const [dynamicChartData, setDynamicChartData] = useState(chartDataFallback);
   const [plans, setPlans] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
   const isSubscribed = user?.isSubscribed || false;
 
   useEffect(() => {
@@ -68,9 +80,17 @@ const ProviderDashboard = () => {
       }
     };
 
+    const fetchMenu = async () => {
+      try {
+        const { data } = await API.get("/provider/menu");
+        setMenuItems(data);
+      } catch (err) { }
+    };
+
     fetchConfig();
     fetchStats();
     fetchPlans();
+    fetchMenu();
     loadRazorpay();
   }, []);
 
@@ -573,17 +593,7 @@ const ProviderDashboard = () => {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-            {[
-              { iconPath: "/assets/3d_icons/services.png", title: "Services", desc: "Catalog", path: "/provider/services", bgColor: "bg-blue-50/80 dark:bg-blue-900/10", borderColor: "border-blue-100 dark:border-blue-900/20" },
-              { iconPath: "/assets/3d_icons/timing.png", title: "Timing", desc: "Schedule", path: "/provider/availability", bgColor: "bg-amber-50/80 dark:bg-amber-900/10", borderColor: "border-amber-100 dark:border-amber-900/20" },
-
-              { iconPath: "/assets/3d_icons/wallet.png", title: "Wallet", desc: "Revenue", path: "/provider/wallet", bgColor: "bg-emerald-50/80 dark:bg-emerald-900/10", borderColor: "border-emerald-100 dark:border-emerald-900/20" },
-              { iconPath: "/assets/3d_icons/reviews.png", title: "Reviews", desc: "Ratings", path: "/provider/reviews", bgColor: "bg-yellow-50/80 dark:bg-yellow-900/10", borderColor: "border-yellow-100 dark:border-yellow-900/20" },
-              { iconPath: "/assets/3d_icons/99card.png", title: "Registration", desc: "Plan & Status", path: "/provider/99card", bgColor: "bg-slate-100 dark:bg-slate-800/30", borderColor: "border-slate-200 dark:border-slate-700" },
-              { iconPath: "/assets/3d_icons/docs.png", title: "Docs", desc: "Vault", path: "/provider/documents", bgColor: "bg-cyan-50/80 dark:bg-cyan-900/10", borderColor: "border-cyan-100 dark:border-cyan-900/20" },
-              { iconPath: "/assets/3d_icons/support.png", title: "Support", desc: "Hotline", path: "/provider/support", bgColor: "bg-indigo-50/80 dark:bg-indigo-900/10", borderColor: "border-indigo-100 dark:border-indigo-900/20" },
-              { iconPath: "/assets/3d_icons/settings.png", title: "Settings", desc: "Admin", path: "/provider/settings", bgColor: "bg-gray-100/80 dark:bg-gray-800/30", borderColor: "border-gray-200 dark:border-gray-700" }
-            ].filter(item => user?.providerCategory !== 'sewak' || item.title !== "Registration").map((item, idx) => {
+            {(menuItems.length > 0 ? menuItems : defaultMenu).filter(item => user?.providerCategory !== 'sewak' || item.title !== "Registration").map((item, idx) => {
               const miniIcons = [Briefcase, Clock, Tag, Wallet, Star, ShieldCheck, FileText, Headset, Settings];
               const MiniIcon = miniIcons[idx];
               return (

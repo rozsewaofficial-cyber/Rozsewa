@@ -3,27 +3,41 @@ import { useOutletContext } from "react-router-dom";
 import { IndianRupee, Download, TrendingUp, Calendar, CreditCard, Filter } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
-
-const initialTransactions = [
-  { id: "TXN-8472", type: "Commission", provider: "Ramesh Kumar", amount: 159.8, date: "2026-03-11 10:30 AM", method: "Online Payment", status: "success", isThisMonth: true },
-  { id: "TXN-8473", type: "Commission", provider: "Vikas Plumbing", amount: 45.0, date: "2026-03-11 12:00 PM", method: "Cash", status: "pending_settlement", isThisMonth: true },
-  { id: "TXN-8474", type: "Refund", provider: "Quick Fix Plumbers", amount: -35.0, date: "2026-03-09 05:30 PM", method: "System", status: "processed", isThisMonth: true },
-  { id: "TXN-8475", type: "Commission", provider: "Electric Bros", amount: 80.0, date: "2026-03-10 10:00 AM", method: "Online Payment", status: "success", isThisMonth: true },
-  { id: "TXN-8476", type: "Commission", provider: "Sagar Services", amount: 250.0, date: "2026-02-15 09:00 AM", method: "Online Payment", status: "success", isThisMonth: false },
-  { id: "TXN-8477", type: "Commission", provider: "Neo Cleaners", amount: 120.0, date: "2026-02-20 11:30 AM", method: "Online Payment", status: "success", isThisMonth: false },
-];
+import API from "@/lib/api";
 
 const AdminEarnings = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
   const [filterMonth, setFilterMonth] = useState(false);
   const [viewAll, setViewAll] = useState(false);
+  const [stats, setStats] = useState({ grossSalesVolume: 0, netCommission: 0, pendingSettlements: 0 });
+  const [breakdown, setBreakdown] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setTitle("Revenue & Earnings");
+    fetchData();
+  }, [setTitle]);
+
+  const fetchData = async () => {
+    try {
+      const { data } = await API.get('/admin/earnings');
+      setStats(data.stats);
+      setBreakdown(data.breakdown);
+      setTransactions(data.transactions);
+      setLoading(false);
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to fetch earnings data", variant: "destructive" });
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     setTitle("Revenue & Earnings");
   }, [setTitle]);
 
-  const displayTransactions = initialTransactions
+  const displayTransactions = transactions
     .filter(t => !filterMonth || t.isThisMonth)
     .slice(0, viewAll ? undefined : 4);
 
@@ -86,7 +100,7 @@ const AdminEarnings = () => {
           </div>
           <div className="mt-4">
             <p className="text-sm font-bold text-gray-500">Gross Sales Volume</p>
-            <h3 className="mt-1 text-3xl font-black text-gray-900 tracking-tight">₹4,25,890</h3>
+            <h3 className="mt-1 text-3xl font-black text-gray-900 tracking-tight">₹{stats.grossSalesVolume.toLocaleString()}</h3>
           </div>
         </motion.div>
 
@@ -99,7 +113,7 @@ const AdminEarnings = () => {
           </div>
           <div className="mt-4">
             <p className="text-sm font-bold text-emerald-800">Net Platform Commission</p>
-            <h3 className="mt-1 text-3xl font-black text-emerald-900 tracking-tight">₹42,589</h3>
+            <h3 className="mt-1 text-3xl font-black text-emerald-900 tracking-tight">₹{stats.netCommission.toLocaleString()}</h3>
           </div>
         </motion.div>
 
@@ -111,7 +125,7 @@ const AdminEarnings = () => {
           </div>
           <div className="mt-4">
             <p className="text-sm font-bold text-gray-500">Pending Settlements</p>
-            <h3 className="mt-1 text-3xl font-black text-gray-900 tracking-tight">₹4,850</h3>
+            <h3 className="mt-1 text-3xl font-black text-gray-900 tracking-tight">₹{stats.pendingSettlements.toLocaleString()}</h3>
           </div>
         </motion.div>
       </div>
@@ -122,16 +136,13 @@ const AdminEarnings = () => {
         <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm h-fit">
            <h3 className="text-lg font-bold text-gray-900 mb-6 border-b border-gray-100 pb-4">Commission Breakdown</h3>
            <div className="space-y-5">
-             {[
-               { category: "AC Repair & Services", amount: "₹18,450", percent: 43, color: "bg-blue-500" },
-               { category: "Electrician", amount: "₹12,200", percent: 28, color: "bg-emerald-500" },
-               { category: "Plumbing", amount: "₹6,800", percent: 16, color: "bg-amber-500" },
-               { category: "Salon & Beauty", amount: "₹5,139", percent: 13, color: "bg-purple-500" },
-             ].map(item => (
+             {breakdown.length === 0 ? (
+               <p className="text-sm text-gray-500">No data available</p>
+             ) : breakdown.map(item => (
                <div key={item.category}>
                  <div className="flex justify-between items-center text-sm font-bold text-gray-700 mb-2">
                    <span>{item.category}</span>
-                   <span className="text-gray-900">{item.amount}</span>
+                   <span className="text-sm font-extrabold text-gray-900">₹{item.amount.toLocaleString()}</span>
                  </div>
                  <div className="w-full bg-gray-100 rounded-full h-2">
                    <motion.div 
@@ -166,7 +177,15 @@ const AdminEarnings = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {displayTransactions.map((t) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan="4" className="py-4 px-6 text-center text-gray-500">Loading...</td>
+                  </tr>
+                ) : displayTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="py-4 px-6 text-center text-gray-500">No transactions found.</td>
+                  </tr>
+                ) : displayTransactions.map((t) => (
                   <motion.tr key={t.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hover:bg-gray-50/50 transition-colors">
                      <td className="py-4 px-6">
                        <p className="font-mono font-bold text-gray-900">{t.id}</p>

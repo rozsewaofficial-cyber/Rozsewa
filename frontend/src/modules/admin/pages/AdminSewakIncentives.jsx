@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import axios from 'axios';
+import API from "@/lib/api";
 
 const AdminSewakIncentives = () => {
     const [logs, setLogs] = useState([]);
@@ -23,10 +23,8 @@ const AdminSewakIncentives = () => {
     const fetchIncentiveData = async () => {
         setLoading(true);
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            const response = await axios.get(`${import.meta.env.VITE_API_URL}/admin/sewak-incentives`, {
-                params: { date: dateFilter },
-                headers: { Authorization: `Bearer ${auth?.token}` }
+            const response = await API.get('/admin/sewak-incentives', {
+                params: { date: dateFilter }
             });
             setLogs(response.data.logs);
             setConfig(response.data.config);
@@ -44,10 +42,7 @@ const AdminSewakIncentives = () => {
     const handleUpdateConfig = async () => {
         setIsUpdatingConfig(true);
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewak-incentive-settings`, config, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            await API.post('/admin/sewak-incentive-settings', config);
             toast.success("Incentive settings updated");
             fetchIncentiveData();
         } catch (error) {

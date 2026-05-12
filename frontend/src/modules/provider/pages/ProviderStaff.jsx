@@ -1,50 +1,66 @@
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
-import { UserPlus, Trash2, X, RefreshCcw } from "lucide-react";
+import { UserPlus, Trash2, X, RefreshCcw, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
+import API from "@/lib/api";
 
 const ProviderStaff = () => {
   const { toast } = useToast();
-  const [staff, setStaff] = useState(() => {
-    const saved = localStorage.getItem("rozsewa_provider_staff");
-    if (saved) return JSON.parse(saved);
-    return [
-      { id: 1, name: "Rahul Verma", role: "Sr. Stylist", status: "Active" },
-      { id: 2, name: "Amit Kumar", role: "Junior Barber", status: "On Leave" },
-    ];
-  });
+  const [staff, setStaff] = useState([]);
+  const [loading, setLoading] = useState(true);
   
+  const fetchStaff = async () => {
+    try {
+      const { data } = await API.get("/provider/staff");
+      setStaff(data);
+    } catch (err) {
+      toast({ title: "Failed to load staff", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem("rozsewa_provider_staff", JSON.stringify(staff));
-  }, [staff]);
+    fetchStaff();
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStaff, setNewStaff] = useState({ name: "", role: "" });
 
-  const handleAddStaff = (e) => {
+  const handleAddStaff = async (e) => {
     e.preventDefault();
     if(newStaff.name && newStaff.role) {
-      setStaff([...staff, { id: Date.now(), name: newStaff.name, role: newStaff.role, status: "Active" }]);
-      setIsModalOpen(false);
-      setNewStaff({ name: "", role: "" });
-      toast({ title: "Staff added", description: "Worker profile created successfully." });
+      try {
+        await API.post("/provider/staff", newStaff);
+        setIsModalOpen(false);
+        setNewStaff({ name: "", role: "" });
+        toast({ title: "Staff added", description: "Worker profile created successfully." });
+        fetchStaff();
+      } catch (err) {
+        toast({ title: "Failed to add staff", variant: "destructive" });
+      }
     }
   };
 
-  const deleteStaff = (id) => {
-    setStaff(staff.filter(s => s.id !== id));
-    toast({ title: "Staff removed", description: "Worker was removed from roster.", variant: "destructive" });
+  const deleteStaff = async (id) => {
+    try {
+      await API.delete(`/provider/staff/${id}`);
+      toast({ title: "Staff removed", description: "Worker was removed from roster.", variant: "destructive" });
+      fetchStaff();
+    } catch (err) {
+      toast({ title: "Failed to remove staff", variant: "destructive" });
+    }
   };
 
-  const toggleStatus = (id) => {
-    setStaff(staff.map(s => {
-      if(s.id === id) {
-        return { ...s, status: s.status === "Active" ? "On Leave" : "Active" };
-      }
-      return s;
-    }));
+  const toggleStatus = async (id) => {
+    try {
+      await API.patch(`/provider/staff/${id}/status`);
+      fetchStaff();
+    } catch (err) {
+      toast({ title: "Failed to update status", variant: "destructive" });
+    }
   };
 
   return (
@@ -64,34 +80,40 @@ const ProviderStaff = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {staff.map(member => (
-            <div key={member.id} className={`flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-sm transition-all ${member.status !== 'Active' ? 'opacity-60 grayscale-[50%]' : ''}`}>
-              <div className="flex items-center gap-3">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-full ${member.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' : 'bg-gray-100 text-gray-500'}`}>
-                  <span className="font-bold">{member.name.charAt(0)}</span>
+        {loading ? (
+          <div className="flex justify-center p-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+        ) : staff.length === 0 ? (
+          <div className="text-center p-8 text-muted-foreground">No staff members added yet.</div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {staff.map(member => (
+              <div key={member._id} className={`flex items-center justify-between rounded-2xl border border-border bg-card p-4 shadow-sm transition-all ${member.status !== 'Active' ? 'opacity-60 grayscale-[50%]' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-full ${member.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className="font-bold">{member.name.charAt(0)}</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground flex items-center gap-2">
+                      {member.name}
+                      <span className={`text-[9px] px-2 py-0.5 rounded border uppercase tracking-widest font-bold ${member.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                        {member.status}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground">{member.role}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-bold text-foreground flex items-center gap-2">
-                    {member.name}
-                    <span className={`text-[9px] px-2 py-0.5 rounded border uppercase tracking-widest font-bold ${member.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
-                      {member.status}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-muted-foreground">{member.role}</p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => toggleStatus(member._id)} className="p-2 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Toggle Status">
+                    <RefreshCcw className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => deleteStaff(member._id)} className="p-2 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Delete Worker">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => toggleStatus(member.id)} className="p-2 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Toggle Status">
-                  <RefreshCcw className="h-4 w-4" />
-                </button>
-                <button onClick={() => deleteStaff(member.id)} className="p-2 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Delete Worker">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Add Staff Modal */}
         <AnimatePresence>
