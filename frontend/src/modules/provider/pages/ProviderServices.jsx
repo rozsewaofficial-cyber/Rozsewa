@@ -382,7 +382,16 @@ const ProviderServices = () => {
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="text-base font-black text-slate-900 tracking-tight leading-tight">{c.name}</h3>
-                            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Combo Price: ₹{c.price}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Combo Price: ₹{c.price}</p>
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${
+                                    c.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                                    c.status === 'rejected' ? 'bg-rose-50 text-rose-700' :
+                                    'bg-amber-50 text-amber-700'
+                                }`}>
+                                    {c.status || 'Pending'}
+                                </span>
+                            </div>
                           </div>
                           {user?.providerCategory !== 'sewak' && (
                             <div className="flex gap-1 shrink-0">

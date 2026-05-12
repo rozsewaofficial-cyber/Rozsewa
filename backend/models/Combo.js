@@ -16,6 +16,11 @@ const comboSchema = mongoose.Schema({
     ],
     price: { type: Number, required: true },
     image: { type: String },
+    status: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
+    },
     isActive: { type: Boolean, default: true },
     createdAt: { type: Date, default: Date.now }
 }, {

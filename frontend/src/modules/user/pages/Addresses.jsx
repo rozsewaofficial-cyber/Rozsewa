@@ -1,29 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, MapPin, Plus, Home, Briefcase, Navigation, Trash2, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
-import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
 const Addresses = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { toast } = useToast();
+  const [addresses, setAddresses] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAddr, setNewAddr] = useState({ label: "", address: "", icon: "home" });
   const [loading, setLoading] = useState(false);
 
-  const addresses = user?.addresses || [];
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      try {
+        const { data } = await API.get("/auth/profile");
+        setAddresses(data.addresses || []);
+      } catch (err) {
+        console.error("Failed to fetch addresses", err);
+      }
+    };
+    fetchAddresses();
+  }, []);
 
   const handleAddAddress = async () => {
     if (!newAddr.label || !newAddr.address) return;
     setLoading(true);
-    const updated = [...addresses, newAddr];
     try {
-      await API.put("/auth/profile", { addresses: updated });
+      const { data } = await API.post("/auth/addresses", newAddr);
+      setAddresses(data); // Backend returns the updated addresses array
       toast({ title: "Address Added Successfully" });
       setShowAddForm(false);
       setNewAddr({ label: "", address: "", icon: "home" });
@@ -33,10 +42,10 @@ const Addresses = () => {
     setLoading(false);
   };
 
-  const handleDelete = async (index) => {
-    const updated = addresses.filter((_, i) => i !== index);
+  const handleDelete = async (id) => {
     try {
-      await API.put("/auth/profile", { addresses: updated });
+      await API.delete(`/auth/addresses/${id}`);
+      setAddresses(addresses.filter(addr => addr._id !== id));
       toast({ title: "Address Deleted" });
     } catch (err) {
       toast({ title: "Failed to delete address", variant: "destructive" });
@@ -62,8 +71,8 @@ const Addresses = () => {
 
         <div className="space-y-4">
           <AnimatePresence mode="popLayout">
-            {addresses.map((addr, idx) => (
-              <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}
+            {addresses.map((addr) => (
+              <motion.div key={addr._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }}
                 className="relative overflow-hidden rounded-2xl border-2 border-border bg-card p-4 transition-all">
                 <div className="flex gap-4">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
@@ -75,7 +84,7 @@ const Addresses = () => {
                   </div>
                 </div>
                 <div className="mt-4 flex gap-2 border-t border-border/10 pt-3">
-                  <button onClick={() => handleDelete(idx)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
+                  <button onClick={() => handleDelete(addr._id)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -98,9 +107,9 @@ const Addresses = () => {
               <div className="flex items-center justify-between"><h3 className="text-sm font-black uppercase tracking-wider text-primary">New Address</h3><button onClick={() => setShowAddForm(false)}><X className="h-4 w-4" /></button></div>
               <div className="space-y-3">
                 <input type="text" placeholder="Label (Home, Office...)" value={newAddr.label} onChange={(e) => setNewAddr({ ...newAddr, label: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-bold focus:border-primary focus:outline-none" />
+                    className="w-full h-12 rounded-xl border border-border bg-background px-4 text-sm font-bold focus:border-primary focus:outline-none" />
                 <textarea placeholder="Complete Address" value={newAddr.address} onChange={(e) => setNewAddr({ ...newAddr, address: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium focus:border-primary focus:outline-none" rows={2} />
+                    className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium focus:border-primary focus:outline-none" rows={2} />
                 <div className="flex gap-2">
                   {['home', 'office'].map(icon => (
                     <button key={icon} onClick={() => setNewAddr({ ...newAddr, icon })} className={`flex-1 py-2 rounded-xl border-2 text-xs font-bold capitalize transition-all ${newAddr.icon === icon ? 'border-primary bg-primary text-white' : 'border-border bg-background'}`}>{icon}</button>

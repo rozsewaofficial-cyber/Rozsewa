@@ -6,8 +6,8 @@
 
 @layer base {
   :root {
-    --background: 146 35% 93%;
-    --foreground: 150 30% 8%;
+    --background: 44 60% 95%;
+    --foreground: 44 30% 10%;
 
     --card: 0 0% 100%;
     --card-foreground: 150 30% 8%;
@@ -60,8 +60,8 @@
   }
 
   .dark {
-    --background: 150 20% 6%;
-    --foreground: 120 10% 95%;
+    --background: 44 30% 8%;
+    --foreground: 44 10% 95%;
 
     --card: 150 20% 9%;
     --card-foreground: 120 10% 95%;
@@ -97,6 +97,11 @@
     --sidebar-border: 150 15% 18%;
     --sidebar-ring: 170 26% 45%;
   }
+}
+
+.provider-panel {
+  --background: 146 35% 93%;
+  --foreground: 150 30% 8%;
 }
 
 @layer base {

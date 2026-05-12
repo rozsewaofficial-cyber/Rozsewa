@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
-import { getNotifications, markAsRead, markAllAsRead } from "@/lib/notifications";
+import API from "@/lib/api";
 
 const Notifications = () => {
   const navigate = useNavigate();
@@ -13,35 +13,50 @@ const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    // Load customer targeted notifications
-    const target = "customer"; // In a real app, this would be based on user role
-    setNotifications(getNotifications(target));
+    const fetchNotifications = async () => {
+      try {
+        const { data } = await API.get("/notifications");
+        setNotifications(data);
+      } catch (err) {
+        console.error("Failed to fetch notifications", err);
+      }
+    };
+    fetchNotifications();
   }, []);
 
-  const handleMarkAsRead = (id) => {
-    markAsRead(id);
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+  const handleMarkAsRead = async (id) => {
+    try {
+      await API.patch(`/notifications/${id}/read`);
+      setNotifications(notifications.map(n => n._id === id ? { ...n, isRead: true } : n));
+    } catch (err) {
+      console.error("Failed to mark as read", err);
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    markAllAsRead("customer");
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-    toast({ title: "All Marked as Read" });
+  const handleMarkAllAsRead = async () => {
+    try {
+      await API.patch("/notifications/read-all");
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      toast({ title: "All Marked as Read" });
+    } catch (err) {
+      console.error("Failed to mark all as read", err);
+    }
   };
 
   const handleClearAll = () => {
-    const all = JSON.parse(localStorage.getItem("rozsewa_notifications") || "[]");
-    const filteredOut = all.filter(n => n.target !== "customer" && n.target !== "all");
-    localStorage.setItem("rozsewa_notifications", JSON.stringify(filteredOut));
+    // Local clear for now
     setNotifications([]);
     toast({ title: "Notifications Cleared!" });
   };
 
-  const deleteNotification = (id) => {
-    const all = JSON.parse(localStorage.getItem("rozsewa_notifications") || "[]");
-    const updated = all.filter(n => n.id !== id);
-    localStorage.setItem("rozsewa_notifications", JSON.stringify(updated));
-    setNotifications(notifications.filter(n => n.id !== id));
+  const deleteNotification = async (id) => {
+    try {
+      await API.delete(`/notifications/${id}`);
+      setNotifications(notifications.filter(n => n._id !== id));
+      toast({ title: "Notification Removed" });
+    } catch (err) {
+      console.error("Failed to delete notification", err);
+    }
   };
 
   const getIconConfig = (type) => {
@@ -59,7 +74,7 @@ const Notifications = () => {
     const yesterday = new Date(Date.now() - 86400000).toDateString();
     
     return notifs.reduce((acc, notif) => {
-      const dateStr = new Date(notif.date).toDateString();
+      const dateStr = new Date(notif.createdAt).toDateString();
       let group = "Older";
       if (dateStr === today) group = "Today";
       else if (dateStr === yesterday) group = "Yesterday";
@@ -72,7 +87,7 @@ const Notifications = () => {
 
   const grouped = groupByCategory(notifications);
   const groups = ["Today", "Yesterday", "Older"].filter(g => grouped[g] && grouped[g].length > 0);
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <div className="min-h-screen bg-background pb-28 md:pb-8">
@@ -118,14 +133,14 @@ const Notifications = () => {
                       const Icon = conf.icon;
                       
                       return (
-                        <motion.div key={notif.id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: index * 0.05 }}
-                          onClick={() => !notif.read && handleMarkAsRead(notif.id)}
+                        <motion.div key={notif._id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: index * 0.05 }}
+                          onClick={() => !notif.isRead && handleMarkAsRead(notif._id)}
                           className={`group relative flex items-start gap-4 rounded-[24px] border border-border p-4 transition-all cursor-pointer overflow-hidden ${
-                            notif.read ? "bg-card hover:bg-muted/50" : "bg-primary/5 border-primary/20 shadow-lg shadow-primary/5"
+                            notif.isRead ? "bg-card hover:bg-muted/50" : "bg-primary/5 border-primary/20 shadow-lg shadow-primary/5"
                           }`}>
                           
                           {/* Unread indicator line */}
-                          {!notif.read && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />}
+                          {!notif.isRead && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />}
                           
                           <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${conf.outline} ${conf.bg}`}>
                             <Icon className={`h-5 w-5 ${conf.color}`} />
@@ -133,15 +148,15 @@ const Notifications = () => {
                           
                           <div className="flex-1 min-w-0 pr-6">
                             <div className="flex justify-between items-start gap-2">
-                              <h3 className={`text-sm font-bold truncate ${notif.read ? "text-foreground" : "text-foreground"}`}>{notif.title}</h3>
+                              <h3 className={`text-sm font-bold truncate ${notif.isRead ? "text-foreground" : "text-foreground"}`}>{notif.title}</h3>
                               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 shrink-0 mt-0.5">
-                                {new Date(notif.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <p className={`mt-1 text-xs leading-relaxed ${notif.read ? "text-muted-foreground" : "font-medium text-foreground/80 font-bold"}`}>{notif.body}</p>
+                            <p className={`mt-1 text-xs leading-relaxed ${notif.isRead ? "text-muted-foreground" : "font-medium text-foreground/80 font-bold"}`}>{notif.message}</p>
                           </div>
 
-                          <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif.id); }}
+                          <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif._id); }}
                             className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all dark:bg-rose-900/30">
                             <Trash2 className="h-4 w-4" />
                           </button>

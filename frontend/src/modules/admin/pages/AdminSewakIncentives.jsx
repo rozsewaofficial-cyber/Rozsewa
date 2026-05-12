@@ -134,7 +134,7 @@ const AdminSewakIncentives = () => {
                     <CardContent className="p-6">
                         <CheckCircle2 className="h-12 w-12 absolute -right-2 -bottom-2 opacity-20 group-hover:scale-110 transition-transform" />
                         <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Eligible Bookings</p>
-                        <h2 className="text-4xl font-black mt-2">{logs.length}</h2>
+                        <h2 className="text-4xl font-black mt-2">{logs.filter(l => l.dailyBookingCount > config.threshold).length}</h2>
                         <p className="text-[10px] font-bold mt-2 opacity-60">Over threshold completions</p>
                     </CardContent>
                 </Card>
@@ -143,7 +143,7 @@ const AdminSewakIncentives = () => {
                     <CardContent className="p-6">
                         <User className="h-12 w-12 absolute -right-2 -bottom-2 opacity-20 group-hover:scale-110 transition-transform" />
                         <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Active High-Performers</p>
-                        <h2 className="text-4xl font-black mt-2">{new Set(logs.map(l => l.sewakId?._id)).size}</h2>
+                        <h2 className="text-4xl font-black mt-2">{new Set(logs.filter(l => l.dailyBookingCount > config.threshold).map(l => l.sewakId?._id)).size}</h2>
                         <p className="text-[10px] font-bold mt-2 opacity-60">Unique Sewaks earning today</p>
                     </CardContent>
                 </Card>
@@ -221,9 +221,15 @@ const AdminSewakIncentives = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 text-center">
-                                                    <span className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-100">
-                                                        ELIGIBLE (+{log.dailyBookingCount - config.threshold})
-                                                    </span>
+                                                    {log.dailyBookingCount > config.threshold ? (
+                                                        <span className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-100">
+                                                            ELIGIBLE (+{log.dailyBookingCount - config.threshold})
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-3 py-1.5 rounded-full bg-gray-50 text-gray-500 text-[9px] font-black uppercase tracking-widest border border-gray-100">
+                                                            PENDING ({config.threshold - log.dailyBookingCount} more)
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="px-8 py-6">
                                                     <div className="flex items-center gap-1 font-black text-emerald-600">

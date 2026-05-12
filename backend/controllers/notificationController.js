@@ -32,7 +32,32 @@ const markAsRead = async (req, res) => {
     }
 };
 
+const markAllAsRead = async (req, res) => {
+    try {
+        await Notification.updateMany({ recipientId: req.user._id, isRead: false }, { isRead: true });
+        res.json({ message: 'All notifications marked as read' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const deleteNotification = async (req, res) => {
+    try {
+        const notification = await Notification.findById(req.params.id);
+        if (notification && notification.recipientId.toString() === req.user._id.toString()) {
+            await notification.deleteOne();
+            res.json({ message: 'Notification removed' });
+        } else {
+            res.status(404).json({ message: 'Notification not found' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getNotifications,
-    markAsRead
+    markAsRead,
+    markAllAsRead,
+    deleteNotification
 };

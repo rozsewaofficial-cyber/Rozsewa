@@ -4,7 +4,8 @@ import {
     History, Search, Filter, Calendar, User, 
     ShieldCheck, UserCheck, Briefcase, FileText, 
     ChevronLeft, ChevronRight, Loader2, ArrowUpRight,
-    Ban, CheckCircle2, XCircle, MoreVertical, LayoutGrid, List
+    Ban, CheckCircle2, XCircle, MoreVertical, LayoutGrid, List,
+    ShoppingBag, Users
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -50,7 +51,8 @@ const AdminAuditLogs = () => {
             setLogs(data.logs);
             setTotalPages(data.pages);
         } catch (error) {
-            toast.error("Failed to load audit logs");
+            const msg = error.response?.data?.message || "Failed to load audit logs";
+            toast.error(msg);
         } finally {
             setLoading(false);
         }
@@ -62,6 +64,8 @@ const AdminAuditLogs = () => {
             case 'SEWAK': return <Briefcase className="h-4 w-4" />;
             case 'VENDOR': return <UserCheck className="h-4 w-4" />;
             case 'KYC': return <ShieldCheck className="h-4 w-4" />;
+            case 'COMBO': return <ShoppingBag className="h-4 w-4" />;
+            case 'EMPLOYEE': return <Users className="h-4 w-4" />;
             default: return <History className="h-4 w-4" />;
         }
     };
@@ -152,6 +156,8 @@ const AdminAuditLogs = () => {
                         <option value="SEWAK">Sewaks</option>
                         <option value="VENDOR">Vendors</option>
                         <option value="KYC">KYC Requests</option>
+                        <option value="COMBO">Combos</option>
+                        <option value="EMPLOYEE">Employees</option>
                     </select>
                 </div>
 
@@ -235,6 +241,8 @@ const AdminAuditLogs = () => {
                                                                     log.entityType === 'USER' ? 'bg-emerald-50 text-emerald-600' :
                                                                     log.entityType === 'SEWAK' ? 'bg-blue-50 text-blue-600' :
                                                                     log.entityType === 'VENDOR' ? 'bg-amber-50 text-amber-600' :
+                                                                    log.entityType === 'COMBO' ? 'bg-purple-50 text-purple-600' :
+                                                                    log.entityType === 'EMPLOYEE' ? 'bg-pink-50 text-pink-600' :
                                                                     'bg-slate-900 text-white'
                                                                 }`}>
                                                                     {getEntityIcon(log.entityType)}
@@ -328,13 +336,11 @@ const AdminAuditLogs = () => {
                                                             {new Date(log.timestamp).toLocaleDateString(undefined, { day: '2-digit', month: 'long', year: 'numeric' })} at {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                         </span>
                                                     </div>
-                                                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">
-                                                        {log.entityName} <span className="text-slate-300 font-normal">was</span> {log.actionType === 'VERIFY' ? 'Verified' : log.actionType.toLowerCase().replace('_', ' ')}
+                                                    <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                                                        <span className="text-blue-600">{log.verifiedByName || 'Admin'}</span> {log.actionType === 'VERIFY' ? 'verified' : log.actionType === 'REJECT' ? 'rejected' : log.actionType.toLowerCase().replace('_', ' ')} <span className="font-extrabold">{log.entityName}</span>
                                                     </h3>
                                                     <div className="flex items-center gap-2 text-sm font-bold text-slate-500">
-                                                        <span className="flex h-6 w-6 rounded-full bg-slate-100 items-center justify-center text-[8px] font-black">{log.verifiedByName?.charAt(0)}</span>
-                                                        Action taken by <span className="text-blue-600">{log.verifiedByName}</span>
-                                                        <span className="text-slate-300">({log.verifiedByRole})</span>
+                                                        <span className="text-slate-400">Role: {log.verifiedByRole}</span>
                                                     </div>
                                                 </div>
 

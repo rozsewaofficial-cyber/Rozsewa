@@ -377,6 +377,89 @@ const verifyCredentials = async (req, res) => {
     }
 };
 
+const addAddress = async (req, res) => {
+    const { label, address, icon, location } = req.body;
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        user.addresses.push({ label, address, icon, location });
+        await user.save();
+
+        res.status(201).json(user.addresses);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const deleteAddress = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        user.addresses = user.addresses.filter(addr => addr._id.toString() !== req.params.id);
+        await user.save();
+
+        res.json(user.addresses);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const addFavorite = async (req, res) => {
+    const { providerId } = req.body;
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        if (!user.favorites.includes(providerId)) {
+            user.favorites.push(providerId);
+            await user.save();
+        }
+
+        res.status(201).json(user.favorites);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const deleteFavorite = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        user.favorites = user.favorites.filter(fav => fav.toString() !== req.params.id);
+        await user.save();
+
+        res.json(user.favorites);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getFavorites = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).populate('favorites', 'ownerName shopName mobile profileImage providerCategory');
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const mappedFavorites = user.favorites.map(fav => ({
+            id: fav._id,
+            name: fav.shopName || fav.ownerName,
+            category: fav.providerCategory || "Partner",
+            image: fav.profileImage || "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop",
+            rating: 4.5, // Dummy for now
+            reviews: 100, // Dummy for now
+            distance: "2.0 km", // Dummy for now
+            price: "199", // Dummy for now
+            verified: true
+        }));
+
+        res.json(mappedFavorites);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
     authUser,
@@ -389,4 +472,9 @@ module.exports = {
     verifyOTP,
     loginWithOTP,
     verifyCredentials,
+    addAddress,
+    deleteAddress,
+    addFavorite,
+    deleteFavorite,
+    getFavorites
 };

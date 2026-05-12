@@ -89,6 +89,7 @@ import AdminSuper from "./modules/admin/pages/AdminSuper";
 import SewakManagement from "./modules/admin/pages/SewakManagement";
 import AdminVerifySewak from "./modules/admin/pages/AdminVerifySewak";
 import AdminVerifyEmployee from "./modules/admin/pages/AdminVerifyEmployee";
+import AdminVerifyCombo from "./modules/admin/pages/AdminVerifyCombo";
 import AdminSubscriptions from "./modules/admin/pages/AdminSubscriptions";
 import AdminBenefitPolicies from "./modules/admin/pages/AdminBenefitPolicies";
 import AdminAuditLogs from "./modules/admin/pages/AdminAuditLogs";
@@ -114,8 +115,8 @@ const App = () => (
                 <GlobalAlarm />
                 <AnimatePresence mode="wait">
                   <Routes>
-                    {/* Provider as Default */}
-                    <Route path="/" element={<Navigate to="/provider" replace />} />
+                    {/* User Panel as Default */}
+                    <Route path="/" element={<Navigate to="/home" replace />} />
                     <Route path="/login" element={<CustomerLogin />} />
                     <Route path="/home" element={<Index />} />
                     <Route path="/shops" element={<ShopListing />} />
@@ -128,15 +129,12 @@ const App = () => (
                     <Route path="/booking-waiting" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BookingWaiting /></ProtectedRoute>} />
                     <Route path="/my-bookings" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><ServiceHistory /></ProtectedRoute>} />
                     <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Profile /></ProtectedRoute>} />
-                    <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
                     <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Favorites /></ProtectedRoute>} />
                     <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
                     <Route path="/security" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Security /></ProtectedRoute>} />
-                    <Route path="/subscriptions" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><SubscriptionPlans /></ProtectedRoute>} />
 
                     {/* Public Info Routes */}
                     <Route path="/post-service" element={<PostService />} />
-                    <Route path="/refer-earn" element={<ReferEarn />} />
                     <Route path="/notifications" element={<Notifications />} />
                     <Route path="/help-support" element={<HelpSupport />} />
                     <Route path="/complaint" element={<ComplaintForm />} />
@@ -173,6 +171,7 @@ const App = () => (
                       <Route path="sewaks" element={<SewakManagement />} />
                       <Route path="verify-sewaks" element={<AdminVerifySewak />} />
                       <Route path="verify-employees" element={<AdminVerifyEmployee />} />
+                      <Route path="verify-combos" element={<AdminVerifyCombo />} />
                       <Route path="bookings" element={<AdminBookings />} />
                       <Route path="earnings" element={<AdminEarnings />} />
                       <Route path="coupons" element={<AdminCoupons />} />

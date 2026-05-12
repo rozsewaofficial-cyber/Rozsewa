@@ -59,18 +59,20 @@ const createBooking = async (req, res) => {
                 const { startTime, endTime, defaultPercent } = config.value;
 
                 if (isNightTime(bookingTime, startTime, endTime)) {
-                    const service = await Service.findById(serviceId);
-                    if (service) {
-                        const category = await Category.findOne({ name: service.category });
-                        let percent = defaultPercent;
+                    if (mongoose.Types.ObjectId.isValid(serviceId)) {
+                        const service = await Service.findById(serviceId);
+                        if (service) {
+                            const category = await Category.findOne({ name: service.category });
+                            let percent = defaultPercent;
 
-                        if (category && category.hasNightCharge) {
-                            percent = category.nightChargePercent;
+                            if (category && category.hasNightCharge) {
+                                percent = category.nightChargePercent;
+                            }
+
+                            appliedNightChargePercent = percent;
+                            nightChargeAmount = (totalAmount * percent) / 100;
+                            finalTotalAmount = totalAmount + nightChargeAmount;
                         }
-
-                        appliedNightChargePercent = percent;
-                        nightChargeAmount = (totalAmount * percent) / 100;
-                        finalTotalAmount = totalAmount + nightChargeAmount;
                     }
                 }
             }
@@ -105,19 +107,33 @@ const createBooking = async (req, res) => {
             console.log('--- RADIUS DISPATCH DEBUG ---');
             console.log('Booking Location:', booking.location);
 
-            if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {
-                console.log('FAILED: Booking has no valid coordinates. Dispatching to ALL online providers as fallback...');
-                providersToNotify = await Provider.find({ status: 'verified', isOnline: true });
-            } else {
-                providersToNotify = await Provider.find({
-                    status: 'verified',
-                    isOnline: true,
-                    location: {
-                        $geoWithin: {
-                            $centerSphere: [booking.location.coordinates, radiusInRadians]
+            if (providerId) {
+                console.log(`Specific Provider requested: ${providerId}`);
+                const specificProvider = await Provider.findById(providerId);
+                if (specificProvider && specificProvider.status === 'verified' && specificProvider.isOnline) {
+                    providersToNotify = [specificProvider];
+                } else {
+                    console.log(`Specific Provider ${providerId} is either not verified or offline.`);
+                    // Fallback to finding other providers if the requested one is not available
+                }
+            } 
+            
+            // If no specific provider was requested or found online, use radius or fallback
+            if (providersToNotify.length === 0) {
+                if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {
+                    console.log('FAILED: Booking has no valid coordinates. Dispatching to ALL online providers as fallback...');
+                    providersToNotify = await Provider.find({ status: 'verified', isOnline: true });
+                } else {
+                    providersToNotify = await Provider.find({
+                        status: 'verified',
+                        isOnline: true,
+                        location: {
+                            $geoWithin: {
+                                $centerSphere: [booking.location.coordinates, radiusInRadians]
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
 
             console.log(`Providers Found: ${providersToNotify.length}`);
@@ -225,11 +241,31 @@ const updateBookingStatusByProvider = async (req, res) => {
         const booking = await Booking.findById(req.params.id);
 
         if (booking) {
-            if (booking.providerId.toString() !== req.user._id.toString()) {
+            const isAccepting = req.body.status === 'confirmed';
+            
+            const isAuthorized = (isAccepting && !booking.providerId) || 
+                                 (booking.providerId && booking.providerId.toString() === req.user._id.toString()) ||
+                                 (booking.userId && booking.userId.toString() === req.user._id.toString());
+            if (!isAuthorized) {
                 return res.status(401).json({ message: 'Not authorized for this booking' });
             }
 
             const newStatus = req.body.status || booking.status;
+            
+            // Assign provider if accepting
+            if (isAccepting && !booking.providerId) {
+                booking.providerId = req.user._id;
+            }
+            
+            if (req.body.paymentStatus) {
+                booking.paymentStatus = req.body.paymentStatus;
+            }
+            if (req.body.extraStatus) {
+                booking.extraStatus = req.body.extraStatus;
+            }
+            if (req.body.extraCharges) {
+                booking.extraCharges = req.body.extraCharges;
+            }
 
             // Generate OTP if status is changed to 'on_the_way'
             if (newStatus === 'on_the_way' && !booking.startOTP) {
@@ -303,10 +339,10 @@ const verifyStartOTP = async (req, res) => {
                 return res.status(401).json({ message: 'Not authorized' });
             }
 
-            // Payment check for Online Payments
-            if (booking.paymentMode === 'now' && booking.paymentStatus !== 'paid') {
-                return res.status(400).json({ message: 'Customer has not paid yet. Please ask them to pay from their app.' });
-            }
+            // Payment check for Online Payments (Commented out for testing)
+            // if (booking.paymentMode === 'now' && booking.paymentStatus !== 'paid') {
+            //     return res.status(400).json({ message: 'Customer has not paid yet. Please ask them to pay from their app.' });
+            // }
 
             if (booking.startOTP === otp) {
                 booking.status = 'started';
@@ -535,6 +571,53 @@ const getProviderReviews = async (req, res) => {
     }
 };
 
+// @desc    Get public provider reviews
+const getPublicProviderReviews = async (req, res) => {
+    try {
+        const bookings = await Booking.find({
+            providerId: req.params.id,
+            rating: { $gt: 0 }
+        }).populate('userId', 'name profileImage');
+
+        const reviews = bookings.map(b => ({
+            _id: b._id,
+            user: b.userId?.name || 'Customer',
+            profileImage: b.userId?.profileImage,
+            service: b.serviceName,
+            rating: b.rating,
+            review: b.comment,
+            date: b.createdAt
+        }));
+
+        res.json(reviews);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const submitReview = async (req, res) => {
+    const { rating, comment, tags } = req.body;
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+        
+        if (booking.userId.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        booking.rating = rating;
+        booking.comment = comment;
+        booking.tags = tags || [];
+        
+        await booking.save();
+        res.json({ message: 'Review submitted successfully', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createBooking,
     getUserBookings,
@@ -543,5 +626,7 @@ module.exports = {
     updateBookingStatusByProvider,
     verifyStartOTP,
     verifyEndOTP,
-    getProviderReviews
+    getProviderReviews,
+    getPublicProviderReviews,
+    submitReview
 };

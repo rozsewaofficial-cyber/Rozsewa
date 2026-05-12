@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, AlertTriangle, MessageSquareWarning, Clock, CheckCircle2, Send, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
+import API from "@/lib/api";
 
 const ComplaintForm = () => {
   const navigate = useNavigate();
@@ -13,9 +14,23 @@ const ComplaintForm = () => {
   const [selectedBooking, setSelectedBooking] = useState("");
   const [issueType, setIssueType] = useState("");
   const [description, setDescription] = useState("");
-  const [complaints, setComplaints] = useState(() => JSON.parse(localStorage.getItem("rozsewa_complaints") || "[]"));
-  
-  const bookings = JSON.parse(localStorage.getItem("rozsewa_bookings") || "[]");
+  const [complaints, setComplaints] = useState([]);
+  const [bookings, setBookings] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const complaintsRes = await API.get('/complaints');
+        setComplaints(complaintsRes.data);
+
+        const bookingsRes = await API.get('/bookings');
+        setBookings(bookingsRes.data);
+      } catch (err) {
+        console.error("Failed to fetch complaints or bookings", err);
+      }
+    };
+    fetchData();
+  }, []);
 
   const statusColors = {
     open: "bg-amber-100 text-amber-700",
@@ -23,31 +38,28 @@ const ComplaintForm = () => {
     resolved: "bg-emerald-100 text-emerald-700",
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedBooking || !issueType || !description) {
       toast({ title: "Fill all fields", variant: "destructive" });
       return;
     }
-    const booking = bookings.find(b => b.id === selectedBooking);
-    const complaint = {
-      id: `CMP-${Date.now().toString(36).toUpperCase()}`,
-      bookingId: selectedBooking,
-      service: booking?.service || "Service",
-      issueType,
-      description,
-      status: "open",
-      createdAt: new Date().toISOString(),
-      adminNotes: "",
-    };
-    const updated = [complaint, ...complaints];
-    setComplaints(updated);
-    localStorage.setItem("rozsewa_complaints", JSON.stringify(updated));
-    toast({ title: "Complaint Submitted", description: `ID: ${complaint.id}` });
-    setSelectedBooking("");
-    setIssueType("");
-    setDescription("");
-    setActiveTab("history");
+    try {
+      const res = await API.post('/complaints', {
+        bookingId: selectedBooking,
+        issueType,
+        description
+      });
+      
+      setComplaints([res.data, ...complaints]);
+      toast({ title: "Complaint Submitted", description: `ID: ${res.data._id.substring(res.data._id.length - 8).toUpperCase()}` });
+      setSelectedBooking("");
+      setIssueType("");
+      setDescription("");
+      setActiveTab("history");
+    } catch (err) {
+      toast({ title: "Failed to submit complaint", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -87,7 +99,7 @@ const ComplaintForm = () => {
                   <select value={selectedBooking} onChange={(e) => setSelectedBooking(e.target.value)}
                     className="w-full appearance-none rounded-xl border border-border bg-background py-3 px-4 pr-10 text-sm font-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20">
                     <option value="">Choose a booking...</option>
-                    {bookings.map(b => (<option key={b.id} value={b.id}>{b.id} — {b.service} ({b.status})</option>))}
+                    {bookings.map(b => (<option key={b._id} value={b._id}>{b._id.substring(b._id.length - 8).toUpperCase()} — {b.serviceName} ({b.status})</option>))}
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                 </div>
@@ -128,13 +140,13 @@ const ComplaintForm = () => {
                 </div>
               ) : (
                 complaints.map((c, i) => (
-                  <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                  <motion.div key={c._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                     className="rounded-2xl border border-border bg-card p-4 space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="text-[10px] font-mono text-muted-foreground">{c.id}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground">{c._id.substring(c._id.length - 8).toUpperCase()}</span>
                         <h3 className="text-sm font-bold text-foreground mt-0.5">{c.issueType}</h3>
-                        <p className="text-xs text-muted-foreground mt-0.5">Booking: {c.bookingId}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Booking: {c.bookingId?.serviceName || "N/A"}</p>
                       </div>
                       <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${statusColors[c.status] || "bg-muted text-muted-foreground"}`}>
                         {c.status === "in-review" ? "In Review" : c.status}

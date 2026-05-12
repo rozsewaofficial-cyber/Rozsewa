@@ -55,6 +55,12 @@ export const AuthProvider = ({ children }) => {
       const isPageAdmin = path.startsWith("/admin");
       const isPageProvider = path.startsWith("/provider");
 
+      if (isPageProvider) {
+        document.body.classList.add('provider-panel');
+      } else {
+        document.body.classList.remove('provider-panel');
+      }
+
       let expectedRole = "customer";
       if (isPageAdmin) {
         expectedRole = (auth?.role === 'superadmin' || auth?.role === 'supervisor') ? auth.role : "admin";

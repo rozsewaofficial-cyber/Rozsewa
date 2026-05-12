@@ -191,8 +191,12 @@ const ProviderRegister = () => {
       });
       setFormData({ ...formData, [type]: data.url });
       toast({ title: "Photo Uploaded" });
-    } catch { toast({ title: "Upload Failed", variant: "destructive" }); }
-    finally { setIsUploading(false); }
+    } catch (err) {
+      const msg = err.response?.data?.message || "Upload Failed";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const startCamera = async () => {

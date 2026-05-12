@@ -19,9 +19,25 @@ const initSocket = (server) => {
             console.log(`Provider ${providerId} joined room`);
         });
 
-        socket.on("reject_booking", ({ providerId, bookingId }) => {
+        socket.on("join_user", (userId) => {
+            socket.join(`user_${userId}`);
+            console.log(`User ${userId} joined room`);
+        });
+
+        socket.on("reject_booking", async ({ providerId, bookingId }) => {
             console.log(`Provider ${providerId} rejected booking ${bookingId}`);
             // Future: Store rejection in DB to prevent re-dispatching to this provider
+            
+            try {
+                const Booking = require('../models/Booking');
+                const booking = await Booking.findById(bookingId);
+                if (booking) {
+                    console.log(`Notifying user ${booking.userId} about rejection`);
+                    io.to(`user_${booking.userId}`).emit('BOOKING_REJECTED', { bookingId, providerId });
+                }
+            } catch (err) {
+                console.error("Error in reject_booking handler:", err);
+            }
         });
 
         socket.on("disconnect", () => {

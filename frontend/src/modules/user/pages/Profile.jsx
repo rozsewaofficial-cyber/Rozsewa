@@ -9,12 +9,9 @@ import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
 const menuItems = [
-  { icon: Crown, label: "Subscriptions", desc: "Manage plans", path: "/subscriptions" },
   { icon: Clock, label: "My Bookings", desc: "View booking history", path: "/my-bookings" },
-  { icon: Wallet, label: "Wallet & Cashback", desc: "View balance", path: "/wallet" },
   { icon: Heart, label: "Favorites", desc: "Saved providers", path: "/favorites" },
   { icon: MapPin, label: "Saved Addresses", desc: "Home, Office & more", path: "/addresses" },
-  { icon: Gift, label: "Refer & Earn", desc: "Invite friends", path: "/refer-earn" },
   { icon: Bell, label: "Notifications", desc: "Manage alerts", path: "/notifications" },
   { icon: Shield, label: "Security", desc: "Password & biometrics", path: "/security" },
   { icon: HelpCircle, label: "Help & Support", desc: "FAQs & tickets", path: "/help-support" },
@@ -117,11 +114,10 @@ const Profile = () => {
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {[
             { label: "Bookings", value: completed.toString(), icon: Clock, color: "text-blue-500", bg: "bg-blue-500/10" },
-            { label: "Cashback", value: "₹250", icon: Wallet, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-            { label: "Rating", value: "4.9", icon: Star, color: "text-amber-500", bg: "bg-amber-500/10" },
+            { label: "Favorites", value: (user?.favorites?.length || 0).toString(), icon: Heart, color: "text-pink-500", bg: "bg-pink-500/10" },
           ].map((stat, i) => (
             <motion.div key={stat.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.1 }}
               className="flex flex-col items-center gap-2 rounded-2xl border border-border bg-card p-4 transition-all hover:bg-muted/50">

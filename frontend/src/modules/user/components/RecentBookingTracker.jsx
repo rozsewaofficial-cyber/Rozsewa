@@ -21,7 +21,7 @@ const RecentBookingTracker = () => {
         try {
             const res = await API.get('/bookings');
             const active = res.data.find(b =>
-                ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status)
+                ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status) && (b.rating === undefined || b.rating === 0)
             );
             setActiveBooking(active);
         } catch (err) {

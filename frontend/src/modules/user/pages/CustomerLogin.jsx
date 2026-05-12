@@ -20,6 +20,8 @@ const CustomerLogin = () => {
   const [coords, setCoords] = useState([0, 0]);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otp, setOtp] = useState("");
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -39,31 +41,53 @@ const CustomerLogin = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     if (!name || !email || !password || !phone) { setError("Fill all fields"); return; }
-    setIsVerifying(true);
-    setError("");
+    
+    if (!showOtpInput) {
+      setIsVerifying(true);
+      setError("");
+      try {
+        // Check if user already exists
+        const { data: existData } = await API.post("/auth/check-existence", { mobile: phone });
+        if (existData.exists) {
+          setError("Mobile number already registered. Please login.");
+          setIsVerifying(false);
+          return;
+        }
 
-    try {
-      // Check if user already exists
-      const { data: existData } = await API.post("/auth/check-existence", { mobile: phone });
-      if (existData.exists) {
-        setError("Mobile number already registered. Please login.");
+        // Send OTP
+        await API.post("/auth/send-otp", { mobile: phone });
+        setShowOtpInput(true);
+        toast.success("OTP sent successfully!");
+      } catch (err) {
+        setError("Failed to send OTP. Please try again.");
+      } finally {
         setIsVerifying(false);
-        return;
       }
-
-      const result = await signup({
-        name, email, password, mobile: phone, address, city, state,
-        location: { type: 'Point', coordinates: coords }
-      });
-      if (result.success) {
-        navigate("/");
-      } else {
-        setError(result.error);
+    } else {
+      // Verify OTP and Register
+      if (!otp) { setError("Please enter OTP"); return; }
+      setIsVerifying(true);
+      setError("");
+      try {
+        const { data: verifyData } = await API.post("/auth/verify-otp", { mobile: phone, otp });
+        if (verifyData.success) {
+          const result = await signup({
+            name, email, password, mobile: phone, address, city, state,
+            location: { type: 'Point', coordinates: coords }
+          });
+          if (result.success) {
+            navigate("/");
+          } else {
+            setError(result.error);
+          }
+        } else {
+          setError("Invalid or expired OTP");
+        }
+      } catch (err) {
+        setError("Invalid or expired OTP");
+      } finally {
+        setIsVerifying(false);
       }
-    } catch (err) {
-      setError("Registration failed. Please try again.");
-    } finally {
-      setIsVerifying(false);
     }
   };
 
@@ -136,6 +160,15 @@ const CustomerLogin = () => {
                       placeholder="Create password" />
                   </div>
 
+                  {showOtpInput && (
+                    <div>
+                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Enter OTP</label>
+                      <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)}
+                        className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
+                        placeholder="6-digit OTP" />
+                    </div>
+                  )}
+
                   <div className="space-y-4 pt-2">
                     <div className="flex items-center justify-between">
                       <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Service Location</label>
@@ -190,7 +223,7 @@ const CustomerLogin = () => {
                   {error && <p className="text-xs font-semibold text-destructive">{error}</p>}
                   <motion.button whileTap={{ scale: 0.97 }} type="submit" disabled={isVerifying}
                     className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-primary/20">
-                    {isVerifying ? "Creating Account..." : "Create Account"}
+                    {isVerifying ? "Processing..." : showOtpInput ? "Complete Registration" : "Send OTP"}
                   </motion.button>
                 </motion.form>
               )}

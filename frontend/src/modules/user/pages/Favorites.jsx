@@ -21,19 +21,23 @@ const Favorites = () => {
   const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
-    // If backend returns populated favorites, use them. For now we use the dummy list filtered by user's favorite IDs
-    if (user?.favorites) {
-      // In a real system, we'd GET /api/auth/favorites to get full provider objects
-      // For now, we simulate by showing dummy providers that match user.favorites IDs
-      const list = dummyProviders.filter(p => user.favorites.includes(p.id));
-      setFavorites(list);
+    const fetchFavorites = async () => {
+      try {
+        const { data } = await API.get("/auth/favorites");
+        setFavorites(data);
+      } catch (err) {
+        console.error("Failed to fetch favorites", err);
+      }
+    };
+    if (user) {
+      fetchFavorites();
     }
   }, [user]);
 
   const removeFavorite = async (id) => {
-    const updated = user.favorites.filter(f => f !== id);
     try {
-      await API.put("/auth/profile", { favorites: updated });
+      await API.delete(`/auth/favorites/${id}`);
+      setFavorites(favorites.filter(f => f.id !== id));
       toast({ title: "Removed from favorites" });
     } catch (err) {
       toast({ title: "Operation failed", variant: "destructive" });

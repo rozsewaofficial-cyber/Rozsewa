@@ -65,6 +65,7 @@ const Checkout = () => {
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingId, setBookingId] = useState("");
+  const [currentBookingStatus, setCurrentBookingStatus] = useState("pending");
 
   useEffect(() => {
     if (user?.addresses) {
@@ -83,6 +84,25 @@ const Checkout = () => {
       localStorage.removeItem("rozsewa_last_copied_coupon");
     }
   }, []);
+
+  useEffect(() => {
+    let interval;
+    if (bookingConfirmed && bookingId) {
+      interval = setInterval(async () => {
+        try {
+          const { data } = await API.get('/bookings');
+          const myBooking = data.find(b => b._id === bookingId);
+          if (myBooking) {
+            setCurrentBookingStatus(myBooking.status);
+            if (myBooking.status !== 'pending') {
+              clearInterval(interval);
+            }
+          }
+        } catch (err) {}
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [bookingConfirmed, bookingId]);
 
   const applyCoupon = async () => {
     try {
@@ -339,9 +359,15 @@ const Checkout = () => {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/tracking")}
-              className="flex-1 rounded-2xl bg-primary py-4 text-sm font-black text-primary-foreground shadow-xl shadow-primary/20 hover:shadow-2xl transition-all">
-              Track Booking
+            <motion.button 
+              whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }} 
+              onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking")}
+              className={`flex-1 rounded-2xl py-4 text-sm font-black transition-all ${
+                currentBookingStatus !== 'pending' 
+                ? "bg-primary text-primary-foreground shadow-xl shadow-primary/20 hover:shadow-2xl" 
+                : "bg-muted text-muted-foreground cursor-not-allowed"
+              }`}>
+              {currentBookingStatus !== 'pending' ? "Track Booking" : "Waiting for Provider..."}
             </motion.button>
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/my-bookings")}
               className="flex-1 rounded-2xl border-2 border-border py-4 text-sm font-extrabold text-foreground hover:bg-muted transition-colors">
@@ -505,22 +531,7 @@ const Checkout = () => {
               </div>
             </section>
 
-            {/* Payment Mode */}
-            <section>
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-wider text-muted-foreground"><CreditCard className="h-4 w-4 text-primary" /> Payment Method</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setPaymentMode("now")}
-                  className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 p-5 transition-all ${paymentMode === "now" ? "border-primary bg-primary/10 shadow-md shadow-primary/10" : "border-border bg-card hover:bg-muted"}`}>
-                  <CreditCard className={`h-8 w-8 ${paymentMode === "now" ? "text-primary" : "text-muted-foreground"}`} />
-                  <span className={`text-xs font-black uppercase tracking-wider ${paymentMode === "now" ? "text-primary" : "text-foreground"}`}>Pay Online</span>
-                </motion.button>
-                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setPaymentMode("after")}
-                  className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 p-5 transition-all ${paymentMode === "after" ? "border-primary bg-primary/10 shadow-md shadow-primary/10" : "border-border bg-card hover:bg-muted"}`}>
-                  <Wallet className={`h-8 w-8 ${paymentMode === "after" ? "text-primary" : "text-muted-foreground"}`} />
-                  <span className={`text-xs font-black uppercase tracking-wider ${paymentMode === "after" ? "text-primary" : "text-foreground"}`}>Pay After Job</span>
-                </motion.button>
-              </div>
-            </section>
+            {/* Payment Mode removed as requested */}
           </>
         )}
       </main>

@@ -139,7 +139,13 @@ const LiveTrackingView = ({ destination, onClose }) => {
 
                     <div className="absolute bottom-4 left-4 right-4 flex gap-2">
                         <button
-                            onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination[1]},${destination[0]}`, "_blank")}
+                            onClick={() => {
+                                if (destination && destination.length >= 2 && destination[0] !== undefined && destination[1] !== undefined) {
+                                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${destination[1]},${destination[0]}`, "_blank");
+                                } else {
+                                    alert("Destination coordinates are not available for this booking.");
+                                }
+                            }}
                             className="flex-1 bg-white text-slate-900 border border-slate-200 py-3 rounded-2xl text-xs font-black shadow-lg flex items-center justify-center gap-2"
                         >
                             <ExternalLink className="h-4 w-4" /> Open External Maps

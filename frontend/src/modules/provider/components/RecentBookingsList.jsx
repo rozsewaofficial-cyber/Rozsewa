@@ -201,12 +201,16 @@ const RecentBookingsList = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {req.location?.coordinates && (
+                    {req.location?.coordinates && req.location.coordinates.length >= 2 && req.location.coordinates[0] !== 0 && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           const [lng, lat] = req.location.coordinates;
-                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, "_blank");
+                          if (lat !== undefined && lng !== undefined) {
+                            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, "_blank");
+                          } else {
+                            toast({ title: "Location not available", variant: "destructive" });
+                          }
                         }}
                         className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                         title="Navigate to Customer"
@@ -239,7 +243,13 @@ const RecentBookingsList = () => {
                       <p className="text-2xl font-black text-amber-700 dark:text-amber-400 tracking-[0.5em]">{req.startOTP || "----"}</p>
                     </div>
                     <button
-                      onClick={() => setActiveTracking(req.location.coordinates)}
+                      onClick={() => {
+                        if (req.location?.coordinates && req.location.coordinates.length >= 2 && req.location.coordinates[0] !== 0) {
+                          setActiveTracking(req.location.coordinates);
+                        } else {
+                          toast({ title: "Location not available for this booking", variant: "destructive" });
+                        }
+                      }}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest"
                     >
                       <MapIcon className="h-4 w-4" /> Open In-App Live Tracking

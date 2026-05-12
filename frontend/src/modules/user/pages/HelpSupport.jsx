@@ -1,23 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, MessageSquare, Phone, Mail, HelpCircle, ChevronRight, Search, Zap, ExternalLink, X, Ticket, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
-
-const faqs = [
-  { q: "How to cancel my booking?", a: "To cancel your booking, go to 'My Bookings', select the specific booking, and click the 'Cancel' button. Please note that cancellation fees may apply depending on how close it is to the scheduled time." },
-  { q: "What is RozSewa Safety policy?", a: "We ensure safety by verifying all our professionals, requiring mask usage, sanitization of tools before and after service, and tracking daily temperature checks." },
-  { q: "How can I apply a coupon?", a: "During checkout, you will see an 'Apply Promo' section. Enter your coupon code there and click 'Apply'. The discount will directly reflect in your total payable amount." },
-  { q: "Refund not received in bank.", a: "Refunds typically take 5-7 business days to reflect in your original payment method. If you haven't received it after 7 days, please raise a support ticket or contact us." },
-  { q: "How to contact my service professional?", a: "Once a professional is assigned (Booking Confirmed status), you will see their contact details in the 'My Bookings' section. You can call or chat with them directly." },
-];
+import API from "@/lib/api";
 
 const HelpSupport = () => {
   const navigate = useNavigate();
+  const [faqs, setFaqs] = useState([]);
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFaq, setExpandedFaq] = useState(null);
+
+  useEffect(() => {
+    const fetchFaqs = async () => {
+      try {
+        const { data } = await API.get("/faqs");
+        setFaqs(data);
+      } catch (err) {
+        console.error("Failed to fetch FAQs", err);
+      }
+    };
+    fetchFaqs();
+  }, []);
 
   const policies = JSON.parse(localStorage.getItem("rozsewa_policy_settings") || JSON.stringify({
     terms: "Welcome to RozSewa. By using our services, you agree to our terms...",
@@ -31,7 +37,10 @@ const HelpSupport = () => {
     { label: "Cancellation & Refund", content:policies.cancellation },
   ];
 
-  const filteredFaqs = faqs.filter(f => f.q.toLowerCase().includes(searchQuery.toLowerCase()) || f.a.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredFaqs = faqs.filter(f => 
+    (f.question && f.question.toLowerCase().includes(searchQuery.toLowerCase())) || 
+    (f.answer && f.answer.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <div className="min-h-screen bg-background pb-28 md:pb-8">
@@ -63,21 +72,7 @@ const HelpSupport = () => {
            ))}
         </div>
 
-        {/* Raise Ticket CTA */}
-        <motion.button whileTap={{ scale: 0.98 }} onClick={() => navigate("/support-tickets")}
-          className="w-full flex items-center justify-between rounded-3xl bg-gradient-to-r from-primary to-emerald-500 p-6 shadow-xl shadow-primary/20 text-white relative overflow-hidden group">
-          <div className="relative z-10 flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-md">
-              <Ticket className="h-7 w-7 text-white" />
-            </div>
-            <div className="text-left">
-              <h3 className="text-lg font-black tracking-tight">Raise a Ticket</h3>
-              <p className="text-xs font-bold text-white/80 mt-1">Track your issues & queries easily</p>
-            </div>
-          </div>
-          <ChevronRight className="h-6 w-6 relative z-10 text-white/80 group-hover:text-white transition-colors group-hover:translate-x-1" />
-          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl group-hover:scale-150 transition-transform duration-500 pointer-events-none"/>
-        </motion.button>
+
 
         {/* FAQ Search */}
         <div className="space-y-4 pt-2">
@@ -99,15 +94,15 @@ const HelpSupport = () => {
            {filteredFaqs.length === 0 ? (
              <p className="text-sm font-semibold text-muted-foreground text-center py-4">No matching questions found.</p>
            ) : filteredFaqs.map((f, i) => (
-             <div key={i} className="rounded-2xl border border-border bg-card overflow-hidden transition-all hover:border-primary/30 group">
+             <div key={f._id || i} className="rounded-2xl border border-border bg-card overflow-hidden transition-all hover:border-primary/30 group">
                <button onClick={() => setExpandedFaq(expandedFaq === i ? null : i)} className="flex w-full items-center justify-between p-4 text-left">
-                 <span className="text-sm font-bold text-foreground pr-4 leading-tight">{f.q}</span>
+                 <span className="text-sm font-bold text-foreground pr-4 leading-tight">{f.question}</span>
                  <ChevronDown className={`h-5 w-5 text-muted-foreground shrink-0 transition-transform duration-300 ${expandedFaq === i ? "rotate-180 text-primary" : "group-hover:text-foreground"}`} />
                </button>
                <AnimatePresence>
                  {expandedFaq === i && (
                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-muted/30">
-                     <p className="p-4 pt-0 text-xs font-medium leading-relaxed text-muted-foreground">{f.a}</p>
+                     <p className="p-4 pt-0 text-xs font-medium leading-relaxed text-muted-foreground">{f.answer}</p>
                    </motion.div>
                  )}
                </AnimatePresence>

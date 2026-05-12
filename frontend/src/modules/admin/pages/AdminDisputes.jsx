@@ -3,18 +3,29 @@ import { useOutletContext } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AlertTriangle, CheckCircle2, Clock, MessageSquare, Search, ChevronDown, IndianRupee } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import API from "@/lib/api";
 
 const AdminDisputes = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
-  const [complaints, setComplaints] = useState(() => JSON.parse(localStorage.getItem("rozsewa_complaints") || "[]"));
+  const [complaints, setComplaints] = useState([]);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [activeNote, setActiveNote] = useState({ id: null, text: "" });
 
   useEffect(() => {
     setTitle("Disputes & Complaints");
+    fetchComplaints();
   }, [setTitle]);
+
+  const fetchComplaints = async () => {
+    try {
+      const res = await API.get('/complaints/admin');
+      setComplaints(res.data);
+    } catch (err) {
+      console.error("Failed to fetch complaints", err);
+    }
+  };
 
   const statusColors = {
     open: { bg: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", icon: AlertTriangle },
@@ -22,24 +33,32 @@ const AdminDisputes = () => {
     resolved: { bg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300", icon: CheckCircle2 },
   };
 
-  const updateStatus = (id, status) => {
-    const updated = complaints.map(c => c.id === id ? { ...c, status } : c);
-    setComplaints(updated);
-    localStorage.setItem("rozsewa_complaints", JSON.stringify(updated));
-    toast({ title: `Status → ${status.toUpperCase()}` });
+  const updateStatus = async (id, status) => {
+    try {
+      const res = await API.put(`/complaints/admin/${id}`, { status });
+      const updated = complaints.map(c => c._id === id ? res.data : c);
+      setComplaints(updated);
+      toast({ title: `Status → ${status.toUpperCase()}` });
+    } catch (err) {
+      toast({ title: "Failed to update status", variant: "destructive" });
+    }
   };
 
-  const saveNote = (id) => {
-    const updated = complaints.map(c => c.id === id ? { ...c, adminNotes: activeNote.text } : c);
-    setComplaints(updated);
-    localStorage.setItem("rozsewa_complaints", JSON.stringify(updated));
-    toast({ title: "Admin Note Saved" });
-    setActiveNote({ id: null, text: "" });
+  const saveNote = async (id) => {
+    try {
+      const res = await API.put(`/complaints/admin/${id}`, { adminNotes: activeNote.text });
+      const updated = complaints.map(c => c._id === id ? res.data : c);
+      setComplaints(updated);
+      toast({ title: "Admin Note Saved" });
+      setActiveNote({ id: null, text: "" });
+    } catch (err) {
+      toast({ title: "Failed to save note", variant: "destructive" });
+    }
   };
 
   const filtered = complaints
     .filter(c => filter === "all" || c.status === filter)
-    .filter(c => !search || c.id.toLowerCase().includes(search.toLowerCase()) || c.issueType?.toLowerCase().includes(search.toLowerCase()));
+    .filter(c => !search || c._id.toLowerCase().includes(search.toLowerCase()) || c.issueType?.toLowerCase().includes(search.toLowerCase()));
 
   const counts = {
     all: complaints.length,
@@ -101,18 +120,18 @@ const AdminDisputes = () => {
           const statusConf = statusColors[c.status] || statusColors.open;
           const StatusIcon = statusConf.icon;
           return (
-            <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+            <motion.div key={c._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
               className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3 shadow-sm hover:shadow-md transition-all">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{c.id}</span>
+                    <span className="text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{c._id.substring(c._id.length - 8).toUpperCase()}</span>
                     <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${statusConf.bg}`}>
                       <StatusIcon className="h-3 w-3" /> {c.status === "in-review" ? "In Review" : c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-foreground mt-1">{c.issueType}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">Booking: {c.bookingId} • {c.service}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Booking: {c.bookingId?.serviceName || "N/A"} • User: {c.userId?.name || "N/A"}</p>
                 </div>
                 <p className="text-[10px] text-muted-foreground">{new Date(c.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
               </div>
@@ -121,37 +140,37 @@ const AdminDisputes = () => {
               {/* Actions */}
               <div className="flex flex-wrap gap-2">
                 {c.status !== "in-review" && c.status !== "resolved" && (
-                  <button onClick={() => updateStatus(c.id, "in-review")}
+                  <button onClick={() => updateStatus(c._id, "in-review")}
                     className="rounded-lg bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-500/20 transition-all active:scale-95">
                     Start Review
                   </button>
                 )}
                 {c.status !== "resolved" && (
-                  <button onClick={() => updateStatus(c.id, "resolved")}
+                  <button onClick={() => updateStatus(c._id, "resolved")}
                     className="rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20 transition-all active:scale-95">
                     Mark Resolved
                   </button>
                 )}
-                <button onClick={() => setActiveNote({ id: c.id, text: c.adminNotes || "" })}
+                <button onClick={() => setActiveNote({ id: c._id, text: c.adminNotes || "" })}
                   className="rounded-lg bg-muted px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted/80 transition-all active:scale-95">
                   {c.adminNotes ? "Edit Note" : "Add Note"}
                 </button>
               </div>
 
               {/* Note Editor */}
-              {activeNote.id === c.id && (
+              {activeNote.id === c._id && (
                 <div className="space-y-2 border-t border-border pt-3">
                   <textarea rows={2} value={activeNote.text} onChange={e => setActiveNote({ ...activeNote, text: e.target.value })}
                     placeholder="Add admin response or notes..."
                     className="w-full rounded-xl border border-border bg-background p-3 text-xs focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
                   <div className="flex gap-2">
-                    <button onClick={() => saveNote(c.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">Save</button>
+                    <button onClick={() => saveNote(c._id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">Save</button>
                     <button onClick={() => setActiveNote({ id: null, text: "" })} className="rounded-lg bg-muted px-3 py-1.5 text-xs font-bold text-foreground">Cancel</button>
                   </div>
                 </div>
               )}
 
-              {c.adminNotes && activeNote.id !== c.id && (
+              {c.adminNotes && activeNote.id !== c._id && (
                 <div className="rounded-xl bg-primary/5 border border-primary/10 p-3">
                   <p className="text-[10px] font-bold text-primary uppercase mb-1">Admin Note</p>
                   <p className="text-xs text-foreground">{c.adminNotes}</p>

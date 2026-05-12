@@ -864,6 +864,18 @@ async function verifyEmployee(req, res) {
 
         await employee.save();
 
+        // Log Action
+        await AuditLog.create({
+            actionType: "VERIFY",
+            entityType: "EMPLOYEE",
+            entityId: employee._id,
+            entityName: employee.name,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { status: 'verified' }
+        });
+
         res.json({ success: true, message: 'Employee verified successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -881,6 +893,18 @@ async function rejectEmployee(req, res) {
         employee.status = 'rejected';
         
         await employee.save();
+
+        // Log Action
+        await AuditLog.create({
+            actionType: "REJECT",
+            entityType: "EMPLOYEE",
+            entityId: employee._id,
+            entityName: employee.name,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { status: 'rejected' }
+        });
 
         res.json({ success: true, message: 'Employee verification rejected' });
     } catch (error) {
@@ -1489,18 +1513,49 @@ const getAdminKycPerformance = async (req, res) => {
 const getSewakIncentives = async (req, res) => {
     try {
         const { date, sewakId } = req.query;
-        const query = {};
-        if (date) query.date = date;
-        if (sewakId) query.sewakId = sewakId;
-
-        const logs = await SewakIncentiveLog.find(query)
-            .populate('sewakId', 'ownerName mobile shopName')
-            .sort({ createdAt: -1 });
-
-        // Get Global Settings for context
+        
+        // Get Global Settings
         const settings = await Setting.find({ key: { $in: ['DAILY_BOOKING_THRESHOLD', 'BONUS_PER_EXTRA_BOOKING'] } });
         const threshold = Number(settings.find(s => s.key === 'DAILY_BOOKING_THRESHOLD')?.value || 5);
         const bonusAmount = Number(settings.find(s => s.key === 'BONUS_PER_EXTRA_BOOKING')?.value || 50);
+
+        // Define date range
+        const queryDate = date || new Date().toISOString().split('T')[0];
+        const startOfDay = new Date(queryDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(queryDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Fetch Sewaks
+        const sewakQuery = { providerCategory: 'sewak' };
+        if (sewakId) sewakQuery._id = sewakId;
+        const sewaks = await Provider.find(sewakQuery).select('ownerName mobile shopName');
+
+        // Calculate counts for each sewak
+        const logs = await Promise.all(sewaks.map(async (sewak) => {
+            const dailyBookingCount = await Booking.countDocuments({
+                providerId: sewak._id,
+                status: 'completed',
+                updatedAt: { $gte: startOfDay, $lte: endOfDay }
+            });
+
+            const incentiveLog = await SewakIncentiveLog.findOne({
+                sewakId: sewak._id,
+                date: queryDate
+            });
+
+            return {
+                _id: incentiveLog?._id || sewak._id, // Fallback to sewak ID if no log
+                sewakId: sewak,
+                dailyBookingCount,
+                bonusEarned: incentiveLog ? incentiveLog.bonusEarned : 0,
+                earned: dailyBookingCount > threshold,
+                date: queryDate
+            };
+        }));
+
+        // Sort by count descending
+        logs.sort((a, b) => b.dailyBookingCount - a.dailyBookingCount);
 
         res.json({
             logs,
@@ -1524,6 +1579,84 @@ const updateSewakIncentiveSettings = async (req, res) => {
         ]);
 
         res.json({ message: 'Sewak incentive settings updated' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get all combos for admin
+// @route   GET /api/admin/combos
+// @access  Private/Admin
+const getCombos = async (req, res) => {
+    try {
+        const { status } = req.query;
+        const query = status ? { status } : {};
+        const combos = await Combo.find(query)
+            .populate('providerId', 'shopName ownerName mobile city vendorCode')
+            .populate('services')
+            .sort({ createdAt: -1 });
+        res.json(combos);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Verify/Approve a combo
+// @route   PUT /api/admin/combos/:id/verify
+// @access  Private/Admin
+const verifyCombo = async (req, res) => {
+    try {
+        const combo = await Combo.findById(req.params.id);
+        if (!combo) {
+            return res.status(404).json({ message: 'Combo not found' });
+        }
+        combo.status = 'approved';
+        combo.isActive = true; // Make it active on approval
+        await combo.save();
+
+        // Log Action
+        await AuditLog.create({
+            actionType: "VERIFY",
+            entityType: "COMBO",
+            entityId: combo._id,
+            entityName: combo.name,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { status: 'approved' }
+        });
+
+        res.json({ success: true, message: 'Combo approved' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Reject a combo
+// @route   PUT /api/admin/combos/:id/reject
+// @access  Private/Admin
+const rejectCombo = async (req, res) => {
+    try {
+        const combo = await Combo.findById(req.params.id);
+        if (!combo) {
+            return res.status(404).json({ message: 'Combo not found' });
+        }
+        combo.status = 'rejected';
+        await combo.save();
+
+        // Log Action
+        await AuditLog.create({
+            actionType: "REJECT",
+            entityType: "COMBO",
+            entityId: combo._id,
+            entityName: combo.name,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { status: 'rejected' }
+        });
+
+        res.json({ success: true, message: 'Combo rejected' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -1592,5 +1725,8 @@ module.exports = {
     applyGlobalNightChargeToAll,
     getAdminKycPerformance,
     getSewakIncentives,
-    updateSewakIncentiveSettings
+    updateSewakIncentiveSettings,
+    getCombos,
+    verifyCombo,
+    rejectCombo
 };

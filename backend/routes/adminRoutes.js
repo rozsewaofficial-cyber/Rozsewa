@@ -63,7 +63,10 @@ const {
     applyGlobalNightChargeToAll,
     getAdminKycPerformance,
     getSewakIncentives,
-    updateSewakIncentiveSettings
+    updateSewakIncentiveSettings,
+    getCombos,
+    verifyCombo,
+    rejectCombo
 } = require('../controllers/adminController');
 
 const {
@@ -174,6 +177,11 @@ router.post('/sewaks', protect, admin, createSewak);
 router.get('/sewaks/pending-kyc', protect, admin, getPendingSewaks);
 router.put('/sewaks/:id/verify', protect, admin, verifySewak);
 router.put('/sewaks/:id/reject', protect, admin, rejectSewak);
+
+// Combo Management
+router.get('/combos', protect, admin, getCombos);
+router.put('/combos/:id/verify', protect, admin, verifyCombo);
+router.put('/combos/:id/reject', protect, admin, rejectCombo);
 
 // Benefit Policy Management
 router.get('/benefit-policies', protect, admin, getBenefitPolicies);

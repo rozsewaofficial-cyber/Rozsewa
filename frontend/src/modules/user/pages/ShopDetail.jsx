@@ -47,6 +47,7 @@ const ShopDetail = () => {
   const [provider, setProvider] = useState(null);
   const [servicesList, setServicesList] = useState([]);
   const [combosList, setCombosList] = useState([]);
+  const [reviewsList, setReviewsList] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -104,6 +105,10 @@ const ShopDetail = () => {
         services: c.services
       }));
       setCombosList(mappedCombos);
+
+      // 3. Fetch reviews
+      const { data: reviewsData } = await API.get(`/public/providers/${id}/reviews`);
+      setReviewsList(reviewsData || []);
 
     } catch (error) {
       console.error("Error loading shop detail:", error);
@@ -378,19 +383,22 @@ const ShopDetail = () => {
               </div>
 
               <div className="space-y-3">
-                {fakeReviews.map(r => (
-                  <div key={r.id} className="rounded-2xl border border-border bg-card p-4">
+                {reviewsList.length === 0 ? (
+                  <p className="text-center text-sm font-semibold text-muted-foreground py-4">No reviews yet.</p>
+                ) : reviewsList.map(r => (
+                  <div key={r._id} className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{r.user.substring(0, 2)}</div>
                         <div>
                           <p className="text-sm font-bold text-foreground">{r.user}</p>
-                          <p className="text-[10px] text-muted-foreground">{r.date}</p>
+                          <p className="text-[10px] text-muted-foreground">{new Date(r.date).toLocaleDateString()}</p>
                         </div>
                       </div>
                       <div className="flex gap-0.5">{[1, 2, 3, 4, 5].map(s => <Star key={s} className={`h-3 w-3 ${s <= r.rating ? "fill-amber-400 text-amber-400" : "text-border"}`} />)}</div>
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{r.text}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{r.review}</p>
+                    {r.service && <p className="text-[10px] font-bold text-primary mt-1">Service: {r.service}</p>}
                   </div>
                 ))}
               </div>

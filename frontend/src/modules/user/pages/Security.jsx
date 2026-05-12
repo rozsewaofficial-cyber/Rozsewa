@@ -13,6 +13,7 @@ const Security = () => {
   const { logout } = useAuth();
   const { toast } = useToast();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "" });
   const [loading, setLoading] = useState(false);
 
@@ -30,16 +31,18 @@ const Security = () => {
     setLoading(false);
   };
 
-  const handleDeleteAccount = async () => {
-    if (window.confirm("ARE YOU SURE? This will permanently delete your RojSewa account/wallet and cannot be undone!")) {
-      try {
-        await API.delete("/auth/profile");
-        toast({ title: "Account Deleted" });
-        logout();
-        navigate("/login");
-      } catch (err) {
-        toast({ title: "Failed to delete account", variant: "destructive" });
-      }
+  const confirmDeleteAccount = async () => {
+    setLoading(true);
+    try {
+      await API.delete("/auth/profile");
+      toast({ title: "Account Deleted" });
+      logout();
+      navigate("/login");
+    } catch (err) {
+      toast({ title: "Failed to delete account", variant: "destructive" });
+    } finally {
+      setLoading(false);
+      setShowDeleteModal(false);
     }
   };
 
@@ -93,7 +96,7 @@ const Security = () => {
 
         <div className="pt-4 space-y-4">
           <h3 className="text-xs font-black text-muted-foreground uppercase tracking-widest px-2">Dangerous Area</h3>
-          <motion.button whileTap={{ scale: 0.98 }} onClick={handleDeleteAccount}
+          <motion.button whileTap={{ scale: 0.98 }} onClick={() => setShowDeleteModal(true)}
             className="flex w-full items-center justify-between gap-4 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 transition-all hover:bg-rose-500/10">
             <div className="text-left">
               <h4 className="text-sm font-black text-rose-600">Delete Account</h4>
@@ -128,6 +131,31 @@ const Security = () => {
                   {loading ? "Updating..." : "Update Password"}
                 </button>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showDeleteModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-6 border border-border shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-black text-foreground tracking-tight">Delete Account?</h3>
+                <button onClick={() => setShowDeleteModal(false)}><X className="h-5 w-5" /></button>
+              </div>
+              <div className="flex flex-col items-center text-center p-4 mb-4 bg-rose-500/5 rounded-2xl border border-rose-500/10">
+                <AlertTriangle className="h-10 w-10 text-rose-500 mb-2" />
+                <p className="text-sm font-bold text-foreground">Are you absolutely sure?</p>
+                <p className="text-xs font-medium text-muted-foreground mt-1">This action cannot be undone. All your data and wallet history will be permanently erased.</p>
+              </div>
+              <div className="space-y-3">
+                <button onClick={confirmDeleteAccount} disabled={loading} className="w-full bg-rose-500 text-white py-3.5 rounded-xl text-sm font-black uppercase tracking-widest hover:bg-rose-600 transition-colors">
+                  {loading ? "Deleting..." : "Yes, Delete Account"}
+                </button>
+                <button onClick={() => setShowDeleteModal(false)} className="w-full bg-muted text-foreground py-3.5 rounded-xl text-sm font-black uppercase tracking-widest hover:bg-muted/80 transition-colors">
+                  Cancel
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

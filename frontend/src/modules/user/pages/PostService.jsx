@@ -6,12 +6,14 @@ import TopNav from "@/modules/user/components/TopNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import BottomNav from "@/modules/user/components/BottomNav";
+import { useAuth } from "@/context/AuthContext";
 
 const tags = ["On Time", "Clean Work", "Polite", "Professional", "Affordable", "Expert"];
 
 const PostService = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +25,7 @@ const PostService = () => {
   const [review, setReview] = useState("");
   const [paymentDone, setPaymentDone] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
 
   const fetchBooking = async () => {
     try {
@@ -46,6 +49,73 @@ const PostService = () => {
     fetchBooking();
   }, []);
 
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleRazorpayPayment = async () => {
+    if (!booking) return;
+    setIsPaying(true);
+    const res = await loadRazorpay();
+
+    if (!res) {
+      toast({ title: "SDK failed to load.", variant: "destructive" });
+      setIsPaying(false);
+      return;
+    }
+
+    try {
+      const { data: order } = await API.post("/payment/order", {
+        amount: finalTotal,
+        currency: "INR"
+      });
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa",
+        description: `Payment for ${booking.serviceName}`,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            const { data: verification } = await API.post("/payment/verify", {
+              ...response,
+              bookingId: booking._id
+            });
+            if (verification.success) {
+              toast({ title: "Payment Successful!", description: "Your booking is now fully confirmed." });
+              setPaymentDone(true);
+              setShowConfetti(true);
+              setTimeout(() => setShowConfetti(false), 3000);
+            }
+          } catch (err) {
+            toast({ title: "Verification Failed", variant: "destructive" });
+          }
+        },
+        prefill: {
+          name: user?.name,
+          email: user?.email,
+          contact: user?.mobile,
+        },
+        theme: { color: "#10b981" },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+    } catch (err) {
+      toast({ title: "Payment Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
   const extraTotal = booking?.extraCharges?.reduce((sum, item) => sum + item.amount, 0) || 0;
   const baseAmount = booking?.totalAmount || 0;
   const finalTotal = baseAmount + (approved ? extraTotal : 0);
@@ -61,10 +131,16 @@ const PostService = () => {
     }
   };
 
-  const handlePayment = () => {
-    setPaymentDone(true);
-    setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 3000);
+  const handlePayment = async (method) => {
+    try {
+      await API.patch(`/bookings/${booking._id}/status`, { paymentStatus: 'paid', status: 'completed' });
+      setPaymentDone(true);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+      toast({ title: method === 'cod' ? "COD Payment Confirmed!" : "Payment Successful!" });
+    } catch (err) {
+      toast({ title: "Failed to update payment status", variant: "destructive" });
+    }
   };
 
   if (loading) return (
@@ -193,13 +269,23 @@ const PostService = () => {
 
         {/* Payment */}
         {!paymentDone ? (
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={handlePayment}
-            className="w-full rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground shadow-xl"
-          >
-            Pay ₹{finalTotal}
-          </motion.button>
+          <div className="flex gap-3">
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleRazorpayPayment}
+              disabled={isPaying}
+              className="flex-1 rounded-2xl bg-primary py-4 text-sm font-extrabold text-primary-foreground shadow-xl"
+            >
+              {isPaying ? "Processing..." : `Pay Online ₹${finalTotal}`}
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => handlePayment('cod')}
+              className="flex-1 rounded-2xl border-2 border-emerald-600 py-4 text-sm font-extrabold text-emerald-600 hover:bg-emerald-50 transition-colors"
+            >
+              Confirm COD Pay
+            </motion.button>
+          </div>
         ) : (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -210,10 +296,6 @@ const PostService = () => {
               <Check className="mx-auto h-12 w-12" />
             </motion.div>
             <h3 className="mt-3 text-xl font-extrabold">Payment Successful!</h3>
-            <div className="mt-3 flex items-center justify-center gap-2 rounded-full bg-white/20 py-2 px-4 mx-auto w-fit">
-              <Gift className="h-4 w-4" />
-              <span className="text-sm font-bold">+50 Cashback Points Earned! 🎉</span>
-            </div>
             {showConfetti && (
               <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
                 {Array.from({ length: 30 }).map((_, i) => (
@@ -288,7 +370,19 @@ const PostService = () => {
             />
             <motion.button
               whileTap={{ scale: 0.97 }}
-              onClick={() => navigate("/")}
+              onClick={async () => {
+                try {
+                  await API.post(`/bookings/${booking._id}/review`, {
+                    rating,
+                    comment: review,
+                    tags: selectedTags
+                  });
+                  toast({ title: "Review submitted successfully!" });
+                  navigate("/");
+                } catch (err) {
+                  toast({ title: "Failed to submit review", variant: "destructive" });
+                }
+              }}
               className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground"
             >
               Submit Review

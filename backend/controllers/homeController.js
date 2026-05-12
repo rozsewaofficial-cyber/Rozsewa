@@ -198,7 +198,11 @@ const getPublicConfig = async (req, res) => {
 const getPublicServiceByProvider = async (req, res) => {
     try {
         const services = await Service.find({ providerId: req.params.providerId, visible: true });
-        const combos = await Combo.find({ providerId: req.params.providerId, isActive: true }).populate('services');
+        const combos = await Combo.find({ 
+            providerId: req.params.providerId, 
+            isActive: true,
+            $or: [{ status: 'approved' }, { status: { $exists: false } }]
+        }).populate('services');
         res.json({ services, combos });
     } catch (error) {
         res.status(500).json({ message: error.message });

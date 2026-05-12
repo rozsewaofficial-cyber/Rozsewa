@@ -9,7 +9,7 @@ const bookingSchema = new mongoose.Schema({
     providerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Provider',
-        required: true,
+        required: false,
     },
     serviceName: {
         type: String,
@@ -64,6 +64,10 @@ const bookingSchema = new mongoose.Schema({
     comment: {
         type: String,
         default: '',
+    },
+    tags: {
+        type: [String],
+        default: [],
     },
     couponCode: {
         type: String,

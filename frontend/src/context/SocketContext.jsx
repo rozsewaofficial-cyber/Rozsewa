@@ -27,6 +27,14 @@ export const SocketProvider = ({ children }) => {
             console.log("Global Socket: New booking received", data);
             sessionStorage.setItem('activeRequest', JSON.stringify(data));
             setIncomingRequest(data);
+            
+            // Play alert sound
+            try {
+                const audio = new Audio('/sounds/alert.mp3');
+                audio.play();
+            } catch (err) {
+                console.log("Failed to play alert sound:", err);
+            }
         });
 
         newSocket.on("BOOKING_TAKEN", (data) => {
@@ -39,13 +47,23 @@ export const SocketProvider = ({ children }) => {
             });
         });
 
+        newSocket.on("BOOKING_REJECTED", (data) => {
+            console.log("Global Socket: Booking rejected", data);
+            window.dispatchEvent(new CustomEvent('BOOKING_REJECTED', { detail: data }));
+        });
+
         return () => newSocket.close();
     }, []);
 
     useEffect(() => {
-        if (socket && user && user.role === 'provider') {
-            socket.emit('join_provider', user._id);
-            console.log('Provider joined socket room:', user._id);
+        if (socket && user) {
+            if (user.role === 'provider') {
+                socket.emit('join_provider', user._id);
+                console.log('Provider joined socket room:', user._id);
+            } else {
+                socket.emit('join_user', user._id);
+                console.log('User joined socket room:', user._id);
+            }
         }
     }, [socket, user]);
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Phone, MessageCircle, AlertOctagon, Check, Clock, User, Star, Shield, CreditCard } from "lucide-react";
+import { ArrowLeft, Phone, MessageCircle, AlertOctagon, Check, Clock, User, Star, Shield, CreditCard, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -99,20 +99,38 @@ const LiveTracking = () => {
   const fetchBookingStatus = async () => {
     try {
       const { data } = await API.get('/bookings');
-      // Find the most recent active booking
-      const active = data.find(b => ['confirmed', 'on_the_way', 'started'].includes(b.status));
+      // Find the most recent active booking (including pending and completed)
+      const active = data.find(b => ['pending', 'confirmed', 'on_the_way', 'started', 'completed'].includes(b.status));
       if (active) {
         setBookingDetails(active);
         // Map status to currentStep
-        if (active.status === 'confirmed') setCurrentStep(1);
+        if (active.status === 'pending') setCurrentStep(0);
+        else if (active.status === 'confirmed') setCurrentStep(1);
         else if (active.status === 'on_the_way') setCurrentStep(2);
         else if (active.status === 'started') setCurrentStep(3);
-        else if (active.status === 'completed') setCurrentStep(4);
+        else if (active.status === 'completed') {
+          setCurrentStep(4);
+          navigate('/post-service');
+        }
       }
     } catch (err) {
       console.error("Failed to fetch booking status", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async () => {
+    if (!bookingDetails) return;
+    const confirmCancel = window.confirm("Are you sure you want to cancel this booking?");
+    if (!confirmCancel) return;
+
+    try {
+      await API.patch(`/bookings/${bookingDetails._id}/status`, { status: 'cancelled' });
+      toast({ title: "Booking Cancelled", description: "Your booking has been cancelled successfully." });
+      navigate("/bookings");
+    } catch (err) {
+      toast({ title: "Failed to cancel booking", variant: "destructive" });
     }
   };
 
@@ -139,6 +157,19 @@ const LiveTracking = () => {
     fetchBookingStatus();
     const interval = setInterval(fetchBookingStatus, 3000); // Polling faster (3s)
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleRejected = (e) => {
+      toast({ 
+        title: "Request Rejected", 
+        description: "The provider has rejected your request.",
+        variant: "destructive"
+      });
+    };
+
+    window.addEventListener('BOOKING_REJECTED', handleRejected);
+    return () => window.removeEventListener('BOOKING_REJECTED', handleRejected);
   }, []);
 
   const handleOtpChange = async (idx, val) => {
@@ -257,18 +288,15 @@ const LiveTracking = () => {
               <button className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-muted"><MessageCircle className="h-4 w-4 text-primary" /></button>
             </div>
           </div>
-          {/* SOS Button */}
+          {/* Cancel Button */}
           <motion.button
             whileTap={{ scale: 0.95 }}
-            className="mt-4 w-full rounded-xl py-3 text-sm font-bold text-destructive-foreground shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, hsl(0 84% 60%), hsl(0 70% 50%))",
-              animation: "emergency-pulse 2s ease-in-out infinite",
-            }}
+            onClick={handleCancelBooking}
+            className="mt-4 w-full rounded-xl py-3 text-sm font-bold text-destructive border-2 border-destructive bg-transparent hover:bg-destructive/5 transition-colors"
           >
             <div className="flex items-center justify-center gap-2">
-              <AlertOctagon className="h-5 w-5" />
-              SOS / Emergency
+              <X className="h-5 w-5" />
+              Cancel Booking
             </div>
           </motion.button>
         </motion.div>

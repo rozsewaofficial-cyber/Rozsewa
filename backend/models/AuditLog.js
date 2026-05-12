@@ -18,7 +18,7 @@ const auditLogSchema = new mongoose.Schema({
     entityName: String,
     verifiedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Admin',
+        ref: 'User',
         required: true
     },
     verifiedByName: String,

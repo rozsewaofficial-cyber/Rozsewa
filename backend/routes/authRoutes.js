@@ -11,7 +11,12 @@ const {
     sendOTP,
     verifyOTP,
     loginWithOTP,
-    verifyCredentials
+    verifyCredentials,
+    addAddress,
+    deleteAddress,
+    addFavorite,
+    deleteFavorite,
+    getFavorites
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -26,5 +31,12 @@ router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);
 router.delete('/profile', protect, deleteUserAccount);
 router.put('/password', protect, updatePassword);
+
+// Dedicated endpoints for sub-resources
+router.get('/favorites', protect, getFavorites);
+router.post('/addresses', protect, addAddress);
+router.delete('/addresses/:id', protect, deleteAddress);
+router.post('/favorites', protect, addFavorite);
+router.delete('/favorites/:id', protect, deleteFavorite);
 
 module.exports = router;

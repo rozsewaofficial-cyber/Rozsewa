@@ -2,30 +2,38 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, MapPin, BadgeCheck, Clock, Heart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import API from "@/lib/api";
 
 const ServiceCard = ({ id, name, category, rating, reviews, distance, price, image, verified, emergency }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isFavorite, setIsFavorite] = useState(false);
 
   useEffect(() => {
-    const favorites = JSON.parse(localStorage.getItem("rozsewa_user_favorites") || "[]");
-    setIsFavorite(favorites.some(fav => fav.id === id));
-  }, [id]);
-
-  const toggleFavorite = (e) => {
-    e.stopPropagation(); // Prevent card click
-    const favorites = JSON.parse(localStorage.getItem("rozsewa_user_favorites") || "[]");
-    let newFavorites;
-    
-    if (isFavorite) {
-      newFavorites = favorites.filter(fav => fav.id !== id);
-    } else {
-      const itemToSave = { id, name, category, rating, reviews, distance, price, image, verified };
-      newFavorites = [...favorites, itemToSave];
+    if (user?.favorites) {
+      setIsFavorite(user.favorites.includes(id));
     }
-    
-    localStorage.setItem("rozsewa_user_favorites", JSON.stringify(newFavorites));
-    setIsFavorite(!isFavorite);
+  }, [user, id]);
+
+  const toggleFavorite = async (e) => {
+    e.stopPropagation(); // Prevent card click
+    if (!user) {
+      alert("Please login to add favorites");
+      return;
+    }
+
+    try {
+      if (isFavorite) {
+        await API.delete(`/auth/favorites/${id}`);
+        setIsFavorite(false);
+      } else {
+        await API.post("/auth/favorites", { providerId: id });
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      console.error("Failed to update favorite", error);
+    }
   };
 
   return (

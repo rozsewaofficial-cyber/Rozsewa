@@ -1,13 +1,57 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { HelpCircle, FileText, Plus, BookOpen, MessageSquare, ExternalLink, PlayCircle } from "lucide-react";
+import { HelpCircle, FileText, Plus, BookOpen, MessageSquare, ExternalLink, PlayCircle, Trash2, X } from "lucide-react";
+import API from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 const AdminHelpTraining = () => {
     const { setTitle } = useOutletContext();
+    const { toast } = useToast();
+    const [faqs, setFaqs] = useState([]);
+    const [showModal, setShowModal] = useState(false);
+    const [formData, setFormData] = useState({ question: "", answer: "", category: "General" });
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         setTitle("Help & Training");
+        fetchFaqs();
     }, [setTitle]);
+
+    const fetchFaqs = async () => {
+        try {
+            const { data } = await API.get("/faqs");
+            setFaqs(data);
+        } catch (err) {
+            console.error("Failed to fetch FAQs", err);
+        }
+    };
+
+    const handleCreateFaq = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await API.post("/faqs", formData);
+            toast({ title: "FAQ Created" });
+            setShowModal(false);
+            setFormData({ question: "", answer: "", category: "General" });
+            fetchFaqs();
+        } catch (err) {
+            toast({ title: "Error", description: err.response?.data?.message || "Failed to create", variant: "destructive" });
+        }
+        setLoading(false);
+    };
+
+    const handleDeleteFaq = async (id) => {
+        if (window.confirm("Are you sure you want to delete this FAQ?")) {
+            try {
+                await API.delete(`/faqs/${id}`);
+                toast({ title: "FAQ Deleted" });
+                fetchFaqs();
+            } catch (err) {
+                toast({ title: "Error", description: err.response?.data?.message || "Failed to delete", variant: "destructive" });
+            }
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -16,7 +60,7 @@ const AdminHelpTraining = () => {
                     <h1 className="text-2xl font-black text-foreground">Help & Training Console</h1>
                     <p className="text-sm text-muted-foreground mt-1">Manage vendor training guides, customer help center, and app documentation.</p>
                 </div>
-                <button className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-emerald-700 transition"><Plus className="h-4 w-4" /> Create Article</button>
+                <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-emerald-700 transition"><Plus className="h-4 w-4" /> Create FAQ</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -49,17 +93,19 @@ const AdminHelpTraining = () => {
                     <section>
                         <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 px-1"><MessageSquare className="h-4 w-4" /> Customer App FAQ Hub</h3>
                         <div className="rounded-2xl border border-border bg-white shadow-sm divide-y divide-border border-gray-100 divide-gray-100">
-                            {[
-                                "How to reschedule my booking?", "Understanding cancellation charges", "Reporting bad service behavior", "Applying coupon codes successfully"
-                            ].map((qa, i) => (
-                                <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer text-sm font-bold text-gray-700 px-6">
-                                    {qa}
-                                    <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">Live</span>
+                            {faqs.length === 0 ? (
+                                <div className="p-4 text-center text-sm text-gray-500">No FAQs found.</div>
+                            ) : faqs.map((f) => (
+                                <div key={f._id} className="p-4 flex items-center justify-between hover:bg-gray-50 text-sm font-bold text-gray-700 px-6">
+                                    <div>
+                                        <p className="text-gray-900">{f.question}</p>
+                                        <p className="text-xs font-medium text-gray-500 mt-1">{f.answer}</p>
+                                    </div>
+                                    <button onClick={() => handleDeleteFaq(f._id)} className="text-rose-500 hover:text-rose-700 transition-colors">
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
                                 </div>
                             ))}
-                            <div className="p-4 text-center">
-                                <button className="text-xs font-black uppercase tracking-widest text-blue-600 hover:scale-105 transition">Manage all 42 Articles →</button>
-                            </div>
                         </div>
                     </section>
                 </div>
@@ -99,6 +145,38 @@ const AdminHelpTraining = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modal for Create FAQ */}
+            {showModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black text-foreground">Create New FAQ</h3>
+                            <button onClick={() => setShowModal(false)}><X className="h-5 w-5" /></button>
+                        </div>
+                        <form onSubmit={handleCreateFaq} className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-gray-600">Question</label>
+                                <input type="text" required value={formData.question} onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                                    className="w-full h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm focus:border-emerald-500 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-600">Answer</label>
+                                <textarea required value={formData.answer} onChange={(e) => setFormData({ ...formData, answer: e.target.value })}
+                                    className="w-full h-24 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm focus:border-emerald-500 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-600">Category</label>
+                                <input type="text" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                    className="w-full h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm focus:border-emerald-500 focus:outline-none" />
+                            </div>
+                            <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 transition">
+                                {loading ? "Creating..." : "Create FAQ"}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
