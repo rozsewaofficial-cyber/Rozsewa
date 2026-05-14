@@ -315,19 +315,20 @@ const AdminHRM = ({ view }) => {
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Hierarchy</th>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Contact</th>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Referrals</th>
+                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-center">Commission (₹)</th>
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center">
+                                    <td colSpan={6} className="px-6 py-12 text-center">
                                         <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto" />
                                     </td>
                                 </tr>
                             ) : filtered.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-bold italic">
+                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-bold italic">
                                         No staff members found.
                                     </td>
                                 </tr>
@@ -379,6 +380,11 @@ const AdminHRM = ({ view }) => {
                                     <td className="px-6 py-4 text-center">
                                         <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-black">
                                             {emp.referralCount || 0}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-black">
+                                            ₹{emp.registrationCommission || 0}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">

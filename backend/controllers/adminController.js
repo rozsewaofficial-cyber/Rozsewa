@@ -1493,12 +1493,18 @@ const getAdminKycPerformance = async (req, res) => {
             {
                 $match: {
                     actionType: "VERIFY",
-                    entityType: "SEWAK"
+                    entityType: { $in: ["SEWAK", "VENDOR"] }
                 }
             },
             {
                 $group: {
                     _id: "$verifiedBy",
+                    totalSewakVerified: { 
+                        $sum: { $cond: [{ $eq: ["$entityType", "SEWAK"] }, 1, 0] } 
+                    },
+                    totalVendorVerified: { 
+                        $sum: { $cond: [{ $eq: ["$entityType", "VENDOR"] }, 1, 0] } 
+                    },
                     totalVerified: { $sum: 1 },
                     totalBonus: { $sum: "$bonusEarned" },
                     adminName: { $first: "$verifiedByName" }
@@ -1510,16 +1516,18 @@ const getAdminKycPerformance = async (req, res) => {
         const admins = await User.find({ role: 'admin' }, 'name kycLimit kycBonusPerVerification kycAccess');
 
         const report = admins.map(admin => {
-            const perf = performance.find(p => p._id.toString() === admin._id.toString()) || { totalVerified: 0, totalBonus: 0 };
+            const perf = performance.find(p => p._id && p._id.toString() === admin._id.toString()) || { totalVerified: 0, totalBonus: 0, totalSewakVerified: 0, totalVendorVerified: 0 };
             return {
                 adminId: admin._id,
                 name: admin.name,
                 kycAccess: admin.kycAccess,
                 kycLimit: admin.kycLimit,
                 bonusPerKyc: admin.kycBonusPerVerification,
-                totalVerified: perf.totalVerified,
-                totalBonus: perf.totalBonus,
-                remainingForBonus: Math.max(0, admin.kycLimit - perf.totalVerified)
+                totalVerified: perf.totalVerified || 0,
+                totalSewakVerified: perf.totalSewakVerified || 0,
+                totalVendorVerified: perf.totalVendorVerified || 0,
+                totalBonus: perf.totalBonus || 0,
+                remainingForBonus: Math.max(0, admin.kycLimit - (perf.totalVerified || 0))
             };
         });
 

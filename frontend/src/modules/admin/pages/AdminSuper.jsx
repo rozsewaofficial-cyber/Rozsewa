@@ -826,6 +826,10 @@ const AdminSuper = () => {
                                 <div>
                                     <h3 className="text-sm font-black text-gray-900">{perf.name}</h3>
                                     <p className="text-[10px] font-bold text-gray-400 uppercase">Limit: {perf.kycLimit} KYC • Bonus: ₹{perf.bonusPerKyc}/ea</p>
+                                    <div className="flex justify-between text-[10px] font-black text-emerald-600 uppercase mt-1">
+                                        <span>Sewaks: {perf.totalSewakVerified || 0}</span>
+                                        <span>Providers: {perf.totalVendorVerified || 0}</span>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2">
@@ -849,6 +853,32 @@ const AdminSuper = () => {
                                             <CheckCircle2 className="h-3 w-3" /> Bonus Threshold Reached
                                         </p>
                                     )}
+                                </div>
+                                <div className="flex justify-end gap-4 pt-3 border-t border-gray-100 mt-2">
+                                    <button
+                                        onClick={() => {
+                                            const admin = admins.find(a => a._id === perf.adminId);
+                                            if (admin) { setSelectedAdmin(admin); setShowDrawer(true); }
+                                        }}
+                                        className="text-[11px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-wider"
+                                    >
+                                        Detail
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const admin = admins.find(a => a._id === perf.adminId);
+                                            if (admin) startEditing(admin);
+                                        }}
+                                        className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 uppercase tracking-wider"
+                                    >
+                                        Edit
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteAdmin(perf.adminId)}
+                                        className="text-[11px] font-black text-red-600 hover:text-red-700 uppercase tracking-wider"
+                                    >
+                                        Delete
+                                    </button>
                                 </div>
                             </CardContent>
                         </Card>
