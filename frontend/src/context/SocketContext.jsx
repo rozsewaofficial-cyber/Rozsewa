@@ -15,8 +15,10 @@ export const SocketProvider = ({ children }) => {
     const { user } = useAuth();
 
     useEffect(() => {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-        const socketUrl = API_URL.replace('/api', '');
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+        // Extract the base URL (protocol + host) and remove /api if present at the end
+        const socketUrl = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
+        
         const newSocket = io(socketUrl, {
             withCredentials: true,
             transports: ['polling', 'websocket']

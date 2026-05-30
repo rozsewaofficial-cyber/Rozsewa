@@ -34,14 +34,29 @@ const server = http.createServer(app);
 initSocket(server);
 
 // Middleware
-const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:8080';
-console.log('CORS Allowed Origin:', allowedOrigin);
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'https://rozsewa.in',
+    'https://rozsewa.vercel.app'
+].filter(Boolean);
+
+console.log('CORS Allowed Origins:', allowedOrigins);
 
 app.use(cors({
-    origin: allowedOrigin,
+    origin: function (origin, callback) {
+        // allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            var msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds
