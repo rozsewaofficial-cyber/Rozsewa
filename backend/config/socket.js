@@ -10,6 +10,7 @@ const initSocket = (server) => {
                 'http://localhost:8080',
                 'http://localhost:5173',
                 'https://rozsewa.in',
+                'https://www.rozsewa.in',
                 'https://rozsewa.vercel.app'
             ].filter(Boolean),
             methods: ["GET", "POST"],
