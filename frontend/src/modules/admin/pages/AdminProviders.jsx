@@ -76,12 +76,14 @@ const AdminProviders = () => {
   };
 
   const deleteProvider = async (id) => {
-    if (!window.confirm("Are you sure you want to remove this provider?")) return;
+    if (!window.confirm("Are you sure you want to remove this provider? This action cannot be undone.")) return;
     try {
-      // Assuming a delete route exists or using update status to suspended
-      toast({ title: "Provider Removed", description: "This feature is coming soon." });
+      await API.delete(`/admin/providers/${id}`);
+      setProviders(providers.filter(p => p._id !== id));
+      toast({ title: "Provider Removed", description: "Provider and associated data deleted successfully." });
     } catch (err) {
-      toast({ title: "Error", variant: "destructive" });
+      console.error(err);
+      toast({ title: "Error", description: err.response?.data?.message || "Failed to delete provider", variant: "destructive" });
     }
   };
 
@@ -162,127 +164,154 @@ const AdminProviders = () => {
       )}
 
       {/* Providers Table */}
-      <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl shadow-gray-200/50">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-400 uppercase tracking-widest text-[9px] font-black">
+            <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase tracking-wider text-xs font-semibold">
               <tr>
-                <th className="py-5 px-6">Provider Info</th>
-                <th className="py-5 px-6">Industry & Category</th>
-                <th className="py-5 px-6 text-center">Stats</th>
-                <th className="py-5 px-6">Status</th>
-                <th className="py-5 px-6 text-right">Actions</th>
+                <th className="py-4 px-6">Provider</th>
+                <th className="py-4 px-6">Details</th>
+                <th className="py-4 px-6">Settings</th>
+                <th className="py-4 px-6 text-center">Rating</th>
+                <th className="py-4 px-6">Status</th>
+                <th className="py-4 px-6 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-100">
               {filteredProviders.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="py-24 text-center">
-                    <div className="flex flex-col items-center gap-2">
-                      <Search className="h-10 w-10 text-gray-200" />
-                      <p className="text-gray-400 font-bold text-sm tracking-tight">No providers match your filter.</p>
+                  <td colSpan="6" className="py-24 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="h-16 w-16 rounded-full bg-gray-50 flex items-center justify-center">
+                        <Search className="h-8 w-8 text-gray-300" />
+                      </div>
+                      <p className="text-gray-500 font-medium text-base">No providers match your filter.</p>
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredProviders.map((provider) => (
-                  <motion.tr key={provider._id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hover:bg-emerald-50/20 transition-colors group">
-                    <td className="py-4 px-6 max-w-[280px]">
+                  <motion.tr key={provider._id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hover:bg-gray-50/80 transition-colors group">
+                    {/* Provider Column */}
+                    <td className="py-5 px-6 max-w-[280px]">
                       <div className="flex items-center gap-4">
-                        <div className="flex shrink-0 h-12 w-12 items-center justify-center rounded-2xl bg-gray-50 border-2 border-white shadow-md overflow-hidden transform group-hover:scale-105 transition-transform">
+                        <div className="flex shrink-0 h-14 w-14 items-center justify-center rounded-xl bg-gray-100 border border-gray-200 overflow-hidden relative">
                           {provider.profileImage ? (
                             <img src={provider.profileImage} alt={provider.shopName} className="h-full w-full object-cover" />
                           ) : (
-                            <span className="text-lg font-black text-emerald-700">{provider.shopName?.charAt(0)}</span>
+                            <span className="text-xl font-bold text-gray-400">{provider.shopName?.charAt(0)}</span>
                           )}
                         </div>
                         <div className="overflow-hidden">
-                          <p className="font-extrabold text-gray-900 truncate tracking-tight text-sm" title={provider.shopName}>{provider.shopName}</p>
-                          <p className="text-[10px] font-bold text-emerald-600 truncate uppercase tracking-wider">{provider.ownerName}</p>
-                          <p className="text-[9px] font-mono text-gray-400 mt-1 uppercase tracking-tighter">{provider.vendorCode}</p>
+                          <p className="font-semibold text-gray-900 truncate text-base" title={provider.shopName}>{provider.shopName}</p>
+                          <p className="text-sm font-medium text-emerald-600 truncate">{provider.ownerName}</p>
+                          <p className="text-xs font-mono text-gray-400 mt-0.5 uppercase">{provider.vendorCode}</p>
                         </div>
                       </div>
                     </td>
 
-                    <td className="py-4 px-6">
-                      <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center rounded-lg bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-700 border border-blue-100">
-                            {provider.vendorType}
+                    {/* Details Column */}
+                    <td className="py-5 px-6">
+                      <div className="flex flex-col gap-2">
+                        <div>
+                          <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-100">
+                            {provider.vendorType || 'Unknown'}
                           </span>
+                        </div>
+                        <div className="flex flex-col gap-1 text-xs text-gray-500">
+                          <span className="flex items-center gap-1.5 truncate" title={provider.address}>
+                            <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0" /> {provider.address ? (provider.address.length > 25 ? provider.address.slice(0, 25) + '...' : provider.address) : 'N/A'}
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" /> Joined {new Date(provider.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Settings Column */}
+                    <td className="py-5 px-6">
+                      <div className="flex flex-col gap-2.5 w-40">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Plan Type</label>
                           <select
                             value={provider.planType || 'basic'}
                             onChange={(e) => handleUpdatePlan(provider._id, e.target.value)}
-                            className="bg-gray-50 border border-gray-200 text-[9px] font-black uppercase rounded-lg px-2 py-0.5 outline-none focus:ring-1 focus:ring-emerald-500"
+                            className="bg-white border border-gray-200 text-gray-700 text-xs font-medium rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
                           >
                             <option value="basic">Basic (25%)</option>
                             <option value="standard">Standard (20%)</option>
                             <option value="premium">Premium (15%)</option>
                           </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Category Role</label>
                           <select
                             value={provider.providerCategory || 'partner'}
                             onChange={(e) => handleUpdateCategory(provider._id, e.target.value)}
-                            className="bg-emerald-50 border border-emerald-100 text-[9px] font-black uppercase rounded-lg px-2 py-0.5 outline-none focus:ring-1 focus:ring-emerald-500 text-emerald-700"
+                            className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all cursor-pointer"
                           >
                             <option value="partner">Partner</option>
                             <option value="sewak">Sewak</option>
                           </select>
                         </div>
-                        <div className="flex flex-col gap-0.5 text-[10px] text-gray-500 font-bold tracking-tight">
-                          <span className="flex items-center gap-1.5 truncate"><MapPin className="h-3 w-3 text-gray-400" /> {provider.address?.slice(0, 30)}...</span>
-                          <span className="flex items-center gap-1.5 text-gray-400"><Clock className="h-3 w-3" /> Joined {new Date(provider.createdAt).toLocaleDateString()}</span>
-                        </div>
                       </div>
                     </td>
 
-                    <td className="py-4 px-6 text-center">
+                    {/* Rating Column */}
+                    <td className="py-5 px-6 text-center">
                       <div className="flex flex-col items-center justify-center gap-1.5">
-                        <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-xl text-[11px] font-black text-gray-900 border-2 border-gray-50 shadow-sm">
-                          {provider.rating ? provider.rating.toFixed(1) : '0.0'} <Star className="h-3 w-3 fill-amber-400 text-amber-500" />
+                        <div className="flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg text-sm font-semibold text-gray-900 border border-gray-100">
+                          {provider.rating ? provider.rating.toFixed(1) : '0.0'} <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
                         </div>
-                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">{provider.reviewCount || 0} reviews</span>
+                        <span className="text-xs font-medium text-gray-500">{provider.reviewCount || 0} reviews</span>
                       </div>
                     </td>
 
-                    <td className="py-4 px-6">
-                      <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] ${statusStyles[provider.status]}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${provider.status === 'verified' ? 'bg-emerald-500' :
+                    {/* Status Column */}
+                    <td className="py-5 px-6">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[provider.status] || statusStyles.pending}`}>
+                        <span className={`h-2 w-2 rounded-full ${provider.status === 'verified' ? 'bg-emerald-500' :
                           provider.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'
                           }`}></span>
-                        {provider.status}
+                        <span className="capitalize">{provider.status}</span>
                       </span>
                     </td>
 
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    {/* Actions Column */}
+                    <td className="py-5 px-6 text-right">
+                      <div className="flex items-center justify-end gap-2.5">
                         {provider.status === "pending" && (
                           <>
                             <button
                               onClick={() => handleUpdateStatus(provider._id, "verified")}
-                              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 active:translate-y-0"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 text-emerald-700 px-3 py-1.5 text-xs font-semibold border border-emerald-200 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all shadow-sm"
+                              title="Approve"
                             >
-                              <CheckCircle className="h-3.5 w-3.5" /> Approve
+                              <CheckCircle className="h-4 w-4" /> Approve
                             </button>
                             <button
                               onClick={() => handleUpdateStatus(provider._id, "rejected")}
-                              className="p-2.5 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all border border-transparent hover:border-red-100"
+                              className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-50 text-red-700 px-3 py-1.5 text-xs font-semibold border border-red-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
                               title="Reject Application"
                             >
-                              <XCircle className="h-5 w-5" />
+                              <XCircle className="h-4 w-4" /> Reject
                             </button>
                           </>
                         )}
                         {provider.status === "verified" && (
                           <button
                             onClick={() => handleUpdateStatus(provider._id, "suspended")}
-                            className="inline-flex items-center gap-2 rounded-xl bg-gray-50 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-600 border border-gray-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all active:scale-95"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-50 text-amber-700 px-3 py-1.5 text-xs font-semibold border border-amber-200 hover:bg-amber-600 hover:text-white hover:border-amber-600 transition-all shadow-sm"
+                            title="Suspend Provider"
                           >
-                            <ShieldCheck className="h-3.5 w-3.5" /> Suspend
+                            <ShieldCheck className="h-4 w-4" /> Suspend
                           </button>
                         )}
                         <button
                           onClick={() => deleteProvider(provider._id)}
-                          className="p-2.5 text-gray-300 hover:text-red-400 hover:bg-red-50/50 rounded-xl transition-all"
+                          className="inline-flex items-center justify-center rounded-lg bg-gray-50 text-gray-500 p-2 border border-gray-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
+                          title="Delete Provider"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

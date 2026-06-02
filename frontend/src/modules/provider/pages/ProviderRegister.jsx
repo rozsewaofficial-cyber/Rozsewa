@@ -32,7 +32,7 @@ const ProviderRegister = () => {
   const [coords, setCoords] = useState([0, 0]);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(null);
   const [otpSent, setOtpSent] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
@@ -184,7 +184,7 @@ const ProviderRegister = () => {
     if (!file) return;
     const upData = new FormData();
     upData.append("image", file);
-    setIsUploading(true);
+    setUploadingDoc(type);
     try {
       const { data } = await API.post("/upload", upData, {
         headers: { "Content-Type": "multipart/form-data" }
@@ -195,7 +195,7 @@ const ProviderRegister = () => {
       const msg = err.response?.data?.message || "Upload Failed";
       toast({ title: msg, variant: "destructive" });
     } finally {
-      setIsUploading(false);
+      setUploadingDoc(null);
     }
   };
 
@@ -250,7 +250,7 @@ const ProviderRegister = () => {
   const uploadSelfie = async (file) => {
     const upData = new FormData();
     upData.append("image", file);
-    setIsUploading(true);
+    setUploadingDoc('profileImage');
     try {
       const { data } = await API.post("/upload", upData, {
         headers: { "Content-Type": "multipart/form-data" }
@@ -260,14 +260,14 @@ const ProviderRegister = () => {
     } catch { 
       toast({ title: "Upload Failed", variant: "destructive" }); 
     } finally { 
-      setIsUploading(false); 
+      setUploadingDoc(null); 
     }
   };
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!formData.mobile || formData.mobile.length < 10) {
-      toast({ title: "Invalid Number", variant: "destructive" });
+    if (!formData.mobile || !/^[6-9]\d{9}$/.test(formData.mobile)) {
+      toast({ title: "Invalid Number", description: "Please enter a valid 10-digit Indian mobile number.", variant: "destructive" });
       return;
     }
     setIsLoading(true);
@@ -380,6 +380,11 @@ const ProviderRegister = () => {
 
   const handleBankSubmit = async (e) => {
     e.preventDefault();
+    const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
+    if (accountHolderName.trim().length < 3) return toast({ title: "Invalid Name", description: "Account holder name must be at least 3 characters.", variant: "destructive" });
+    if (!/^\d{9,18}$/.test(accountNumber)) return toast({ title: "Invalid Account Number", description: "Account number must be between 9 and 18 digits.", variant: "destructive" });
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return toast({ title: "Invalid IFSC", description: "Please enter a valid 11-character IFSC code.", variant: "destructive" });
+
     if (!cardConfig.enabled) {
       await finalizeSignupDirectly();
     } else {
@@ -730,6 +735,14 @@ const ProviderRegister = () => {
                 exit={{ opacity: 0, x: -20 }}
                 onSubmit={e => {
                   e.preventDefault();
+                  if (formData.ownerName.trim().length < 3) return toast({ title: "Invalid Name", description: "Owner name must be at least 3 characters long.", variant: "destructive" });
+                  if (formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
+                  if (!/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
+                  if (!/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
+                  if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
+                  if (formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
+                  if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
+                  
                   if (formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto && formData.kycPanPhoto) setStep(6);
                   else toast({ title: "Documents Required", description: "Please upload Aadhaar (Front & Back) and PAN photos.", variant: "destructive" });
                 }}
@@ -743,24 +756,24 @@ const ProviderRegister = () => {
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>
-                      <input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. Sharma Experts" />
+                      <input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value.replace(/[^a-zA-Z0-9 ]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. Sharma Experts" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Aadhaar Number</label>
-                      <input required value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="12-Digit Aadhaar No" />
+                      <input required maxLength="12" value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="12-Digit Aadhaar No" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">PAN Number</label>
-                      <input required value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="PAN Number" />
+                      <input required maxLength="10" value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="PAN Number" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">GST Number (Opt)</label>
-                      <input value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="GST" />
+                      <input maxLength="15" value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="GST" />
                     </div>
                   </div>
 
@@ -782,13 +795,13 @@ const ProviderRegister = () => {
                             <img src={formData[type]} className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex flex-col items-center space-y-2 text-center p-2">
-                              {isUploading ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : <Camera className="h-6 w-6 text-slate-300 group-hover:text-emerald-500 transition-colors" />}
+                              {uploadingDoc === type ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : <Camera className="h-6 w-6 text-slate-300 group-hover:text-emerald-500 transition-colors" />}
                               <span className="text-[8px] font-bold uppercase text-slate-400 group-hover:text-emerald-600 transition-colors">
                                 {type === 'kycAadhaarPhoto' ? 'Aadh-Front' : type === 'kycAadhaarBackPhoto' ? 'Aadh-Back' : 'PAN Card'}
                               </span>
                             </div>
                           )}
-                          {formData[type] && !isUploading && (
+                          {formData[type] && uploadingDoc !== type && (
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                               <ImageIcon className="h-6 w-6 text-white" />
                             </div>
@@ -822,8 +835,8 @@ const ProviderRegister = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <button type="submit" disabled={isUploading} className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs">
-                    {isUploading ? 'Securing Media...' : 'Finalize Profile'}
+                  <button type="submit" disabled={!!uploadingDoc} className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs">
+                    {uploadingDoc ? 'Securing Media...' : 'Finalize Profile'}
                   </button>
                   <button type="button" onClick={() => setStep(4)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
                 </div>
@@ -862,7 +875,7 @@ const ProviderRegister = () => {
                     onClick={isCameraOpen ? capturePhoto : startCamera}
                     className="absolute -bottom-4 -right-4 h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white transition-all hover:scale-110 active:scale-90 active:rotate-12 group"
                   >
-                    {isUploading ? <Loader2 className="h-6 w-6 animate-spin" /> : isCameraOpen ? <CheckCircle className="h-6 w-6 text-emerald-400" /> : <Camera className="h-6 w-6 group-hover:text-emerald-400 transition-colors" />}
+                    {uploadingDoc === 'profileImage' ? <Loader2 className="h-6 w-6 animate-spin" /> : isCameraOpen ? <CheckCircle className="h-6 w-6 text-emerald-400" /> : <Camera className="h-6 w-6 group-hover:text-emerald-400 transition-colors" />}
                   </button>
 
                   {/* Fallback File Input (Hidden) */}
@@ -1024,13 +1037,13 @@ const ProviderRegister = () => {
 
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Number</label>
-                    <input required value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Account Number" />
+                    <input required maxLength="18" value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Account Number" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">IFSC Code</label>
-                      <input required value={formData.bankDetails.ifscCode} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase" placeholder="IFSC" />
+                      <input required maxLength="11" value={formData.bankDetails.ifscCode} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase" placeholder="IFSC" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Bank Name</label>
