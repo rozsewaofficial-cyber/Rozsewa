@@ -14,7 +14,7 @@ const sendOTP = async (req, res) => {
 
     try {
         // Handle test number bypass
-        if (mobile === '9999900000') {
+        if (mobile === '9999900000' || mobile === '8888888888') {
             await OTP.findOneAndUpdate(
                 { mobile },
                 { otp: '123456', createdAt: new Date() },
@@ -127,7 +127,7 @@ const loginWithOTP = async (req, res) => {
 
     try {
         // Handle test number bypass
-        if (mobile === '9999900000' && otp === '123456') {
+        if ((mobile === '9999900000' || mobile === '8888888888') && otp === '123456') {
             // Allow bypass
         } else {
             const otpDoc = await OTP.findOne({ mobile, otp });
