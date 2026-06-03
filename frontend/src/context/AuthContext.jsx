@@ -151,24 +151,30 @@ export const AuthProvider = ({ children }) => {
       const endpoint = type === 'provider' ? "/provider/login" : "/auth/login";
       const loginData = type === 'provider' ? { mobile: identifier, password } : { identifier, password };
 
-      const { data } = await API.post(endpoint, loginData);
-      setAuth({ ...data, role: data.role || type }); // Use backend role if provided
+      const { data: apiResponse } = await API.post(endpoint, loginData);
+      
+      // Handle the new standardized payload format { success, message, data: { token, user } }
+      const authData = apiResponse.data?.user || apiResponse;
+      const token = apiResponse.data?.token || apiResponse.token;
+      
+      const sessionData = { ...authData, token, role: authData.role || type };
+      setAuth(sessionData);
       
       // Fetch and save FCM Token
       try {
         const { requestForToken } = await import("@/lib/firebase");
-        const token = await requestForToken();
-        if (token) {
+        const fcmToken = await requestForToken();
+        if (fcmToken) {
           await API.post("/notifications/fcm-tokens/save", 
-            { token, platform: 'web' },
-            { headers: { Authorization: `Bearer ${data.token}` } }
+            { token: fcmToken, platform: 'web' },
+            { headers: { Authorization: `Bearer ${token}` } }
           );
         }
       } catch (err) {
         console.error("Error saving FCM token on login", err);
       }
 
-      return { success: true, data };
+      return { success: true, data: sessionData };
     } catch (error) {
       return { success: false, error: error.response?.data?.message || "Login failed" };
     }
@@ -176,9 +182,15 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithOTP = async (mobile, otp, type = 'customer') => {
     try {
-      const { data } = await API.post("/auth/login-otp", { mobile, otp });
-      setAuth({ ...data, role: type });
-      return { success: true, data };
+      const { data: apiResponse } = await API.post("/auth/login-otp", { mobile, otp });
+      
+      // Handle the new standardized payload format
+      const authData = apiResponse.data?.user || apiResponse;
+      const token = apiResponse.data?.token || apiResponse.token;
+      
+      const sessionData = { ...authData, token, role: type };
+      setAuth(sessionData);
+      return { success: true, data: sessionData };
     } catch (error) {
       return { success: false, error: error.response?.data?.message || "OTP Verification failed" };
     }

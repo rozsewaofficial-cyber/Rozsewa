@@ -152,16 +152,23 @@ const loginWithOTP = async (req, res) => {
         }
 
         res.json({
-            _id: user._id,
-            name: user.name || user.ownerName,
-            email: user.email,
-            mobile: user.mobile,
-            role: user.role || (isProvider ? 'provider' : 'customer'),
-            city: user.city || "",
-            address: user.address || "",
-            avatar: user.avatar || user.profileImage,
-            providerCategory: user.providerCategory || "partner",
-            token: generateToken(user._id),
+            success: true,
+            message: "Login successful",
+            data: {
+                token: generateToken(user._id),
+                user: {
+                    id: user._id,
+                    name: user.name || user.ownerName,
+                    email: user.email,
+                    phone: user.mobile,
+                    mobile: user.mobile,
+                    role: user.role || (isProvider ? 'provider' : 'customer'),
+                    city: user.city || "",
+                    address: user.address || "",
+                    avatar: user.avatar || user.profileImage,
+                    providerCategory: user.providerCategory || "partner"
+                }
+            }
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -190,15 +197,22 @@ const authUser = async (req, res) => {
 
             if (isMatch) {
                 res.json({
-                    _id: user._id,
-                    name: user.name,
-                    email: user.email,
-                    mobile: user.mobile,
-                    role: user.role,
-                    city: user.city,
-                    address: user.address,
-                    avatar: user.avatar,
-                    token: generateToken(user._id),
+                    success: true,
+                    message: "Login successful",
+                    data: {
+                        token: generateToken(user._id),
+                        user: {
+                            id: user._id,
+                            name: user.name,
+                            email: user.email,
+                            phone: user.mobile,
+                            mobile: user.mobile,
+                            role: user.role,
+                            city: user.city,
+                            address: user.address,
+                            avatar: user.avatar
+                        }
+                    }
                 });
             } else {
                 res.status(401).json({ message: 'Invalid email/mobile or password' });

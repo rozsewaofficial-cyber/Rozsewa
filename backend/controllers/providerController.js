@@ -145,19 +145,26 @@ const authProvider = async (req, res) => {
 
         if (provider && (await provider.matchPassword(password))) {
             res.json({
-                _id: provider._id,
-                ownerName: provider.ownerName,
-                shopName: provider.shopName,
-                mobile: provider.mobile,
-                status: provider.status,
-                vendorCode: provider.vendorCode,
-                vendorType: provider.vendorType,
-                businessType: provider.businessType,
-                freeServicesLeft: provider.freeServicesLeft,
-                isSubscribed: provider.isSubscribed,
-                planType: provider.planType,
-                role: 'provider',
-                token: generateToken(provider._id),
+                success: true,
+                message: "Login successful",
+                data: {
+                    token: generateToken(provider._id),
+                    user: {
+                        id: provider._id,
+                        name: provider.ownerName,
+                        shopName: provider.shopName,
+                        phone: provider.mobile,
+                        mobile: provider.mobile,
+                        status: provider.status,
+                        vendorCode: provider.vendorCode,
+                        vendorType: provider.vendorType,
+                        businessType: provider.businessType,
+                        freeServicesLeft: provider.freeServicesLeft,
+                        isSubscribed: provider.isSubscribed,
+                        planType: provider.planType,
+                        role: 'provider'
+                    }
+                }
             });
         } else {
             res.status(401).json({ message: 'Invalid mobile or password' });
