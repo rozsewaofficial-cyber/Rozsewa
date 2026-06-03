@@ -12,7 +12,8 @@ const {
     sendEmergencyAlert,
     verifyProviderCredentials,
     getSubscriptionPlans,
-    getProviderMenu
+    getProviderMenu,
+    reapplyKYC
 } = require('../controllers/providerController');
 const { getProviderOffers, createProviderOffer } = require('../controllers/offerController');
 const { getStaff, createStaff, deleteStaff, toggleStaffStatus } = require('../controllers/staffController');
@@ -37,6 +38,7 @@ router.get('/subscription-plans', protect, getSubscriptionPlans);
 router.get('/menu', protect, getProviderMenu);
 router.post('/documents', protect, upload.single('document'), uploadDocument);
 router.post('/emergency-alert', protect, sendEmergencyAlert || ((req, res) => res.status(501).send("Not Implemented")));
+router.patch('/reapply-kyc', protect, reapplyKYC);
 
 // Offer routes
 router.get('/offers', protect, getProviderOffers);

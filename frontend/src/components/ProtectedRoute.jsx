@@ -25,8 +25,8 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     return <Navigate to="/" replace />;
   }
 
-  // Mandatory check for providers: Must be approved to access features other than the base dashboard
-  if (user?.role === 'provider' && user?.status !== 'approved' && location.pathname !== '/provider') {
+  // Mandatory check for providers: Must be verified to access features other than the base dashboard and documents
+  if (user?.role === 'provider' && user?.status !== 'verified' && location.pathname !== '/provider' && location.pathname !== '/provider/documents') {
     return <Navigate to="/provider" replace />;
   }
 

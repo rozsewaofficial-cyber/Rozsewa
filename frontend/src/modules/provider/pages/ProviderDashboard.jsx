@@ -5,7 +5,7 @@ import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
-  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload
+  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -308,23 +308,29 @@ const ProviderDashboard = () => {
     );
   }
 
-  // Approval Overlay / Pending Screen
-  if (user?.status === 'pending' || user?.status === 'suspended') {
+  // Approval Overlay / Pending Screen / Rejected Screen
+  if (user?.status === 'pending' || user?.status === 'suspended' || user?.status === 'rejected') {
     return (
       <div className="min-h-[100dvh] bg-background">
         <ProviderTopNav />
         <main className="container max-w-lg px-6 py-12 flex flex-col items-center justify-center text-center space-y-8">
-          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="h-24 w-24 bg-amber-100 rounded-[40px] flex items-center justify-center rotate-12">
-            {user?.status === 'suspended' ? <AlertCircle className="h-12 w-12 text-red-600 -rotate-12" /> : <Clock className="h-12 w-12 text-amber-600 -rotate-12 animate-pulse" />}
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`h-24 w-24 rounded-[40px] flex items-center justify-center rotate-12 ${user?.status === 'rejected' ? 'bg-rose-100' : 'bg-amber-100'}`}>
+            {user?.status === 'suspended' ? <AlertCircle className="h-12 w-12 text-red-600 -rotate-12" /> : 
+             user?.status === 'rejected' ? <XCircle className="h-12 w-12 text-rose-600 -rotate-12" /> :
+             <Clock className="h-12 w-12 text-amber-600 -rotate-12 animate-pulse" />}
           </motion.div>
 
           <div className="space-y-3">
             <h1 className="text-3xl font-black tracking-tighter">
-              {user?.status === 'suspended' ? "Account Suspended" : "Approval Pending"}
+              {user?.status === 'suspended' ? "Account Suspended" : 
+               user?.status === 'rejected' ? "KYC Rejected" :
+               "Approval Pending"}
             </h1>
             <p className="text-sm font-medium text-muted-foreground px-4">
               {user?.status === 'suspended'
                 ? "Your account has been suspended due to policy violations. Please contact support."
+                : user?.status === 'rejected'
+                ? "Your KYC documents were rejected. Please re-apply with valid documents."
                 : "Great! Your registration and payment are complete. Our team is currently verifying your documents."}
             </p>
           </div>
@@ -335,8 +341,8 @@ const ProviderDashboard = () => {
               <span className="text-emerald-600">Secure Protocol</span>
             </div>
             <p className="text-3xl font-black font-mono tracking-widest text-foreground">{user?.vendorCode}</p>
-            <div className="pt-4 border-t border-border flex items-center justify-center gap-2 text-xs font-bold text-amber-700">
-              <ShieldCheck className="h-4 w-4" /> Final Verification In-Progress
+            <div className={`pt-4 border-t border-border flex items-center justify-center gap-2 text-xs font-bold ${user?.status === 'rejected' ? 'text-rose-700' : 'text-amber-700'}`}>
+              <ShieldCheck className="h-4 w-4" /> {user?.status === 'rejected' ? 'Verification Failed' : 'Final Verification In-Progress'}
             </div>
           </div>
 
@@ -345,13 +351,35 @@ const ProviderDashboard = () => {
               <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><CheckCircle className="h-5 w-5 text-emerald-600" /></div>
               <div><p className="text-xs font-black">Registration & Payment</p><p className="text-[10px] text-muted-foreground">Successful</p></div>
             </div>
-            <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left opacity-60">
-              <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><Lock className="h-5 w-5 text-amber-600" /></div>
-              <div><p className="text-xs font-black">Admin Approval</p><p className="text-[10px] text-muted-foreground">In Queue (24-48 Hours)</p></div>
+            <div className={`bg-muted p-4 rounded-2xl flex items-center gap-4 text-left ${user?.status === 'rejected' ? '' : 'opacity-60'}`}>
+              <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0">
+                {user?.status === 'rejected' ? <XCircle className="h-5 w-5 text-rose-600" /> : <Lock className="h-5 w-5 text-amber-600" />}
+              </div>
+              <div>
+                <p className="text-xs font-black">Admin Approval</p>
+                <p className="text-[10px] text-muted-foreground">{user?.status === 'rejected' ? 'Action Required' : 'In Queue (24-48 Hours)'}</p>
+              </div>
             </div>
           </div>
 
-          <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
+          {user?.status === 'rejected' ? (
+            <button 
+              onClick={async () => {
+                try {
+                  await API.patch('/provider/reapply-kyc');
+                  toast({ title: 'Re-applied successfully', description: 'Please wait for verification.' });
+                  window.location.reload();
+                } catch (error) {
+                  toast({ title: 'Failed to re-apply', variant: 'destructive' });
+                }
+              }} 
+              className="w-full py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-colors"
+            >
+              Re-apply for Verification
+            </button>
+          ) : (
+            <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
+          )}
           <p className="text-[10px] font-bold text-muted-foreground">Need help? <Link to="/support" className="text-emerald-600 underline">Contact RozSewa Support</Link></p>
         </main>
       </div>

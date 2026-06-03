@@ -558,6 +558,33 @@ const getProviderMenu = async (req, res) => {
     }
 };
 
+const reapplyKYC = async (req, res) => {
+    try {
+        const Provider = require('../models/Provider');
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) {
+            return res.status(404).json({ message: 'Provider not found' });
+        }
+
+        if (provider.status !== 'rejected') {
+            return res.status(400).json({ message: 'Only rejected applications can be reapplied' });
+        }
+
+        provider.status = 'pending';
+        // reset rejected documents to pending so they can be re-uploaded
+        provider.documents.forEach(doc => {
+            if (doc.status === 'rejected') {
+                doc.status = 'pending';
+            }
+        });
+        
+        await provider.save();
+        res.json({ message: 'Reapplied successfully', status: provider.status });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     registerProvider,
     authProvider,
@@ -570,5 +597,6 @@ module.exports = {
     sendEmergencyAlert,
     verifyProviderCredentials,
     getSubscriptionPlans,
-    getProviderMenu
+    getProviderMenu,
+    reapplyKYC
 };
