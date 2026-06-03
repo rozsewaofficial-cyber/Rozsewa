@@ -310,6 +310,15 @@ const AdminProviders = () => {
                             <ShieldCheck className="h-4 w-4" /> Suspend
                           </button>
                         )}
+                        {provider.status === "suspended" && (
+                          <button
+                            onClick={() => handleUpdateStatus(provider._id, "verified")}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 text-emerald-700 px-3 py-1.5 text-xs font-semibold border border-emerald-200 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all shadow-sm"
+                            title="Unsuspend Provider"
+                          >
+                            <CheckCircle className="h-4 w-4" /> Unsuspend
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteProvider(provider._id)}
                           className="inline-flex items-center justify-center rounded-lg bg-gray-50 text-gray-500 p-2 border border-gray-200 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"

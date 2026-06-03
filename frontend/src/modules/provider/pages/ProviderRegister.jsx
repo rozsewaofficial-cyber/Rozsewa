@@ -155,12 +155,27 @@ const ProviderRegister = () => {
             const { latitude, longitude } = position.coords;
             const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
             const data = await response.json();
-            if (data && data.display_name) {
+            if (data && data.address) {
               const addr = data.address || {};
+              const parts = [];
+              if (addr.house_number) parts.push(addr.house_number);
+              if (addr.building) parts.push(addr.building);
+              if (addr.road) parts.push(addr.road);
+              if (addr.neighbourhood || addr.suburb || addr.residential) {
+                parts.push(addr.neighbourhood || addr.suburb || addr.residential);
+              }
+              if (addr.city || addr.town || addr.village || addr.county) {
+                parts.push(addr.city || addr.town || addr.village || addr.county);
+              }
+              if (addr.state) parts.push(addr.state);
+              if (addr.postcode) parts.push(addr.postcode);
+              
+              const shortAddress = parts.join(", ") || data.display_name;
+
               setCoords([longitude, latitude]);
               setFormData(prev => ({
                 ...prev,
-                address: data.display_name,
+                address: shortAddress,
                 city: addr.city || addr.town || addr.village || "",
                 state: addr.state || ""
               }));
@@ -272,7 +287,7 @@ const ProviderRegister = () => {
     }
     setIsLoading(true);
     try {
-      const { data: existData } = await API.post("/auth/check-existence", { mobile: formData.mobile });
+      const { data: existData } = await API.post("/provider/check-existence", { mobile: formData.mobile });
       if (existData.exists) {
         toast({ title: "Already Registered", description: "Use another number or login.", variant: "destructive" });
         setIsLoading(false);
@@ -382,7 +397,7 @@ const ProviderRegister = () => {
     e.preventDefault();
     const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
     if (accountHolderName.trim().length < 3) return toast({ title: "Invalid Name", description: "Account holder name must be at least 3 characters.", variant: "destructive" });
-    if (!/^\d{9,18}$/.test(accountNumber)) return toast({ title: "Invalid Account Number", description: "Account number must be between 9 and 18 digits.", variant: "destructive" });
+    if (!/^\d{11,17}$/.test(accountNumber)) return toast({ title: "Invalid Account Number", description: "Account number must be between 11 and 17 digits.", variant: "destructive" });
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return toast({ title: "Invalid IFSC", description: "Please enter a valid 11-character IFSC code.", variant: "destructive" });
 
     if (!cardConfig.enabled) {
@@ -752,7 +767,7 @@ const ProviderRegister = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Owner Full Name</label>
-                      <input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. John Doe" />
+                      <input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: e.target.value.replace(/[^a-zA-Z\s]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. John Doe" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>
@@ -1032,12 +1047,12 @@ const ProviderRegister = () => {
                 <form onSubmit={handleBankSubmit} className="space-y-5">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
-                    <input required value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="As per bank records" />
+                    <input required value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="As per bank records" />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Number</label>
-                    <input required maxLength="18" value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Account Number" />
+                    <input required minLength="11" maxLength="17" value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Account Number" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1047,7 +1062,7 @@ const ProviderRegister = () => {
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Bank Name</label>
-                      <input required value={formData.bankDetails.bankName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, bankName: e.target.value } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Name" />
+                      <input required value={formData.bankDetails.bankName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, bankName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Name" />
                     </div>
                   </div>
 

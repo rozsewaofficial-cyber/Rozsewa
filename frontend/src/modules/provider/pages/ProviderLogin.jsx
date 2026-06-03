@@ -63,12 +63,12 @@ const ProviderLogin = () => {
                   location: { type: 'Point', coordinates: [longitude, latitude] }
                 });
               } catch (err) { console.error("Location sync failed", err); }
-              navigate("/provider");
+              navigate("/provider", { replace: true });
             }, () => {
-              navigate("/provider");
+              navigate("/provider", { replace: true });
             });
           } else {
-            navigate("/provider");
+            navigate("/provider", { replace: true });
           }
         } else {
           toast({ title: "Login Failed", description: res.error, variant: "destructive" });
