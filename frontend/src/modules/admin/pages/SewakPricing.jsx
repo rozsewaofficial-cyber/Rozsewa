@@ -98,7 +98,7 @@ const SewakPricing = () => {
 
     const handleSaveCategoryPricing = async (category) => {
         setSavingId(category._id);
-        
+
         // Merge the latest selectedService into the category's services array
         const updatedServices = category.services.map(s => {
             if (s._id === selectedService?._id) {
@@ -200,168 +200,168 @@ const SewakPricing = () => {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: filteredIdx * 0.1 }}
                         >
-                        <Card className="rounded-[2.5rem] border-0 shadow-xl shadow-gray-200/50 overflow-hidden group">
-                            <CardHeader className="bg-white border-b border-gray-50 p-8">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4 text-left">
-                                        <div className="h-14 w-14 rounded-2xl bg-slate-50 text-slate-900 flex items-center justify-center border border-slate-200 group-hover:bg-slate-900 group-hover:text-white transition-all duration-500">
-                                            <Briefcase className="h-6 w-6" />
-                                        </div>
-                                        <div>
-                                            <CardTitle className="text-2xl font-black text-gray-900 tracking-tight">{cat.name}</CardTitle>
-                                            <CardDescription className="font-bold text-gray-400 text-xs mt-0.5">{cat.services?.length || 0} Managed Services</CardDescription>
-                                        </div>
-                                    </div>
-                                    <Button
-                                        disabled={savingId === cat._id}
-                                        onClick={() => handleSaveCategoryPricing(cat)}
-                                        className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white px-8 h-12 font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-[0.95] transition-all"
-                                    >
-                                        {savingId === cat._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4 mr-2" /> Push Updates</>}
-                                    </Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-8 space-y-4 bg-gray-50/20">
-                                <div className="grid grid-cols-1 gap-4">
-                                    {cat.services?.map((svc, svcIdx) => (
-                                        <div
-                                            key={svcIdx}
-                                            className="flex items-center justify-between bg-white p-5 rounded-[1.5rem] border border-gray-100 hover:border-blue-100 hover:shadow-sm transition-all group/row text-left"
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs">
-                                                    {svcIdx + 1}
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-sm font-black text-gray-800 tracking-tight">{svc.name}</h4>
-                                                    <p className="text-[9px] font-bold text-gray-400 mt-0.5 uppercase tracking-widest">
-                                                        ID: {svc._id?.slice(-6)} • Basic: ₹{svc.sewakPriceBasic ?? svc.basePrice}
-                                                    </p>
-                                                </div>
+                            <Card className="rounded-[2.5rem] border-0 shadow-xl shadow-gray-200/50 overflow-hidden group">
+                                <CardHeader className="bg-white border-b border-gray-50 p-8">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-4 text-left">
+                                            <div className="h-14 w-14 rounded-2xl bg-slate-50 text-slate-900 flex items-center justify-center border border-slate-200 group-hover:bg-slate-900 group-hover:text-white transition-all duration-500">
+                                                <Briefcase className="h-6 w-6" />
                                             </div>
-
-                                            <Button 
-                                                variant="ghost" 
-                                                onClick={() => {
-                                                    setSelectedService(svc);
-                                                    setSelectedCatIdx(catIdx);
-                                                    setSelectedSvcIdx(svcIdx);
-                                                    setShowDrawer(true);
-                                                }}
-                                                className="group/btn flex items-center gap-2 rounded-xl border border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 px-4 py-2 text-[10px] font-black transition-all"
-                                            >
-                                                View Details
-                                                <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5" />
-                                            </Button>
-                                        </div>
-                                    ))}
-
-                                    {(!cat.services || cat.services.length === 0) && (
-                                        <div className="text-center py-12 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
-                                            <Info className="h-8 w-8 text-gray-200 mx-auto mb-2" />
-                                            <p className="text-xs font-bold text-gray-400 italic">No individual services in this category.</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Combos Section */}
-                                <div className="mt-12 pt-8 border-t border-gray-100">
-                                    <div className="flex items-center justify-between mb-6 ml-2">
-                                        <div className="flex items-center gap-2">
-                                            <Gift className="h-5 w-5 text-emerald-600" />
-                                            <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Standard Discounted Combos</h3>
+                                            <div>
+                                                <CardTitle className="text-2xl font-black text-gray-900 tracking-tight">{cat.name}</CardTitle>
+                                                <CardDescription className="font-bold text-gray-400 text-xs mt-0.5">{cat.services?.length || 0} Managed Services</CardDescription>
+                                            </div>
                                         </div>
                                         <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => addMasterCombo(catIdx)}
-                                            className="rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-9 font-black uppercase text-[9px] tracking-widest"
+                                            disabled={savingId === cat._id}
+                                            onClick={() => handleSaveCategoryPricing(cat)}
+                                            className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white px-8 h-12 font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-[0.95] transition-all"
                                         >
-                                            <Plus className="h-3.5 w-3.5 mr-1" /> Add New Combo Template
+                                            {savingId === cat._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4 mr-2" /> Push Updates</>}
                                         </Button>
                                     </div>
-
+                                </CardHeader>
+                                <CardContent className="p-8 space-y-4 bg-gray-50/20">
                                     <div className="grid grid-cols-1 gap-4">
-                                        {cat.combos?.map((combo, comboIdx) => (
+                                        {cat.services?.map((svc, svcIdx) => (
                                             <div
-                                                key={comboIdx}
-                                                className="flex flex-col gap-6 bg-emerald-50/20 p-6 rounded-[2rem] border border-emerald-100/50 hover:border-emerald-200 hover:shadow-md transition-all group/row text-left"
+                                                key={svcIdx}
+                                                className="flex items-center justify-between bg-white p-5 rounded-[1.5rem] border border-gray-100 hover:border-blue-100 hover:shadow-sm transition-all group/row text-left"
                                             >
-                                                <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-                                                    <div className="flex-1 space-y-4">
-                                                        <div className="space-y-1.5">
-                                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Combo Name</label>
-                                                            <Input
-                                                                value={combo.name}
-                                                                onChange={(e) => {
-                                                                    const updated = [...categories];
-                                                                    updated[catIdx].combos[comboIdx].name = e.target.value;
-                                                                    setCategories(updated);
-                                                                }}
-                                                                className="h-11 rounded-xl border-gray-100 bg-white font-black text-sm focus:ring-emerald-500/10 focus:border-emerald-500"
-                                                                placeholder="e.g. Full Home Service Pack"
-                                                            />
-                                                        </div>
-
-                                                        <div className="space-y-3">
-                                                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Included Services</label>
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {cat.services?.map((svc, i) => {
-                                                                    const isSelected = combo.services?.includes(svc.name);
-                                                                    return (
-                                                                        <button
-                                                                            key={i}
-                                                                            onClick={() => toggleComboService(catIdx, comboIdx, svc.name)}
-                                                                            className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all border flex items-center gap-1.5 ${isSelected
-                                                                                ? "bg-emerald-600 text-white border-emerald-700 shadow-md"
-                                                                                : "bg-white text-slate-400 border-slate-100 hover:border-emerald-200"
-                                                                                }`}
-                                                                        >
-                                                                            {isSelected && <CheckCircle2 className="h-3 w-3" />}
-                                                                            {svc.name}
-                                                                        </button>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs">
+                                                        {svcIdx + 1}
                                                     </div>
-
-                                                    <div className="w-full lg:w-48 space-y-4">
-                                                        <div className="space-y-1.5">
-                                                            <label className="text-[9px] font-black uppercase tracking-widest text-emerald-600/70 ml-1">Combo Sewak Rate ₹</label>
-                                                            <div className="relative group/input">
-                                                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2"><IndianRupee className="h-3 w-3 text-emerald-600" /></div>
-                                                                <Input
-                                                                    type="number"
-                                                                    value={combo.sewakPrice || 0}
-                                                                    onChange={(e) => updateComboPrice(catIdx, comboIdx, e.target.value)}
-                                                                    className="w-full h-11 pl-8 rounded-xl border-emerald-200 bg-white font-black text-xs focus:ring-emerald-500/10 focus:border-emerald-500"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => removeMasterCombo(catIdx, comboIdx)}
-                                                            className="w-full text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl h-10 font-bold text-[10px] uppercase"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remove Combo
-                                                        </Button>
+                                                    <div>
+                                                        <h4 className="text-sm font-black text-gray-800 tracking-tight">{svc.name}</h4>
+                                                        <p className="text-[9px] font-bold text-gray-400 mt-0.5 uppercase tracking-widest">
+                                                            ID: {svc._id?.slice(-6)} • Basic: ₹{svc.sewakPriceBasic ?? svc.basePrice}
+                                                        </p>
                                                     </div>
                                                 </div>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setSelectedService(svc);
+                                                        setSelectedCatIdx(catIdx);
+                                                        setSelectedSvcIdx(svcIdx);
+                                                        setShowDrawer(true);
+                                                    }}
+                                                    className="group/btn flex items-center gap-2 rounded-xl border border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100 px-4 py-2 text-[10px] font-black transition-all"
+                                                >
+                                                    View Details
+                                                    <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5" />
+                                                </Button>
                                             </div>
                                         ))}
 
-                                        {(!cat.combos || cat.combos.length === 0) && (
-                                            <div className="text-center py-10 bg-white/50 rounded-[2rem] border-2 border-dashed border-gray-100">
-                                                <Gift className="h-8 w-8 text-gray-200 mx-auto mb-2" />
-                                                <p className="text-[10px] font-bold text-gray-400 italic">No master combos defined. Create one to standardise Sewak offerings.</p>
+                                        {(!cat.services || cat.services.length === 0) && (
+                                            <div className="text-center py-12 bg-white rounded-[2rem] border-2 border-dashed border-gray-100">
+                                                <Info className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+                                                <p className="text-xs font-bold text-gray-400 italic">No individual services in this category.</p>
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+
+                                    {/* Combos Section */}
+                                    <div className="mt-12 pt-8 border-t border-gray-100">
+                                        <div className="flex items-center justify-between mb-6 ml-2">
+                                            <div className="flex items-center gap-2">
+                                                <Gift className="h-5 w-5 text-emerald-600" />
+                                                <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight">Standard Discounted Combos</h3>
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => addMasterCombo(catIdx)}
+                                                className="rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-9 font-black uppercase text-[9px] tracking-widest"
+                                            >
+                                                <Plus className="h-3.5 w-3.5 mr-1" /> Add New Combo Template
+                                            </Button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {cat.combos?.map((combo, comboIdx) => (
+                                                <div
+                                                    key={comboIdx}
+                                                    className="flex flex-col gap-6 bg-emerald-50/20 p-6 rounded-[2rem] border border-emerald-100/50 hover:border-emerald-200 hover:shadow-md transition-all group/row text-left"
+                                                >
+                                                    <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+                                                        <div className="flex-1 space-y-4">
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Combo Name</label>
+                                                                <Input
+                                                                    value={combo.name}
+                                                                    onChange={(e) => {
+                                                                        const updated = [...categories];
+                                                                        updated[catIdx].combos[comboIdx].name = e.target.value;
+                                                                        setCategories(updated);
+                                                                    }}
+                                                                    className="h-11 rounded-xl border-gray-100 bg-white font-black text-sm focus:ring-emerald-500/10 focus:border-emerald-500"
+                                                                    placeholder="e.g. Full Home Service Pack"
+                                                                />
+                                                            </div>
+
+                                                            <div className="space-y-3">
+                                                                <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Included Services</label>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {cat.services?.map((svc, i) => {
+                                                                        const isSelected = combo.services?.includes(svc.name);
+                                                                        return (
+                                                                            <button
+                                                                                key={i}
+                                                                                onClick={() => toggleComboService(catIdx, comboIdx, svc.name)}
+                                                                                className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all border flex items-center gap-1.5 ${isSelected
+                                                                                    ? "bg-emerald-600 text-white border-emerald-700 shadow-md"
+                                                                                    : "bg-white text-slate-400 border-slate-100 hover:border-emerald-200"
+                                                                                    }`}
+                                                                            >
+                                                                                {isSelected && <CheckCircle2 className="h-3 w-3" />}
+                                                                                {svc.name}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="w-full lg:w-48 space-y-4">
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black uppercase tracking-widest text-emerald-600/70 ml-1">Combo Sewak Rate ₹</label>
+                                                                <div className="relative group/input">
+                                                                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2"><IndianRupee className="h-3 w-3 text-emerald-600" /></div>
+                                                                    <Input
+                                                                        type="number"
+                                                                        value={combo.sewakPrice || 0}
+                                                                        onChange={(e) => updateComboPrice(catIdx, comboIdx, e.target.value)}
+                                                                        className="w-full h-11 pl-8 rounded-xl border-emerald-200 bg-white font-black text-xs focus:ring-emerald-500/10 focus:border-emerald-500"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => removeMasterCombo(catIdx, comboIdx)}
+                                                                className="w-full text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl h-10 font-bold text-[10px] uppercase"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remove Combo
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+
+                                            {(!cat.combos || cat.combos.length === 0) && (
+                                                <div className="text-center py-10 bg-white/50 rounded-[2rem] border-2 border-dashed border-gray-100">
+                                                    <Gift className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+                                                    <p className="text-[10px] font-bold text-gray-400 italic">No master combos defined. Create one to standardise Sewak offerings.</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </motion.div>
                     );
                 })}
@@ -371,14 +371,14 @@ const SewakPricing = () => {
             <AnimatePresence>
                 {showDrawer && selectedService && (
                     <>
-                        <motion.div 
+                        <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             onClick={() => setShowDrawer(false)}
                             className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[100]"
                         />
-                        <motion.div 
+                        <motion.div
                             initial={{ x: '100%' }}
                             animate={{ x: 0 }}
                             exit={{ x: '100%' }}
@@ -416,7 +416,7 @@ const SewakPricing = () => {
                                     <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] px-1 border-b border-gray-50 pb-2 flex items-center gap-2">
                                         <Zap className="h-3 w-3 text-amber-500" /> Standard Tiers
                                     </h5>
-                                    
+
                                     <div className="grid grid-cols-1 gap-4">
                                         {[
                                             { key: 'sewakPriceBasic', label: 'Basic Tier', color: 'emerald', icon: IndianRupee },
@@ -466,7 +466,7 @@ const SewakPricing = () => {
                             </div>
 
                             <div className="p-6 border-t border-gray-100 bg-gray-50/50">
-                                <Button 
+                                <Button
                                     onClick={() => handleSaveCategoryPricing(categories[selectedCatIdx])}
                                     disabled={savingId === categories[selectedCatIdx]?._id}
                                     className="w-full h-14 rounded-2xl bg-slate-900 hover:bg-black text-white font-black uppercase tracking-widest text-xs shadow-lg shadow-gray-200 transition-all active:scale-[0.98]"

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { CheckCircle, XCircle, Search, FileText, Loader2, MapPin, Phone } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { CheckCircle, XCircle, Search, FileText, Loader2, MapPin, Phone, MoreVertical, X, CreditCard, Camera } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
@@ -11,6 +12,7 @@ const AdminKYC = () => {
     const [providers, setProviders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDoc, setSelectedDoc] = useState(null);
+    const [selectedProvider, setSelectedProvider] = useState(null);
 
     useEffect(() => {
         setTitle("KYC Verification");
@@ -162,29 +164,38 @@ const AdminKYC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
-                                        {req.status === 'pending' ? (
-                                            <div className="flex items-center justify-center gap-2.5">
-                                                <button
-                                                    onClick={() => handleAction(req._id, 'approve')}
-                                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-emerald-600/20"
-                                                    title="Approve KYC"
-                                                >
-                                                    <CheckCircle className="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleAction(req._id, 'reject')}
-                                                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white border border-red-200 text-red-600 hover:bg-red-50 transition-all shadow-sm"
-                                                    title="Reject KYC"
-                                                >
-                                                    <XCircle className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-center gap-1.5 text-gray-400">
-                                                <CheckCircle className="h-3 w-3" />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Verified</span>
-                                            </div>
-                                        )}
+                                        <div className="flex items-center justify-center gap-2.5">
+                                            {req.status === 'pending' ? (
+                                                <>
+                                                    <button
+                                                        onClick={() => handleAction(req._id, 'approve')}
+                                                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-emerald-600/20"
+                                                        title="Approve KYC"
+                                                    >
+                                                        <CheckCircle className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleAction(req._id, 'reject')}
+                                                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-white border border-red-200 text-red-600 hover:bg-red-50 transition-all shadow-sm"
+                                                        title="Reject KYC"
+                                                    >
+                                                        <XCircle className="h-4 w-4" />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <div className="flex items-center justify-center gap-1.5 text-gray-400 mr-2">
+                                                    <CheckCircle className="h-3 w-3" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">{req.status}</span>
+                                                </div>
+                                            )}
+                                            <button
+                                                onClick={() => setSelectedProvider(req)}
+                                                className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-50 border border-gray-200 text-gray-500 hover:bg-gray-200 transition-all shadow-sm"
+                                                title="View Details"
+                                            >
+                                                <MoreVertical className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -216,6 +227,107 @@ const AdminKYC = () => {
                     </div>
                 </div>
             )}
+            {/* Provider Details Modal */}
+            <AnimatePresence>
+                {selectedProvider && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+                        onClick={() => setSelectedProvider(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl custom-scrollbar"
+                        >
+                            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/80 px-6 py-4 backdrop-blur-md">
+                                <h3 className="text-lg font-bold text-gray-900">Provider Details</h3>
+                                <button
+                                    onClick={() => setSelectedProvider(null)}
+                                    className="rounded-full bg-gray-100 p-2 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-900"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-8">
+                                {/* Profile & Business Info */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-emerald-600">
+                                            <FileText className="h-4 w-4" /> Profile Info
+                                        </h4>
+                                        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3 text-sm">
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Owner Name</span><span className="font-semibold text-gray-900">{selectedProvider.ownerName}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Business Name</span><span className="font-semibold text-gray-900">{selectedProvider.shopName}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Mobile</span><span className="font-semibold text-gray-900">{selectedProvider.mobile}</span></div>
+                                            <div className="flex justify-between"><span className="text-gray-500">Email</span><span className="font-semibold text-gray-900">{selectedProvider.email || 'N/A'}</span></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-blue-600">
+                                            <CheckCircle className="h-4 w-4" /> Business & KYC
+                                        </h4>
+                                        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3 text-sm">
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Category / Role</span><span className="font-semibold text-gray-900 capitalize">{selectedProvider.providerCategory}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Aadhaar No</span><span className="font-semibold text-gray-900 tracking-wider">{selectedProvider.kycAadhaar || 'N/A'}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">PAN No</span><span className="font-semibold text-gray-900 tracking-wider">{selectedProvider.kycPanNumber || 'N/A'}</span></div>
+                                            <div className="flex justify-between"><span className="text-gray-500">GST Number</span><span className="font-semibold text-gray-900 tracking-wider">{selectedProvider.gst || 'N/A'}</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Bank Details */}
+                                <div className="space-y-4">
+                                    <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-purple-600">
+                                        <CreditCard className="h-4 w-4" /> Bank Details
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-gray-100 bg-purple-50/50 p-4 text-sm">
+                                        <div className="flex justify-between"><span className="text-gray-500">Account Holder</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.accountHolderName || 'N/A'}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">Account Number</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.accountNumber || 'N/A'}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">IFSC Code</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.ifscCode || 'N/A'}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">Bank Name</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.bankName || 'N/A'}</span></div>
+                                    </div>
+                                </div>
+
+                                {/* Documents / Images */}
+                                <div className="space-y-4">
+                                    <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-orange-600">
+                                        <Camera className="h-4 w-4" /> Documents
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                        {[
+                                            { label: "Profile Photo", url: selectedProvider.profileImage },
+                                            { label: "Aadhaar Front", url: selectedProvider.kycAadhaarPhoto },
+                                            { label: "Aadhaar Back", url: selectedProvider.kycAadhaarBackPhoto },
+                                            { label: "PAN Card", url: selectedProvider.kycPanPhoto }
+                                        ].map((doc, idx) => (
+                                            <div key={idx} className="flex flex-col gap-2 rounded-xl border border-gray-200 p-2 bg-white">
+                                                <span className="text-xs font-semibold text-gray-500 text-center uppercase">{doc.label}</span>
+                                                {doc.url ? (
+                                                    <a href={doc.url} target="_blank" rel="noreferrer" className="block h-32 rounded-lg overflow-hidden border border-gray-100 hover:opacity-80 transition-opacity">
+                                                        <img src={doc.url} alt={doc.label} className="h-full w-full object-cover" />
+                                                    </a>
+                                                ) : (
+                                                    <div className="flex h-32 items-center justify-center rounded-lg bg-gray-50 border border-dashed border-gray-200">
+                                                        <span className="text-xs text-gray-400">Not Uploaded</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

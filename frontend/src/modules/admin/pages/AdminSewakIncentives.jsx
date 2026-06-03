@@ -3,7 +3,8 @@ import {
     Zap, Search, Filter, Calendar, User, 
     CheckCircle2, IndianRupee, TrendingUp, 
     Clock, ChevronLeft, ChevronRight, Loader2,
-    Settings, Save, Info, ArrowUpRight
+    Settings, Save, Info, ArrowUpRight,
+    X, FileText, CreditCard, Camera, MoreVertical
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ const AdminSewakIncentives = () => {
     const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
     const [search, setSearch] = useState('');
     const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedProvider, setSelectedProvider] = useState(null);
 
     const fetchIncentiveData = async () => {
         setLoading(true);
@@ -233,8 +235,13 @@ const AdminSewakIncentives = () => {
                                                     </div>
                                                 </td>
                                                 <td className="px-8 py-6 text-right">
-                                                    <Button variant="ghost" size="sm" className="rounded-xl h-10 w-10 p-0 hover:bg-slate-900 hover:text-white transition-all">
-                                                        <ArrowUpRight className="h-4 w-4" />
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        className="rounded-xl h-10 w-10 p-0 hover:bg-slate-900 hover:text-white transition-all"
+                                                        onClick={() => setSelectedProvider(log.sewakId)}
+                                                    >
+                                                        <MoreVertical className="h-4 w-4" />
                                                     </Button>
                                                 </td>
                                             </tr>
@@ -246,6 +253,108 @@ const AdminSewakIncentives = () => {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Provider Details Modal */}
+            <AnimatePresence>
+                {selectedProvider && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+                        onClick={() => setSelectedProvider(null)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl custom-scrollbar"
+                        >
+                            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/80 px-6 py-4 backdrop-blur-md">
+                                <h3 className="text-lg font-bold text-gray-900">Sewak Details</h3>
+                                <button
+                                    onClick={() => setSelectedProvider(null)}
+                                    className="rounded-full bg-gray-100 p-2 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-900"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-8">
+                                {/* Profile & Business Info */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-emerald-600">
+                                            <FileText className="h-4 w-4" /> Profile Info
+                                        </h4>
+                                        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3 text-sm">
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Owner Name</span><span className="font-semibold text-gray-900">{selectedProvider.ownerName || 'N/A'}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Business Name</span><span className="font-semibold text-gray-900">{selectedProvider.shopName || 'N/A'}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Mobile</span><span className="font-semibold text-gray-900">{selectedProvider.mobile || 'N/A'}</span></div>
+                                            <div className="flex justify-between"><span className="text-gray-500">Email</span><span className="font-semibold text-gray-900">{selectedProvider.email || 'N/A'}</span></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-blue-600">
+                                            <CheckCircle2 className="h-4 w-4" /> Business & KYC
+                                        </h4>
+                                        <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-3 text-sm">
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Category / Role</span><span className="font-semibold text-gray-900 capitalize">{selectedProvider.providerCategory || 'Sewak'}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">Aadhaar No</span><span className="font-semibold text-gray-900 tracking-wider">{selectedProvider.kycAadhaar || 'N/A'}</span></div>
+                                            <div className="flex justify-between border-b border-gray-200 pb-2"><span className="text-gray-500">PAN No</span><span className="font-semibold text-gray-900 tracking-wider">{selectedProvider.kycPanNumber || 'N/A'}</span></div>
+                                            <div className="flex justify-between"><span className="text-gray-500">GST Number</span><span className="font-semibold text-gray-900 tracking-wider">{selectedProvider.gst || 'N/A'}</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Bank Details */}
+                                <div className="space-y-4">
+                                    <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-purple-600">
+                                        <CreditCard className="h-4 w-4" /> Bank Details
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-gray-100 bg-purple-50/50 p-4 text-sm">
+                                        <div className="flex justify-between"><span className="text-gray-500">Account Holder</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.accountHolderName || 'N/A'}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">Account Number</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.accountNumber || 'N/A'}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">IFSC Code</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.ifscCode || 'N/A'}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">Bank Name</span><span className="font-semibold text-gray-900">{selectedProvider.bankDetails?.bankName || 'N/A'}</span></div>
+                                    </div>
+                                </div>
+
+                                {/* Documents / Images */}
+                                <div className="space-y-4">
+                                    <h4 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-orange-600">
+                                        <Camera className="h-4 w-4" /> Documents
+                                    </h4>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                        {[
+                                            { label: "Profile Photo", url: selectedProvider.profileImage },
+                                            { label: "Aadhaar Front", url: selectedProvider.kycAadhaarPhoto },
+                                            { label: "Aadhaar Back", url: selectedProvider.kycAadhaarBackPhoto },
+                                            { label: "PAN Card", url: selectedProvider.kycPanPhoto }
+                                        ].map((doc, idx) => (
+                                            <div key={idx} className="flex flex-col gap-2 rounded-xl border border-gray-200 p-2 bg-white">
+                                                <span className="text-xs font-semibold text-gray-500 text-center uppercase">{doc.label}</span>
+                                                {doc.url ? (
+                                                    <a href={doc.url} target="_blank" rel="noreferrer" className="block h-32 rounded-lg overflow-hidden border border-gray-100 hover:opacity-80 transition-opacity">
+                                                        <img src={doc.url} alt={doc.label} className="h-full w-full object-cover" />
+                                                    </a>
+                                                ) : (
+                                                    <div className="flex h-32 items-center justify-center rounded-lg bg-gray-50 border border-dashed border-gray-200">
+                                                        <span className="text-xs text-gray-400">Not Uploaded</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
