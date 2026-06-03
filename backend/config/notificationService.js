@@ -4,10 +4,13 @@ const User = require('../models/User');
 const Provider = require('../models/Provider');
 
 async function sendNotificationToUser(userId, userRole, payload) {
-    const notificationId = `${userId}_${payload.data?.type}_${payload.data?.id}`;
+    let notificationId = `${userId}_${payload.data?.type}_${payload.data?.id}`;
 
-    // 🚫 Prevent duplicate (Skip for test and login to allow multiple tests/login alerts)
-    if (payload.data?.type !== 'test' && payload.data?.type !== 'login') {
+    // Make notificationId unique for login and test so we can insert the log without unique index crash
+    if (payload.data?.type === 'test' || payload.data?.type === 'login') {
+        notificationId += `_${Date.now()}`;
+    } else {
+        // 🚫 Prevent duplicate
         const exists = await NotificationLog.findOne({ notificationId });
         if (exists) {
             console.log(`Duplicate notification ignored: ${notificationId}`);
