@@ -182,7 +182,7 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithOTP = async (mobile, otp, type = 'customer') => {
     try {
-      const { data: apiResponse } = await API.post("/auth/login-otp", { mobile, otp });
+      const { data: apiResponse } = await API.post("/auth/login-otp", { mobile, otp, type });
       
       // Handle the new standardized payload format
       const authData = apiResponse.data?.user || apiResponse;

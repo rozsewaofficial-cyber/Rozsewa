@@ -32,7 +32,7 @@ const ProviderLogin = () => {
     try {
       if (step === 1) {
         // Step 1: Verify Password first
-        const { data: verifyRes } = await API.post("/auth/verify-credentials", { mobile, password });
+        const { data: verifyRes } = await API.post("/auth/verify-credentials", { mobile, password, type: "provider" });
 
         if (verifyRes.success) {
           // Credentials OK, now Send actual OTP

@@ -138,13 +138,22 @@ const loginWithOTP = async (req, res) => {
             await OTP.deleteOne({ _id: otpDoc._id });
         }
 
-        // OTP is valid, now find user (Customer or Provider)
-        let user = await User.findOne({ mobile });
+        let user = null;
         let isProvider = false;
 
-        if (!user) {
+        if (req.body.type === 'provider') {
             user = await Provider.findOne({ mobile });
             isProvider = !!user;
+            if (!user) {
+                user = await User.findOne({ mobile });
+                isProvider = false;
+            }
+        } else {
+            user = await User.findOne({ mobile });
+            if (!user) {
+                user = await Provider.findOne({ mobile });
+                isProvider = !!user;
+            }
         }
 
         if (!user) {
@@ -376,13 +385,28 @@ const checkUserExistence = async (req, res) => {
 };
 
 const verifyCredentials = async (req, res) => {
-    const { mobile, password } = req.body;
+    const { mobile, password, type } = req.body;
     try {
-        let user = await User.findOne({ mobile });
-        if (!user) user = await Provider.findOne({ mobile });
+        let user = null;
+        let isProvider = false;
+
+        if (type === 'provider') {
+            user = await Provider.findOne({ mobile });
+            isProvider = !!user;
+            if (!user) {
+                user = await User.findOne({ mobile });
+                isProvider = false;
+            }
+        } else {
+            user = await User.findOne({ mobile });
+            if (!user) {
+                user = await Provider.findOne({ mobile });
+                isProvider = !!user;
+            }
+        }
 
         if (user && (await user.matchPassword(password))) {
-            res.json({ success: true });
+            res.json({ success: true, isProvider });
         } else {
             res.status(401).json({ success: false, message: 'Invalid mobile or password' });
         }
