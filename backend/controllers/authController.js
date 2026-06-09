@@ -14,7 +14,7 @@ const sendOTP = async (req, res) => {
 
     try {
         // Handle test number bypass
-        if (mobile === '9999900000' || mobile === '8888888888') {
+        if (mobile === '9999900000' || mobile === '8888888888' || mobile === '9999911111') {
             await OTP.findOneAndUpdate(
                 { mobile },
                 { otp: '123456', createdAt: new Date() },
@@ -127,7 +127,7 @@ const loginWithOTP = async (req, res) => {
 
     try {
         // Handle test number bypass
-        if ((mobile === '9999900000' || mobile === '8888888888') && otp === '123456') {
+        if ((mobile === '9999900000' || mobile === '8888888888' || mobile === '9999911111') && otp === '123456') {
             // Allow bypass
         } else {
             const otpDoc = await OTP.findOne({ mobile, otp });
@@ -377,8 +377,9 @@ const deleteUserAccount = async (req, res) => {
 const checkUserExistence = async (req, res) => {
     const { mobile } = req.body;
     try {
-        const user = await User.findOne({ phone: mobile }); // Note: User model uses 'phone'
-        res.json({ exists: !!user });
+        const user = await User.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
+        const provider = await Provider.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
+        res.json({ exists: !!user || !!provider });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -498,6 +499,49 @@ const getFavorites = async (req, res) => {
     }
 };
 
+// @desc    Forgot Password (reset using OTP)
+// @route   POST /api/auth/forgot-password
+// @access  Public
+const forgotPassword = async (req, res) => {
+    const { mobile, otp, newPassword, type } = req.body;
+    if (!mobile || !otp || !newPassword) return res.status(400).json({ message: 'Mobile, OTP and new password are required' });
+
+    try {
+        // Handle test number bypass
+        if ((mobile === '9999900000' || mobile === '8888888888' || mobile === '9999911111') && otp === '123456') {
+            // Allow bypass
+        } else {
+            const otpDoc = await OTP.findOne({ mobile, otp });
+            if (!otpDoc) {
+                return res.status(400).json({ message: 'Invalid or expired OTP' });
+            }
+            // Delete OTP after successful verification
+            await OTP.deleteOne({ _id: otpDoc._id });
+        }
+
+        let user = null;
+        if (type === 'provider') {
+            user = await Provider.findOne({ mobile });
+            if (!user) user = await User.findOne({ mobile });
+        } else {
+            user = await User.findOne({ mobile });
+            if (!user) user = await Provider.findOne({ mobile });
+        }
+
+        if (!user) {
+            return res.status(404).json({ message: 'No account found with this mobile number' });
+        }
+
+        // Update password
+        user.password = newPassword;
+        await user.save();
+
+        res.json({ success: true, message: 'Password reset successful' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
     authUser,
@@ -514,5 +558,6 @@ module.exports = {
     deleteAddress,
     addFavorite,
     deleteFavorite,
-    getFavorites
+    getFavorites,
+    forgotPassword
 };
