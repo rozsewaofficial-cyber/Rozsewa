@@ -18,4 +18,6 @@ router.get('/config', getPublicConfig);
 router.get('/zones', getPublicZones);
 router.get('/benefit-policies', require('../controllers/benefitPolicyController').getPublicBenefitPolicies);
 
+router.post('/sewak-enquiry', require('../controllers/sewakEnquiryController').createEnquiry);
+
 module.exports = router;

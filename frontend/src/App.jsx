@@ -43,6 +43,8 @@ import ProviderStaff from "./modules/provider/pages/ProviderStaff";
 import ProviderEarnings from "./modules/provider/pages/ProviderEarnings";
 import ProviderLogin from "./modules/provider/pages/ProviderLogin";
 import ProviderRegister from "./modules/provider/pages/ProviderRegister";
+import ProviderForgotPassword from "./modules/provider/pages/ProviderForgotPassword";
+import DigilockerCallback from "./modules/provider/pages/DigilockerCallback";
 import ProviderProfile from "./modules/provider/pages/ProviderProfile";
 import ProviderServices from "./modules/provider/pages/ProviderServices";
 import ProviderAvailability from "./modules/provider/pages/ProviderAvailability";
@@ -89,6 +91,7 @@ import AdminHRM from "./modules/admin/pages/AdminHRM";
 import AdminSuper from "./modules/admin/pages/AdminSuper";
 import SewakManagement from "./modules/admin/pages/SewakManagement";
 import AdminVerifySewak from "./modules/admin/pages/AdminVerifySewak";
+import AdminSewakEnquiries from "./modules/admin/pages/AdminSewakEnquiries";
 import AdminVerifyEmployee from "./modules/admin/pages/AdminVerifyEmployee";
 import AdminVerifyCombo from "./modules/admin/pages/AdminVerifyCombo";
 import AdminSubscriptions from "./modules/admin/pages/AdminSubscriptions";
@@ -144,8 +147,11 @@ const App = () => (
 
                     {/* Provider Routes */}
                     <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider"]}><ProviderDashboard /></ProtectedRoute>} />
-                    <Route path="/provider/login" element={<ProviderLogin />} />
+                    {/* Provider Routes (Standalone outside layout) */}
                     <Route path="/provider/register" element={<ProviderRegister />} />
+                    <Route path="/provider/login" element={<ProviderLogin />} />
+                    <Route path="/provider/forgot-password" element={<ProviderForgotPassword />} />
+                    <Route path="/digilocker/callback" element={<DigilockerCallback />} />
                     <Route path="/provider/profile" element={<ProviderProfile />} />
                     <Route path="/provider/bookings" element={<ProviderBookings />} />
                     <Route path="/provider/staff" element={<ProviderStaff />} />
@@ -170,6 +176,7 @@ const App = () => (
                       <Route path="employees" element={<AdminHRM view="employee" />} />
                       <Route path="providers" element={<AdminProviders />} />
                       <Route path="sewaks" element={<SewakManagement />} />
+                      <Route path="sewak-enquiries" element={<AdminSewakEnquiries />} />
                       <Route path="verify-sewaks" element={<AdminVerifySewak />} />
                       <Route path="verify-employees" element={<AdminVerifyEmployee />} />
                       <Route path="verify-combos" element={<AdminVerifyCombo />} />

@@ -16,7 +16,8 @@ const {
     deleteAddress,
     addFavorite,
     deleteFavorite,
-    getFavorites
+    getFavorites,
+    forgotPassword
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -27,6 +28,7 @@ router.post('/verify-credentials', verifyCredentials);
 router.post('/check-existence', checkUserExistence);
 router.post('/send-otp', sendOTP);
 router.post('/verify-otp', verifyOTP);
+router.post('/forgot-password', forgotPassword);
 router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);
 router.delete('/profile', protect, deleteUserAccount);

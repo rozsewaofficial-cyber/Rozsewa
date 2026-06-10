@@ -13,10 +13,25 @@ const registerProvider = async (req, res) => {
     } = req.body;
 
     try {
-        const providerExists = await Provider.findOne({ mobile });
+        // Check for duplicates across unique fields
+        const existingChecks = [];
+        if (mobile) existingChecks.push({ mobile });
+        if (req.body.email) existingChecks.push({ email: req.body.email });
+        if (kycAadhaar) existingChecks.push({ kycAadhaar });
+        if (kycPanNumber) existingChecks.push({ kycPanNumber });
+        if (gst) existingChecks.push({ gst });
+        if (bankDetails && bankDetails.accountNumber) existingChecks.push({ 'bankDetails.accountNumber': bankDetails.accountNumber });
 
-        if (providerExists) {
-            return res.status(400).json({ message: 'Provider already exists with this mobile number' });
+        if (existingChecks.length > 0) {
+            const providerExists = await Provider.findOne({ $or: existingChecks });
+            if (providerExists) {
+                if (providerExists.mobile === mobile) return res.status(400).json({ message: 'Mobile number is already registered' });
+                if (req.body.email && providerExists.email === req.body.email) return res.status(400).json({ message: 'Email is already registered' });
+                if (kycAadhaar && providerExists.kycAadhaar === kycAadhaar) return res.status(400).json({ message: 'Aadhaar number is already registered' });
+                if (kycPanNumber && providerExists.kycPanNumber === kycPanNumber) return res.status(400).json({ message: 'PAN number is already registered' });
+                if (gst && providerExists.gst === gst) return res.status(400).json({ message: 'GST number is already registered' });
+                if (bankDetails && providerExists.bankDetails && providerExists.bankDetails.accountNumber === bankDetails.accountNumber) return res.status(400).json({ message: 'Bank account number is already registered' });
+            }
         }
 
         // Generate a random vendor code RSVND + 5 digits

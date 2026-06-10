@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
@@ -10,6 +10,9 @@ import API from "@/lib/api";
 const ProviderLogin = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [showEnquiryModal, setShowEnquiryModal] = useState(false);
+  const [enquiryForm, setEnquiryForm] = useState({ name: '', phone: '', email: '' });
+  const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
   const [loginType, setLoginType] = useState('partner');
@@ -40,20 +43,30 @@ const ProviderLogin = () => {
           if (data.success) {
             setStep(2);
             toast({ title: "OTP Sent", description: "Credentials verified. Please enter the code sent to your mobile." });
+          } else {
+             toast({ title: "Error", description: data.message || "Failed to send OTP", variant: "destructive" });
           }
         }
       } else if (step === 2) {
-        // Verify OTP - Login using the new login-otp endpoint
         if (!userOtp) {
           toast({ title: "Error", description: "Please enter the OTP.", variant: "destructive" });
           setIsLoading(false);
           return;
         }
 
-        const res = await loginWithOTP(mobile, userOtp, "provider");
+        const { data } = await API.post("/auth/verify-otp", {
+          mobile,
+          otp: userOtp,
+          role: loginType
+        });
 
-        if (res.success) {
-          toast({ title: "Login Successful", description: `Welcome back!` });
+        if (data.success) {
+          login(data.data.user, data.data.token);
+          
+          toast({
+            title: "Login Successful",
+            description: `Welcome back to the ${loginType === 'sewak' ? 'Sewak' : 'Provider'} Portal!`,
+          });
 
           if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(async (position) => {
@@ -70,16 +83,46 @@ const ProviderLogin = () => {
           } else {
             navigate("/provider", { replace: true });
           }
-        } else {
-          toast({ title: "Login Failed", description: res.error, variant: "destructive" });
-          setShowOtpError(true);
         }
       }
-    } catch (err) {
-      toast({ title: "Login Failed", description: err.response?.data?.message || "Invalid OTP or User not found", variant: "destructive" });
+    } catch (error) {
       if (step === 2) setShowOtpError(true);
+      toast({
+        title: "Login Failed",
+        description: error.response?.data?.message || error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleEnquirySubmit = async (e) => {
+    e.preventDefault();
+    if (!enquiryForm.name || !enquiryForm.phone || !enquiryForm.email) {
+      toast({ title: "Validation Error", description: "All fields are required", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmittingEnquiry(true);
+    try {
+      const { data } = await API.post("/public/sewak-enquiry", enquiryForm);
+      if (data.success) {
+        toast({
+          title: "Enquiry Submitted",
+          description: data.message || "We will contact you soon.",
+        });
+        setShowEnquiryModal(false);
+        setEnquiryForm({ name: '', phone: '', email: '' });
+      }
+    } catch (error) {
+      toast({
+        title: "Submission Failed",
+        description: error.response?.data?.message || "Failed to submit enquiry",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingEnquiry(false);
     }
   };
 
@@ -156,6 +199,9 @@ const ProviderLogin = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center ml-1">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secret Password</label>
+                    <Link to="/provider/forgot-password" className={`text-[10px] font-bold ${loginType === 'sewak' ? 'text-blue-500 hover:text-blue-600' : 'text-emerald-500 hover:text-emerald-600'} hover:underline tracking-wider`}>
+                      FORGOT PASSWORD?
+                    </Link>
                   </div>
                   <div className="relative group">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
@@ -177,12 +223,6 @@ const ProviderLogin = () => {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
-                </div>
-
-                <div className="space-y-4 pt-2">
-                  <p className="text-[11px] text-slate-400 font-bold px-1 leading-relaxed">
-                    A 6-digit verification code will be sent to your registered mobile number after credential check.
-                  </p>
                 </div>
               </div>
             ) : (
@@ -211,11 +251,6 @@ const ProviderLogin = () => {
                     placeholder="000000"
                   />
                   {showOtpError && <p className="text-[10px] text-red-500 font-bold mt-2 text-center">Incorrect OTP. Please try again.</p>}
-                </div>
-
-                <div className="flex items-center justify-center gap-4">
-                  <p className="text-xs font-bold text-slate-400">Didn't receive?</p>
-                  <button type="button" className="text-xs font-black text-blue-600 hover:underline">Resend OTP</button>
                 </div>
               </motion.div>
             )}
@@ -246,6 +281,19 @@ const ProviderLogin = () => {
                 </button>
               )}
             </div>
+
+            {loginType === 'sewak' && step === 1 && (
+              <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+                <p className="text-xs font-bold text-slate-500 mb-2">Want to become a Sewak?</p>
+                <button
+                  type="button"
+                  onClick={() => setShowEnquiryModal(true)}
+                  className="text-sm font-black text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Send Enquiry
+                </button>
+              </div>
+            )}
           </form>
 
           {loginType === 'partner' && step === 1 && (
@@ -266,6 +314,81 @@ const ProviderLogin = () => {
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secure Dashboard</p>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showEnquiryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-6">
+                <button
+                  onClick={() => setShowEnquiryModal(false)}
+                  className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="mb-6">
+                  <h3 className="text-xl font-black text-slate-900">Apply for Sewak</h3>
+                  <p className="text-sm text-slate-500 font-medium">Fill out the form and our team will contact you.</p>
+                </div>
+
+                <form onSubmit={handleEnquirySubmit} className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-black tracking-widest text-slate-400">FULL NAME</label>
+                    <input
+                      type="text"
+                      required
+                      value={enquiryForm.name}
+                      onChange={(e) => setEnquiryForm({ ...enquiryForm, name: e.target.value })}
+                      className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      placeholder="John Doe"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-black tracking-widest text-slate-400">PHONE NUMBER</label>
+                    <input
+                      type="tel"
+                      required
+                      value={enquiryForm.phone}
+                      onChange={(e) => setEnquiryForm({ ...enquiryForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      placeholder="99999 00000"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-black tracking-widest text-slate-400">EMAIL ADDRESS</label>
+                    <input
+                      type="email"
+                      required
+                      value={enquiryForm.email}
+                      onChange={(e) => setEnquiryForm({ ...enquiryForm, email: e.target.value })}
+                      className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                      placeholder="john@example.com"
+                    />
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    disabled={isSubmittingEnquiry}
+                    className="mt-6 w-full rounded-2xl bg-blue-600 py-4 text-sm font-black text-white hover:bg-blue-700 disabled:opacity-70 transition-colors"
+                  >
+                    {isSubmittingEnquiry ? <Loader2 className="mx-auto h-5 w-5 animate-spin" /> : "Submit Enquiry"}
+                  </button>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -6,7 +6,7 @@ import {
   Store, User, Phone, MapPin, Briefcase, ArrowRight, ArrowLeft, Loader2,
   ShieldCheck, CreditCard, Gift, CheckCircle, Navigation, Clock,
   Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Image as ImageIcon, ChevronRight, X, Building2,
-  Layers, Sparkles, Map, Heart, Smartphone, Lock
+  Layers, Sparkles, Map, Heart, Smartphone, Lock, Eye, EyeOff
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -40,6 +40,7 @@ const ProviderRegister = () => {
 
   const [categories, setCategories] = useState([]);
   const [fetchingCats, setFetchingCats] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     mobile: "",
@@ -69,6 +70,20 @@ const ProviderRegister = () => {
       bankName: "",
       accountHolderName: "",
     }
+  });
+
+  const [verificationStatus, setVerificationStatus] = useState({
+    pan: false,
+    gst: false,
+    bank: false,
+    aadhaar: false
+  });
+
+  const [verifying, setVerifying] = useState({
+    pan: false,
+    gst: false,
+    bank: false,
+    aadhaar: false
   });
 
   const formDataRef = useRef(formData);
@@ -169,7 +184,7 @@ const ProviderRegister = () => {
               }
               if (addr.state) parts.push(addr.state);
               if (addr.postcode) parts.push(addr.postcode);
-              
+
               const shortAddress = parts.join(", ") || data.display_name;
 
               setCoords([longitude, latitude]);
@@ -239,11 +254,11 @@ const ProviderRegister = () => {
 
   const dataURLtoFile = (dataurl, filename) => {
     let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
-    bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
-    while(n--){
-        u8arr[n] = bstr.charCodeAt(n);
+      bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
     }
-    return new File([u8arr], filename, {type:mime});
+    return new File([u8arr], filename, { type: mime });
   };
 
   const capturePhoto = () => {
@@ -255,10 +270,10 @@ const ProviderRegister = () => {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL("image/jpeg");
-    
+
     const file = dataURLtoFile(dataUrl, "selfie.jpg");
     uploadSelfie(file);
-    
+
     stopCamera();
   };
 
@@ -272,10 +287,10 @@ const ProviderRegister = () => {
       });
       setFormData({ ...formData, profileImage: data.url });
       toast({ title: "Photo Captured & Uploaded" });
-    } catch { 
-      toast({ title: "Upload Failed", variant: "destructive" }); 
-    } finally { 
-      setUploadingDoc(null); 
+    } catch {
+      toast({ title: "Upload Failed", variant: "destructive" });
+    } finally {
+      setUploadingDoc(null);
     }
   };
 
@@ -336,6 +351,126 @@ const ProviderRegister = () => {
         ? prev.subServices.filter(s => s !== service)
         : [...prev.subServices, service]
     }));
+  };
+
+  const handleVerifyPAN = async () => {
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) {
+      return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
+    }
+    setVerifying(prev => ({ ...prev, pan: true }));
+    try {
+      const { data } = await API.post("/verify/pan", { pan: formData.kycPanNumber });
+      if (data.status === "VERIFIED" || data.success) {
+        setVerificationStatus(prev => ({ ...prev, pan: true }));
+        if (data.data && data.data.name && !formData.ownerName) {
+           setFormData(prev => ({ ...prev, ownerName: data.data.name }));
+        }
+        toast({ title: "PAN Verified", description: "PAN verified successfully." });
+      } else {
+        toast({ title: "Verification Failed", description: "PAN verification failed.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, pan: false }));
+    }
+  };
+
+  const handleVerifyGST = async () => {
+    if (!formData.gst || formData.gst.length !== 15) {
+      return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
+    }
+    setVerifying(prev => ({ ...prev, gst: true }));
+    try {
+      const { data } = await API.post("/verify/gst", { gstNumber: formData.gst });
+      if (data.status === "VERIFIED" || data.success) {
+        setVerificationStatus(prev => ({ ...prev, gst: true }));
+        if (data.data && data.data.businessName && !formData.shopName) {
+           setFormData(prev => ({ ...prev, shopName: data.data.businessName }));
+        }
+        toast({ title: "GST Verified", description: "GST details fetched successfully." });
+      } else {
+        toast({ title: "Verification Failed", description: "GST verification failed.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, gst: false }));
+    }
+  };
+
+  const handleVerifyBank = async () => {
+    const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
+    if (!accountNumber || !ifscCode || !accountHolderName) {
+      return toast({ title: "Incomplete Details", description: "Please enter Account Number, IFSC, and Holder Name.", variant: "destructive" });
+    }
+    setVerifying(prev => ({ ...prev, bank: true }));
+    try {
+      const { data } = await API.post("/verify/bank", { 
+        accountNumber, 
+        ifscCode, 
+        beneficiaryName: accountHolderName 
+      });
+      if (data.status === "VERIFIED" || data.success) {
+        setVerificationStatus(prev => ({ ...prev, bank: true }));
+        toast({ title: "Bank Verified", description: "Penny drop successful." });
+      } else {
+        toast({ title: "Verification Failed", description: "Bank verification failed.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, bank: false }));
+    }
+  };
+
+  const handleInitiateDigilocker = async () => {
+    setVerifying(prev => ({ ...prev, aadhaar: true }));
+    try {
+      const { data } = await API.post("/digilocker/initiate", { mobileNumber: formData.mobile });
+      console.log("DigiLocker API Response:", data); // Log to see the exact structure
+
+      // Try different common property names for the URL
+      const authUrl = data?.data?.authUrl || data?.authUrl || data?.url || data?.data?.url;
+
+      if ((data.success !== false) && authUrl) {
+        const popup = window.open(authUrl, 'DigiLocker Auth', 'width=500,height=600');
+        
+        // Listen for messages from the DigilockerCallback window
+        const messageHandler = (event) => {
+          if (event.origin !== window.location.origin) return;
+          if (event.data?.type === 'DIGILOCKER_SUCCESS') {
+            setVerificationStatus(prev => ({ ...prev, aadhaar: true }));
+            toast({ title: "Aadhaar Verified", description: "DigiLocker consent recorded successfully." });
+            window.removeEventListener('message', messageHandler);
+          } else if (event.data?.type === 'DIGILOCKER_ERROR') {
+            toast({ title: "Verification Failed", description: "DigiLocker consent failed or was cancelled.", variant: "destructive" });
+            window.removeEventListener('message', messageHandler);
+          }
+        };
+
+        window.addEventListener('message', messageHandler);
+
+        // Fallback to clear listener if popup is closed manually
+        const checkPopup = setInterval(() => {
+          if (popup && popup.closed) {
+            clearInterval(checkPopup);
+            window.removeEventListener('message', messageHandler);
+          }
+        }, 1000);
+      } else if (data.success === true || data.status === "VERIFIED") {
+        // Fallback if success but no URL (maybe already verified?)
+        setVerificationStatus(prev => ({ ...prev, aadhaar: true }));
+        toast({ title: "Aadhaar Verified", description: "DigiLocker consent recorded successfully." });
+      } else {
+        console.error("Failed to parse DigiLocker response:", data);
+        toast({ title: "DigiLocker Failed", description: "Could not find Auth URL in response.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "DigiLocker Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, aadhaar: false }));
+    }
   };
 
   const handleSignupComplete = async (response) => {
@@ -399,6 +534,8 @@ const ProviderRegister = () => {
     if (accountHolderName.trim().length < 3) return toast({ title: "Invalid Name", description: "Account holder name must be at least 3 characters.", variant: "destructive" });
     if (!/^\d{11,17}$/.test(accountNumber)) return toast({ title: "Invalid Account Number", description: "Account number must be between 11 and 17 digits.", variant: "destructive" });
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return toast({ title: "Invalid IFSC", description: "Please enter a valid 11-character IFSC code.", variant: "destructive" });
+
+    if (!verificationStatus.bank) return toast({ title: "Verification Required", description: "Please verify your bank account to continue.", variant: "destructive" });
 
     if (!cardConfig.enabled) {
       await finalizeSignupDirectly();
@@ -757,7 +894,11 @@ const ProviderRegister = () => {
                   if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
                   if (formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
                   if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
-                  
+
+                  if (!verificationStatus.aadhaar || !verificationStatus.pan) {
+                    return toast({ title: "Verification Required", description: "Please verify your Aadhaar and PAN to continue.", variant: "destructive" });
+                  }
+
                   if (formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto && formData.kycPanPhoto) setStep(6);
                   else toast({ title: "Documents Required", description: "Please upload Aadhaar (Front & Back) and PAN photos.", variant: "destructive" });
                 }}
@@ -776,19 +917,43 @@ const ProviderRegister = () => {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Aadhaar Number</label>
-                      <input required maxLength="12" value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="12-Digit Aadhaar No" />
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Aadhaar / DigiLocker</label>
+                        {!verificationStatus.aadhaar && (
+                          <button type="button" onClick={handleInitiateDigilocker} disabled={verifying.aadhaar} className="text-[9px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
+                            {verifying.aadhaar ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify DigiLocker"}
+                          </button>
+                        )}
+                        {verificationStatus.aadhaar && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
+                      </div>
+                      <input required maxLength="12" disabled={verificationStatus.aadhaar} value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="12-Digit Aadhaar No" />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">PAN Number</label>
-                      <input required maxLength="10" value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="PAN Number" />
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">PAN Number</label>
+                        {!verificationStatus.pan && (
+                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || formData.kycPanNumber.length < 10} className="text-[9px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
+                            {verifying.pan ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify PAN"}
+                          </button>
+                        )}
+                        {verificationStatus.pan && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
+                      </div>
+                      <input required maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">GST Number (Opt)</label>
-                      <input maxLength="15" value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300" placeholder="GST" />
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">GST Number (Opt)</label>
+                        {!verificationStatus.gst && formData.gst.length === 15 && (
+                          <button type="button" onClick={handleVerifyGST} disabled={verifying.gst} className="text-[9px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
+                            {verifying.gst ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify GST"}
+                          </button>
+                        )}
+                        {verificationStatus.gst && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
+                      </div>
+                      <input maxLength="15" disabled={verificationStatus.gst} value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="GST" />
                     </div>
                   </div>
 
@@ -796,7 +961,14 @@ const ProviderRegister = () => {
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Create Password</label>
                     <div className="relative">
                       <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                      <input type="password" required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Enter a strong password" />
+                      <input type={showPassword ? "text" : "password"} required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-10 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Enter a strong password" />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </div>
 
@@ -883,9 +1055,9 @@ const ProviderRegister = () => {
                       </div>
                     )}
                   </motion.div>
-                  
+
                   {/* Camera Control Button */}
-                  <button 
+                  <button
                     type="button"
                     onClick={isCameraOpen ? capturePhoto : startCamera}
                     className="absolute -bottom-4 -right-4 h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white transition-all hover:scale-110 active:scale-90 active:rotate-12 group"
@@ -895,10 +1067,10 @@ const ProviderRegister = () => {
 
                   {/* Fallback File Input (Hidden) */}
                   <input type="file" accept="image/*" className="hidden" id="fallback-file-input" onChange={e => handleFileUpload(e, 'profileImage')} />
-                  
+
                   {/* Option to cancel camera */}
                   {isCameraOpen && (
-                    <button 
+                    <button
                       type="button"
                       onClick={stopCamera}
                       className="absolute -top-4 -right-4 h-8 w-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 shadow-lg transition-all"
@@ -1047,30 +1219,44 @@ const ProviderRegister = () => {
                 <form onSubmit={handleBankSubmit} className="space-y-5">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
-                    <input required value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="As per bank records" />
+                    <input required disabled={verificationStatus.bank} value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="As per bank records" />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Number</label>
-                    <input required minLength="11" maxLength="17" value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Account Number" />
+                    <input required disabled={verificationStatus.bank} minLength="11" maxLength="17" value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="Bank Account Number" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">IFSC Code</label>
-                      <input required maxLength="11" value={formData.bankDetails.ifscCode} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase" placeholder="IFSC" />
+                      <input required disabled={verificationStatus.bank} maxLength="11" value={formData.bankDetails.ifscCode} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase disabled:opacity-70" placeholder="IFSC" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Bank Name</label>
-                      <input required value={formData.bankDetails.bankName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, bankName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="Bank Name" />
+                      <input required disabled={verificationStatus.bank} value={formData.bankDetails.bankName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, bankName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="Bank Name" />
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
-                    <div className="h-10 w-10 flex-shrink-0 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
-                      <ShieldCheck className="h-5 w-5" />
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 flex-shrink-0 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                        <ShieldCheck className="h-5 w-5" />
+                      </div>
+                      <p className="text-[10px] font-medium text-slate-500 leading-relaxed uppercase tracking-widest max-w-[200px]">Double check your details. Settlements will be sent to this account weekly.</p>
                     </div>
-                    <p className="text-[10px] font-medium text-slate-500 leading-relaxed uppercase tracking-widest">Double check your details. Settlements will be sent to this account weekly.</p>
+                    
+                    {!verificationStatus.bank && (
+                      <button type="button" onClick={handleVerifyBank} disabled={verifying.bank} className="flex-shrink-0 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-200 transition-colors flex items-center gap-2">
+                        {verifying.bank ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Account"}
+                      </button>
+                    )}
+                    {verificationStatus.bank && (
+                      <div className="flex-shrink-0 flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Verified</span>
+                      </div>
+                    )}
                   </div>
 
                   <button

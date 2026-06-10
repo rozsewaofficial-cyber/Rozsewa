@@ -19,6 +19,9 @@ const supportRoutes = require('./routes/supportRoutes');
 const wfhRoutes = require('./routes/wfhRoutes');
 const faqRoutes = require('./routes/faqRoutes');
 const complaintRoutes = require('./routes/complaintRoutes');
+const verifyRoutes = require('./routes/verifyRoutes');
+const digilockerRoutes = require('./routes/digilockerRoutes');
+const mockRoutes = require('./routes/mockRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -77,6 +80,11 @@ app.use('/api/support', supportRoutes);
 app.use('/api/wfh', wfhRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/faqs', faqRoutes);
+app.use('/api/verify', verifyRoutes);
+app.use('/api/digilocker', digilockerRoutes);
+app.use('/mock', mockRoutes);
+
+// Forcing nodemon restart to load new .env variables
 
 app.get('/', (req, res) => {
     res.send('Rojsewa API is running...');

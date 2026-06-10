@@ -79,6 +79,8 @@ const {
 const { getWithdrawals, updateWithdrawalStatus } = require('../controllers/withdrawalController');
 const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updateIncentiveSettings } = require('../controllers/commissionController');
 
+const { getEnquiries, updateEnquiryStatus } = require('../controllers/sewakEnquiryController');
+
 const { protect, admin, superadmin, supervisor, employee } = require('../middleware/authMiddleware');
 
 // HRM Management
@@ -202,5 +204,9 @@ router.get('/finance', protect, admin, getFinanceData);
 router.get('/earnings', protect, admin, getEarningsData);
 router.get('/sewak-incentives', protect, admin, getIncentives);
 router.post('/sewak-incentive-settings', protect, admin, updateIncentiveSettings);
+
+// Sewak Enquiries
+router.get('/sewak-enquiries', protect, admin, getEnquiries);
+router.put('/sewak-enquiries/:id/status', protect, admin, updateEnquiryStatus);
 
 module.exports = router;
