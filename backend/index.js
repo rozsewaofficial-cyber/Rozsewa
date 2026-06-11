@@ -87,7 +87,7 @@ app.use('/mock', mockRoutes);
 // Forcing nodemon restart to load new .env variables
 
 app.get('/', (req, res) => {
-    res.send('Rojsewa API is running...');
+    res.send('rozsewa API is running...');
 });
 
 const PORT = process.env.PORT || 5000;

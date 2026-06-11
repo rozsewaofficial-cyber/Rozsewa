@@ -80,7 +80,7 @@ const WalletPage = () => {
           <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>
-          <h1 className="text-xl font-black text-foreground tracking-tight">RojSewa Wallet</h1>
+          <h1 className="text-xl font-black text-foreground tracking-tight">Rozsewa Wallet</h1>
         </div>
 
         {/* Balance Card */}

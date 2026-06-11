@@ -33,6 +33,8 @@ import ComplaintForm from "./modules/user/pages/ComplaintForm";
 import SupportTickets from "./modules/user/pages/SupportTickets";
 import SubscriptionPlans from "./modules/user/pages/SubscriptionPlans";
 import Offers from "./modules/user/pages/Offers";
+import Terms from "./modules/user/pages/Terms";
+import Privacy from "./modules/user/pages/Privacy";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GlobalAlarm from "./components/GlobalAlarm";
 
@@ -144,6 +146,8 @@ const App = () => (
                     <Route path="/complaint" element={<ComplaintForm />} />
                     <Route path="/support-tickets" element={<SupportTickets />} />
                     <Route path="/offers" element={<Offers />} />
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/privacy" element={<Privacy />} />
 
                     {/* Provider Routes */}
                     <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />

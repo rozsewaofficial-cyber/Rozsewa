@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 const defaultProviderFallback = {
   id: "default",
-  name: "RojSewa Expert",
+  name: "Rozsewa Expert",
   category: "General",
   rating: 4.8,
   reviews: 156,
@@ -367,10 +367,10 @@ const ShopDetail = () => {
             <motion.div key="reviews" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
               {(() => {
                 const totalReviews = reviewsList.length;
-                const avgRating = totalReviews > 0 
+                const avgRating = totalReviews > 0
                   ? (reviewsList.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
                   : "0.0";
-                
+
                 return (
                   <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
                     <div className="text-center w-20">

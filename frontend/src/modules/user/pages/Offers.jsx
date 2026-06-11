@@ -122,7 +122,7 @@ const Offers = () => {
 
                 {/* Dashed line */}
                 <div className="mt-4 pt-4 border-t border-dashed border-emerald-100/50 flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-[0.2em]">ROJSEWA EXCLUSIVE</p>
+                  <p className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-[0.2em]">Rozsewa EXCLUSIVE</p>
                   <button
                     onClick={() => {
                       localStorage.setItem("rozsewa_last_copied_coupon", coupon.code);

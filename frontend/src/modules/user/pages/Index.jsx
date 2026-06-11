@@ -220,7 +220,7 @@ const Index = () => {
         {/* Security Banner */}
         <section className="rounded-[3rem] bg-gray-900 p-12 text-center relative overflow-hidden group">
           <div className="absolute top-0 right-0 h-64 w-64 bg-emerald-600/10 rounded-full -mr-32 -mt-32 blur-[100px] group-hover:bg-emerald-600/20 transition-all duration-1000"></div>
-          <h3 className="text-3xl font-black tracking-tighter text-white italic">RojSewa Guarantee</h3>
+          <h3 className="text-3xl font-black tracking-tighter text-white italic">Rozsewa Guarantee</h3>
           <p className="text-sm font-bold text-gray-400 mt-4 max-w-xl mx-auto leading-relaxed">Every professional is background checked and verified to ensure high-quality, secure service delivery at your doorstep.</p>
           <div className="mt-8 flex flex-wrap justify-center gap-3 text-white">
             {["Genuine Pro", "Safe Wallet", "Home Care"].map(badge => (

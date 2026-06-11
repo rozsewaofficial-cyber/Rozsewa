@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 
 const initialCoupons = [
-  { id: "C-1", code: "ROJSEWA30", discount: "30%", maxUses: 100, used: 45, expiry: "2026-12-31", status: "active" },
+  { id: "C-1", code: "Rozsewa30", discount: "30%", maxUses: 100, used: 45, expiry: "2026-12-31", status: "active" },
   { id: "C-2", code: "WELCOME50", discount: "₹50", maxUses: 500, used: 312, expiry: "2026-06-30", status: "active" },
   { id: "C-3", code: "FESTIVE20", discount: "20%", maxUses: 50, used: 50, expiry: "2025-11-20", status: "expired" },
 ];
@@ -125,7 +125,7 @@ const AdminCoupons = () => {
                     </div>
                   </div>
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${coupon.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                      coupon.status === 'disabled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                    coupon.status === 'disabled' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
                     }`}>
                     {coupon.status}
                   </span>
@@ -149,7 +149,7 @@ const AdminCoupons = () => {
                     onClick={() => handleToggleStatus(coupon.id)}
                     disabled={coupon.status === "expired"}
                     className={`text-xs font-bold flex items-center gap-1.5 transition-colors ${coupon.status === "expired" ? "text-gray-400 cursor-not-allowed" :
-                        coupon.status === "active" ? "text-amber-600 hover:text-amber-700" : "text-emerald-600 hover:text-emerald-700"
+                      coupon.status === "active" ? "text-amber-600 hover:text-amber-700" : "text-emerald-600 hover:text-emerald-700"
                       }`}
                   >
                     {coupon.status === "active" ? <><XCircle className="h-4 w-4" /> Disable</> : <><CheckCircle2 className="h-4 w-4" /> Enable</>}

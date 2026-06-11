@@ -20,8 +20,6 @@ const ProviderLogin = () => {
   const { toast } = useToast();
   const { login, loginWithOTP } = useAuth();
 
-  const [step, setStep] = useState(1);
-  const [userOtp, setUserOtp] = useState("");
   const [showOtpError, setShowOtpError] = useState(false);
 
   const handleVerifyLogin = async (e) => {
@@ -33,57 +31,33 @@ const ProviderLogin = () => {
 
     setIsLoading(true);
     try {
-      if (step === 1) {
-        // Step 1: Verify Password first
-        const { data: verifyRes } = await API.post("/auth/verify-credentials", { mobile, password, type: "provider" });
+      const result = await login(mobile, password, loginType);
 
-        if (verifyRes.success) {
-          // Credentials OK, now Send actual OTP
-          const { data } = await API.post("/auth/send-otp", { mobile });
-          if (data.success) {
-            setStep(2);
-            toast({ title: "OTP Sent", description: "Credentials verified. Please enter the code sent to your mobile." });
-          } else {
-             toast({ title: "Error", description: data.message || "Failed to send OTP", variant: "destructive" });
-          }
-        }
-      } else if (step === 2) {
-        if (!userOtp) {
-          toast({ title: "Error", description: "Please enter the OTP.", variant: "destructive" });
-          setIsLoading(false);
-          return;
-        }
+      if (result.success) {
+        toast({
+          title: "Login Successful",
+          description: `Welcome back to the ${loginType === 'sewak' ? 'Sewak' : 'Provider'} Portal!`,
+        });
 
-        const result = await loginWithOTP(mobile, userOtp, loginType);
-
-        if (result.success) {
-          
-          toast({
-            title: "Login Successful",
-            description: `Welcome back to the ${loginType === 'sewak' ? 'Sewak' : 'Provider'} Portal!`,
-          });
-
-          if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(async (position) => {
-              const { latitude, longitude } = position.coords;
-              try {
-                await API.put(`/provider/profile`, {
-                  location: { type: 'Point', coordinates: [longitude, latitude] }
-                });
-              } catch (err) { console.error("Location sync failed", err); }
-              navigate("/provider", { replace: true });
-            }, () => {
-              navigate("/provider", { replace: true });
-            });
-          } else {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(async (position) => {
+            const { latitude, longitude } = position.coords;
+            try {
+              await API.put(`/provider/profile`, {
+                location: { type: 'Point', coordinates: [longitude, latitude] }
+              });
+            } catch (err) { console.error("Location sync failed", err); }
             navigate("/provider", { replace: true });
-          }
+          }, () => {
+            navigate("/provider", { replace: true });
+          });
         } else {
-          throw new Error(result.error || "Login failed");
+          navigate("/provider", { replace: true });
         }
+      } else {
+        throw new Error(result.error || "Login failed");
       }
     } catch (error) {
-      if (step === 2) setShowOtpError(true);
       toast({
         title: "Login Failed",
         description: error.response?.data?.message || error.message || "Something went wrong. Please try again.",
@@ -146,7 +120,7 @@ const ProviderLogin = () => {
             {loginType === 'sewak' ? 'Sewak Portal' : 'Partner Portal'}
           </h2>
           <p className="mt-2 text-sm text-slate-500 font-bold uppercase tracking-widest opacity-60">
-            {step === 1 ? 'Enter Credentials' : 'Verify Identity'}
+            Enter Credentials
           </p>
         </div>
 
@@ -155,48 +129,53 @@ const ProviderLogin = () => {
           animate={{ y: 0, opacity: 1 }}
           className="rounded-[2.5rem] bg-white p-8 md:p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100"
         >
-          {step === 1 && (
-            <div className="flex bg-slate-100/50 p-1.5 rounded-2xl mb-8 border border-slate-100">
-              <button
-                onClick={() => setLoginType('provider')}
-                className={`flex-1 py-2.5 text-[10px] font-black rounded-xl transition-all tracking-widest ${loginType === 'provider' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                ROZSEWA PARTNER
-              </button>
-              <button
-                onClick={() => setLoginType('sewak')}
-                className={`flex-1 py-2.5 text-[10px] font-black rounded-xl transition-all tracking-widest ${loginType === 'sewak' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                ROZSEWA SEWAK
-              </button>
-            </div>
-          )}
+          <div className="flex bg-slate-100/50 p-1.5 rounded-2xl mb-8 border border-slate-100">
+            <button
+              onClick={() => setLoginType('provider')}
+              className={`flex-1 py-2.5 text-[10px] font-black rounded-xl transition-all tracking-widest ${loginType === 'provider' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              ROZSEWA PARTNER
+            </button>
+            <button
+              onClick={() => setLoginType('sewak')}
+              className={`flex-1 py-2.5 text-[10px] font-black rounded-xl transition-all tracking-widest ${loginType === 'sewak' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              ROZSEWA SEWAK
+            </button>
+          </div>
 
           <form className="space-y-6" onSubmit={handleVerifyLogin}>
-            {step === 1 ? (
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Registered Mobile</label>
+            <motion.div
+              initial={{ x: -20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              className="space-y-6"
+            >
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">
+                    Mobile Number
+                  </label>
                   <div className="relative group">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-                      <Phone className={`h-4 w-4 transition-colors ${loginType === 'sewak' ? 'group-focus-within:text-blue-500' : 'group-focus-within:text-emerald-500'} text-slate-300`} />
+                      <span className={`text-sm font-bold transition-colors ${loginType === 'sewak' ? 'group-focus-within:text-blue-500' : 'group-focus-within:text-emerald-500'} text-slate-400`}>+91</span>
                     </div>
                     <input
                       type="tel"
                       value={mobile}
-                      onChange={(e) => setMobile(e.target.value)}
+                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                       required
-                      maxLength="10"
                       className={`block w-full rounded-2xl border border-slate-200 bg-slate-50/30 py-4 pl-12 pr-4 text-sm font-bold text-slate-900 transition-all outline-none focus:ring-4 ${loginType === 'sewak' ? 'focus:border-blue-500 focus:ring-blue-500/10' : 'focus:border-emerald-500 focus:ring-emerald-500/10'}`}
-                      placeholder="99999 00000"
+                      placeholder="Enter 10-digit number"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center ml-1">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secret Password</label>
-                    <Link to="/provider/forgot-password" className={`text-[10px] font-bold ${loginType === 'sewak' ? 'text-blue-500 hover:text-blue-600' : 'text-emerald-500 hover:text-emerald-600'} hover:underline tracking-wider`}>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between ml-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Password
+                    </label>
+                    <Link to="/provider/forgot-password" className={`text-[10px] font-black hover:underline ${loginType === 'sewak' ? 'text-blue-500' : 'text-emerald-500'}`}>
                       FORGOT PASSWORD?
                     </Link>
                   </div>
@@ -222,35 +201,7 @@ const ProviderLogin = () => {
                   </div>
                 </div>
               </div>
-            ) : (
-              <motion.div
-                initial={{ x: 20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                className="space-y-6"
-              >
-                <div className="text-center space-y-2">
-                  <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-                    <Phone className="h-8 w-8 text-blue-600" />
-                  </div>
-                  <h3 className="text-lg font-black text-slate-900">Verify OTP</h3>
-                  <p className="text-xs font-bold text-slate-400">Sent to +91 {mobile.slice(0, 5)} {mobile.slice(5)}</p>
-                </div>
-
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={userOtp}
-                    onChange={(e) => {
-                      setUserOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
-                      setShowOtpError(false);
-                    }}
-                    className={`block w-full rounded-2xl border ${showOtpError ? 'border-red-500 ring-4 ring-red-500/10' : 'border-slate-200'} bg-slate-50/30 py-5 text-center text-2xl font-semibold ${userOtp ? 'tracking-[0.5em]' : 'tracking-normal'} text-slate-900 transition-all outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10`}
-                    placeholder="000000"
-                  />
-                  {showOtpError && <p className="text-[10px] text-red-500 font-bold mt-2 text-center">Incorrect OTP. Please try again.</p>}
-                </div>
-              </motion.div>
-            )}
+            </motion.div>
 
             <div className="flex flex-col gap-3">
               <button
@@ -262,24 +213,14 @@ const ProviderLogin = () => {
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <>
-                    <span>{step === 1 ? 'Account Login' : 'Complete Verification'}</span>
+                    <span>Account Login</span>
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </>
                 )}
               </button>
-
-              {step === 2 && (
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="text-xs font-black text-slate-400 hover:text-slate-600 py-2 transition-colors"
-                >
-                  Change Mobile or Password
-                </button>
-              )}
             </div>
 
-            {loginType === 'sewak' && step === 1 && (
+            {loginType === 'sewak' && (
               <div className="mt-4 pt-4 border-t border-slate-100 text-center">
                 <p className="text-xs font-bold text-slate-500 mb-2">Want to become a Sewak?</p>
                 <button
@@ -293,7 +234,7 @@ const ProviderLogin = () => {
             )}
           </form>
 
-          {loginType === 'provider' && step === 1 && (
+          {loginType === 'provider' && (
             <div className="mt-8 text-center pt-6 border-t border-slate-50">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                 New to Rozsewa?{" "}
@@ -303,6 +244,15 @@ const ProviderLogin = () => {
               </p>
             </div>
           )}
+
+          <div className="mt-6 text-center">
+            <p className="text-[10px] font-bold text-slate-400">
+              By continuing, you agree to our{" "}
+              <Link to="/terms" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
+              {" "}and{" "}
+              <Link to="/privacy" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Privacy Policy</Link>
+            </p>
+          </div>
         </motion.div>
 
         <div className="mt-8 flex items-center justify-center gap-6 opacity-40 grayscale pointer-events-none">
