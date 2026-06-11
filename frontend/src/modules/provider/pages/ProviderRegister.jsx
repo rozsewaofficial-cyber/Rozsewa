@@ -920,7 +920,7 @@ const ProviderRegister = () => {
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Aadhaar / DigiLocker</label>
                         {!verificationStatus.aadhaar && (
-                          <button type="button" onClick={handleInitiateDigilocker} disabled={verifying.aadhaar} className="text-[9px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
+                          <button type="button" onClick={handleInitiateDigilocker} disabled={verifying.aadhaar} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm">
                             {verifying.aadhaar ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify DigiLocker"}
                           </button>
                         )}
@@ -932,7 +932,7 @@ const ProviderRegister = () => {
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">PAN Number</label>
                         {!verificationStatus.pan && (
-                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || formData.kycPanNumber.length < 10} className="text-[9px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
+                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || formData.kycPanNumber.length < 10} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
                             {verifying.pan ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify PAN"}
                           </button>
                         )}
@@ -947,7 +947,7 @@ const ProviderRegister = () => {
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">GST Number (Opt)</label>
                         {!verificationStatus.gst && formData.gst.length === 15 && (
-                          <button type="button" onClick={handleVerifyGST} disabled={verifying.gst} className="text-[9px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
+                          <button type="button" onClick={handleVerifyGST} disabled={verifying.gst} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm">
                             {verifying.gst ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify GST"}
                           </button>
                         )}
@@ -964,8 +964,12 @@ const ProviderRegister = () => {
                       <input type={showPassword ? "text" : "password"} required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-10 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Enter a strong password" />
                       <button
                         type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowPassword((prev) => !prev);
+                        }}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 focus:outline-none z-10 p-2 cursor-pointer"
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>

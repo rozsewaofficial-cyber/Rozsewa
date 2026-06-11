@@ -97,7 +97,12 @@ const initiateDigilocker = async (req, res) => {
     }
 
     try {
-        const redirectUrl = process.env.FRONTEND_URL ? `${process.env.FRONTEND_URL}/digilocker/callback` : 'http://localhost:5173/digilocker/callback';
+        let baseUrl = 'http://localhost:5173';
+        if (process.env.FRONTEND_URL) {
+            // Take the first URL if there are multiple comma-separated URLs
+            baseUrl = process.env.FRONTEND_URL.split(',')[0].trim();
+        }
+        const redirectUrl = `${baseUrl}/digilocker/callback`;
         
         const response = await axios.post(`${BASE_URL}/api/v1/digilocker/initiate`, {
             mobileNumber,

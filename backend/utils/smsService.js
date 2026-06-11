@@ -11,6 +11,9 @@ const sendSMSOTP = async (mobile, otp) => {
         const senderId = process.env.SMSINDIAHUB_SENDER_ID;
         const message = `Welcome to the Rozsewa powered by SMSINDIAHUB. Your OTP for registration is ${otp}`;
 
+        // DEV BYPASS: Log OTP to console so you can log in even if SMS fails
+        console.log(`[DEV MODE] OTP generated for ${mobile} is: ${otp}`);
+
         // Sanitize mobile number (remove + or any spaces)
         const cleanMobile = mobile.replace(/\D/g, '');
 
