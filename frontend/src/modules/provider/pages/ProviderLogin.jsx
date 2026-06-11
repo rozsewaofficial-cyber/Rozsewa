@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
@@ -13,12 +13,21 @@ const ProviderLogin = () => {
   const [showEnquiryModal, setShowEnquiryModal] = useState(false);
   const [enquiryForm, setEnquiryForm] = useState({ name: '', phone: '', email: '' });
   const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
-  const [mobile, setMobile] = useState("");
-  const [password, setPassword] = useState("");
-  const [loginType, setLoginType] = useState('provider');
+  
+  // Initialize state from sessionStorage if available
+  const [mobile, setMobile] = useState(() => sessionStorage.getItem("providerLoginMobile") || "");
+  const [password, setPassword] = useState(() => sessionStorage.getItem("providerLoginPassword") || "");
+  const [loginType, setLoginType] = useState(() => sessionStorage.getItem("providerLoginType") || 'provider');
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const { login, loginWithOTP } = useAuth();
+
+  // Save to sessionStorage whenever they change
+  useEffect(() => {
+    sessionStorage.setItem("providerLoginMobile", mobile);
+    sessionStorage.setItem("providerLoginPassword", password);
+    sessionStorage.setItem("providerLoginType", loginType);
+  }, [mobile, password, loginType]);
 
   const [showOtpError, setShowOtpError] = useState(false);
 
@@ -188,6 +197,7 @@ const ProviderLogin = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      maxLength="24"
                       className={`block w-full rounded-2xl border border-slate-200 bg-slate-50/30 py-4 pl-12 pr-12 text-sm font-bold text-slate-900 transition-all outline-none focus:ring-4 ${loginType === 'sewak' ? 'focus:border-blue-500 focus:ring-blue-500/10' : 'focus:border-emerald-500 focus:ring-emerald-500/10'}`}
                       placeholder="••••••••"
                     />

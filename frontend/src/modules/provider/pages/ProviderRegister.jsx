@@ -34,6 +34,18 @@ const ProviderRegister = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(null);
   const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraStream, setCameraStream] = useState(null);
   const videoRef = useRef(null);
@@ -310,6 +322,7 @@ const ProviderRegister = () => {
       const { data } = await API.post("/auth/send-otp", { mobile: formData.mobile });
       if (data.success) {
         setOtpSent(true);
+        setOtpTimer(30);
         toast({ title: "OTP Sent", description: "Identity verification code sent." });
       }
     } catch (err) {
@@ -621,12 +634,12 @@ const ProviderRegister = () => {
   ];
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#f0f9f6] relative overflow-hidden px-4 py-4 md:py-8">
+    <div className="flex min-h-[100dvh] flex-col items-center bg-[#f0f9f6] relative overflow-y-auto overflow-x-hidden px-4 py-8 md:py-12">
       {/* Decorative Accents */}
       <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-xl space-y-6">
+      <div className="w-full max-w-xl space-y-6 my-auto">
         <div className="text-center space-y-4">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -700,7 +713,7 @@ const ProviderRegister = () => {
 
                   <button
                     type="submit"
-                    disabled={isLoading}
+                    disabled={isLoading || otpSent}
                     className="w-full group mt-4 h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 overflow-hidden relative"
                   >
                     <AnimatePresence mode="wait">
@@ -710,8 +723,8 @@ const ProviderRegister = () => {
                         </motion.div>
                       ) : (
                         <motion.div key="text" className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                          <span>Send Code</span>
-                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                          <span>{otpSent ? "Code Sent" : "Send Code"}</span>
+                          {!otpSent && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -728,14 +741,29 @@ const ProviderRegister = () => {
                     <div className="space-y-3">
                       <label className="text-xs font-bold text-slate-700 text-center block uppercase tracking-wider">Authentication Code</label>
                       <input
-                        type="text"
+                        type="password"
                         required
                         value={formData.otp}
-                        onChange={e => setFormData({ ...formData, otp: e.target.value })}
+                        onChange={e => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
                         maxLength="6"
                         className="w-full text-center tracking-[0.4em] rounded-lg border border-emerald-500 bg-white py-2.5 text-xl font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all placeholder:text-slate-200"
                         placeholder="••••••"
                       />
+                      <div className="flex justify-between items-center px-1">
+                        <span className="text-[10px] font-bold text-slate-500">Didn't receive the code?</span>
+                        {otpTimer > 0 ? (
+                          <span className="text-[10px] font-bold text-slate-400">Resend in {otpTimer}s</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSendOtp}
+                            disabled={isLoading}
+                            className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors disabled:opacity-50"
+                          >
+                            Resend Code
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <button type="submit" className="w-full h-12 rounded-lg border-2 border-emerald-500 text-emerald-600 font-bold hover:bg-emerald-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                       <Lock className="h-5 w-5" />
@@ -1470,6 +1498,15 @@ const ProviderRegister = () => {
             )}
           </AnimatePresence>
         </motion.div>
+
+        <div className="mt-6 text-center">
+          <p className="text-[10px] font-bold text-slate-400">
+            By registering, you agree to our{" "}
+            <Link to="/terms" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
+            {" "}and{" "}
+            <Link to="/privacy" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Privacy Policy</Link>
+          </p>
+        </div>
       </div>
 
       <style dangerouslySetInnerHTML={{
