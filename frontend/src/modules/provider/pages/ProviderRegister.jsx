@@ -929,17 +929,30 @@ const ProviderRegister = () => {
                   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
                   if (formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
                   if (!/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
-                  if (!/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
-                  if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
+                  if (formData.kycAadhaar && !/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
+                  if (formData.kycPanNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
                   if (formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
                   if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
 
-                  if (!verificationStatus.aadhaar || !verificationStatus.pan || !verificationStatus.email) {
-                    return toast({ title: "Verification Required", description: "Please verify Email, Aadhaar, and PAN.", variant: "destructive" });
+                  if (!verificationStatus.email) {
+                    return toast({ title: "Verification Required", description: "Please verify your Email.", variant: "destructive" });
+                  }
+                  if (!verificationStatus.aadhaar && !verificationStatus.pan) {
+                    return toast({ title: "Verification Required", description: "Please verify EITHER Aadhaar OR PAN.", variant: "destructive" });
                   }
 
-                  if (formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto && formData.kycPanPhoto) setStep(6);
-                  else toast({ title: "Documents Required", description: "Please upload Aadhaar (Front & Back) and PAN photos.", variant: "destructive" });
+                  let hasPhotos = false;
+                  // If both are verified, both need photos
+                  if (verificationStatus.aadhaar && verificationStatus.pan) {
+                      hasPhotos = !!(formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto && formData.kycPanPhoto);
+                  } else if (verificationStatus.aadhaar) {
+                      hasPhotos = !!(formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto);
+                  } else if (verificationStatus.pan) {
+                      hasPhotos = !!(formData.kycPanPhoto);
+                  }
+
+                  if (hasPhotos) setStep(6);
+                  else toast({ title: "Documents Required", description: "Please upload photos for your verified identity documents.", variant: "destructive" });
                 }}
                 className="space-y-6"
               >
@@ -986,7 +999,7 @@ const ProviderRegister = () => {
                         )}
                         {verificationStatus.aadhaar && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input required maxLength="12" disabled={verificationStatus.aadhaar} value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="12-Digit Aadhaar No" />
+                      <input maxLength="12" disabled={verificationStatus.aadhaar} value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="12-Digit Aadhaar No" />
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between ml-1">
@@ -998,7 +1011,7 @@ const ProviderRegister = () => {
                         )}
                         {verificationStatus.pan && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input required maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
+                      <input maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
                     </div>
                   </div>
 
