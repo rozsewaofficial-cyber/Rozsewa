@@ -15,7 +15,7 @@ const ProviderLogin = () => {
   const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
   const [mobile, setMobile] = useState("");
   const [password, setPassword] = useState("");
-  const [loginType, setLoginType] = useState('partner');
+  const [loginType, setLoginType] = useState('provider');
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const { login, loginWithOTP } = useAuth();
@@ -54,14 +54,9 @@ const ProviderLogin = () => {
           return;
         }
 
-        const { data } = await API.post("/auth/verify-otp", {
-          mobile,
-          otp: userOtp,
-          role: loginType
-        });
+        const result = await loginWithOTP(mobile, userOtp, loginType);
 
-        if (data.success) {
-          login(data.data.user, data.data.token);
+        if (result.success) {
           
           toast({
             title: "Login Successful",
@@ -83,6 +78,8 @@ const ProviderLogin = () => {
           } else {
             navigate("/provider", { replace: true });
           }
+        } else {
+          throw new Error(result.error || "Login failed");
         }
       }
     } catch (error) {
@@ -161,8 +158,8 @@ const ProviderLogin = () => {
           {step === 1 && (
             <div className="flex bg-slate-100/50 p-1.5 rounded-2xl mb-8 border border-slate-100">
               <button
-                onClick={() => setLoginType('partner')}
-                className={`flex-1 py-2.5 text-[10px] font-black rounded-xl transition-all tracking-widest ${loginType === 'partner' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                onClick={() => setLoginType('provider')}
+                className={`flex-1 py-2.5 text-[10px] font-black rounded-xl transition-all tracking-widest ${loginType === 'provider' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
               >
                 ROZSEWA PARTNER
               </button>
@@ -296,7 +293,7 @@ const ProviderLogin = () => {
             )}
           </form>
 
-          {loginType === 'partner' && step === 1 && (
+          {loginType === 'provider' && step === 1 && (
             <div className="mt-8 text-center pt-6 border-t border-slate-50">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                 New to Rozsewa?{" "}

@@ -4,6 +4,7 @@ const { Wallet } = require('../models/Wallet');
 const generateToken = require('../utils/generateToken');
 const OTP = require('../models/OTP');
 const { sendSMSOTP } = require('../utils/smsService');
+const { sendEmail } = require('../utils/emailService');
 
 // @desc    Send OTP to mobile
 // @route   POST /api/auth/send-otp
@@ -141,19 +142,12 @@ const loginWithOTP = async (req, res) => {
         let user = null;
         let isProvider = false;
 
-        if (req.body.type === 'provider') {
+        if (req.body.type === 'provider' || req.body.type === 'sewak') {
             user = await Provider.findOne({ mobile });
             isProvider = !!user;
-            if (!user) {
-                user = await User.findOne({ mobile });
-                isProvider = false;
-            }
         } else {
             user = await User.findOne({ mobile });
-            if (!user) {
-                user = await Provider.findOne({ mobile });
-                isProvider = !!user;
-            }
+            isProvider = false;
         }
 
         if (!user) {
@@ -542,8 +536,70 @@ const forgotPassword = async (req, res) => {
     }
 };
 
+// @desc    Verify Email OTP
+// @route   POST /api/auth/verify-email-otp
+// @access  Public
+const verifyEmailOtp = async (req, res) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
+
+    try {
+        const otpDoc = await OTP.findOne({ email, otp });
+
+        if (otpDoc) {
+            await OTP.deleteOne({ _id: otpDoc._id });
+            res.json({ success: true, message: 'Email verified successfully' });
+        } else {
+            res.status(400).json({ message: 'Invalid or expired OTP' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Send OTP to email
+// @route   POST /api/auth/send-email-otp
+// @access  Public
+const sendEmailOtp = async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email address is required' });
+
+    try {
+        // Generate 6 digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Save OTP to DB (upsert)
+        await OTP.findOneAndUpdate(
+            { email },
+            { otp, createdAt: new Date() },
+            { upsert: true, new: true }
+        );
+
+        // Send Email
+        const html = `
+            <div style="font-family: sans-serif; padding: 20px;">
+                <h2>RozSewa Email Verification</h2>
+                <p>Your OTP for email verification is:</p>
+                <h1 style="color: #10b981; letter-spacing: 5px;">${otp}</h1>
+                <p>This OTP will expire in 5 minutes.</p>
+            </div>
+        `;
+        const result = await sendEmail(email, "Verify Your Email - RozSewa", html);
+
+        if (result.success) {
+            res.json({ success: true, message: 'OTP sent to email successfully' });
+        } else {
+            res.status(500).json({ message: 'Failed to send email OTP', error: result.error });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     registerUser,
+    sendEmailOtp,
+    verifyEmailOtp,
     authUser,
     getUserProfile,
     updateUserProfile,

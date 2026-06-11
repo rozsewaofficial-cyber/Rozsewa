@@ -10,6 +10,8 @@ const {
     checkUserExistence,
     sendOTP,
     verifyOTP,
+    sendEmailOtp,
+    verifyEmailOtp,
     loginWithOTP,
     verifyCredentials,
     addAddress,
@@ -28,6 +30,8 @@ router.post('/verify-credentials', verifyCredentials);
 router.post('/check-existence', checkUserExistence);
 router.post('/send-otp', sendOTP);
 router.post('/verify-otp', verifyOTP);
+router.post('/send-email-otp', sendEmailOtp);
+router.post('/verify-email-otp', verifyEmailOtp);
 router.post('/forgot-password', forgotPassword);
 router.get('/profile', protect, getUserProfile);
 router.put('/profile', protect, updateUserProfile);

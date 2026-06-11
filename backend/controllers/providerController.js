@@ -7,7 +7,7 @@ const Employee = require('../models/Employee');
 // @access  Public
 const registerProvider = async (req, res) => {
     const {
-        mobile, ownerName, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
+        mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
         gst, kycAadhaar, kycAadhaarPhoto, kycAadhaarBackPhoto, kycPanNumber, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy,
         bankDetails
     } = req.body;
@@ -76,6 +76,7 @@ const registerProvider = async (req, res) => {
         const provider = await Provider.create({
             mobile,
             ownerName,
+            email,
             shopName,
             password: password || "123456",
             businessType,

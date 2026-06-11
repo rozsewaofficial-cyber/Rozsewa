@@ -146,7 +146,7 @@ const App = () => (
                     <Route path="/offers" element={<Offers />} />
 
                     {/* Provider Routes */}
-                    <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider"]}><ProviderDashboard /></ProtectedRoute>} />
+                    <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />
                     {/* Provider Routes (Standalone outside layout) */}
                     <Route path="/provider/register" element={<ProviderRegister />} />
                     <Route path="/provider/login" element={<ProviderLogin />} />

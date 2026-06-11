@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
       if (isPageAdmin) {
         expectedRole = (auth?.role === 'superadmin' || auth?.role === 'supervisor') ? auth.role : "admin";
       } else if (isPageProvider) {
-        expectedRole = "provider";
+        expectedRole = (auth?.role === 'sewak') ? 'sewak' : 'provider';
       }
 
       // If the current auth doesn't match the panel we are in, re-sync
@@ -102,7 +102,10 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (err) {
           console.error("Auth session expired", err);
-          if (auth?.role === expectedRole) logout(); // Only logout if it was the active role
+          localStorage.removeItem(getStorageKey(path));
+          if (auth?.role === expectedRole || auth?.role === 'customer') {
+            setAuth(null);
+          }
         }
       }
       setLoading(false);
