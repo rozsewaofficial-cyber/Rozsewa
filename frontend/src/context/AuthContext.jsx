@@ -151,13 +151,28 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (identifier, password, type = 'customer') => {
     try {
-      const endpoint = type === 'provider' ? "/provider/login" : "/auth/login";
-      const loginData = type === 'provider' ? { mobile: identifier, password } : { identifier, password };
+      const isProviderOrSewak = type === 'provider' || type === 'sewak';
+      const endpoint = isProviderOrSewak ? "/provider/login" : "/auth/login";
+      const loginData = isProviderOrSewak ? { mobile: identifier, password } : { identifier, password };
 
       const { data: apiResponse } = await API.post(endpoint, loginData);
       
       // Handle the new standardized payload format { success, message, data: { token, user } }
       const authData = apiResponse.data?.user || apiResponse;
+      
+      // Check if user is actually a Sewak
+      const isActuallySewak = authData.vendorType === 'sewak' || (authData.vendorCode && authData.vendorCode.startsWith('RSSEWK'));
+      
+      // Verify vendorType if logging into Sewak portal
+      if (type === 'sewak' && !isActuallySewak) {
+        throw new Error("This account is not registered as a Sewak.");
+      }
+      
+      // Verify vendorType if logging into Partner portal
+      if (type === 'provider' && isActuallySewak) {
+        throw new Error("Please login through the Sewak portal.");
+      }
+
       const token = apiResponse.data?.token || apiResponse.token;
       
       const sessionData = { ...authData, token, role: authData.role || type };
