@@ -462,7 +462,10 @@ const ProviderRegister = () => {
   const handleInitiateDigilocker = async () => {
     setVerifying(prev => ({ ...prev, aadhaar: true }));
     try {
-      const { data } = await API.post("/digilocker/initiate", { mobileNumber: formData.mobile });
+      const { data } = await API.post("/digilocker/initiate", { 
+        mobileNumber: formData.mobile,
+        redirectUrl: `${window.location.origin}/digilocker/callback`
+      });
       console.log("DigiLocker API Response:", data); // Log to see the exact structure
 
       // Try different common property names for the URL

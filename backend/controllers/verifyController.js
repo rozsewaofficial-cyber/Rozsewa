@@ -90,7 +90,7 @@ const verifyGST = async (req, res) => {
 // @route   POST /api/v1/digilocker/initiate
 // @access  Private
 const initiateDigilocker = async (req, res) => {
-    const { mobileNumber } = req.body;
+    const { mobileNumber, redirectUrl: clientRedirectUrl } = req.body;
 
     if (!mobileNumber) {
         return res.status(400).json({ success: false, message: 'Mobile number is required' });
@@ -102,7 +102,7 @@ const initiateDigilocker = async (req, res) => {
             // Take the first URL if there are multiple comma-separated URLs
             baseUrl = process.env.FRONTEND_URL.split(',')[0].trim();
         }
-        const redirectUrl = `${baseUrl}/digilocker/callback`;
+        const redirectUrl = clientRedirectUrl || `${baseUrl}/digilocker/callback`;
         
         const response = await axios.post(`${BASE_URL}/api/v1/digilocker/initiate`, {
             mobileNumber,
