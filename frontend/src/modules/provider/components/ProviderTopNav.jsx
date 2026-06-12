@@ -1,13 +1,28 @@
 import { motion } from "framer-motion";
 import { ArrowLeft, Bell, UserCircle, Sun, Moon } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useState, useEffect } from "react";
+import API from "@/lib/api";
 
 const ProviderTopNav = ({ title, showBack = false }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    const checkUnread = async () => {
+      try {
+        const { data } = await API.get("/notifications");
+        setHasUnread((data || []).some(n => !n.read));
+      } catch {}
+    };
+    checkUnread();
+  }, [user, location.pathname]); // re-check whenever page changes
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/10 bg-white dark:bg-slate-950/80 backdrop-blur-md">
@@ -46,10 +61,12 @@ const ProviderTopNav = ({ title, showBack = false }) => {
 
           {user && (
             <div className="flex items-center gap-2 border-l border-border pl-2">
-              <Link to="/provider/notifications" className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
-                <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>
-              </Link>
+              {!((user?.role === 'sewak' || user?.providerCategory === 'sewak') ? !user?.kycVerified : user?.status !== 'verified') && (
+                <Link to="/provider/notifications" className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
+                  <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                  {hasUnread && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>}
+                </Link>
+              )}
 
               <Link to="/provider/profile" className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 ring-1 ring-emerald-200">
                 {user?.profileImage ? (

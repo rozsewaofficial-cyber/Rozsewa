@@ -161,7 +161,7 @@ export const AuthProvider = ({ children }) => {
       const authData = apiResponse.data?.user || apiResponse;
       
       // Check if user is actually a Sewak
-      const isActuallySewak = authData.vendorType === 'sewak' || (authData.vendorCode && authData.vendorCode.startsWith('RSSEWK'));
+      const isActuallySewak = authData.providerCategory === 'sewak' || authData.vendorType === 'sewak' || (authData.vendorCode && authData.vendorCode.startsWith('RSSEW'));
       
       // Verify vendorType if logging into Sewak portal
       if (type === 'sewak' && !isActuallySewak) {

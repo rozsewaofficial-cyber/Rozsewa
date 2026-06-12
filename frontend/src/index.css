@@ -104,7 +104,8 @@
   --foreground: 150 30% 8%;
 }
 
-.dark.provider-panel, .dark .provider-panel {
+.dark.provider-panel,
+.dark .provider-panel {
   --background: 146 30% 8%;
   --foreground: 146 10% 95%;
 }

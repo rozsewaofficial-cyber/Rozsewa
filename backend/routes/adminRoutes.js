@@ -48,6 +48,7 @@ const {
     updateAdmin,
     getAllSewaks,
     createSewak,
+    updateSewak,
     getPendingSewaks,
     verifySewak,
     rejectSewak,
@@ -179,6 +180,7 @@ router.delete('/subscriptions/:id', protect, admin, deleteSubscriptionPlan);
 // Sewak Management
 router.get('/sewaks', protect, admin, getAllSewaks);
 router.post('/sewaks', protect, admin, createSewak);
+router.put('/sewaks/:id', protect, admin, updateSewak);
 router.get('/sewaks/pending-kyc', protect, admin, getPendingSewaks);
 router.put('/sewaks/:id/verify', protect, admin, verifySewak);
 router.put('/sewaks/:id/reject', protect, admin, rejectSewak);

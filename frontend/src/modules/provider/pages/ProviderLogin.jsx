@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, Navigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -13,14 +13,14 @@ const ProviderLogin = () => {
   const [showEnquiryModal, setShowEnquiryModal] = useState(false);
   const [enquiryForm, setEnquiryForm] = useState({ name: '', phone: '', email: '' });
   const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
-  
+
   // Initialize state from sessionStorage if available
   const [mobile, setMobile] = useState(() => sessionStorage.getItem("providerLoginMobile") || "");
   const [password, setPassword] = useState(() => sessionStorage.getItem("providerLoginPassword") || "");
   const [loginType, setLoginType] = useState(() => sessionStorage.getItem("providerLoginType") || 'provider');
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
-  const { login, loginWithOTP } = useAuth();
+  const { login, loginWithOTP, user, isAuthenticated, loading } = useAuth();
 
   // Save to sessionStorage whenever they change
   useEffect(() => {
@@ -30,6 +30,14 @@ const ProviderLogin = () => {
   }, [mobile, password, loginType]);
 
   const [showOtpError, setShowOtpError] = useState(false);
+
+  // If already logged in as provider, redirect to dashboard
+  if (!loading && isAuthenticated && user?.role === 'provider') {
+    return <Navigate to="/provider" replace />;
+  }
+  if (!loading && isAuthenticated && user?.role === 'sewak') {
+    return <Navigate to="/provider" replace />;
+  }
 
   const handleVerifyLogin = async (e) => {
     e.preventDefault();
@@ -54,6 +62,8 @@ const ProviderLogin = () => {
             try {
               await API.put(`/provider/profile`, {
                 location: { type: 'Point', coordinates: [longitude, latitude] }
+              }, {
+                headers: { Authorization: `Bearer ${result.data.token}` }
               });
             } catch (err) { console.error("Location sync failed", err); }
             navigate("/provider", { replace: true });
@@ -184,9 +194,11 @@ const ProviderLogin = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                       Password
                     </label>
-                    <Link to="/provider/forgot-password" className={`text-[10px] font-black hover:underline ${loginType === 'sewak' ? 'text-blue-500' : 'text-emerald-500'}`}>
-                      FORGOT PASSWORD?
-                    </Link>
+                    {loginType !== 'sewak' && (
+                      <Link to={`/provider/forgot-password?type=${loginType}`} className={`text-[10px] font-black hover:underline text-emerald-500`}>
+                        FORGOT PASSWORD?
+                      </Link>
+                    )}
                   </div>
                   <div className="relative group">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
@@ -332,7 +344,7 @@ const ProviderLogin = () => {
                       placeholder="john@example.com"
                     />
                   </div>
-                  
+
                   <button
                     type="submit"
                     disabled={isSubmittingEnquiry}

@@ -148,7 +148,7 @@ const testFCMNotification = async (req, res) => {
     try {
         const userId = req.user._id;
         const userRole = req.user.role;
-        
+
         await sendNotificationToUser(userId, userRole, {
             title: "Test Notification",
             body: "This is a test push notification from Rozsewa!",
@@ -158,7 +158,7 @@ const testFCMNotification = async (req, res) => {
                 link: "/test"
             }
         });
-        
+
         res.json({ message: 'Test notification sent' });
     } catch (error) {
         res.status(500).json({ message: error.message });

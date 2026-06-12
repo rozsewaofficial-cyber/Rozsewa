@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Users, Plus, Search, Mail, Phone, Trash2,
     UserCircle, BadgeCheck, AlertCircle, Loader2,
-    X, Save, IndianRupee, Key, Edit3, Shield, MapPin, Monitor
+    X, Save, IndianRupee, Key, Edit3, Shield, MapPin, Monitor, Eye, EyeOff
 } from "lucide-react";
 import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -14,6 +14,7 @@ const AdminHRM = ({ view }) => {
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [editId, setEditId] = useState(null);
     const [search, setSearch] = useState("");
     const { toast } = useToast();
@@ -48,6 +49,17 @@ const AdminHRM = ({ view }) => {
         fetchEmployees();
     }, []);
 
+    useEffect(() => {
+        if (showAddModal) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "";
+        }
+        return () => {
+            document.body.style.overflow = "";
+        };
+    }, [showAddModal]);
+
     const fetchEmployees = async () => {
         try {
             const { data } = await API.get("/admin/employees");
@@ -65,14 +77,14 @@ const AdminHRM = ({ view }) => {
         } else if (view === 'employee') {
             filtered = allEmployees.filter(e => e.role !== 'supervisor');
         }
-        
+
         // Hide pending employees for supervisors
         if (user?.role === 'supervisor') {
             filtered = filtered.filter(e => e.status !== 'pending');
         }
-        
+
         if (search) {
-            filtered = filtered.filter(e => 
+            filtered = filtered.filter(e =>
                 e.name.toLowerCase().includes(search.toLowerCase()) ||
                 e.email.toLowerCase().includes(search.toLowerCase()) ||
                 e.mobile.includes(search)
@@ -83,7 +95,31 @@ const AdminHRM = ({ view }) => {
 
     const handleAddEmployee = async (e) => {
         e.preventDefault();
-        
+
+        // Validation: Mobile number must be exactly 10 digits
+        if (!/^[6-9]\d{9}$/.test(formData.mobile)) {
+            toast({ title: "Validation Error", description: "Please enter a valid 10-digit Indian mobile number.", variant: "destructive" });
+            return;
+        }
+
+        // Validation: PAN Card must be in correct format
+        if (formData.panCard && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.panCard)) {
+            toast({ title: "Validation Error", description: "Please enter a valid PAN Card number (e.g. ABCDE1234F).", variant: "destructive" });
+            return;
+        }
+
+        // Validation: Aadhaar Card must be exactly 12 digits
+        if (formData.aadharCard && !/^\d{12}$/.test(formData.aadharCard)) {
+            toast({ title: "Validation Error", description: "Please enter a valid 12-digit Aadhaar Card number.", variant: "destructive" });
+            return;
+        }
+
+        // Validation: Commission cannot be negative
+        if (parseFloat(formData.registrationCommission) < 0) {
+            toast({ title: "Validation Error", description: "Registration commission cannot be less than 0.", variant: "destructive" });
+            return;
+        }
+
         // Validation: Documents and numbers are required for new registration
         if (!editId) {
             if (!formData.panCard || !formData.aadharCard) {
@@ -116,6 +152,9 @@ const AdminHRM = ({ view }) => {
             }
 
             const submitData = { ...formData, panCardPhoto, aadharCardPhoto };
+            if (submitData.password === "********") {
+                delete submitData.password;
+            }
 
             if (editId) {
                 const { data } = await API.put(`/admin/employees/${editId}`, submitData);
@@ -124,15 +163,15 @@ const AdminHRM = ({ view }) => {
             } else {
                 const { data } = await API.post("/admin/employees", submitData);
                 setAllEmployees([data.employee, ...allEmployees]);
-                
-                const description = data.employee.role === 'supervisor' 
+
+                const description = data.employee.role === 'supervisor'
                     ? `ID: ${data.employee.ownCode} | Login: ${data.credentials.email} | Pass: ${data.credentials.password}`
                     : `ID: ${data.employee.ownCode} registered successfully.`;
 
-                toast({ 
-                    title: "Staff registered successfully!", 
+                toast({
+                    title: "Staff registered successfully!",
                     description,
-                    duration: 10000 
+                    duration: 10000
                 });
             }
             setShowAddModal(false);
@@ -140,10 +179,10 @@ const AdminHRM = ({ view }) => {
             setPanPhotoFile(null);
             setAadharPhotoFile(null);
         } catch (err) {
-            toast({ 
-                title: editId ? "Update failed" : "Registration failed", 
+            toast({
+                title: editId ? "Update failed" : "Registration failed",
                 description: err.response?.data?.message || "Something went wrong",
-                variant: "destructive" 
+                variant: "destructive"
             });
         } finally {
             setUploading(false);
@@ -151,10 +190,10 @@ const AdminHRM = ({ view }) => {
     };
 
     const resetForm = () => {
-        setFormData({ 
-            name: "", 
-            email: "", 
-            mobile: "", 
+        setFormData({
+            name: "",
+            email: "",
+            mobile: "",
             password: "",
             role: getDefaultRole(),
             supervisorCode: "",
@@ -170,7 +209,7 @@ const AdminHRM = ({ view }) => {
             name: emp.name,
             email: emp.email,
             mobile: emp.mobile,
-            password: "",
+            password: emp.userId?.plainPassword || emp.plainPassword || "********",
             role: emp.role || "employee",
             supervisorCode: emp.supervisorCode || "",
             registrationCommission: emp.registrationCommission,
@@ -232,15 +271,15 @@ const AdminHRM = ({ view }) => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                 <div className="space-y-1">
                     <h1 className="text-4xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-                        {view === 'supervisor' ? 'Supervisor Management' : 
-                         view === 'employee' ? 'Staff Management' : 
-                         user?.role === 'supervisor' ? 'My Team' : 'HRM Management'}
+                        {view === 'supervisor' ? 'Supervisor Management' :
+                            view === 'employee' ? 'Staff Management' :
+                                user?.role === 'supervisor' ? 'My Team' : 'HRM Management'}
                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                     </h1>
                     <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.2em] ml-1">
-                        {view === 'supervisor' ? 'Manage Regional Supervisors' : 
-                         view === 'employee' ? 'Manage Field & Office Staff' : 
-                         'Human Resource Control Center'}
+                        {view === 'supervisor' ? 'Manage Regional Supervisors' :
+                            view === 'employee' ? 'Manage Field & Office Staff' :
+                                'Human Resource Control Center'}
                     </p>
                 </div>
                 <motion.button
@@ -336,10 +375,9 @@ const AdminHRM = ({ view }) => {
                                 <tr key={emp._id} className="hover:bg-gray-50/50 transition-colors group">
                                     <td className="px-6 py-4 text-sm font-bold text-gray-900">
                                         <div className="flex items-center gap-3">
-                                            <div className={`h-10 w-10 shrink-0 rounded-2xl flex items-center justify-center font-black ${
-                                                emp.role === 'supervisor' ? 'bg-purple-100 text-purple-700' :
+                                            <div className={`h-10 w-10 shrink-0 rounded-2xl flex items-center justify-center font-black ${emp.role === 'supervisor' ? 'bg-purple-100 text-purple-700' :
                                                 emp.role === 'field_staff' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
-                                            }`}>
+                                                }`}>
                                                 {emp.name.charAt(0)}
                                             </div>
                                             <div>
@@ -350,10 +388,9 @@ const AdminHRM = ({ view }) => {
                                                 <div className="flex items-center gap-2">
                                                     <p className="text-[10px] text-emerald-600 uppercase font-black tracking-tighter">{emp.ownCode || emp.employeeId}</p>
                                                     {emp.status && (
-                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                                                            emp.status === 'verified' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                                        <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${emp.status === 'verified' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
                                                             emp.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-amber-50 text-amber-700 border border-amber-100'
-                                                        }`}>
+                                                            }`}>
                                                             {emp.status}
                                                         </span>
                                                     )}
@@ -486,7 +523,13 @@ const AdminHRM = ({ view }) => {
                                             required
                                             type="text"
                                             value={formData.name}
-                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (val === "" || /^[a-zA-Z\s]*$/.test(val)) {
+                                                    setFormData({ ...formData, name: val });
+                                                }
+                                            }}
+                                            maxLength={50}
                                             className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-5 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
                                             placeholder="Rahul Verma"
                                         />
@@ -500,9 +543,15 @@ const AdminHRM = ({ view }) => {
                                             required
                                             type="tel"
                                             value={formData.mobile}
-                                            onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/\D/g, "");
+                                                if (val.length <= 10) {
+                                                    setFormData({ ...formData, mobile: val });
+                                                }
+                                            }}
+                                            maxLength={10}
                                             className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-5 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
-                                            placeholder="91XXXXXXXXXX"
+                                            placeholder="9876543210"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
@@ -519,7 +568,7 @@ const AdminHRM = ({ view }) => {
                                 </div>
 
                                 {formData.role === 'field_staff' && user?.role !== 'supervisor' && (
-                                    <motion.div 
+                                    <motion.div
                                         initial={{ opacity: 0, y: -10 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         className="space-y-1.5"
@@ -544,7 +593,13 @@ const AdminHRM = ({ view }) => {
                                         <input
                                             type="text"
                                             value={formData.panCard}
-                                            onChange={(e) => setFormData({ ...formData, panCard: e.target.value.toUpperCase() })}
+                                            onChange={(e) => {
+                                                const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                                                if (val.length <= 10) {
+                                                    setFormData({ ...formData, panCard: val });
+                                                }
+                                            }}
+                                            maxLength={10}
                                             className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-5 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all uppercase"
                                             placeholder="ABCDE1234F"
                                         />
@@ -559,9 +614,15 @@ const AdminHRM = ({ view }) => {
                                         <input
                                             type="text"
                                             value={formData.aadharCard}
-                                            onChange={(e) => setFormData({ ...formData, aadharCard: e.target.value })}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/\D/g, "");
+                                                if (val.length <= 12) {
+                                                    setFormData({ ...formData, aadharCard: val });
+                                                }
+                                            }}
+                                            maxLength={12}
                                             className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-5 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
-                                            placeholder="XXXX XXXX XXXX"
+                                            placeholder="12-Digit Aadhaar No"
                                         />
                                         <input
                                             type="file"
@@ -572,30 +633,43 @@ const AdminHRM = ({ view }) => {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    {formData.role === 'supervisor' && (
-                                        <div className="space-y-1.5">
-                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Login Password</label>
-                                            <div className="relative">
-                                                <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                                <input
-                                                    type="text"
-                                                    value={formData.password}
-                                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                                    className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-12 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
-                                                    placeholder="Set login password"
-                                                />
-                                            </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                                            {editId ? "Current / New Password" : "Login Password"}
+                                        </label>
+                                        <div className="relative">
+                                            <Key className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                            <input
+                                                type={showPassword ? "text" : "password"}
+                                                value={formData.password}
+                                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                                className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-12 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
+                                                placeholder={editId ? "Current password (edit to change)" : "Set login password"}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-emerald-600 transition-colors"
+                                            >
+                                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            </button>
                                         </div>
-                                    )}
-                                    <div className={`space-y-1.5 ${formData.role !== 'supervisor' ? 'col-span-2' : ''}`}>
+                                    </div>
+                                    <div className="space-y-1.5">
                                         <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Reg. Commission (₹)</label>
                                         <div className="relative">
                                             <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                             <input
                                                 required
                                                 type="number"
+                                                min="0"
                                                 value={formData.registrationCommission}
-                                                onChange={(e) => setFormData({ ...formData, registrationCommission: e.target.value })}
+                                                onChange={(e) => {
+                                                    const val = parseFloat(e.target.value);
+                                                    if (e.target.value === "" || (!isNaN(val) && val >= 0)) {
+                                                        setFormData({ ...formData, registrationCommission: e.target.value });
+                                                    }
+                                                }}
                                                 className="w-full rounded-2xl border border-gray-100 bg-gray-50 pl-11 pr-4 py-3.5 text-sm font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 transition-all"
                                             />
                                         </div>

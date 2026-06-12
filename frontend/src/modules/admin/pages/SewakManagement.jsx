@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Users, Plus, Shield, Trash2, MapPin, Phone, Mail,
     Briefcase, UserPlus, Fingerprint, Search, Building2,
-    Camera, X, Loader2, FileCheck, FileText, XCircle, ChevronDown
+    Camera, X, Loader2, FileCheck, FileText, XCircle, ChevronDown, Eye, EyeOff, Edit3
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,15 +16,19 @@ const SewakManagement = () => {
     const [sewaks, setSewaks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [uploadingDoc, setUploadingDoc] = useState(null);
     const [categories, setCategories] = useState([]);
+    const [editId, setEditId] = useState(null);
 
     const [newSewak, setNewSewak] = useState({
         ownerName: '',
         email: '',
         mobile: '',
         password: '',
+        confirmPassword: '',
         address: '',
         city: '',
         state: '',
@@ -77,22 +81,54 @@ const SewakManagement = () => {
 
     const handleCreateSewak = async (e) => {
         e.preventDefault();
+        if (newSewak.password !== newSewak.confirmPassword) {
+            toast.error("Passwords do not match");
+            return;
+        }
         try {
             const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewaks`, newSewak, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
-            toast.success("Sewak registered successfully");
+            
+            if (editId) {
+                await axios.put(`${import.meta.env.VITE_API_URL}/admin/sewaks/${editId}`, newSewak, {
+                    headers: { Authorization: `Bearer ${auth?.token}` }
+                });
+                toast.success("Sewak updated successfully");
+            } else {
+                await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewaks`, newSewak, {
+                    headers: { Authorization: `Bearer ${auth?.token}` }
+                });
+                toast.success("Sewak registered successfully");
+            }
+            
             setShowCreateForm(false);
+            setEditId(null);
             setNewSewak({
-                ownerName: '', email: '', mobile: '', password: '',
+                ownerName: '', email: '', mobile: '', password: '', confirmPassword: '',
                 address: '', city: '', state: '', businessType: 'Internal Service',
                 bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
             });
             fetchSewaks();
         } catch (error) {
-            toast.error(error.response?.data?.message || "Failed to create Sewak");
+            toast.error(error.response?.data?.message || `Failed to ${editId ? 'update' : 'register'} Sewak`);
         }
+    };
+
+    const handleEditClick = (sewak) => {
+        setEditId(sewak._id);
+        setNewSewak({
+            ownerName: sewak.ownerName || '',
+            email: sewak.email || '',
+            mobile: sewak.mobile || '',
+            password: '',
+            confirmPassword: '',
+            address: sewak.address || '',
+            city: sewak.city || '',
+            state: sewak.state || '',
+            businessType: sewak.businessType || 'Internal Service',
+            bankDetails: sewak.bankDetails || { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
+        });
+        setShowCreateForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleFileUpload = async (e, docId) => {
@@ -155,7 +191,15 @@ const SewakManagement = () => {
                         />
                     </div>
                     <Button
-                        onClick={() => setShowCreateForm(!showCreateForm)}
+                        onClick={() => {
+                            setShowCreateForm(!showCreateForm);
+                            setEditId(null);
+                            setNewSewak({
+                                ownerName: '', email: '', mobile: '', password: '', confirmPassword: '',
+                                address: '', city: '', state: '', businessType: 'Internal Service',
+                                bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
+                            });
+                        }}
                         className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl h-[52px] px-8 font-black shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
                     >
                         {showCreateForm ? <XCircle className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
@@ -167,12 +211,12 @@ const SewakManagement = () => {
             {showCreateForm && (
                 <Card className="border-blue-100 shadow-xl shadow-blue-50 bg-blue-50/30 overflow-hidden">
                     <CardHeader className="bg-white border-b border-gray-100 p-6">
-                        <CardTitle className="flex items-center gap-2 text-xl">
+                        <CardTitle className="text-xl font-black text-gray-900 flex items-center gap-2">
                             <Briefcase className="h-5 w-5 text-blue-600" />
-                            Register Internal Sewak (Employee)
+                            {editId ? 'Update Sewak Profile' : 'Register Internal Sewak (Employee)'}
                         </CardTitle>
                         <CardDescription>
-                            Create a provider profile for a Rozsewa employee. They work for the company and do not earn personal commission from bookings.
+                            {editId ? 'Update the details of the selected Sewak.' : 'Create a provider profile for a Rozsewa employee. They work for the company and do not earn personal commission from bookings.'}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="p-8 bg-white space-y-8">
@@ -180,26 +224,57 @@ const SewakManagement = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                 <div className="space-y-2">
                                     <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Full Name</Label>
-                                    <Input required placeholder="Employee Name" value={newSewak.ownerName} onChange={(e) => setNewSewak({ ...newSewak, ownerName: e.target.value })} className="rounded-xl" />
+                                    <Input required placeholder="Employee Name" value={newSewak.ownerName} onChange={(e) => {
+                                        const val = e.target.value.replace(/[^a-zA-Z\s]/g, "");
+                                        setNewSewak({ ...newSewak, ownerName: val });
+                                    }} className="rounded-xl" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Email Address</Label>
-                                    <Input required type="email" placeholder="email@rozsewa.com" value={newSewak.email} onChange={(e) => setNewSewak({ ...newSewak, email: e.target.value })} className="rounded-xl" />
+                                    <Input required type="email" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}" placeholder="email@rozsewa.com" value={newSewak.email} onChange={(e) => {
+                                        const val = e.target.value.replace(/\s/g, "");
+                                        setNewSewak({ ...newSewak, email: val });
+                                    }} className="rounded-xl" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Mobile Number</Label>
-                                    <Input required placeholder="10 digit mobile" value={newSewak.mobile} onChange={(e) => setNewSewak({ ...newSewak, mobile: e.target.value })} className="rounded-xl" />
+                                    <Input required minLength={10} maxLength={10} pattern="[0-9]{10}" placeholder="10 digit mobile" value={newSewak.mobile} onChange={(e) => {
+                                        const val = e.target.value.replace(/\D/g, "");
+                                        setNewSewak({ ...newSewak, mobile: val });
+                                    }} className="rounded-xl" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Default Password</Label>
-                                    <Input required type="password" placeholder="Min 6 characters" value={newSewak.password} onChange={(e) => setNewSewak({ ...newSewak, password: e.target.value })} className="rounded-xl" />
+                                    <div className="relative">
+                                        <Input required={!editId} type={showPassword ? "text" : "password"} placeholder={editId ? "Leave blank to keep current" : "Min 6 characters"} value={newSewak.password} onChange={(e) => setNewSewak({ ...newSewak, password: e.target.value })} className="rounded-xl pr-10" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
+                                        >
+                                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Confirm Password</Label>
+                                    <div className="relative">
+                                        <Input required={!editId} type={showConfirmPassword ? "text" : "password"} placeholder="Re-enter password" value={newSewak.confirmPassword} onChange={(e) => setNewSewak({ ...newSewak, confirmPassword: e.target.value })} className="rounded-xl pr-10" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
+                                        >
+                                            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Service Category</Label>
                                     <div className="relative">
                                         <select
                                             required
-                                            className="w-full h-[52px] rounded-xl border border-gray-200 bg-white px-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/10 outline-none appearance-none pr-10"
+                                            className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm md:text-sm font-bold ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none pr-10"
                                             value={newSewak.businessType}
                                             onChange={(e) => setNewSewak({ ...newSewak, businessType: e.target.value })}
                                         >
@@ -236,7 +311,10 @@ const SewakManagement = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                     <div className="space-y-2">
                                         <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Account Holder Name</Label>
-                                        <Input placeholder="As per bank passbook" value={newSewak.bankDetails.accountHolderName} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
+                                        <Input placeholder="As per bank passbook" value={newSewak.bankDetails.accountHolderName} onChange={(e) => {
+                                            const val = e.target.value.replace(/[^a-zA-Z\s]/g, "");
+                                            setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: val } })
+                                        }} className="rounded-xl border-blue-50 focus:border-blue-500" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Bank Name</Label>
@@ -244,33 +322,30 @@ const SewakManagement = () => {
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Account Number</Label>
-                                        <Input placeholder="Bank account number" value={newSewak.bankDetails.accountNumber} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountNumber: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
+                                        <Input required minLength={9} maxLength={20} placeholder="Bank account number" value={newSewak.bankDetails.accountNumber} onChange={(e) => {
+                                            const val = e.target.value.replace(/\D/g, "");
+                                            setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountNumber: val } })
+                                        }} className="rounded-xl border-blue-50 focus:border-blue-500" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">IFSC Code</Label>
-                                        <Input placeholder="11 digit IFSC" value={newSewak.bankDetails.ifscCode} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, ifscCode: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
+                                        <Input required minLength={11} maxLength={11} placeholder="11 digit IFSC" value={newSewak.bankDetails.ifscCode} onChange={(e) => {
+                                            const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                                            setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, ifscCode: val } })
+                                        }} className="rounded-xl border-blue-50 focus:border-blue-500" />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="pt-4 border-t border-gray-100 italic text-[10px] text-gray-500 font-bold uppercase tracking-widest text-center">
-                                Identity documents will be uploaded by the sewak upon their first login.
-                            </div>
-
-                            <div className="pt-6 border-t border-gray-100">
-                                <Button
-                                    type="submit"
-                                    disabled={uploadingDoc !== null}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black h-16 rounded-2xl shadow-xl shadow-blue-600/10 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-                                >
-                                    {uploadingDoc ? (
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                    ) : (
-                                        <>
-                                            <UserPlus className="h-5 w-5" />
-                                            <span>Register & Save Sewak</span>
-                                        </>
-                                    )}
+                            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                                <Button type="button" variant="outline" onClick={() => {
+                                    setShowCreateForm(false);
+                                    setEditId(null);
+                                }} className="rounded-xl font-bold h-12 border-gray-200">
+                                    Cancel
+                                </Button>
+                                <Button type="submit" disabled={uploadingDoc !== null} className="rounded-xl font-bold h-12 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20">
+                                    {uploadingDoc ? <Loader2 className="animate-spin h-5 w-5" /> : (editId ? 'Update Sewak' : 'Register Sewak')}
                                 </Button>
                             </div>
                         </form>
@@ -297,14 +372,24 @@ const SewakManagement = () => {
                                         </span>
                                     </div>
                                 </div>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteSewak(sewak._id)}
-                                    className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shrink-0"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="flex flex-col gap-1">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleEditClick(sewak)}
+                                        className="h-8 w-8 text-blue-500 hover:bg-blue-50 hover:text-blue-600 shrink-0"
+                                    >
+                                        <Edit3 className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleDeleteSewak(sewak._id)}
+                                        className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shrink-0"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
 
                             <div className="space-y-2">

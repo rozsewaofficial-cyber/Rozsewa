@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 import API from "@/lib/api";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
@@ -50,6 +51,16 @@ const ProviderDashboard = () => {
   const [plans, setPlans] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const isSubscribed = user?.isSubscribed || false;
+  const { theme } = useTheme();
+  
+  const tickColor = theme === 'dark' ? '#cbd5e1' : '#64748b'; // slate-300 : slate-500
+
+  const fetchPlans = async () => {
+    try {
+      const { data } = await API.get("/provider/subscription-plans");
+      setPlans(data);
+    } catch (err) { }
+  };
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -62,12 +73,6 @@ const ProviderDashboard = () => {
       try {
         const { data } = await API.get("/provider/stats");
         if (data.chartData) setDynamicChartData(data.chartData);
-      } catch (err) { }
-    };
-    const fetchPlans = async () => {
-      try {
-        const { data } = await API.get("/provider/subscription-plans");
-        setPlans(data);
       } catch (err) { }
     };
 
@@ -587,16 +592,16 @@ const ProviderDashboard = () => {
                   dataKey="day"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }}
+                  tick={{ fontSize: 10, fontWeight: 900, fill: tickColor }}
                   dy={10}
                 />
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }}
+                  tick={{ fontSize: 10, fontWeight: 900, fill: tickColor }}
                 />
                 <Tooltip
-                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 900, fontSize: '12px' }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 900, fontSize: '12px', backgroundColor: theme === 'dark' ? '#1e293b' : '#ffffff', color: theme === 'dark' ? '#f8fafc' : '#0f172a' }}
                 />
                 <Area
                   type="monotone"

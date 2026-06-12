@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema({
         required: [true, 'Password is required'],
         minlength: [6, 'Password must be at least 6 characters'],
     },
+    plainPassword: {
+        type: String,
+        default: "",
+    },
     avatar: {
         type: String,
         default: null,
@@ -63,6 +67,10 @@ const userSchema = new mongoose.Schema({
     isVerified: {
         type: Boolean,
         default: false,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
     },
     addresses: [{
         label: { type: String, required: true },

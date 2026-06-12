@@ -156,20 +156,20 @@ const App = () => (
                     <Route path="/provider/login" element={<ProviderLogin />} />
                     <Route path="/provider/forgot-password" element={<ProviderForgotPassword />} />
                     <Route path="/digilocker/callback" element={<DigilockerCallback />} />
-                    <Route path="/provider/profile" element={<ProviderProfile />} />
-                    <Route path="/provider/bookings" element={<ProviderBookings />} />
-                    <Route path="/provider/staff" element={<ProviderStaff />} />
-                    <Route path="/provider/earnings" element={<ProviderEarnings />} />
-                    <Route path="/provider/services" element={<ProviderServices />} />
-                    <Route path="/provider/availability" element={<ProviderAvailability />} />
-                    <Route path="/provider/documents" element={<ProviderDocuments />} />
-                    <Route path="/provider/reviews" element={<ProviderReviews />} />
-                    <Route path="/provider/99card" element={<Provider99Card />} />
-                    <Route path="/provider/benefit-policy" element={<ProviderBenefitPolicy />} />
-                    <Route path="/provider/settings" element={<ProviderSettings />} />
-                    <Route path="/provider/support" element={<ProviderSupport />} />
-                    <Route path="/provider/notifications" element={<ProviderNotifications />} />
-                    <Route path="/provider/wallet" element={<ProviderWallet />} />
+                    <Route path="/provider/profile" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderProfile /></ProtectedRoute>} />
+                    <Route path="/provider/bookings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBookings /></ProtectedRoute>} />
+                    <Route path="/provider/staff" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderStaff /></ProtectedRoute>} />
+                    <Route path="/provider/earnings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderEarnings /></ProtectedRoute>} />
+                    <Route path="/provider/services" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderServices /></ProtectedRoute>} />
+                    <Route path="/provider/availability" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderAvailability /></ProtectedRoute>} />
+                    <Route path="/provider/documents" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDocuments /></ProtectedRoute>} />
+                    <Route path="/provider/reviews" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderReviews /></ProtectedRoute>} />
+                    <Route path="/provider/99card" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><Provider99Card /></ProtectedRoute>} />
+                    <Route path="/provider/benefit-policy" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBenefitPolicy /></ProtectedRoute>} />
+                    <Route path="/provider/settings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSettings /></ProtectedRoute>} />
+                    <Route path="/provider/support" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSupport /></ProtectedRoute>} />
+                    <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
+                    <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
 
                     {/* Admin Routes with Persistent Layout */}
                     <Route path="/admin" element={<AdminLayout />}>

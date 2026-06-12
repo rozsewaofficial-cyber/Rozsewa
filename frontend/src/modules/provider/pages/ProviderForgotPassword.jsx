@@ -28,7 +28,7 @@ const ProviderForgotPassword = () => {
     try {
       // 1. Check if user exists
       const { data: existData } = await API.post("/auth/check-existence", { mobile });
-      
+
       if (!existData.exists) {
         toast({ title: "Account Not Found", description: "No account is registered with this number.", variant: "destructive" });
         setIsLoading(false);
@@ -133,12 +133,12 @@ const ProviderForgotPassword = () => {
 
           <AnimatePresence mode="wait">
             {step === 1 && (
-              <motion.form 
+              <motion.form
                 key="step1"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="space-y-6" 
+                className="space-y-6"
                 onSubmit={handleSendOTP}
               >
                 <div className="space-y-5">
@@ -183,7 +183,7 @@ const ProviderForgotPassword = () => {
             )}
 
             {step === 2 && (
-              <motion.form 
+              <motion.form
                 key="step2"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -267,7 +267,7 @@ const ProviderForgotPassword = () => {
             )}
 
             {step === 3 && (
-              <motion.div 
+              <motion.div
                 key="step3"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}

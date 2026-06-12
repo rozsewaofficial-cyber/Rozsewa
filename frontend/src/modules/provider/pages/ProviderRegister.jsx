@@ -5,7 +5,7 @@ import * as LucideIcons from "lucide-react";
 import {
   Store, User, Phone, MapPin, Briefcase, ArrowRight, ArrowLeft, Loader2,
   ShieldCheck, CreditCard, Gift, CheckCircle, Navigation, Clock,
-  Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Image as ImageIcon, ChevronRight, X, Building2,
+  Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Upload, Image as ImageIcon, ChevronRight, X, Building2,
   Layers, Sparkles, Map, Heart, Smartphone, Lock, Eye, EyeOff
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,7 +28,20 @@ const ProviderRegister = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signup } = useAuth();
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => {
+    const saved = sessionStorage.getItem("providerRegStep");
+    return saved ? parseInt(saved, 10) : 1;
+  });
+
+  useEffect(() => {
+    if (step === 10) {
+      sessionStorage.removeItem("providerRegStep");
+      sessionStorage.removeItem("providerRegData");
+      sessionStorage.removeItem("providerRegStatus");
+    } else {
+      sessionStorage.setItem("providerRegStep", step.toString());
+    }
+  }, [step]);
   const [coords, setCoords] = useState([0, 0]);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,45 +66,71 @@ const ProviderRegister = () => {
   const [categories, setCategories] = useState([]);
   const [fetchingCats, setFetchingCats] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const [formData, setFormData] = useState({
-    mobile: "",
-    otp: "",
-    businessType: "",
-    vendorType: "", // Category ID
-    subServices: [],
-    ownerName: "",
-    email: "",
-    shopName: "",
-    gst: "",
-    kycAadhaar: "",
-    kycAadhaarPhoto: "",
-    kycAadhaarBackPhoto: "",
-    kycPanNumber: "",
-    kycPanPhoto: "",
-    profileImage: "",
-    serviceRadius: "5",
-    registrationType: "individual",
-    referredBy: "",
-    address: "",
-    city: "",
-    state: "",
-    password: "",
-    bankDetails: {
-      accountNumber: "",
-      ifscCode: "",
-      bankName: "",
-      accountHolderName: "",
+  const [formData, setFormData] = useState(() => {
+    const saved = sessionStorage.getItem("providerRegData");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
     }
+    return {
+      mobile: "",
+      otp: "",
+      businessType: "",
+      vendorType: "", // Category ID
+      subServices: [],
+      ownerName: "",
+      email: "",
+      shopName: "",
+      gst: "",
+      kycAadhaar: "",
+      kycAadhaarPhoto: "",
+      kycAadhaarBackPhoto: "",
+      kycPanNumber: "",
+      kycPanPhoto: "",
+      profileImage: "",
+      serviceRadius: "5",
+      registrationType: "individual",
+      referredBy: "",
+      address: "",
+      city: "",
+      state: "",
+      password: "",
+      confirmPassword: "",
+      bankDetails: {
+        accountNumber: "",
+        ifscCode: "",
+        bankName: "",
+        accountHolderName: "",
+      }
+    };
   });
 
-  const [verificationStatus, setVerificationStatus] = useState({
-    aadhaar: false,
-    pan: false,
-    gst: false,
-    bank: false,
-    email: false
+  useEffect(() => {
+    if (step !== 10) {
+      sessionStorage.setItem("providerRegData", JSON.stringify(formData));
+    }
+  }, [formData, step]);
+
+  const [verificationStatus, setVerificationStatus] = useState(() => {
+    const saved = sessionStorage.getItem("providerRegStatus");
+    if (saved) {
+      try { return JSON.parse(saved); } catch(e) {}
+    }
+    return {
+      aadhaar: false,
+      pan: false,
+      gst: false,
+      bank: false,
+      email: false
+    };
   });
+
+  useEffect(() => {
+    if (step !== 10) {
+      sessionStorage.setItem("providerRegStatus", JSON.stringify(verificationStatus));
+    }
+  }, [verificationStatus, step]);
   const [emailOtp, setEmailOtp] = useState("");
   const [showEmailOtpField, setShowEmailOtpField] = useState(false);
   const [verifying, setVerifying] = useState({ aadhaar: false, pan: false, gst: false, bank: false, email: false });
@@ -182,26 +221,13 @@ const ProviderRegister = () => {
             const data = await response.json();
             if (data && data.address) {
               const addr = data.address || {};
-              const parts = [];
-              if (addr.house_number) parts.push(addr.house_number);
-              if (addr.building) parts.push(addr.building);
-              if (addr.road) parts.push(addr.road);
-              if (addr.neighbourhood || addr.suburb || addr.residential) {
-                parts.push(addr.neighbourhood || addr.suburb || addr.residential);
-              }
-              if (addr.city || addr.town || addr.village || addr.county) {
-                parts.push(addr.city || addr.town || addr.village || addr.county);
-              }
-              if (addr.state) parts.push(addr.state);
-              if (addr.postcode) parts.push(addr.postcode);
-
-              const shortAddress = parts.join(", ") || data.display_name;
+              const fullAddress = data.display_name;
 
               setCoords([longitude, latitude]);
               setFormData(prev => ({
                 ...prev,
-                address: shortAddress,
-                city: addr.city || addr.town || addr.village || "",
+                address: fullAddress,
+                city: addr.city || addr.town || addr.village || addr.county || "",
                 state: addr.state || ""
               }));
             }
@@ -214,7 +240,8 @@ const ProviderRegister = () => {
         () => {
           setIsFetchingLocation(false);
           toast({ title: "Location Error", description: "Enable location permissions.", variant: "destructive" });
-        }
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     }
   };
@@ -229,7 +256,7 @@ const ProviderRegister = () => {
       const { data } = await API.post("/upload", upData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      setFormData({ ...formData, [type]: data.url });
+      setFormData(prev => ({ ...prev, [type]: data.url }));
       toast({ title: "Photo Uploaded" });
     } catch (err) {
       const msg = err.response?.data?.message || "Upload Failed";
@@ -295,7 +322,7 @@ const ProviderRegister = () => {
       const { data } = await API.post("/upload", upData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      setFormData({ ...formData, profileImage: data.url });
+      setFormData(prev => ({ ...prev, profileImage: data.url }));
       toast({ title: "Photo Captured & Uploaded" });
     } catch {
       toast({ title: "Upload Failed", variant: "destructive" });
@@ -717,7 +744,7 @@ const ProviderRegister = () => {
                     className="w-full group mt-4 h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 overflow-hidden relative"
                   >
                     <AnimatePresence mode="wait">
-                      {isLoading ? (
+                      {(isLoading && !otpSent) ? (
                         <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                           <Loader2 className="h-5 w-5 animate-spin" />
                         </motion.div>
@@ -742,6 +769,9 @@ const ProviderRegister = () => {
                       <label className="text-xs font-bold text-slate-700 text-center block uppercase tracking-wider">Authentication Code</label>
                       <input
                         type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="one-time-code"
                         required
                         value={formData.otp}
                         onChange={e => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
@@ -765,9 +795,9 @@ const ProviderRegister = () => {
                         )}
                       </div>
                     </div>
-                    <button type="submit" className="w-full h-12 rounded-lg border-2 border-emerald-500 text-emerald-600 font-bold hover:bg-emerald-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                      <Lock className="h-5 w-5" />
-                      Verify Security Code
+                    <button type="submit" disabled={isLoading} className="w-full h-12 rounded-lg border-2 border-emerald-500 text-emerald-600 font-bold hover:bg-emerald-50 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                      {(isLoading && otpSent) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
+                      {(isLoading && otpSent) ? "Verifying..." : "Verify Security Code"}
                     </button>
                   </motion.form>
                 )}
@@ -803,8 +833,16 @@ const ProviderRegister = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {businessModels.map(m => (
                     <button
+                      type="button"
                       key={m.id}
-                      onClick={() => { setFormData({ ...formData, businessType: m.id }); setStep(3); }}
+                      onClick={() => {
+                        if (!formData.type) {
+                          toast({ title: "Selection Required", description: "Please choose whether you operate as an Individual or Business.", variant: "destructive" });
+                          return;
+                        }
+                        setFormData({ ...formData, businessType: m.id }); 
+                        setStep(3); 
+                      }}
                       className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all text-left group"
                     >
                       <div className="h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-all shadow-sm">
@@ -819,7 +857,12 @@ const ProviderRegister = () => {
                 </div>
 
                 <button
-                  onClick={() => setStep(1)}
+                  type="button"
+                  onClick={() => {
+                    setStep(1);
+                    setOtpSent(false);
+                    setFormData({ ...formData, otp: "" });
+                  }}
                   className="w-full py-4 text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-[0.2em] transition-colors"
                 >
                   Back to Identification
@@ -836,7 +879,7 @@ const ProviderRegister = () => {
                 className="space-y-6"
               >
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setStep(2)} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-emerald-500 transition-all text-slate-500">
+                  <button type="button" onClick={() => setStep(2)} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-emerald-500 transition-all text-slate-500">
                     <ArrowLeft className="h-4 w-4" />
                   </button>
                   <div className="space-y-0.5">
@@ -961,6 +1004,7 @@ const ProviderRegister = () => {
                   if (formData.kycPanNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
                   if (formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
                   if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
+                  if (formData.password !== formData.confirmPassword) return toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
 
                   if (!verificationStatus.email) {
                     return toast({ title: "Verification Required", description: "Please verify your Email.", variant: "destructive" });
@@ -1058,22 +1102,43 @@ const ProviderRegister = () => {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 group">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Create Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                      <input type={showPassword ? "text" : "password"} required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-10 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Enter a strong password" />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowPassword((prev) => !prev);
-                        }}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 focus:outline-none z-10 p-2 cursor-pointer"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 group">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Create Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+                        <input type={showPassword ? "text" : "password"} required maxLength="24" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-10 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Password" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowPassword((prev) => !prev);
+                          }}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 focus:outline-none z-10 p-2 cursor-pointer"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 group">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Confirm Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+                        <input type={showConfirmPassword ? "text" : "password"} required maxLength="24" value={formData.confirmPassword} onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-10 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Confirm Password" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowConfirmPassword((prev) => !prev);
+                          }}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 focus:outline-none z-10 p-2 cursor-pointer"
+                        >
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -1087,7 +1152,7 @@ const ProviderRegister = () => {
                             <img src={formData[type]} className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex flex-col items-center space-y-2 text-center p-2">
-                              {uploadingDoc === type ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : <Camera className="h-6 w-6 text-slate-300 group-hover:text-emerald-500 transition-colors" />}
+                              {uploadingDoc === type ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : <Upload className="h-6 w-6 text-slate-300 group-hover:text-emerald-500 transition-colors" />}
                               <span className="text-[8px] font-bold uppercase text-slate-400 group-hover:text-emerald-600 transition-colors">
                                 {type === 'kycAadhaarPhoto' ? 'Aadh-Front' : type === 'kycAadhaarBackPhoto' ? 'Aadh-Back' : 'PAN Card'}
                               </span>
@@ -1106,15 +1171,29 @@ const ProviderRegister = () => {
                   <div className="pt-4 border-t border-slate-100 space-y-4">
                     <div className="flex items-center justify-between px-1">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Business Address</label>
-                      <button type="button" onClick={fetchLocation} className="text-[10px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        Auto-Locate
+                      <button type="button" disabled={isFetchingLocation} onClick={fetchLocation} className="text-[10px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1 disabled:opacity-50 disabled:hover:no-underline cursor-pointer">
+                        {isFetchingLocation ? <Loader2 className="h-3 w-3 animate-spin" /> : <MapPin className="h-3 w-3" />}
+                        {isFetchingLocation ? "Locating..." : "Auto-Locate"}
                       </button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      <input type="text" placeholder="State" value={formData.state} onChange={e => setFormData(prev => ({ ...prev, state: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300" />
-                      <input type="text" placeholder="City" value={formData.city} onChange={e => setFormData(prev => ({ ...prev, city: e.target.value }))} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300" />
+                      <input
+                        type="text"
+                        placeholder="State"
+                        value={formData.state}
+                        onKeyDown={e => { if (!/[a-zA-Z\s]/.test(e.key) && !['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key)) e.preventDefault(); }}
+                        onChange={e => { const v = e.target.value.replace(/[^a-zA-Z\s]/g, ''); setFormData(prev => ({ ...prev, state: v })); }}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300"
+                      />
+                      <input
+                        type="text"
+                        placeholder="City"
+                        value={formData.city}
+                        onKeyDown={e => { if (!/[a-zA-Z\s]/.test(e.key) && !['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key)) e.preventDefault(); }}
+                        onChange={e => { const v = e.target.value.replace(/[^a-zA-Z\s]/g, ''); setFormData(prev => ({ ...prev, city: v })); }}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300"
+                      />
                     </div>
                     <textarea
                       required
@@ -1488,7 +1567,7 @@ const ProviderRegister = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <Link to="/provider/login" className="flex h-14 w-full items-center justify-center gap-3 bg-slate-100 text-slate-800 rounded-xl font-bold hover:bg-slate-900 hover:text-white transition-all active:scale-[0.98] group">
+                  <Link to="/provider/login" replace className="flex h-14 w-full items-center justify-center gap-3 bg-slate-100 text-slate-800 rounded-xl font-bold hover:bg-slate-900 hover:text-white transition-all active:scale-[0.98] group">
                     Enter Expert Dashboard
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>

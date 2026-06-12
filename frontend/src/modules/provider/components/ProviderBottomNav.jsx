@@ -1,15 +1,21 @@
 import { motion } from "framer-motion";
 import { Home, Calendar, LayoutGrid, Wallet } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 const ProviderBottomNav = () => {
   const location = useLocation();
+  const { user } = useAuth();
+  
+  const isRestricted = (user?.role === 'sewak' || user?.providerCategory === 'sewak') ? !user?.kycVerified : user?.status !== 'verified';
 
   const navItems = [
     { icon: Home, label: "Home", path: "/provider" },
-    { icon: Calendar, label: "Bookings", path: "/provider/bookings" },
-    { icon: LayoutGrid, label: "Services", path: "/provider/services" },
-    { icon: Wallet, label: "Wallet", path: "/provider/wallet" },
+    ...(!isRestricted ? [
+      { icon: Calendar, label: "Bookings", path: "/provider/bookings" },
+      { icon: LayoutGrid, label: "Services", path: "/provider/services" },
+      { icon: Wallet, label: "Wallet", path: "/provider/wallet" },
+    ] : [])
   ];
 
   return (

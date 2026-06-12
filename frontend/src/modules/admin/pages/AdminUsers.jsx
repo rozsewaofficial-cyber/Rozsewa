@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail } from "lucide-react";
-import { motion } from "framer-motion";
+import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail, X, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
@@ -11,6 +11,14 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const activeSelectedUser = selectedUser ? users.find(u => u._id === selectedUser._id) : null;
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   useEffect(() => {
     setTitle("Manage Platform Users");
@@ -54,6 +62,9 @@ const AdminUsers = () => {
       mobile.includes(search) ||
       email.includes(search);
   });
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   if (loading) return (
     <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -105,7 +116,7 @@ const AdminUsers = () => {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((user) => (
+                paginatedUsers.map((user) => (
                   <motion.tr key={user._id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="hover:bg-emerald-50/10 transition-colors group">
                     <td className="py-5 px-8">
                       <div className="flex items-center gap-4">
@@ -153,7 +164,11 @@ const AdminUsers = () => {
                             <><Ban className="h-3.5 w-3.5" /> Block</>
                           )}
                         </button>
-                        <button className="p-2.5 text-gray-300 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all">
+                        <button 
+                          onClick={() => setSelectedUser(user)}
+                          className="p-2.5 text-gray-300 hover:text-gray-900 hover:bg-gray-50 rounded-xl transition-all"
+                          title="View Details"
+                        >
                           <MoreVertical className="h-5 w-5" />
                         </button>
                       </div>
@@ -164,7 +179,175 @@ const AdminUsers = () => {
             </tbody>
           </table>
         </div>
+        {/* Pagination Footer */}
+        {totalPages > 1 && (
+          <div className="px-8 py-5 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">
+              Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
+              <span className="text-gray-900 font-black">
+                {Math.min(currentPage * itemsPerPage, filteredUsers.length)}
+              </span>{" "}
+              of <span className="text-gray-900 font-black">{filteredUsers.length}</span> users
+            </p>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+              >
+                <ChevronLeft className="h-4.5 w-4.5" />
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                const isActive = page === currentPage;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`h-9 min-w-9 px-3 flex items-center justify-center rounded-xl text-xs font-black transition-all shadow-sm ${
+                      isActive
+                        ? "bg-emerald-600 text-white border border-emerald-600"
+                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+              >
+                <ChevronRight className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* User Details Modal */}
+      <AnimatePresence>
+        {activeSelectedUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+            onClick={() => setSelectedUser(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative w-full max-w-lg rounded-[2rem] bg-white shadow-2xl overflow-hidden border border-slate-100"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 bg-slate-50/50">
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">User Profile Details</h3>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Platform Registered Customer</p>
+                </div>
+                <button
+                  onClick={() => setSelectedUser(null)}
+                  className="rounded-xl bg-gray-100 p-2 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-900"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6">
+                {/* Profile Card */}
+                <div className="flex items-center gap-4 border-b border-gray-100 pb-5">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 border-2 border-emerald-100 shadow-md text-emerald-700 font-black text-2xl uppercase">
+                    {activeSelectedUser.name?.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="text-xl font-extrabold text-gray-900 leading-tight">{activeSelectedUser.name}</h4>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-700 border border-blue-100">
+                        {activeSelectedUser.role}
+                      </span>
+                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider border ${
+                        activeSelectedUser.isActive === false 
+                        ? 'bg-rose-50 text-rose-700 border-rose-100' 
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                      }`}>
+                        {activeSelectedUser.isActive === false ? 'Blocked' : 'Active'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Contact Details</h4>
+                  <div className="grid grid-cols-1 gap-3 text-sm rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+                    <div className="flex justify-between border-b border-slate-100 pb-2.5">
+                      <span className="text-gray-400 font-bold">Mobile Number</span>
+                      <span className="font-extrabold text-gray-800">+91 {activeSelectedUser.mobile}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-100 pb-2.5">
+                      <span className="text-gray-400 font-bold">Email Address</span>
+                      <span className="font-extrabold text-gray-800">{activeSelectedUser.email || 'Not Provided'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400 font-bold">Registration Date</span>
+                      <span className="font-extrabold text-gray-800">
+                        {new Date(activeSelectedUser.createdAt).toLocaleDateString(undefined, { 
+                          day: '2-digit', 
+                          month: 'long', 
+                          year: 'numeric' 
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Address Information */}
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Location & Addresses</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2.5 text-xs font-bold text-gray-700 bg-white border border-slate-100 p-3.5 rounded-2xl shadow-sm">
+                      <MapPin className="h-4.5 w-4.5 text-emerald-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Primary Location</p>
+                        <p className="text-gray-900">{activeSelectedUser.address || 'No primary address added'}</p>
+                        {(activeSelectedUser.city || activeSelectedUser.state) && (
+                          <p className="text-emerald-700 text-[10px] uppercase font-black tracking-widest mt-1">
+                            {activeSelectedUser.city}, {activeSelectedUser.state}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Additional Saved Addresses */}
+                    {activeSelectedUser.addresses && activeSelectedUser.addresses.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400 pl-1">Saved Addresses ({activeSelectedUser.addresses.length})</p>
+                        <div className="max-h-32 overflow-y-auto space-y-2 pr-1">
+                          {activeSelectedUser.addresses.map((addr, index) => (
+                            <div key={index} className="flex items-start gap-2 text-xs font-bold text-gray-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100/50">
+                              <div className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[9px] uppercase font-black shrink-0 mt-0.5 border border-blue-100">
+                                {addr.label}
+                              </div>
+                              <span className="truncate">{addr.address}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

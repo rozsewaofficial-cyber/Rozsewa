@@ -1134,6 +1134,50 @@ const createSewak = async (req, res) => {
     }
 };
 
+const updateSewak = async (req, res) => {
+    try {
+        const { ownerName, mobile, password, email, address, city, state, businessType, bankDetails } = req.body;
+        
+        const sewak = await Provider.findById(req.params.id);
+        if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
+
+        if (mobile && mobile !== sewak.mobile) {
+            const providerExists = await Provider.findOne({ mobile });
+            if (providerExists) return res.status(400).json({ message: 'Mobile number already registered as a provider' });
+            sewak.mobile = mobile;
+        }
+
+        if (ownerName) {
+            sewak.ownerName = ownerName;
+            sewak.shopName = `${ownerName} (Sewak)`;
+        }
+        if (email) sewak.email = email;
+        if (address) sewak.address = address;
+        if (city) sewak.city = city;
+        if (state) sewak.state = state;
+        if (businessType) {
+            sewak.businessType = businessType;
+            const category = await Category.findOne({ name: businessType });
+            if (category) sewak.vendorType = category._id;
+        }
+        if (bankDetails) sewak.bankDetails = bankDetails;
+        
+        // Only update password if provided
+        if (password) {
+            console.log("Updating password to:", password);
+            sewak.password = password;
+        }
+
+        console.log("Before save hash:", sewak.password);
+        await sewak.save();
+        console.log("After save hash:", sewak.password);
+        res.json({ message: 'Sewak updated successfully', sewak });
+    } catch (error) {
+        console.log("Error in updateSewak:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const verifySuperAdminPin = async (req, res) => {
     try {
         const { pin } = req.body;
@@ -1739,6 +1783,7 @@ module.exports = {
     updateAdmin,
     getAllSewaks,
     createSewak,
+    updateSewak,
     getPendingSewaks,
     verifySewak,
     rejectSewak,

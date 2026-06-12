@@ -54,6 +54,7 @@ const ProviderWallet = () => {
   const [bankData, setBankData] = useState({ accountHolderName: "", accountNumber: "", bankName: "", ifscCode: "" });
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawError, setWithdrawError] = useState("");
 
   const handleWithdraw = async () => {
     if (!provider?.kycVerified) {
@@ -72,19 +73,23 @@ const ProviderWallet = () => {
   const submitWithdrawal = async (e) => {
     e.preventDefault();
     const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0 || amount > balance) {
-      toast({ title: "Invalid Amount", description: "Please enter a valid amount within your balance.", variant: "destructive" });
+    if (isNaN(amount) || amount <= 0) {
+      setWithdrawError("Please enter a valid amount.");
       return;
     }
-
+    if (amount > balance) {
+      setWithdrawError(`Amount cannot exceed your balance of ₹${balance}.`);
+      return;
+    }
+    setWithdrawError("");
     try {
       await API.post("/provider/withdraw", { amount });
       toast({ title: "Withdrawal Requested", description: "Your request has been submitted successfully." });
       setIsWithdrawing(false);
       setWithdrawAmount("");
-      fetchWallet(); // Refresh balance
+      fetchWallet();
     } catch (err) {
-      toast({ title: "Withdrawal Failed", description: err.response?.data?.message || "Failed to submit request", variant: "destructive" });
+      setWithdrawError(err.response?.data?.message || "Failed to submit request. Try again.");
     }
   };
 
@@ -313,8 +318,14 @@ const ProviderWallet = () => {
             <form onSubmit={submitWithdrawal} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Amount (Max: ₹{balance})</label>
-                <input required type="number" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="500" />
+                <input required type="number" min="1" value={withdrawAmount}
+                  onChange={e => { const v = e.target.value; if (v === "" || parseFloat(v) > 0) { setWithdrawAmount(v); setWithdrawError(""); } }}
+                  onKeyDown={e => { if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault(); }}
+                  className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="500" />
                 
+                {withdrawError && (
+                  <p className="text-[11px] font-bold text-rose-500 px-1 mt-1">{withdrawError}</p>
+                )}
                 {/* Quick Presets */}
                 <div className="grid grid-cols-3 gap-2 mt-2">
                   <button type="button" onClick={() => setWithdrawAmount("500")} className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors">₹500</button>
