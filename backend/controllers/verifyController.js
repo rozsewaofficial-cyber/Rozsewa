@@ -13,29 +13,33 @@ const getHeaders = () => ({
     'x-secret-key': SECRET_KEY
 });
 
-// @desc    Verify Bank Account via Penny Drop
+// @desc    Verify Bank Account via Penny Drop (Fallback to IFSC since Penny Drop is not enabled)
 // @route   POST /api/v1/verify/bank
 // @access  Private
 const verifyBank = async (req, res) => {
     const { accountNumber, ifscCode, beneficiaryName } = req.body;
 
-    if (!accountNumber || !ifscCode || !beneficiaryName) {
-        return res.status(400).json({ success: false, message: 'Account number, IFSC code, and Beneficiary Name are required' });
+    if (!ifscCode) {
+        return res.status(400).json({ success: false, message: 'IFSC code is required' });
     }
 
     try {
-        // Using IFSC API as requested
-        const response = await axios.post(`${BASE_URL}/api/v1/verify/ifsc`, {
-            ifscCode
-        }, { headers: getHeaders() });
+        // CGPEY IFSC API is currently broken on their end ("providerName is not defined").
+        // We use Razorpay's free public API instead for reliable IFSC verification.
+        const response = await axios.get(`https://ifsc.razorpay.com/${ifscCode}`);
 
-        res.json(response.data);
+        res.json({
+            success: true,
+            status: "VERIFIED",
+            data: response.data,
+            message: "IFSC verified successfully"
+        });
     } catch (error) {
         console.error('IFSC Verification Error:', error.response?.data || error.message);
-        res.status(500).json({ 
+        res.status(400).json({ 
             success: false, 
-            message: error.response?.data?.message || 'IFSC verification failed',
-            error: error.response?.data 
+            message: 'Invalid IFSC Code or verification failed',
+            error: error.response?.data || error.message
         });
     }
 };
