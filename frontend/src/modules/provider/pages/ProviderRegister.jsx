@@ -1155,7 +1155,7 @@ const ProviderRegister = () => {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {['kycAadhaarPhoto', 'kycAadhaarBackPhoto', 'kycPanPhoto'].map(type => (
                         <label key={type} className={`relative group flex flex-col items-center justify-center h-24 rounded-lg border-2 border-dashed transition-all cursor-pointer overflow-hidden ${formData[type] ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50 hover:border-emerald-200'}`}>
-                          <input type="file" className="hidden" onChange={e => handleFileUpload(e, type)} />
+                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFileUpload(e, type)} />
                           {formData[type] ? (
                             <img src={formData[type]} className="h-full w-full object-cover" />
                           ) : (
