@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Plus, Search, Edit, Trash2, Loader2, Image as ImageIcon, ChevronRight, Layers } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Loader2, Image as ImageIcon, ChevronRight, Layers, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -20,6 +20,7 @@ const AdminServices = () => {
     icon: "Scissors",
     description: "",
     image: "",
+    isComingSoon: false,
     partnerCommissionBasic: 25,
     partnerCommissionStandard: 20,
     partnerCommissionPremium: 15,
@@ -75,7 +76,7 @@ const AdminServices = () => {
       }
       setShowModal(false);
       setEditingCat(null);
-      setNewCat({ name: "", icon: "Scissors", description: "", image: "", partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
+      setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
     } catch (err) {
       toast({ title: "Save Failed", variant: "destructive" });
     }
@@ -115,6 +116,7 @@ const AdminServices = () => {
       icon: cat.icon || "Scissors",
       description: cat.description || "",
       image: cat.image || "",
+      isComingSoon: cat.isComingSoon || false,
       partnerCommissionBasic: cat.partnerCommissionBasic || 25,
       partnerCommissionStandard: cat.partnerCommissionStandard || 20,
       partnerCommissionPremium: cat.partnerCommissionPremium || 15,
@@ -143,7 +145,7 @@ const AdminServices = () => {
           <h2 className="text-3xl font-black text-gray-900 tracking-tight">Industries & Services</h2>
           <p className="mt-1 text-sm text-gray-500 font-medium">Define the core categories and services available on RozSewa.</p>
         </div>
-        <button onClick={() => { setEditingCat(null); setNewCat({ name: "", icon: "Scissors", description: "", image: "", services: [] }); setShowModal(true); }} className="flex h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 active:translate-y-0">
+        <button onClick={() => { setEditingCat(null); setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, services: [] }); setShowModal(true); }} className="flex h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 active:translate-y-0">
           <Plus className="h-5 w-5" /> Add Industry
         </button>
       </div>
@@ -175,7 +177,12 @@ const AdminServices = () => {
                 </div>
               </div>
 
-              <h3 className="text-xl font-black text-gray-900 tracking-tight mb-2">{cat.name}</h3>
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight">{cat.name}</h3>
+                {cat.isComingSoon && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">Coming Soon</span>
+                )}
+              </div>
               <p className="text-xs text-gray-500 font-bold mb-4 line-clamp-2">{cat.description || "No description provided."}</p>
 
               <div className="space-y-2 border-t border-gray-50 pt-4">
@@ -198,8 +205,13 @@ const AdminServices = () => {
       <AnimatePresence>
         {showModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="w-full max-w-2xl rounded-[2.5rem] bg-white shadow-2xl p-8 border border-gray-100 my-auto">
-              <h3 className="text-2xl font-black text-gray-900 mb-6">{editingCat ? "Edit Industry" : "Add New Industry"}</h3>
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="w-full max-w-2xl rounded-[2.5rem] bg-white shadow-2xl p-8 border border-gray-100 my-auto relative">
+              <div className="flex items-start justify-between mb-6">
+                <h3 className="text-2xl font-black text-gray-900">{editingCat ? "Edit Industry" : "Add New Industry"}</h3>
+                <button type="button" onClick={() => setShowModal(false)} className="p-2 -mr-2 -mt-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
 
               <form onSubmit={handleSaveCategory} className="space-y-6">
                 <div className="grid grid-cols-2 gap-4">
@@ -251,7 +263,17 @@ const AdminServices = () => {
                   <div className="col-span-2 space-y-4">
                     <div>
                       <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Description</label>
-                      <textarea value={newCat.description} onChange={e => setNewCat({ ...newCat, description: e.target.value })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none h-[120px]" placeholder="Brief summary of this industry..." />
+                      <textarea value={newCat.description} onChange={e => setNewCat({ ...newCat, description: e.target.value })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none h-[100px]" placeholder="Brief summary of this industry..." />
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 bg-gray-50">
+                      <div>
+                        <p className="text-sm font-black text-gray-900">Show as "Coming Soon"</p>
+                        <p className="text-[10px] font-bold text-gray-500">Users and providers will see this but won't be able to select it.</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" className="sr-only peer" checked={newCat.isComingSoon} onChange={e => setNewCat({ ...newCat, isComingSoon: e.target.checked })} />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
                     </div>
                   </div>
                 </div>

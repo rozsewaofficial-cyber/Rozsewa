@@ -897,10 +897,20 @@ const ProviderRegister = () => {
                   ) : categories.map(c => (
                     <button
                       key={c._id}
-                      onClick={() => { setFormData({ ...formData, vendorType: c._id, subServices: [] }); setStep(4); }}
-                      className="flex flex-col items-center p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group relative overflow-hidden h-full"
+                      onClick={() => { 
+                        if (!c.isComingSoon) {
+                          setFormData({ ...formData, vendorType: c._id, subServices: [] }); 
+                          setStep(4); 
+                        }
+                      }}
+                      className={`flex flex-col items-center p-4 rounded-2xl border transition-all group relative overflow-hidden h-full ${c.isComingSoon ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-60 grayscale' : 'border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5'}`}
                     >
-                      <div className="h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center mb-3 text-emerald-600 shadow-sm group-hover:scale-110 transition-transform relative overflow-hidden">
+                      {c.isComingSoon && (
+                        <div className="absolute top-2 right-2 bg-red-100 text-red-600 text-[8px] font-black uppercase px-2 py-0.5 rounded-full z-10">
+                          Soon
+                        </div>
+                      )}
+                      <div className={`h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center mb-3 text-emerald-600 shadow-sm relative overflow-hidden transition-transform ${!c.isComingSoon ? 'group-hover:scale-110' : ''}`}>
                         {c.image ? (
                           <img src={c.image} alt={c.name} className="h-full w-full object-cover" />
                         ) : (
@@ -909,9 +919,9 @@ const ProviderRegister = () => {
                             return <Icon className="h-6 w-6" />;
                           })()
                         )}
-                        <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition-colors" />
+                        {!c.isComingSoon && <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition-colors" />}
                       </div>
-                      <span className="text-[10px] font-bold uppercase text-center leading-tight tracking-tight text-slate-600 px-1 group-hover:text-slate-900 line-clamp-2">{c.name}</span>
+                      <span className={`text-[10px] font-bold uppercase text-center leading-tight tracking-tight px-1 line-clamp-2 ${c.isComingSoon ? 'text-slate-400' : 'text-slate-600 group-hover:text-slate-900'}`}>{c.name}</span>
                     </button>
                   ))}
                 </div>
@@ -1014,17 +1024,15 @@ const ProviderRegister = () => {
                   }
 
                   let hasPhotos = false;
-                  // If both are verified, both need photos
-                  if (verificationStatus.aadhaar && verificationStatus.pan) {
-                      hasPhotos = !!(formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto && formData.kycPanPhoto);
-                  } else if (verificationStatus.aadhaar) {
-                      hasPhotos = !!(formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto);
-                  } else if (verificationStatus.pan) {
-                      hasPhotos = !!(formData.kycPanPhoto);
+                  if (verificationStatus.aadhaar && formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto) {
+                      hasPhotos = true;
+                  }
+                  if (verificationStatus.pan && formData.kycPanPhoto) {
+                      hasPhotos = true;
                   }
 
                   if (hasPhotos) setStep(6);
-                  else toast({ title: "Documents Required", description: "Please upload photos for your verified identity documents.", variant: "destructive" });
+                  else toast({ title: "Documents Required", description: "Please upload photos for either your verified Aadhaar (Front & Back) OR verified PAN Card.", variant: "destructive" });
                 }}
                 className="space-y-6"
               >
@@ -1159,8 +1167,19 @@ const ProviderRegister = () => {
                             </div>
                           )}
                           {formData[type] && uploadingDoc !== type && (
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <ImageIcon className="h-6 w-6 text-white" />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                              <span className="text-[10px] text-white font-bold">Change Image</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setFormData(prev => ({ ...prev, [type]: '' }));
+                                }}
+                                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold rounded-md z-10 shadow-sm transition-colors"
+                              >
+                                Remove
+                              </button>
                             </div>
                           )}
                         </label>

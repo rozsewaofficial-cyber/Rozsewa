@@ -85,30 +85,42 @@ const CategoryGrid = ({ showAll = true }) => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.02 }}
-            whileHover={{ y: -5 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate(`/shops?category=${encodeURIComponent(cat.name)}`)}
-            className="group flex flex-col items-center gap-2"
+            whileHover={!cat.isComingSoon ? { y: -5 } : {}}
+            whileTap={!cat.isComingSoon ? { scale: 0.95 } : {}}
+            onClick={() => {
+              if (!cat.isComingSoon) {
+                navigate(`/shops?category=${encodeURIComponent(cat.name)}`);
+              }
+            }}
+            className={`group flex flex-col items-center gap-2 ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
           >
             <div className={`
               relative flex h-16 w-16 items-center justify-center rounded-[1.75rem]
               ${cat.image ? "bg-white p-0.5" : `${theme.bg} border border-white/10`}
-              transition-all duration-300 shadow-lg group-hover:shadow-2xl ${theme.shadow}
-              overflow-hidden group-hover:scale-110 backdrop-blur-md
+              transition-all duration-300 shadow-lg ${!cat.isComingSoon ? `group-hover:shadow-2xl ${theme.shadow} group-hover:scale-110` : ""}
+              overflow-hidden backdrop-blur-md
             `}>
               {/* Gloss effect overlay */}
-              <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+              <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none z-10" />
+
+              {cat.isComingSoon && (
+                <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center backdrop-blur-[1px]">
+                  <span className="bg-red-600 text-white text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shadow-xl -rotate-12">
+                    Soon
+                  </span>
+                </div>
+              )}
 
               {cat.image ? (
-                <img src={cat.image} alt={cat.name} className="h-full w-full object-cover rounded-[1.5rem] transition-transform duration-500 group-hover:scale-110" />
+                <img src={cat.image} alt={cat.name} className={`h-full w-full object-cover rounded-[1.5rem] transition-transform duration-500 ${!cat.isComingSoon ? "group-hover:scale-110" : ""}`} />
               ) : (
-                <div className={`${theme.icon} transition-transform duration-300 group-hover:scale-125 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]`}>
+                <div className={`${theme.icon} transition-transform duration-300 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)] ${!cat.isComingSoon ? "group-hover:scale-125" : ""}`}>
                   {getIcon(cat.icon)}
                 </div>
               )}
             </div>
 
-            <span className="text-[10px] font-black text-white/80 uppercase tracking-tight text-center leading-tight line-clamp-2 px-1 transition-colors group-hover:text-emerald-400">
+            <span className={`text-[10px] font-black uppercase tracking-tight text-center leading-tight line-clamp-2 px-1 transition-colors ${cat.isComingSoon ? "text-white/50" : "text-white/80 group-hover:text-emerald-400"}`}>
               {cat.name}
             </span>
           </motion.button>

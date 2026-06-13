@@ -221,6 +221,16 @@ const updateCategory = async (req, res) => {
         const category = await Category.findById(req.params.id);
         if (!category) return res.status(404).json({ message: 'Category not found' });
 
+        if (req.body.name !== undefined) category.name = req.body.name;
+        if (req.body.description !== undefined) category.description = req.body.description;
+        if (req.body.icon !== undefined) category.icon = req.body.icon;
+        if (req.body.image !== undefined) category.image = req.body.image;
+        if (req.body.isActive !== undefined) category.isActive = req.body.isActive;
+        if (req.body.isComingSoon !== undefined) category.isComingSoon = req.body.isComingSoon;
+        if (req.body.partnerCommissionBasic !== undefined) category.partnerCommissionBasic = req.body.partnerCommissionBasic;
+        if (req.body.partnerCommissionStandard !== undefined) category.partnerCommissionStandard = req.body.partnerCommissionStandard;
+        if (req.body.partnerCommissionPremium !== undefined) category.partnerCommissionPremium = req.body.partnerCommissionPremium;
+
         if (req.body.services) {
             category.services = [];
             category.services.push(...req.body.services);
