@@ -12,6 +12,12 @@ const getCommissionData = async (req, res) => {
         const completedBookings = await Booking.find({ status: 'completed' });
         
         const platformRevenue = completedBookings.reduce((sum, b) => sum + (b.adminCommission || 0), 0);
+        const totalJobValue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        const totalProviderPayout = completedBookings.reduce((sum, b) => {
+            // For legacy bookings where providerPayout was never set, use totalAmount - adminCommission
+            const payout = b.providerPayout > 0 ? b.providerPayout : (b.totalAmount - (b.adminCommission || 0));
+            return sum + payout;
+        }, 0);
         
         const pendingWithdrawals = await Withdrawal.find({ status: 'pending' });
         const pendingPayouts = pendingWithdrawals.reduce((sum, w) => sum + w.amount, 0);
@@ -21,31 +27,54 @@ const getCommissionData = async (req, res) => {
         const processedTodayDocs = await Withdrawal.find({ status: 'approved', updatedAt: { $gte: startOfToday } });
         const processedToday = processedTodayDocs.reduce((sum, w) => sum + w.amount, 0);
 
-        // Queue (Recent completed bookings)
+        // Queue (Recent completed bookings with actual data)
         const queue = await Booking.find({ status: 'completed' })
-            .populate('providerId', 'shopName bankDetails')
+            .populate('providerId', 'shopName ownerName bankDetails planType providerCategory')
             .sort({ createdAt: -1 })
-            .limit(10);
+            .limit(20);
 
-        const formattedQueue = queue.map(b => ({
-            _id: b._id,
-            vendor: b.providerId ? `${b.providerId.shopName} (${b.providerId.bankDetails?.bankName || 'No Bank'} •••• ${b.providerId.bankDetails?.accountNumber?.slice(-4) || 'XXXX'})` : 'N/A',
-            jobV: b.totalAmount,
-            com: b.adminCommission,
-            pay: b.providerPayout,
-            status: b.paymentStatus === 'paid' ? 'Processed' : 'Ready to Pay'
-        }));
+        const formattedQueue = queue.map(b => {
+            const commission = b.adminCommission || 0;
+            // For legacy bookings, payout = totalAmount - commission
+            const payout = b.providerPayout > 0 ? b.providerPayout : (b.totalAmount - commission);
+            const commissionRate = b.totalAmount > 0 ? ((commission / b.totalAmount) * 100).toFixed(1) : '0';
+            
+            return {
+                _id: b._id,
+                bookingId: b._id.toString().slice(-6).toUpperCase(),
+                vendor: b.providerId?.shopName || 'N/A',
+                vendorOwner: b.providerId?.ownerName || '',
+                vendorPlan: b.providerId?.planType || 'none',
+                vendorCategory: b.providerId?.providerCategory || 'provider',
+                serviceName: b.serviceName,
+                bookingDate: b.bookingDate,
+                bookingTime: b.bookingTime,
+                jobV: b.totalAmount,
+                com: commission,
+                comRate: commissionRate,
+                pay: payout,
+                commissionStatus: b.commissionStatus || 'free',
+                paymentMode: b.paymentMode || 'now',
+                paymentStatus: b.paymentStatus,
+                status: b.paymentStatus === 'paid' ? 'Processed' : 'Ready to Pay',
+                createdAt: b.createdAt
+            };
+        });
 
         res.json({
             stats: {
-                platformRevenue,
-                pendingPayouts,
-                processedToday,
-                disputedHold: 0 // Mock for now
+                platformRevenue: Math.round(platformRevenue * 100) / 100,
+                totalJobValue: Math.round(totalJobValue * 100) / 100,
+                totalProviderPayout: Math.round(totalProviderPayout * 100) / 100,
+                totalCompleted: completedBookings.length,
+                pendingPayouts: Math.round(pendingPayouts * 100) / 100,
+                processedToday: Math.round(processedToday * 100) / 100,
+                disputedHold: 0
             },
             queue: formattedQueue
         });
     } catch (error) {
+        console.error('getCommissionData error:', error);
         res.status(500).json({ message: error.message });
     }
 };

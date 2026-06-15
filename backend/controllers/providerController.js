@@ -540,13 +540,30 @@ const getSubscriptionPlans = async (req, res) => {
         const provider = await Provider.findById(req.user._id);
         if (!provider) return res.status(404).json({ message: 'Provider not found' });
 
+        const Category = require('../models/Category');
+        
+        const mongoose = require('mongoose');
+        let catId = null;
+        if (provider.vendorType) {
+            if (mongoose.Types.ObjectId.isValid(provider.vendorType)) {
+                catId = provider.vendorType;
+            } else {
+                const cat = await Category.findOne({ name: new RegExp('^' + provider.vendorType + '$', 'i') });
+                if (cat) catId = cat._id;
+            }
+        }
+
+        const queryOr = [
+            { category: { $exists: false } },
+            { category: null }
+        ];
+        if (catId) {
+            queryOr.push({ category: catId });
+        }
+
         const plans = await SubscriptionPlan.find({ 
             isActive: true, 
-            $or: [
-                { category: provider.vendorType },
-                { category: { $exists: false } },
-                { category: null }
-            ]
+            $or: queryOr
         });
         res.json(plans);
     } catch (error) {

@@ -259,10 +259,7 @@ const updateCategory = async (req, res) => {
                             },
                             {
                                 $set: {
-                                    'pricing.basic': sub.sewakPriceBasic ?? sub.basePrice ?? 299,
-                                    'pricing.standard': sub.sewakPriceStandard ?? 0,
-                                    'pricing.premium': sub.sewakPricePremium ?? 0,
-                                    'pricing.express': sub.sewakPriceExpress ?? 0
+                                    price: sub.basePrice ?? 299
                                 }
                             }
                         );
@@ -1103,12 +1100,7 @@ const createSewak = async (req, res) => {
                     name: svc.name,
                     description: svc.description,
                     category: category.name,
-                    pricing: {
-                        basic: svc.sewakPriceBasic || svc.basePrice || 299,
-                        standard: svc.sewakPriceStandard || 0,
-                        premium: svc.sewakPricePremium || 0,
-                        express: svc.sewakPriceExpress || 0
-                    },
+                    price: svc.basePrice || 299,
                     visible: true
                 }));
                 const createdServices = await Service.insertMany(masterServicesData);

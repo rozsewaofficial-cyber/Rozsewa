@@ -3,11 +3,7 @@ const mongoose = require('mongoose');
 const subServiceSchema = mongoose.Schema({
     name: { type: String, required: true },
     basePrice: { type: Number, default: 0 },
-    description: { type: String },
-    sewakPriceBasic: { type: Number, default: 0 },
-    sewakPriceStandard: { type: Number, default: 0 },
-    sewakPricePremium: { type: Number, default: 0 },
-    sewakPriceExpress: { type: Number, default: 0 }
+    description: { type: String }
 });
 
 const comboTemplateSchema = mongoose.Schema({

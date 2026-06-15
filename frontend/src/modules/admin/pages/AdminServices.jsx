@@ -1,318 +1,450 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Plus, Search, Edit, Trash2, Loader2, Image as ImageIcon, ChevronRight, Layers, X } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Loader2, Image as ImageIcon, Layers, X, Briefcase, Zap, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
+const InputField = ({ label, children }) => (
+    <div className="space-y-1.5">
+        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</label>
+        {children}
+    </div>
+);
+
+const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
+
 const AdminServices = () => {
-  const { setTitle } = useOutletContext();
-  const { toast } = useToast();
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [editingCat, setEditingCat] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
+    const { setTitle } = useOutletContext();
+    const { toast } = useToast();
+    const [categories, setCategories] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [showModal, setShowModal] = useState(false);
+    const [editingCat, setEditingCat] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
 
-  const [newCat, setNewCat] = useState({
-    name: "",
-    icon: "Scissors",
-    description: "",
-    image: "",
-    isComingSoon: false,
-    partnerCommissionBasic: 25,
-    partnerCommissionStandard: 20,
-    partnerCommissionPremium: 15,
-    services: [] // Default sub-services
-  });
-
-  useEffect(() => {
-    setTitle("Category & Service Manager");
-    fetchCategories();
-  }, [setTitle]);
-
-  const fetchCategories = async () => {
-    setLoading(true);
-    try {
-      const { data } = await API.get("/admin/categories");
-      setCategories(data);
-    } catch (err) {
-      toast({ title: "Fetch Failed", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const upData = new FormData();
-    upData.append("image", file);
-    setIsUploading(true);
-    try {
-      const { data } = await API.post("/upload", upData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-      setNewCat({ ...newCat, image: data.url });
-      toast({ title: "Photo Uploaded" });
-    } catch { toast({ title: "Upload Failed", variant: "destructive" }); }
-    finally { setIsUploading(false); }
-  };
-
-  const handleSaveCategory = async (e) => {
-    e.preventDefault();
-    if (!newCat.name) return;
-
-    try {
-      if (editingCat) {
-        const { data } = await API.put(`/admin/categories/${editingCat._id}`, newCat);
-        setCategories(categories.map(c => c._id === data._id ? data : c));
-        toast({ title: "Category Updated" });
-      } else {
-        const { data } = await API.post("/admin/categories", newCat);
-        setCategories([...categories, data]);
-        toast({ title: "Category Created" });
-      }
-      setShowModal(false);
-      setEditingCat(null);
-      setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
-    } catch (err) {
-      toast({ title: "Save Failed", variant: "destructive" });
-    }
-  };
-
-  const deleteCategory = async (id) => {
-    if (!window.confirm("Delete this category and all its default services?")) return;
-    try {
-      await API.delete(`/admin/categories/${id}`);
-      setCategories(categories.filter(c => c._id !== id));
-      toast({ title: "Category Removed" });
-    } catch (err) {
-      toast({ title: "Delete Failed", variant: "destructive" });
-    }
-  };
-
-  const addServiceRow = () => {
-    setNewCat({ ...newCat, services: [...newCat.services, { name: "", basePrice: 0 }] });
-  };
-
-  const removeServiceRow = (idx) => {
-    const updated = [...newCat.services];
-    updated.splice(idx, 1);
-    setNewCat({ ...newCat, services: updated });
-  };
-
-  const updateServiceRow = (idx, field, value) => {
-    const updated = [...newCat.services];
-    updated[idx][field] = value;
-    setNewCat({ ...newCat, services: updated });
-  };
-
-  const startEdit = (cat) => {
-    setEditingCat(cat);
-    setNewCat({
-      name: cat.name,
-      icon: cat.icon || "Scissors",
-      description: cat.description || "",
-      image: cat.image || "",
-      isComingSoon: cat.isComingSoon || false,
-      partnerCommissionBasic: cat.partnerCommissionBasic || 25,
-      partnerCommissionStandard: cat.partnerCommissionStandard || 20,
-      partnerCommissionPremium: cat.partnerCommissionPremium || 15,
-      services: cat.services || []
+    const [newCat, setNewCat] = useState({
+        name: "",
+        icon: "Scissors",
+        description: "",
+        image: "",
+        isComingSoon: false,
+        partnerCommissionBasic: 25,
+        partnerCommissionStandard: 20,
+        partnerCommissionPremium: 15,
+        services: [] // Default sub-services
     });
-    setShowModal(true);
-  };
 
-  const filteredCategories = (categories || []).filter(c =>
-    c.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    useEffect(() => {
+        setTitle("Industries & Services");
+        fetchCategories();
+    }, [setTitle]);
 
-  if (loading) return (
-    <div className="flex h-96 flex-col items-center justify-center space-y-4">
-      <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
-      <p className="text-xs font-black uppercase tracking-widest text-gray-400">Loading Industries...</p>
-    </div>
-  );
+    const fetchCategories = async () => {
+        setLoading(true);
+        try {
+            const { data } = await API.get("/admin/categories");
+            setCategories(data);
+        } catch (err) {
+            toast({ title: "Fetch Failed", variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-8">
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const upData = new FormData();
+        upData.append("image", file);
+        setIsUploading(true);
+        try {
+            const { data } = await API.post("/upload", upData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+            setNewCat({ ...newCat, image: data.url });
+            toast({ title: "Photo Uploaded" });
+        } catch { toast({ title: "Upload Failed", variant: "destructive" }); }
+        finally { setIsUploading(false); }
+    };
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
-        <div>
-          <h2 className="text-3xl font-black text-gray-900 tracking-tight">Industries & Services</h2>
-          <p className="mt-1 text-sm text-gray-500 font-medium">Define the core categories and services available on RozSewa.</p>
-        </div>
-        <button onClick={() => { setEditingCat(null); setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, services: [] }); setShowModal(true); }} className="flex h-12 items-center gap-2 rounded-2xl bg-emerald-600 px-6 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all hover:-translate-y-0.5 active:translate-y-0">
-          <Plus className="h-5 w-5" /> Add Industry
-        </button>
-      </div>
+    const handleSaveCategory = async (e) => {
+        e.preventDefault();
+        if (!newCat.name) return;
 
-      {/* Search */}
-      <div className="relative w-full max-w-md">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full rounded-2xl border border-gray-200 bg-white py-3.5 pl-12 pr-4 text-sm font-bold placeholder:text-gray-400 focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all shadow-sm" placeholder="Search major categories..." />
-      </div>
+        try {
+            if (editingCat) {
+                const { data } = await API.put(`/admin/categories/${editingCat._id}`, newCat);
+                setCategories(categories.map(c => c._id === data._id ? data : c));
+                toast({ title: "Category Updated" });
+            } else {
+                const { data } = await API.post("/admin/categories", newCat);
+                setCategories([...categories, data]);
+                toast({ title: "Category Created" });
+            }
+            setShowModal(false);
+            setEditingCat(null);
+            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
+        } catch (err) {
+            toast({ title: "Save Failed", variant: "destructive" });
+        }
+    };
 
-      {/* Categories Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCategories.length === 0 ? (
-          <div className="col-span-full py-20 text-center text-gray-400 italic">No categories found. Add one to get started.</div>
-        ) : (
-          filteredCategories.map(cat => (
-            <motion.div key={cat._id} whileHover={{ y: -4 }} className="group rounded-3xl border border-gray-200 bg-white p-6 shadow-xl shadow-gray-200/40 hover:border-emerald-200 transition-all">
-              <div className="flex items-start justify-between mb-4">
-                <div className="h-16 w-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shadow-inner overflow-hidden">
-                  {cat.image ? (
-                    <img src={cat.image} className="h-full w-full object-cover" />
-                  ) : (
-                    <Layers className="h-6 w-6" />
-                  )}
+    const deleteCategory = async (id) => {
+        if (!window.confirm("Delete this category and all its default services?")) return;
+        try {
+            await API.delete(`/admin/categories/${id}`);
+            setCategories(categories.filter(c => c._id !== id));
+            toast({ title: "Category Removed" });
+        } catch (err) {
+            toast({ title: "Delete Failed", variant: "destructive" });
+        }
+    };
+
+    const addServiceRow = () => {
+        setNewCat({ ...newCat, services: [...newCat.services, { name: "", basePrice: 0 }] });
+    };
+
+    const removeServiceRow = (idx) => {
+        const updated = [...newCat.services];
+        updated.splice(idx, 1);
+        setNewCat({ ...newCat, services: updated });
+    };
+
+    const updateServiceRow = (idx, field, value) => {
+        const updated = [...newCat.services];
+        updated[idx][field] = value;
+        setNewCat({ ...newCat, services: updated });
+    };
+
+    const startEdit = (cat) => {
+        setEditingCat(cat);
+        setNewCat({
+            name: cat.name,
+            icon: cat.icon || "Scissors",
+            description: cat.description || "",
+            image: cat.image || "",
+            isComingSoon: cat.isComingSoon || false,
+            partnerCommissionBasic: cat.partnerCommissionBasic || 25,
+            partnerCommissionStandard: cat.partnerCommissionStandard || 20,
+            partnerCommissionPremium: cat.partnerCommissionPremium || 15,
+            services: cat.services || []
+        });
+        setShowModal(true);
+    };
+
+    const filteredCategories = (categories || []).filter(c =>
+        c.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Stats
+    const stats = useMemo(() => {
+        let totalServices = 0;
+        let activeCats = 0;
+        let comingSoon = 0;
+        categories.forEach(c => {
+            totalServices += (c.services?.length || 0);
+            if (c.isComingSoon) comingSoon++;
+            else activeCats++;
+        });
+        return { categories: categories.length, activeCats, comingSoon, totalServices };
+    }, [categories]);
+
+
+    return (
+        <div className="mx-auto max-w-7xl space-y-6 pb-12">
+
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                <div>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">Industries & Services</h2>
+                    <p className="mt-1 text-sm text-gray-500 font-medium">Manage global categories, commission tiers, and base services.</p>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => startEdit(cat)} className="p-2 text-gray-400 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-colors"><Edit className="h-4 w-4" /></button>
-                  <button onClick={() => deleteCategory(cat._id)} className="p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors"><Trash2 className="h-4 w-4" /></button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xl font-black text-gray-900 tracking-tight">{cat.name}</h3>
-                {cat.isComingSoon && (
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest">Coming Soon</span>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 font-bold mb-4 line-clamp-2">{cat.description || "No description provided."}</p>
-
-              <div className="space-y-2 border-t border-gray-50 pt-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2">Included Services ({cat.services?.length || 0})</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {cat.services?.slice(0, 4).map((s, i) => (
-                    <span key={i} className="px-2.5 py-1 bg-gray-50 border border-gray-100 rounded-lg text-[9px] font-black uppercase text-gray-500">{s.name}</span>
-                  ))}
-                  {(cat.services?.length || 0) > 4 && (
-                    <span className="px-2 py-0.5 text-[9px] font-black text-gray-400">+{cat.services.length - 4} more</span>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          ))
-        )}
-      </div>
-
-      {/* Modal */}
-      <AnimatePresence>
-        {showModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 overflow-y-auto">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="w-full max-w-2xl rounded-[2.5rem] bg-white shadow-2xl p-8 border border-gray-100 my-auto relative">
-              <div className="flex items-start justify-between mb-6">
-                <h3 className="text-2xl font-black text-gray-900">{editingCat ? "Edit Industry" : "Add New Industry"}</h3>
-                <button type="button" onClick={() => setShowModal(false)} className="p-2 -mr-2 -mt-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-                  <X className="h-6 w-6" />
+                <button
+                    onClick={() => {
+                        setEditingCat(null);
+                        setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
+                        setShowModal(true);
+                    }}
+                    className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95"
+                >
+                    <Plus className="h-4 w-4" /> Add Industry
                 </button>
-              </div>
+            </div>
 
-              <form onSubmit={handleSaveCategory} className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2 md:col-span-1">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Category Name</label>
-                    <input type="text" value={newCat.name} onChange={e => setNewCat({ ...newCat, name: e.target.value })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. Salon & Grooming" />
-                  </div>
-                  <div className="col-span-2 md:col-span-1">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Icon Name (Lucide)</label>
-                    <input type="text" value={newCat.icon} onChange={e => setNewCat({ ...newCat, icon: e.target.value })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. Scissors" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Basic Comm (%)</label>
-                    <input type="number" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. 25" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Std Comm (%)</label>
-                    <input type="number" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. 20" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Prem Comm (%)</label>
-                    <input type="number" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none" placeholder="e.g. 15" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-6">
-                  <div className="col-span-1">
-                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Category Image</label>
-                    <label className="relative flex flex-col items-center justify-center w-full h-40 rounded-3xl border-2 border-dashed border-gray-100 bg-gray-50 hover:bg-gray-100 cursor-pointer overflow-hidden transition-all">
-                      <input type="file" className="hidden" onChange={handleFileUpload} accept="image/*" />
-                      {newCat.image ? (
-                        <img src={newCat.image} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex flex-col items-center">
-                          <ImageIcon className="h-8 w-8 text-gray-300 mb-2" />
-                          <span className="text-[9px] font-black text-gray-400 uppercase">Upload Photo</span>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                    { label: "Total Industries", value: stats.categories, icon: Briefcase, cls: "text-gray-700 bg-gray-50 border-gray-200" },
+                    { label: "Active Categories", value: stats.activeCats, icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+                    { label: "Coming Soon", value: stats.comingSoon, icon: Zap, cls: "text-amber-700 bg-amber-50 border-amber-200" },
+                    { label: "Listed Services", value: stats.totalServices, icon: Layers, cls: "text-blue-700 bg-blue-50 border-blue-200" },
+                ].map((s, i) => (
+                    <div key={i} className={`rounded-xl border p-4 ${s.cls}`}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <s.icon className="h-3.5 w-3.5 opacity-70" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">{s.label}</p>
                         </div>
-                      )}
-                      {isUploading && (
-                        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center">
-                          <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
-                        </div>
-                      )}
-                    </label>
-                  </div>
-                  <div className="col-span-2 space-y-4">
-                    <div>
-                      <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Description</label>
-                      <textarea value={newCat.description} onChange={e => setNewCat({ ...newCat, description: e.target.value })} className="w-full rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm font-bold focus:ring-2 focus:ring-emerald-500/10 outline-none h-[100px]" placeholder="Brief summary of this industry..." />
+                        <h3 className="text-2xl font-black">{s.value}</h3>
                     </div>
-                    <div className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 bg-gray-50">
-                      <div>
-                        <p className="text-sm font-black text-gray-900">Show as "Coming Soon"</p>
-                        <p className="text-[10px] font-bold text-gray-500">Users and providers will see this but won't be able to select it.</p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" className="sr-only peer" checked={newCat.isComingSoon} onChange={e => setNewCat({ ...newCat, isComingSoon: e.target.checked })} />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                      </label>
-                    </div>
-                  </div>
+                ))}
+            </div>
+
+            {/* Search */}
+            <div className="relative w-full lg:w-96">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="block w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all"
+                    placeholder="Search industries or categories..."
+                />
+            </div>
+
+            {/* Categories Grid */}
+            {loading ? (
+                <div className="flex h-60 flex-col items-center justify-center space-y-4">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Loading Catalog...</p>
                 </div>
+            ) : filteredCategories.length === 0 ? (
+                <div className="text-center py-20 bg-gray-50 rounded-2xl border border-gray-200">
+                    <Briefcase className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm font-bold text-gray-500">No categories found.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filteredCategories.map(cat => (
+                        <motion.div
+                            key={cat._id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="group flex flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm hover:border-blue-200 hover:shadow-md transition-all h-full"
+                        >
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="h-14 w-14 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center border border-gray-100 overflow-hidden shrink-0">
+                                    {cat.image ? (
+                                        <img src={cat.image} className="h-full w-full object-cover" />
+                                    ) : (
+                                        <Layers className="h-6 w-6" />
+                                    )}
+                                </div>
+                                <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => startEdit(cat)} className="h-8 w-8 flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-600 rounded-lg border border-transparent hover:border-blue-100 transition-colors">
+                                        <Edit className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button onClick={() => deleteCategory(cat._id)} className="h-8 w-8 flex items-center justify-center text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-lg border border-transparent hover:border-red-100 transition-colors">
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </div>
 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center decoration-emerald-500">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Manage Services</label>
-                    <button type="button" onClick={addServiceRow} className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline">+ Add Service</button>
-                  </div>
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                                <h3 className="text-lg font-black text-gray-900 tracking-tight leading-tight">{cat.name}</h3>
+                                {cat.isComingSoon && (
+                                    <span className="shrink-0 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase tracking-widest mt-0.5">
+                                        Soon
+                                    </span>
+                                )}
+                            </div>
+                            
+                            <p className="text-xs text-gray-500 font-medium mb-4 line-clamp-2 min-h-[32px]">
+                                {cat.description || "No description provided."}
+                            </p>
 
-                  <div className="max-h-60 overflow-y-auto space-y-3 pr-2 scrollbar-hide">
-                    {newCat.services.map((s, idx) => (
-                      <div key={idx} className="flex gap-2 items-center animate-in fade-in slide-in-from-right-4 duration-300">
-                        <input type="text" placeholder="Service Name" value={s.name} onChange={e => updateServiceRow(idx, 'name', e.target.value)} className="flex-1 rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs font-bold" />
-                        <div className="relative w-32">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
-                          <input type="number" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', e.target.value)} className="w-full rounded-xl border border-gray-100 bg-gray-50 p-3 pl-6 text-xs font-bold" />
-                        </div>
-                        <button type="button" onClick={() => removeServiceRow(idx)} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="h-4 w-4" /></button>
-                      </div>
+                            <div className="mt-auto space-y-3 pt-4 border-t border-gray-100">
+                                {/* Commission Tier summary */}
+                                <div className="flex gap-2">
+                                    <div className="flex-1 rounded-lg bg-gray-50 border border-gray-100 p-2 text-center">
+                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Base</p>
+                                        <p className="text-xs font-bold text-gray-900 mt-0.5">{cat.partnerCommissionBasic || 25}%</p>
+                                    </div>
+                                    <div className="flex-1 rounded-lg bg-gray-50 border border-gray-100 p-2 text-center">
+                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Std</p>
+                                        <p className="text-xs font-bold text-gray-900 mt-0.5">{cat.partnerCommissionStandard || 20}%</p>
+                                    </div>
+                                    <div className="flex-1 rounded-lg bg-gray-50 border border-gray-100 p-2 text-center">
+                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Prem</p>
+                                        <p className="text-xs font-bold text-emerald-600 mt-0.5">{cat.partnerCommissionPremium || 15}%</p>
+                                    </div>
+                                </div>
+
+                                {/* Services tags */}
+                                <div>
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1.5">Included Services ({cat.services?.length || 0})</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {cat.services?.slice(0, 4).map((s, i) => (
+                                            <span key={i} className="px-2 py-1 bg-white border border-gray-200 rounded text-[9px] font-black uppercase text-gray-600 shadow-sm">
+                                                {s.name}
+                                            </span>
+                                        ))}
+                                        {(cat.services?.length || 0) > 4 && (
+                                            <span className="px-2 py-1 text-[9px] font-black text-gray-400 bg-gray-50 rounded">+{cat.services.length - 4}</span>
+                                        )}
+                                        {(!cat.services || cat.services.length === 0) && (
+                                            <span className="text-[9px] font-bold italic text-gray-300">None defined</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
                     ))}
-                    {newCat.services.length === 0 && (
-                      <p className="text-center py-6 text-xs font-bold italic text-gray-300">No services added yet.</p>
-                    )}
-                  </div>
                 </div>
+            )}
 
-                <div className="flex gap-4 pt-4">
-                  <button type="button" onClick={() => setShowModal(false)} className="flex-1 rounded-2xl border border-gray-200 py-4 text-xs font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all">Cancel</button>
-                  <button type="submit" className="flex-1 rounded-2xl bg-emerald-600 py-4 text-xs font-black uppercase tracking-widest text-white shadow-xl shadow-emerald-600/20 hover:bg-emerald-700 transition-all">Save Changes</button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {/* Add/Edit Modal */}
+            <AnimatePresence>
+                {showModal && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm"
+                            onClick={() => setShowModal(false)}
+                        />
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                            className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none"
+                        >
+                            <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl pointer-events-auto custom-scrollbar flex flex-col">
+                                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/95 px-6 py-5 backdrop-blur-sm">
+                                    <div>
+                                        <h3 className="text-lg font-black text-gray-900">{editingCat ? "Edit Industry" : "New Industry Category"}</h3>
+                                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-0.5">Configuration & Tier setup</p>
+                                    </div>
+                                    <button onClick={() => setShowModal(false)} className="h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
 
-    </div>
-  );
+                                <form onSubmit={handleSaveCategory} className="p-6 space-y-8 bg-gray-50/30">
+                                    
+                                    {/* Section 1: Basic Info */}
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Basic Information
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <InputField label="Category Name">
+                                                <input type="text" value={newCat.name} onChange={e => setNewCat({ ...newCat, name: e.target.value })} className={inputCls} placeholder="e.g. Salon & Grooming" required />
+                                            </InputField>
+                                            <InputField label="Icon Name (Lucide)">
+                                                <input type="text" value={newCat.icon} onChange={e => setNewCat({ ...newCat, icon: e.target.value })} className={inputCls} placeholder="e.g. Scissors" />
+                                            </InputField>
+                                            <div className="col-span-1 md:col-span-2">
+                                                <InputField label="Description">
+                                                    <textarea value={newCat.description} onChange={e => setNewCat({ ...newCat, description: e.target.value })} className={`${inputCls} min-h-[80px] resize-y`} placeholder="Brief summary of this industry..." />
+                                                </InputField>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Section 2: Media & Toggles */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                                Visuals
+                                            </h4>
+                                            <label className="relative flex flex-col items-center justify-center w-full h-32 rounded-xl border border-dashed border-gray-300 bg-white hover:bg-gray-50 cursor-pointer overflow-hidden transition-all">
+                                                <input type="file" className="hidden" onChange={handleFileUpload} accept="image/*" />
+                                                {newCat.image ? (
+                                                    <img src={newCat.image} className="h-full w-full object-cover" />
+                                                ) : (
+                                                    <div className="flex flex-col items-center">
+                                                        <ImageIcon className="h-6 w-6 text-gray-300 mb-2" />
+                                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Upload Banner</span>
+                                                    </div>
+                                                )}
+                                                {isUploading && (
+                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                                                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                                                    </div>
+                                                )}
+                                            </label>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                                Status Settings
+                                            </h4>
+                                            <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-white h-32">
+                                                <div>
+                                                    <p className="text-sm font-black text-gray-900">Mark "Coming Soon"</p>
+                                                    <p className="text-[10px] font-bold text-gray-500 mt-1">Locks selection for providers and users.</p>
+                                                </div>
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input type="checkbox" className="sr-only peer" checked={newCat.isComingSoon} onChange={e => setNewCat({ ...newCat, isComingSoon: e.target.checked })} />
+                                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Section 3: Commission Settings */}
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Platform Commission Structure
+                                        </h4>
+                                        <div className="grid grid-cols-3 gap-4 p-5 rounded-xl border border-blue-100 bg-blue-50/50">
+                                            <InputField label="Basic Tier (%)">
+                                                <input type="number" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className={inputCls} required />
+                                            </InputField>
+                                            <InputField label="Standard Tier (%)">
+                                                <input type="number" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className={inputCls} required />
+                                            </InputField>
+                                            <InputField label="Premium Tier (%)">
+                                                <input type="number" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className={`${inputCls} font-black text-emerald-700`} required />
+                                            </InputField>
+                                        </div>
+                                    </div>
+
+                                    {/* Section 4: Managed Services */}
+                                    <div className="space-y-4 pt-4 border-t border-gray-100">
+                                        <div className="flex justify-between items-center">
+                                            <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                                Base Services
+                                            </h4>
+                                            <button type="button" onClick={addServiceRow} className="text-[10px] h-7 px-3 flex items-center justify-center bg-gray-100 rounded text-gray-600 font-black uppercase tracking-widest hover:bg-gray-200 transition-colors">
+                                                <Plus className="h-3 w-3 mr-1" /> Add
+                                            </button>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {newCat.services.length === 0 ? (
+                                                <p className="text-center py-6 text-[10px] font-bold uppercase tracking-widest italic text-gray-300 border border-dashed border-gray-200 rounded-xl bg-white">No base services added yet.</p>
+                                            ) : (
+                                                newCat.services.map((s, idx) => (
+                                                    <div key={idx} className="flex gap-2 items-center bg-white border border-gray-200 rounded-xl p-2 shadow-sm">
+                                                        <div className="h-8 w-8 rounded bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 shrink-0 border border-gray-100">{idx + 1}</div>
+                                                        <input type="text" placeholder="Service Name" value={s.name} onChange={e => updateServiceRow(idx, 'name', e.target.value)} className="flex-1 rounded-lg border-none bg-transparent px-2 text-sm font-bold focus:ring-0 outline-none" required />
+                                                        <div className="relative w-32 shrink-0 border-l border-gray-100 pl-2">
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
+                                                            <input type="number" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', e.target.value)} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
+                                                        </div>
+                                                        <button type="button" onClick={() => removeServiceRow(idx)} className="h-8 w-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg shrink-0 transition-colors"><Trash2 className="h-4 w-4" /></button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                </form>
+
+                                <div className="p-5 border-t border-gray-100 bg-white flex gap-3">
+                                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 h-12 rounded-xl border border-gray-200 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all">Cancel</button>
+                                    <button onClick={handleSaveCategory} className="flex-1 h-12 rounded-xl bg-blue-600 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all">Save Industry</button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </div>
+    );
 };
 
 export default AdminServices;

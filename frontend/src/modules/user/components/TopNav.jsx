@@ -192,15 +192,15 @@ const TopNav = () => {
       {/* Location Selector Modal */}
       <AnimatePresence>
         {showLocationModal && (
-          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-sm rounded-[2.5rem] bg-[#090b0a] p-8 shadow-2xl border border-white/5 ring-1 ring-white/10">
+              className="w-full max-w-sm rounded-[2rem] bg-slate-900 p-8 shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-slate-700">
               <div className="mb-8 flex items-center justify-between">
                 <div>
                   <h3 className="text-2xl font-black text-white tracking-tight">Where are you?</h3>
-                  <p className="text-[11px] font-bold text-gray-400 mt-1 uppercase tracking-widest opacity-80">Select a city to check services</p>
+                  <p className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-widest">Select a city to check services</p>
                 </div>
-                <button onClick={() => setShowLocationModal(false)} className="rounded-2xl bg-white/5 p-2.5 text-white hover:bg-white/10 transition-colors">
+                <button onClick={() => setShowLocationModal(false)} className="rounded-full bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                   <ChevronDown className="h-5 w-5 rotate-180" />
                 </button>
               </div>
@@ -208,16 +208,17 @@ const TopNav = () => {
               <div className="grid grid-cols-2 gap-3.5">
                 {dynamicCities.map((c) => (
                   <button key={c} onClick={() => handleCitySelect(c)}
-                    className={`flex items-center gap-3 rounded-2xl border-2 px-5 py-4 text-sm font-black transition-all ${city.includes(c) ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)]" : "border-white/5 bg-white/[0.02] text-white/90 hover:border-white/20 hover:bg-white/5"
+                    className={`flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-bold transition-all ${city.includes(c) ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-slate-700 bg-slate-800/50 text-slate-300 hover:border-slate-500 hover:bg-slate-800 hover:text-white"
                       }`}>
-                    <MapPin className={`h-4 w-4 ${city.includes(c) ? "text-emerald-500" : "text-gray-500"}`} /> {c}
+                    <MapPin className={`h-4 w-4 shrink-0 ${city.includes(c) ? "text-emerald-500" : "text-slate-500"}`} /> 
+                    <span className="truncate">{c}</span>
                   </button>
                 ))}
               </div>
 
-              <button className="mt-8 w-full rounded-[1.5rem] bg-gray-100 py-5 text-sm font-black text-black shadow-xl flex items-center justify-center gap-2 hover:bg-white transition-all active:scale-[0.98] group"
+              <button className="mt-8 w-full rounded-xl bg-white py-4 text-sm font-black text-slate-900 shadow-xl flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-[0.98] group"
                 onClick={handleUseCurrentLocation}>
-                <MapPin className="h-5 w-5 fill-black" />
+                <MapPin className="h-5 w-5 fill-slate-900 text-white" />
                 <span>Auto-Detect Location</span>
               </button>
             </motion.div>

@@ -71,6 +71,7 @@ import AdminFeedback from "./modules/admin/pages/AdminFeedback";
 import AdminServices from "./modules/admin/pages/AdminServices";
 import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
+import PartnerProgramConfig from "./modules/admin/pages/PartnerProgramConfig";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
 import AdminBanners from "./modules/admin/pages/AdminBanners";
 import AdminNotifications from "./modules/admin/pages/AdminNotifications";
@@ -96,7 +97,6 @@ import AdminVerifySewak from "./modules/admin/pages/AdminVerifySewak";
 import AdminSewakEnquiries from "./modules/admin/pages/AdminSewakEnquiries";
 import AdminVerifyEmployee from "./modules/admin/pages/AdminVerifyEmployee";
 import AdminVerifyCombo from "./modules/admin/pages/AdminVerifyCombo";
-import AdminSubscriptions from "./modules/admin/pages/AdminSubscriptions";
 import AdminBenefitPolicies from "./modules/admin/pages/AdminBenefitPolicies";
 import AdminAuditLogs from "./modules/admin/pages/AdminAuditLogs";
 import AdminNightCharge from "./modules/admin/pages/AdminNightCharge";
@@ -189,10 +189,10 @@ const App = () => (
                       <Route path="coupons" element={<AdminCoupons />} />
                       <Route path="feedback" element={<AdminFeedback />} />
                       <Route path="services" element={<AdminServices />} />
-                      <Route path="subscriptions" element={<AdminSubscriptions />} />
                       <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
                       <Route path="sewak-pricing" element={<SewakPricing />} />
                       <Route path="settings" element={<AdminSettings />} />
+                      <Route path="partner-program" element={<PartnerProgramConfig />} />
                       <Route path="benefit-policies" element={<AdminBenefitPolicies />} />
                       <Route path="disputes" element={<AdminDisputes />} />
                       <Route path="banners" element={<AdminBanners />} />

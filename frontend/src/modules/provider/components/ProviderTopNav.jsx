@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, Bell, UserCircle, Sun, Moon } from "lucide-react";
+import { ArrowLeft, Bell, UserCircle, Sun, Moon, Clock } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -12,6 +12,12 @@ const ProviderTopNav = ({ title, showBack = false }) => {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [hasUnread, setHasUnread] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -52,6 +58,11 @@ const ProviderTopNav = ({ title, showBack = false }) => {
               {title || "Pro Dashboard"}
             </span>
           </div>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-lg border border-border/50">
+          <Clock className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+          <span>{currentTime.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} • {currentTime.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
         </div>
 
         <div className="flex items-center gap-2">

@@ -52,6 +52,12 @@ const ProviderDashboard = () => {
   const [menuItems, setMenuItems] = useState([]);
   const isSubscribed = user?.isSubscribed || false;
   const { theme } = useTheme();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   
   const tickColor = theme === 'dark' ? '#cbd5e1' : '#64748b'; // slate-300 : slate-500
 
@@ -398,7 +404,11 @@ const ProviderDashboard = () => {
 
         {/* Superior Welcome Bar */}
         <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full md:w-auto">
+            <div className="flex sm:hidden items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-lg border border-border/50 w-fit mb-2 shadow-sm">
+              <Clock className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+              <span>{currentTime.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} • {currentTime.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
+            </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
               Welcome back, {user?.shopName || "Partner"} 👋
             </h1>
@@ -491,34 +501,8 @@ const ProviderDashboard = () => {
         </section>
 
         {/* Registration Status / Elite Banner */}
-        {user?.providerCategory !== 'sewak' && (
+        {user?.providerCategory !== 'sewak' && !isSubscribed && (
           <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {isSubscribed ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="relative overflow-hidden rounded-[2rem] bg-slate-900 p-6 text-white border border-slate-800 shadow-2xl"
-              >
-                <div className="absolute top-0 right-0 h-32 w-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
-                <div className="relative z-10 flex items-center justify-between">
-                  <div className="flex items-center gap-4 text-left">
-                    <div className="h-14 w-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                      <Crown className="h-8 w-8 text-emerald-400" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1">Active Registration</p>
-                      <h2 className="text-xl font-black uppercase tracking-tight">{user?.planType || 'Pro'} Member</h2>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                        Valid till: {user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' }) : 'Lifetime'} ✓
-                      </p>
-                    </div>
-                  </div>
-                  <Link to="/provider/99card" className="px-5 py-2.5 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
-                    View Benefits
-                  </Link>
-                </div>
-              </motion.div>
-            ) : (
               <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-4 md:p-6 text-white shadow-2xl shadow-emerald-500/20 border border-white/10 group text-left">
                 <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
 
@@ -556,7 +540,6 @@ const ProviderDashboard = () => {
                   </div>
                 </div>
               </div>
-            )}
           </section>
         )}
 

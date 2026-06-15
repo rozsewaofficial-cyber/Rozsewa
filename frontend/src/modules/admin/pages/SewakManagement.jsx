@@ -1,16 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Users, Plus, Shield, Trash2, MapPin, Phone, Mail,
-    Briefcase, UserPlus, Fingerprint, Search, Building2,
-    Camera, X, Loader2, FileCheck, FileText, XCircle, ChevronDown, Eye, EyeOff, Edit3
+    Users, Plus, Search, Phone, Mail, Trash2, Building2,
+    Briefcase, FileCheck, XCircle, Eye, EyeOff, Edit3, Loader2,
+    UserPlus, CheckCircle2, Shield, AlertCircle, X, Camera, Fingerprint
 } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from "sonner";
-import axios from 'axios';
 import API from "@/lib/api";
+import axios from 'axios';
+
+const InputField = ({ label, children }) => (
+    <div className="space-y-1.5">
+        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</label>
+        {children}
+    </div>
+);
+
+const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
 const SewakManagement = () => {
     const [sewaks, setSewaks] = useState([]);
@@ -19,28 +25,26 @@ const SewakManagement = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('all');
     const [uploadingDoc, setUploadingDoc] = useState(null);
     const [categories, setCategories] = useState([]);
     const [editId, setEditId] = useState(null);
 
     const [newSewak, setNewSewak] = useState({
-        ownerName: '',
-        email: '',
-        mobile: '',
-        password: '',
-        confirmPassword: '',
-        address: '',
-        city: '',
-        state: '',
-        businessType: '',
-        documents: [],
-        bankDetails: {
-            accountNumber: '',
-            ifscCode: '',
-            bankName: '',
-            accountHolderName: ''
-        }
+        ownerName: '', email: '', mobile: '', password: '', confirmPassword: '',
+        address: '', city: '', state: '', businessType: 'Internal Service',
+        documents: [], bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
     });
+
+    useEffect(() => {
+        fetchSewaks();
+        fetchCategories();
+    }, []);
+
+    useEffect(() => {
+        document.body.style.overflow = showCreateForm ? "hidden" : "";
+        return () => { document.body.style.overflow = ""; };
+    }, [showCreateForm]);
 
     const fetchCategories = async () => {
         try {
@@ -64,20 +68,14 @@ const SewakManagement = () => {
 
     const handleDeleteSewak = async (id) => {
         if (!window.confirm("Are you sure you want to delete this Sewak? All their services and combos will also be removed.")) return;
-
         try {
             await API.delete(`/admin/providers/${id}`);
             toast.success("Sewak deleted successfully");
-            fetchSewaks();
+            setSewaks(prev => prev.filter(s => s._id !== id));
         } catch (error) {
             toast.error(error.response?.data?.message || "Failed to delete Sewak");
         }
     };
-
-    useEffect(() => {
-        fetchSewaks();
-        fetchCategories();
-    }, []);
 
     const handleCreateSewak = async (e) => {
         e.preventDefault();
@@ -85,6 +83,7 @@ const SewakManagement = () => {
             toast.error("Passwords do not match");
             return;
         }
+        setUploadingDoc("saving");
         try {
             const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
             
@@ -101,16 +100,22 @@ const SewakManagement = () => {
             }
             
             setShowCreateForm(false);
-            setEditId(null);
-            setNewSewak({
-                ownerName: '', email: '', mobile: '', password: '', confirmPassword: '',
-                address: '', city: '', state: '', businessType: 'Internal Service',
-                bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
-            });
+            resetForm();
             fetchSewaks();
         } catch (error) {
             toast.error(error.response?.data?.message || `Failed to ${editId ? 'update' : 'register'} Sewak`);
+        } finally {
+            setUploadingDoc(null);
         }
+    };
+
+    const resetForm = () => {
+        setEditId(null);
+        setNewSewak({
+            ownerName: '', email: '', mobile: '', password: '', confirmPassword: '',
+            address: '', city: '', state: '', businessType: 'Internal Service',
+            documents: [], bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
+        });
     };
 
     const handleEditClick = (sewak) => {
@@ -125,315 +130,365 @@ const SewakManagement = () => {
             city: sewak.city || '',
             state: sewak.state || '',
             businessType: sewak.businessType || 'Internal Service',
+            documents: sewak.documents || [],
             bankDetails: sewak.bankDetails || { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
         });
         setShowCreateForm(true);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleFileUpload = async (e, docId) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    // Stats
+    const stats = useMemo(() => ({
+        total: sewaks.length,
+        internal: sewaks.filter(s => s.businessType === 'Internal Service').length,
+        specialized: sewaks.filter(s => s.businessType !== 'Internal Service').length,
+        verified: sewaks.filter(s => s.status === 'verified').length,
+    }), [sewaks]);
 
-        const data = new FormData();
-        data.append("image", file);
-        setUploadingDoc(docId);
+    // Categories for filter
+    const uniqueCategories = useMemo(() => {
+        const cats = new Set(sewaks.map(s => s.businessType || 'Internal Service'));
+        return Array.from(cats);
+    }, [sewaks]);
 
-        try {
-            const res = await API.post("/upload", data, {
-                headers: { "Content-Type": "multipart/form-data" }
-            });
-
-            const newDoc = {
-                id: docId,
-                url: res.data.url,
-                status: 'verified', // Admin uploaded, so pre-verified
-                verifiedAt: new Date()
-            };
-
-            setNewSewak(prev => ({
-                ...prev,
-                documents: [...prev.documents.filter(d => d.id !== docId), newDoc]
-            }));
-
-            toast.success(`${docId.toUpperCase()} uploaded successfully`);
-        } catch (err) {
-            toast.error("Upload Failed");
-        } finally {
-            setUploadingDoc(null);
-        }
-    };
-
-    const getDoc = (id) => newSewak.documents.find(d => d.id === id);
-
-    const filteredSewaks = sewaks.filter(s =>
-        s.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.mobile.includes(searchTerm)
-    );
-
-    if (loading) return <div className="p-8 text-center">Loading Sewak Management...</div>;
+    const filteredSewaks = sewaks.filter(s => {
+        const searchMatch = s.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            s.mobile.includes(searchTerm) ||
+                            (s.vendorCode && s.vendorCode.toLowerCase().includes(searchTerm.toLowerCase()));
+        const categoryMatch = categoryFilter === 'all' || s.businessType === categoryFilter;
+        return searchMatch && categoryMatch;
+    });
 
     return (
-        <div className="p-4 md:p-8 w-full max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="mx-auto max-w-7xl space-y-6 pb-12">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
                 <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight">Sewak Management</h1>
-                    <p className="text-gray-500 font-bold mt-1">Manage Rozsewa internal employee providers (0% Commission)</p>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">Sewak Management</h2>
+                    <p className="mt-1 text-sm text-gray-500 font-medium">{stats.total} total internal staff registered</p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                        <Input
-                            placeholder="Search by name or mobile..."
-                            className="pl-10 w-full sm:w-64 rounded-2xl border-gray-200 focus:ring-blue-500 h-[52px]"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <Button
-                        onClick={() => {
-                            setShowCreateForm(!showCreateForm);
-                            setEditId(null);
-                            setNewSewak({
-                                ownerName: '', email: '', mobile: '', password: '', confirmPassword: '',
-                                address: '', city: '', state: '', businessType: 'Internal Service',
-                                bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
-                            });
-                        }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl h-[52px] px-8 font-black shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
-                    >
-                        {showCreateForm ? <XCircle className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
-                        {showCreateForm ? "Cancel" : "Add New Sewak"}
-                    </Button>
-                </div>
+                <button
+                    onClick={() => { resetForm(); setShowCreateForm(true); }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700 transition-all shadow-sm active:scale-95"
+                >
+                    <Plus className="h-3.5 w-3.5" /> Register New Sewak
+                </button>
             </div>
 
-            {showCreateForm && (
-                <Card className="border-blue-100 shadow-xl shadow-blue-50 bg-blue-50/30 overflow-hidden">
-                    <CardHeader className="bg-white border-b border-gray-100 p-6">
-                        <CardTitle className="text-xl font-black text-gray-900 flex items-center gap-2">
-                            <Briefcase className="h-5 w-5 text-blue-600" />
-                            {editId ? 'Update Sewak Profile' : 'Register Internal Sewak (Employee)'}
-                        </CardTitle>
-                        <CardDescription>
-                            {editId ? 'Update the details of the selected Sewak.' : 'Create a provider profile for a Rozsewa employee. They work for the company and do not earn personal commission from bookings.'}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-8 bg-white space-y-8">
-                        <form onSubmit={handleCreateSewak} className="space-y-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Full Name</Label>
-                                    <Input required placeholder="Employee Name" value={newSewak.ownerName} onChange={(e) => {
-                                        const val = e.target.value.replace(/[^a-zA-Z\s]/g, "");
-                                        setNewSewak({ ...newSewak, ownerName: val });
-                                    }} className="rounded-xl" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Email Address</Label>
-                                    <Input required type="email" pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}" placeholder="email@rozsewa.com" value={newSewak.email} onChange={(e) => {
-                                        const val = e.target.value.replace(/\s/g, "");
-                                        setNewSewak({ ...newSewak, email: val });
-                                    }} className="rounded-xl" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Mobile Number</Label>
-                                    <Input required minLength={10} maxLength={10} pattern="[0-9]{10}" placeholder="10 digit mobile" value={newSewak.mobile} onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, "");
-                                        setNewSewak({ ...newSewak, mobile: val });
-                                    }} className="rounded-xl" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Default Password</Label>
-                                    <div className="relative">
-                                        <Input required={!editId} type={showPassword ? "text" : "password"} placeholder={editId ? "Leave blank to keep current" : "Min 6 characters"} value={newSewak.password} onChange={(e) => setNewSewak({ ...newSewak, password: e.target.value })} className="rounded-xl pr-10" />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                                        >
-                                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Confirm Password</Label>
-                                    <div className="relative">
-                                        <Input required={!editId} type={showConfirmPassword ? "text" : "password"} placeholder="Re-enter password" value={newSewak.confirmPassword} onChange={(e) => setNewSewak({ ...newSewak, confirmPassword: e.target.value })} className="rounded-xl pr-10" />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors"
-                                        >
-                                            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Service Category</Label>
-                                    <div className="relative">
-                                        <select
-                                            required
-                                            className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm md:text-sm font-bold ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none pr-10"
-                                            value={newSewak.businessType}
-                                            onChange={(e) => setNewSewak({ ...newSewak, businessType: e.target.value })}
-                                        >
-                                            <option value="">Select Category</option>
-                                            {categories.map(cat => (
-                                                <option key={cat._id} value={cat.name}>{cat.name}</option>
-                                            ))}
-                                            <option value="Internal Service">Internal Service (Other)</option>
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                                            <ChevronDown className="h-4 w-4 text-gray-400" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Full Address</Label>
-                                    <Input required placeholder="Complete address" value={newSewak.address} onChange={(e) => setNewSewak({ ...newSewak, address: e.target.value })} className="rounded-xl" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">City</Label>
-                                    <Input required placeholder="Indore" value={newSewak.city} onChange={(e) => setNewSewak({ ...newSewak, city: e.target.value })} className="rounded-xl" />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">State</Label>
-                                    <Input required placeholder="Madhya Pradesh" value={newSewak.state} onChange={(e) => setNewSewak({ ...newSewak, state: e.target.value })} className="rounded-xl" />
-                                </div>
-                            </div>
-
-                            <div className="pt-6 border-t border-gray-100">
-                                <h3 className="text-sm font-black text-gray-900 mb-6 flex items-center gap-2">
-                                    <Fingerprint className="h-4 w-4 text-blue-600" />
-                                    Bank Account Details
-                                </h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <div className="space-y-2">
-                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Account Holder Name</Label>
-                                        <Input placeholder="As per bank passbook" value={newSewak.bankDetails.accountHolderName} onChange={(e) => {
-                                            const val = e.target.value.replace(/[^a-zA-Z\s]/g, "");
-                                            setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: val } })
-                                        }} className="rounded-xl border-blue-50 focus:border-blue-500" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Bank Name</Label>
-                                        <Input placeholder="e.g. HDFC Bank, SBI" value={newSewak.bankDetails.bankName} onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, bankName: e.target.value } })} className="rounded-xl border-blue-50 focus:border-blue-500" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">Account Number</Label>
-                                        <Input required minLength={9} maxLength={20} placeholder="Bank account number" value={newSewak.bankDetails.accountNumber} onChange={(e) => {
-                                            const val = e.target.value.replace(/\D/g, "");
-                                            setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountNumber: val } })
-                                        }} className="rounded-xl border-blue-50 focus:border-blue-500" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="font-bold text-gray-700 uppercase text-[10px] tracking-widest">IFSC Code</Label>
-                                        <Input required minLength={11} maxLength={11} placeholder="11 digit IFSC" value={newSewak.bankDetails.ifscCode} onChange={(e) => {
-                                            const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-                                            setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, ifscCode: val } })
-                                        }} className="rounded-xl border-blue-50 focus:border-blue-500" />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
-                                <Button type="button" variant="outline" onClick={() => {
-                                    setShowCreateForm(false);
-                                    setEditId(null);
-                                }} className="rounded-xl font-bold h-12 border-gray-200">
-                                    Cancel
-                                </Button>
-                                <Button type="submit" disabled={uploadingDoc !== null} className="rounded-xl font-bold h-12 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20">
-                                    {uploadingDoc ? <Loader2 className="animate-spin h-5 w-5" /> : (editId ? 'Update Sewak' : 'Register Sewak')}
-                                </Button>
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredSewaks.map((sewak) => (
-                    <Card key={sewak._id} className="border-gray-100 hover:border-blue-200 transition-all group hover:shadow-lg hover:shadow-blue-50/50 rounded-2xl overflow-hidden">
-                        <div className="p-5">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center font-black text-xl text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300 shrink-0">
-                                    {sewak.ownerName.charAt(0)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                    <h3 className="font-black text-base text-gray-900 leading-tight truncate">{sewak.ownerName}</h3>
-                                    <div className="flex items-center gap-1.5 mt-1">
-                                        <span className="text-[8px] uppercase tracking-widest font-black bg-blue-500/10 text-blue-600 px-1.5 py-0.5 rounded-full">
-                                            SEWAK
-                                        </span>
-                                        <span className="text-[8px] uppercase tracking-widest font-black bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                                            {sewak.vendorCode}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleEditClick(sewak)}
-                                        className="h-8 w-8 text-blue-500 hover:bg-blue-50 hover:text-blue-600 shrink-0"
-                                    >
-                                        <Edit3 className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleDeleteSewak(sewak._id)}
-                                        className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shrink-0"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2.5 text-gray-500 bg-gray-50/40 p-2 rounded-xl border border-gray-50 group-hover:border-blue-100 transition-colors">
-                                    <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0">
-                                        <Phone className="h-3.5 w-3.5 text-blue-500" />
-                                    </div>
-                                    <span className="text-xs font-bold truncate">{sewak.mobile}</span>
-                                </div>
-                                <div className="flex items-center gap-2.5 text-gray-500 bg-gray-50/40 p-2 rounded-xl border border-gray-50 group-hover:border-blue-100 transition-colors">
-                                    <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0">
-                                        <Mail className="h-3.5 w-3.5 text-blue-500" />
-                                    </div>
-                                    <span className="text-xs font-bold truncate">{sewak.email || 'No email'}</span>
-                                </div>
-                                <div className="flex items-center gap-2.5 text-gray-500 bg-gray-50/40 p-2 rounded-xl border border-gray-50 group-hover:border-blue-100 transition-colors">
-                                    <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center shadow-sm shrink-0">
-                                        <Building2 className="h-3.5 w-3.5 text-blue-500" />
-                                    </div>
-                                    <span className="text-xs font-bold truncate">{sewak.businessType}</span>
-                                </div>
-                            </div>
-
-                            {sewak.documents?.length > 0 && (
-                                <div className="mt-4 pt-3 border-t border-gray-50 flex flex-wrap gap-1.5">
-                                    {sewak.documents.map(doc => (
-                                        <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-[7px] font-black text-blue-600 border border-blue-100 hover:bg-blue-100 transition-colors whitespace-nowrap">
-                                            <FileCheck className="h-2 w-2" /> {doc.id.replace('_', '').toUpperCase()}
-                                        </a>
-                                    ))}
-                                </div>
-                            )}
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                    { label: "Total Sewaks",   value: stats.total,       icon: Users,    cls: "text-gray-700 bg-gray-50 border-gray-200" },
+                    { label: "Internal Service", value: stats.internal,  icon: Briefcase, cls: "text-blue-700 bg-blue-50 border-blue-200" },
+                    { label: "Specialized",    value: stats.specialized, icon: Building2, cls: "text-indigo-700 bg-indigo-50 border-indigo-200" },
+                    { label: "Verified KYC",   value: stats.verified,    icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+                ].map((s, i) => (
+                    <div key={i} className={`rounded-xl border p-4 ${s.cls}`}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <s.icon className="h-3.5 w-3.5 opacity-70" />
+                            <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">{s.label}</p>
                         </div>
-                    </Card>
+                        <h3 className="text-2xl font-black">{s.value}</h3>
+                    </div>
                 ))}
             </div>
 
-            {filteredSewaks.length === 0 && !loading && (
-                <div className="text-center py-20 bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-200">
-                    <Users className="h-16 w-16 text-gray-200 mx-auto mb-4" />
-                    <h3 className="text-xl font-black text-gray-400 uppercase tracking-tighter">No Sewaks registered yet</h3>
-                    <p className="text-gray-400 font-bold max-w-xs mx-auto mt-2">Start by clicking the "Add New Sewak" button above.</p>
+            {/* Filters & Search */}
+            <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center">
+                <div className="flex flex-wrap gap-1.5">
+                    <button
+                        onClick={() => setCategoryFilter('all')}
+                        className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                            categoryFilter === 'all' ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        }`}
+                    >
+                        All
+                        <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${categoryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{sewaks.length}</span>
+                    </button>
+                    {uniqueCategories.map(cat => (
+                        <button
+                            key={cat}
+                            onClick={() => setCategoryFilter(cat)}
+                            className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                categoryFilter === cat ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            }`}
+                        >
+                            {cat}
+                            <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${categoryFilter === cat ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                {sewaks.filter(s => s.businessType === cat).length}
+                            </span>
+                        </button>
+                    ))}
                 </div>
-            )}
+                <div className="relative w-full lg:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="block w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm transition-all"
+                        placeholder="Search by name, mobile, ID..."
+                    />
+                </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr className="text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                <th className="py-4 px-5">Sewak Details</th>
+                                <th className="py-4 px-5">Category</th>
+                                <th className="py-4 px-5">Contact</th>
+                                <th className="py-4 px-5">Address</th>
+                                <th className="py-4 px-5 text-center">Status</th>
+                                <th className="py-4 px-5 text-center">Documents</th>
+                                <th className="py-4 px-5 text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {loading ? (
+                                <tr>
+                                    <td colSpan="7" className="py-20 text-center">
+                                        <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto" />
+                                        <p className="text-sm text-gray-400 mt-3 font-medium">Loading sewaks...</p>
+                                    </td>
+                                </tr>
+                            ) : filteredSewaks.length === 0 ? (
+                                <tr>
+                                    <td colSpan="7" className="py-20 text-center">
+                                        <Users className="h-10 w-10 text-gray-200 mx-auto" />
+                                        <p className="text-sm text-gray-400 mt-3 font-bold">No sewaks found</p>
+                                        <p className="text-xs text-gray-300 mt-1">Try adjusting your search or filter</p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                <AnimatePresence>
+                                    {filteredSewaks.map((sewak, idx) => (
+                                        <motion.tr
+                                            key={sewak._id}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: idx * 0.02 }}
+                                            className="hover:bg-gray-50/80 transition-colors group"
+                                        >
+                                            {/* Sewak Details */}
+                                            <td className="py-3.5 px-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center text-sm font-black border bg-blue-50 text-blue-700 border-blue-200">
+                                                        {(sewak.ownerName || "?").charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-gray-900">{sewak.ownerName}</p>
+                                                        <p className="text-[10px] font-mono font-bold text-blue-600 mt-0.5">{sewak.vendorCode || '-'}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* Category */}
+                                            <td className="py-3.5 px-5">
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-indigo-50 text-indigo-700 border-indigo-200">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                                                    {sewak.businessType || 'Internal Service'}
+                                                </span>
+                                            </td>
+
+                                            {/* Contact */}
+                                            <td className="py-3.5 px-5">
+                                                <p className="text-xs font-medium text-gray-700 flex items-center gap-1.5"><Mail className="h-3 w-3 text-gray-400" />{sewak.email || '-'}</p>
+                                                <p className="text-xs font-medium text-gray-600 flex items-center gap-1.5 mt-0.5"><Phone className="h-3 w-3 text-gray-400" />{sewak.mobile || '-'}</p>
+                                            </td>
+
+                                            {/* Address */}
+                                            <td className="py-3.5 px-5">
+                                                <p className="text-xs font-bold text-gray-800 truncate max-w-[150px]">{sewak.city || '-'}</p>
+                                                <p className="text-[10px] text-gray-400 mt-0.5">{sewak.state || '-'}</p>
+                                            </td>
+
+                                            {/* Status */}
+                                            <td className="py-3.5 px-5 text-center">
+                                                <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                                                    sewak.status === 'verified' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                    sewak.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200' :
+                                                    'bg-amber-50 text-amber-700 border border-amber-200'
+                                                }`}>
+                                                    {sewak.status || 'Pending'}
+                                                </span>
+                                            </td>
+
+                                            {/* Documents */}
+                                            <td className="py-3.5 px-5 text-center">
+                                                {sewak.documents?.length > 0 ? (
+                                                    <div className="flex justify-center gap-1">
+                                                        {sewak.documents.map(doc => (
+                                                            <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer" title={doc.id} className="h-7 w-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 hover:bg-blue-100 transition-colors">
+                                                                <FileCheck className="h-3.5 w-3.5" />
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] text-gray-400 font-bold italic">No Docs</span>
+                                                )}
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td className="py-3.5 px-5 text-center">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <button onClick={() => handleEditClick(sewak)} title="Edit" className="h-7 w-7 flex items-center justify-center rounded-lg bg-gray-50 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors">
+                                                        <Edit3 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <button onClick={() => handleDeleteSewak(sewak._id)} title="Delete" className="h-7 w-7 flex items-center justify-center rounded-lg bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors">
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </motion.tr>
+                                    ))}
+                                </AnimatePresence>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                {/* Footer */}
+                {filteredSewaks.length > 0 && (
+                    <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex items-center justify-between">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Showing {filteredSewaks.length} of {sewaks.length} sewaks</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Add/Edit Modal */}
+            <AnimatePresence>
+                {showCreateForm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-y-auto"
+                        >
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+                                <div>
+                                    <h3 className="text-lg font-black text-gray-900">{editId ? "Edit Sewak Profile" : "Register Internal Sewak"}</h3>
+                                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Internal employees with 0% Commission</p>
+                                </div>
+                                <button onClick={() => { setShowCreateForm(false); resetForm(); }} className="h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleCreateSewak} className="p-6 space-y-6">
+                                <div>
+                                    <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Briefcase className="h-4 w-4"/> Personal Details</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <InputField label="Full Name">
+                                            <input required type="text" value={newSewak.ownerName}
+                                                onChange={(e) => { const v = e.target.value.replace(/[^a-zA-Z\s]/g, ""); setNewSewak({ ...newSewak, ownerName: v }); }}
+                                                className={inputCls} placeholder="Sewak Name" />
+                                        </InputField>
+                                        <InputField label="Mobile Number">
+                                            <input required type="tel" value={newSewak.mobile}
+                                                onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 10) setNewSewak({ ...newSewak, mobile: v }); }}
+                                                className={inputCls} placeholder="10 digit mobile" />
+                                        </InputField>
+                                        <InputField label="Email Address">
+                                            <input required type="email" value={newSewak.email}
+                                                onChange={(e) => { const v = e.target.value.replace(/\s/g, ""); setNewSewak({ ...newSewak, email: v }); }}
+                                                className={inputCls} placeholder="email@rozsewa.com" />
+                                        </InputField>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Shield className="h-4 w-4"/> Security & Category</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <InputField label="Service Category">
+                                            <select required value={newSewak.businessType} onChange={(e) => setNewSewak({ ...newSewak, businessType: e.target.value })} className={inputCls}>
+                                                <option value="">Select Category</option>
+                                                {categories.map(cat => <option key={cat._id} value={cat.name}>{cat.name}</option>)}
+                                                <option value="Internal Service">Internal Service (Other)</option>
+                                            </select>
+                                        </InputField>
+                                        <InputField label={editId ? "Password (Edit to Change)" : "Login Password"}>
+                                            <div className="relative">
+                                                <input required={!editId} type={showPassword ? "text" : "password"} value={newSewak.password}
+                                                    onChange={(e) => setNewSewak({ ...newSewak, password: e.target.value })}
+                                                    className={`${inputCls} pr-10`} placeholder={editId ? "Leave blank to keep" : "Set password"} />
+                                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors">
+                                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                </button>
+                                            </div>
+                                        </InputField>
+                                        <InputField label="Confirm Password">
+                                            <div className="relative">
+                                                <input required={!editId} type={showConfirmPassword ? "text" : "password"} value={newSewak.confirmPassword}
+                                                    onChange={(e) => setNewSewak({ ...newSewak, confirmPassword: e.target.value })}
+                                                    className={`${inputCls} pr-10`} placeholder="Re-enter password" />
+                                                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-blue-600 transition-colors">
+                                                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                </button>
+                                            </div>
+                                        </InputField>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Building2 className="h-4 w-4"/> Location</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <InputField label="Full Address">
+                                            <input required type="text" value={newSewak.address} onChange={(e) => setNewSewak({ ...newSewak, address: e.target.value })} className={inputCls} placeholder="Complete address" />
+                                        </InputField>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <InputField label="City">
+                                                <input required type="text" value={newSewak.city} onChange={(e) => setNewSewak({ ...newSewak, city: e.target.value })} className={inputCls} placeholder="City" />
+                                            </InputField>
+                                            <InputField label="State">
+                                                <input required type="text" value={newSewak.state} onChange={(e) => setNewSewak({ ...newSewak, state: e.target.value })} className={inputCls} placeholder="State" />
+                                            </InputField>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-gray-100">
+                                    <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2 mt-4"><Fingerprint className="h-4 w-4"/> Bank Details</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <InputField label="Account Name">
+                                            <input type="text" value={newSewak.bankDetails.accountHolderName}
+                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, "") } })}
+                                                className={inputCls} placeholder="As per passbook" />
+                                        </InputField>
+                                        <InputField label="Bank Name">
+                                            <input type="text" value={newSewak.bankDetails.bankName}
+                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, bankName: e.target.value } })}
+                                                className={inputCls} placeholder="e.g. SBI, HDFC" />
+                                        </InputField>
+                                        <InputField label="Account Number">
+                                            <input required minLength={9} maxLength={20} type="text" value={newSewak.bankDetails.accountNumber}
+                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountNumber: e.target.value.replace(/\D/g, "") } })}
+                                                className={inputCls} placeholder="Bank account no" />
+                                        </InputField>
+                                        <InputField label="IFSC Code">
+                                            <input required minLength={11} maxLength={11} type="text" value={newSewak.bankDetails.ifscCode}
+                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, ifscCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") } })}
+                                                className={`${inputCls} uppercase`} placeholder="11 digit code" />
+                                        </InputField>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 pt-6 border-t border-gray-100">
+                                    <button type="button" onClick={() => { setShowCreateForm(false); resetForm(); }} className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 transition-all">
+                                        Cancel
+                                    </button>
+                                    <button type="submit" disabled={uploadingDoc !== null} className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white hover:bg-blue-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                        {uploadingDoc ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : (editId ? "Update Sewak Profile" : "Register Internal Sewak")}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

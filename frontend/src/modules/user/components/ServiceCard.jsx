@@ -38,10 +38,10 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
 
   return (
     <motion.div
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -6, scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => navigate(`/shop/${id}`)}
-      className="group cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md flex flex-col relative"
+      className="group cursor-pointer overflow-hidden rounded-2xl border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-xl hover:border-primary/20 flex flex-col relative"
     >
       {/* Image */}
       <div className="relative h-28 sm:h-40 shrink-0 overflow-hidden bg-muted">
@@ -59,35 +59,35 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
         </motion.button>
 
         {emergency && (
-          <span className="absolute left-2 top-2 rounded-full bg-secondary px-2 py-0.5 text-[9px] sm:px-3 sm:py-1 sm:text-[10px] font-bold text-secondary-foreground shadow">
+          <span className="absolute left-3 top-3 rounded-md bg-rose-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold tracking-wide text-white shadow-sm border border-white/20">
             24×7
           </span>
         )}
         
         {verified && (
-          <span className={`absolute left-2 flex items-center gap-0.5 rounded-full bg-primary px-1.5 py-0.5 text-[9px] sm:px-2.5 sm:py-1 sm:text-[10px] font-bold text-primary-foreground shadow ${emergency ? 'top-8 sm:top-10' : 'top-2'}`}>
-            <BadgeCheck className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> <span className="hidden sm:inline">Verified</span>
+          <span className={`absolute left-3 flex items-center gap-1 rounded-md bg-emerald-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold tracking-wide text-white shadow-sm border border-white/20 ${emergency ? 'top-10' : 'top-3'}`}>
+            <BadgeCheck className="h-3 w-3" /> <span className="hidden sm:inline">Verified</span>
           </span>
         )}
       </div>
       {/* Info */}
-      <div className="flex flex-1 flex-col p-2.5 sm:p-4">
-        <h3 className="text-xs sm:text-sm font-bold text-card-foreground truncate">{name}</h3>
-        <p className="mt-0.5 text-[10px] sm:text-xs text-muted-foreground truncate">{category}</p>
-        <div className="mt-1.5 sm:mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-0.5">
-            <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-secondary text-secondary" />
-            <span className="text-[10px] sm:text-xs font-bold text-card-foreground">{rating}</span>
-            <span className="text-[9px] sm:text-xs text-muted-foreground">({reviews})</span>
+      <div className="flex flex-1 flex-col p-3 sm:p-4">
+        <h3 className="text-sm sm:text-base font-bold text-foreground truncate">{name}</h3>
+        <p className="mt-0.5 text-[11px] sm:text-xs font-medium text-muted-foreground truncate">{category}</p>
+        <div className="mt-2 sm:mt-3 flex items-center justify-between">
+          <div className="flex items-center gap-1 bg-secondary/30 px-2 py-0.5 rounded-md">
+            <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-amber-500 text-amber-500" />
+            <span className="text-[11px] sm:text-xs font-bold text-foreground">{rating}</span>
+            <span className="text-[10px] sm:text-[11px] text-muted-foreground">({reviews})</span>
           </div>
-          <div className="flex items-center gap-0.5 text-[9px] sm:text-xs text-muted-foreground truncate">
-            <MapPin className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" /> <span className="truncate">{distance}</span>
+          <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">
+            <MapPin className="h-3 w-3 shrink-0 text-slate-400" /> <span className="truncate">{distance}</span>
           </div>
         </div>
-        <div className="mt-auto pt-1.5 sm:pt-2 flex items-center justify-between">
-          <span className="text-xs sm:text-sm font-bold text-primary">₹{price}</span>
-          <span className="flex items-center gap-0.5 text-[9px] sm:text-[10px] text-muted-foreground shrink-0">
-            <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> 30 min
+        <div className="mt-auto pt-3 flex items-center justify-between border-t border-border/50">
+          <span className="text-sm sm:text-base font-black text-emerald-600">₹{price}</span>
+          <span className="flex items-center gap-1 text-[10px] sm:text-xs font-medium text-muted-foreground shrink-0 bg-muted px-2 py-1 rounded-md">
+            <Clock className="h-3 w-3 text-slate-400" /> 30 min
           </span>
         </div>
       </div>

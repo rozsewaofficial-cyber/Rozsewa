@@ -9,12 +9,7 @@ const serviceSchema = mongoose.Schema({
     name: { type: String, required: true },
     description: { type: String },
     category: { type: String, required: true },
-    pricing: {
-        basic: { type: Number, required: true },
-        standard: { type: Number },
-        premium: { type: Number },
-        express: { type: Number, default: 0 }
-    },
+    price: { type: Number, required: true },
     duration: { type: String, default: '30 min' },
     visible: { type: Boolean, default: true },
     image: { type: String },

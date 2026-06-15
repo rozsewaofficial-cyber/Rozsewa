@@ -84,8 +84,9 @@ app.use('/api/verify', verifyRoutes);
 app.use('/api/digilocker', digilockerRoutes);
 app.use('/mock', mockRoutes);
 
-// Forcing nodemon restart to load new .env variables
-
+// Start Cron Jobs
+const { startCronJobs } = require('./cron/payouts');
+startCronJobs();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });

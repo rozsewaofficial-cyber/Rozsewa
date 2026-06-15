@@ -341,6 +341,9 @@ const updateBookingStatusByProvider = async (req, res) => {
             if (newStatus === 'completed' && booking.status === 'started' && !booking.endOTP) {
                 const otp = Math.floor(1000 + Math.random() * 9000).toString();
                 booking.endOTP = otp;
+                if (req.body.afterImage) {
+                    booking.afterImage = req.body.afterImage;
+                }
                 await booking.save();
 
                 return res.json({
@@ -353,9 +356,37 @@ const updateBookingStatusByProvider = async (req, res) => {
             booking.status = newStatus;
             const updatedBooking = await booking.save();
 
-            // If cancelled by provider, notify Admin
+            // If cancelled by provider, notify Admin and deduct penalty
             if (newStatus === 'cancelled') {
                 try {
+                    const Setting = require('../models/Setting');
+                    let config;
+                    try {
+                        const configData = await Setting.findOne({ key: 'partner_program_config' });
+                        if (configData) config = JSON.parse(configData.value);
+                    } catch (err) {}
+                    const penalty = config?.penalties?.cancellationCharge ?? 50;
+
+                    if (penalty > 0) {
+                        const { Wallet, Transaction } = require('../models/Wallet');
+                        let wallet = await Wallet.findOne({ providerId: req.user._id });
+                        if (!wallet) {
+                            wallet = await Wallet.create({ providerId: req.user._id, balance: 0 });
+                        }
+                        wallet.balance -= penalty;
+                        await wallet.save();
+
+                        await Transaction.create({
+                            providerId: req.user._id,
+                            title: 'Cancellation Penalty',
+                            amount: penalty,
+                            type: 'debit',
+                            status: 'completed',
+                            bookingId: booking._id,
+                            description: 'Penalty for cancelling a booking'
+                        });
+                    }
+
                     const User = require('../models/User');
                     const { sendNotificationToUser } = require('../config/notificationService');
                     
@@ -373,7 +404,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                         });
                     }
                 } catch (err) {
-                    console.log('Admin push notification failed (skipping):', err.message);
+                    console.log('Cancellation penalty failed:', err.message);
                 }
             }
 
@@ -454,21 +485,36 @@ const verifyEndOTP = async (req, res) => {
                 // Update Provider stats and Commission logic
                 const provider = await Provider.findById(booking.providerId).populate('vendorType');
 
-                const Setting = require('../models/Setting');
-                let commissionRate = 10; // Default fallback
-
-                try {
-                    const commissionSetting = await Setting.findOne({ key: 'commissionRate' });
-                    if (commissionSetting) {
-                        commissionRate = parseFloat(commissionSetting.value);
-                    }
-                } catch (err) {
-                    console.log("Error fetching global commission setting, using default 10%");
-                }
-
                 let adminCommission = 0;
                 let providerPayout = booking.totalAmount;
                 let commissionStatus = 'free';
+
+                // Fetch Partner Program Config
+                const Setting = require('../models/Setting');
+                let config;
+                try {
+                    const configData = await Setting.findOne({ key: 'partner_program_config' });
+                    if (configData) {
+                        config = JSON.parse(configData.value);
+                    }
+                } catch (err) {
+                    console.log('Error fetching partner config, using defaults');
+                }
+
+                // Default Fallbacks
+                config = config || {
+                    commissionSlabs: [
+                        { min: 50, max: 100, rate: 15 },
+                        { min: 101, max: 300, rate: 14 },
+                        { min: 301, max: 700, rate: 12 },
+                        { min: 701, max: 999999, rate: 10 }
+                    ],
+                    subscriptionPlans: { elite: { commissionRate: 0 }, pro: { commissionRate: 5 }, basic: { commissionRate: 8 } },
+                    performanceBonuses: { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
+                    penalties: { cancellationCharge: 50 },
+                    referral: { commissionRate: 1, durationMonths: 12 },
+                    attendance: { requiredDays: 30, discountRate: 2 }
+                };
 
                 if (provider.providerCategory === 'sewak') {
                     adminCommission = booking.totalAmount;
@@ -476,58 +522,113 @@ const verifyEndOTP = async (req, res) => {
                     commissionStatus = 'sewak_revenue';
                 } else if (provider.freeServicesLeft > 0) {
                     provider.freeServicesLeft -= 1;
-                } else if (provider.isSubscribed && provider.subscriptionExpiry && new Date(provider.subscriptionExpiry) > new Date()) {
-                    // Subscription Logic (e.g., 5%)
-                    const rate = provider.subscriptionRate || 5;
-                    const type = provider.subscriptionType || 'percentage';
-
-                    if (type === 'percentage') {
-                        adminCommission = (booking.totalAmount * rate) / 100;
-                    } else {
-                        adminCommission = rate; // Fixed amount
-                    }
-                    providerPayout = booking.totalAmount - adminCommission;
-                    commissionStatus = 'subscription_discount';
+                    adminCommission = 0;
+                    providerPayout = booking.totalAmount;
+                    commissionStatus = 'free_new_joiner';
                 } else {
-                    // Use category-specific tier commission with fallbacks to global settings
-                    const category = provider.vendorType;
-                    const planType = provider.planType || 'basic';
-                    
-                    // Fetch global default for this tier from settings
-                    const tierKey = `commission_${planType}`;
-                    const Setting = require('../models/Setting');
-                    let defaultRate = planType === 'premium' ? 15 : planType === 'standard' ? 20 : 25; // Hardcoded fallbacks
-                    
-                    try {
-                        const tierSetting = await Setting.findOne({ key: tierKey });
-                        if (tierSetting) {
-                            defaultRate = parseFloat(tierSetting.value);
+                    let rate = 10;
+                    const plan = provider.planType || 'none';
+
+                    if (plan === 'elite') rate = config.subscriptionPlans.elite.commissionRate;
+                    else if (plan === 'pro') rate = config.subscriptionPlans.pro.commissionRate;
+                    else if (plan === 'basic') rate = config.subscriptionPlans.basic.commissionRate;
+                    else {
+                        // Amount Slabs by Category
+                        const amt = booking.totalAmount;
+                        const providerCategoryId = provider.vendorType?._id?.toString() || provider.vendorType?.toString();
+                        
+                        let matchingSlabs = config.commissionSlabs.filter(s => s.categoryId === providerCategoryId);
+                        if (matchingSlabs.length === 0) {
+                            matchingSlabs = config.commissionSlabs.filter(s => !s.categoryId || s.categoryId === 'default' || s.categoryId === '');
                         }
-                    } catch (err) {
-                        console.log(`Error fetching global ${tierKey} setting`);
+
+                        const slab = matchingSlabs.find(s => amt >= s.min && amt <= s.max);
+                        rate = slab ? slab.rate : (matchingSlabs.length > 0 ? matchingSlabs[0].rate : 10);
                     }
 
-                    let rate = defaultRate;
-                    if (category) {
-                        if (planType === 'premium') {
-                            rate = category.partnerCommissionPremium ?? defaultRate;
-                        } else if (planType === 'standard') {
-                            rate = category.partnerCommissionStandard ?? defaultRate;
-                        } else {
-                            rate = category.partnerCommissionBasic ?? defaultRate;
-                        }
+                    // Attendance Bonus Discount
+                    if (provider.attendanceBonusActive) {
+                        rate = Math.max(0, rate - config.attendance.discountRate);
                     }
-                    
+
                     adminCommission = (booking.totalAmount * rate) / 100;
                     providerPayout = booking.totalAmount - adminCommission;
-                    commissionStatus = 'commissioned';
+                    commissionStatus = plan !== 'none' ? `subscription_${plan}` : 'slab_commission';
+                }
+
+                // --- Partner Program Bonuses ---
+                if (provider.providerCategory !== 'sewak') {
+                    provider.bookingsCount = (provider.bookingsCount || 0) + 1;
+
+                    // Loyalty Bonus
+                    if (provider.bookingsCount === config.performanceBonuses.loyaltyBonusBookings) {
+                        providerPayout += config.performanceBonuses.loyaltyBonusAmount;
+                        const { Transaction } = require('../models/Wallet');
+                        await Transaction.create({
+                            providerId: provider._id,
+                            title: 'Loyalty Bonus',
+                            amount: config.performanceBonuses.loyaltyBonusAmount,
+                            type: 'credit',
+                            status: 'completed',
+                            bookingId: booking._id,
+                            description: `Completed ${config.performanceBonuses.loyaltyBonusBookings} Bookings`
+                        });
+                    }
                     
-                    console.log(`Applied commission (${rate}%) for plan: ${planType}, category: ${category?.name || 'None'}`);
+                    // Star Bonus
+                    let starBonusPercent = 0;
+                    if (provider.badges?.includes('GoldStar')) starBonusPercent = config.performanceBonuses.goldStarRate;
+                    else if (provider.badges?.includes('SilverStar')) starBonusPercent = config.performanceBonuses.silverStarRate;
+
+                    if (starBonusPercent > 0) {
+                        const starBonus = (booking.totalAmount * starBonusPercent) / 100;
+                        providerPayout += starBonus;
+                        const { Transaction } = require('../models/Wallet');
+                        await Transaction.create({
+                            providerId: provider._id,
+                            title: 'Star Bonus',
+                            amount: starBonus,
+                            type: 'credit',
+                            status: 'completed',
+                            bookingId: booking._id,
+                            description: `Performance Bonus (${starBonusPercent}%)`
+                        });
+                    }
+
+                    // Referral Commission
+                    if (provider.referredBy) {
+                        const durationAgo = new Date();
+                        durationAgo.setMonth(durationAgo.getMonth() - config.referral.durationMonths);
+                        if (provider.joinedDate > durationAgo) {
+                            const refComm = (booking.totalAmount * config.referral.commissionRate) / 100;
+                            
+                            // Admin pays for referral commission
+                            adminCommission = Math.max(0, adminCommission - refComm);
+
+                            const { Wallet, Transaction } = require('../models/Wallet');
+                            let refWallet = await Wallet.findOne({ providerId: provider.referredBy });
+                            if (refWallet) {
+                                refWallet.balance += refComm;
+                                await refWallet.save();
+                                await Transaction.create({
+                                    providerId: provider.referredBy,
+                                    title: 'Referral Commission',
+                                    amount: refComm,
+                                    type: 'credit',
+                                    status: 'completed',
+                                    bookingId: booking._id,
+                                    description: `${config.referral.commissionRate}% commission from referred provider`
+                                });
+                            }
+                        }
+                    }
                 }
 
                 // Update booking with commission details
                 booking.status = 'completed';
-                booking.afterImage = afterImage;
+                if (afterImage) {
+                    booking.afterImage = afterImage;
+                }
                 booking.adminCommission = adminCommission;
                 booking.providerPayout = providerPayout;
                 booking.commissionStatus = commissionStatus;
@@ -549,9 +650,7 @@ const verifyEndOTP = async (req, res) => {
                     type: 'credit',
                     status: 'completed',
                     bookingId: booking._id,
-                    description: commissionStatus === 'free' ? 'Zero Commission Booking' :
-                        commissionStatus === 'subscription_discount' ? `Subscription Discount Applied (${provider.subscriptionRate || 5}${provider.subscriptionType === 'fixed' ? ' Fixed' : '%'})` :
-                            `Tiered Commission Applied (${provider.planType || 'basic'})`
+                    description: `Booking ID #${booking._id.toString().slice(-6)}`
                 });
 
                 provider.walletBalance = wallet.balance;
@@ -654,6 +753,7 @@ const verifyEndOTP = async (req, res) => {
             res.status(404).json({ message: 'Booking not found' });
         }
     } catch (error) {
+        console.error("verifyEndOTP CRASH:", error);
         res.status(500).json({ message: error.message });
     }
 };

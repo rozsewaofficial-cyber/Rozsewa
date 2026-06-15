@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, ArrowRight, Sparkles, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import { toast } from "sonner";
 
 const CustomerLogin = () => {
   const navigate = useNavigate();
-  const { login, signup } = useAuth();
+  const { login, signup, loginWithOTP } = useAuth();
   const [mode, setMode] = useState("email"); // email | signup
+  const [loginMethod, setLoginMethod] = useState("password"); // password | otp
+  const [countdown, setCountdown] = useState(0);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState(""); // Used as identifier (email or phone)
@@ -23,6 +26,26 @@ const CustomerLogin = () => {
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState("");
 
+  useEffect(() => {
+    let timer;
+    if (countdown > 0) {
+      timer = setInterval(() => setCountdown(c => c - 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const handleResendOtp = async () => {
+    const mobileNo = mode === "signup" ? phone : email;
+    if (!mobileNo) return;
+    try {
+      await API.post("/auth/send-otp", { mobile: mobileNo });
+      setCountdown(30);
+      toast.success("OTP resent successfully!");
+    } catch (err) {
+      toast.error("Failed to resend OTP.");
+    }
+  };
+
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) { setError("Fill all fields"); return; }
@@ -36,6 +59,37 @@ const CustomerLogin = () => {
       setError(result.error);
     }
     setIsVerifying(false);
+  };
+
+  const handleOtpLogin = async (e) => {
+    e.preventDefault();
+    if (!email) { setError("Enter mobile number"); return; }
+    
+    if (!showOtpInput) {
+      setIsVerifying(true);
+      setError("");
+      try {
+        await API.post("/auth/send-otp", { mobile: email });
+        setShowOtpInput(true);
+        setCountdown(30);
+        toast.success("OTP sent successfully!");
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to send OTP.");
+      } finally {
+        setIsVerifying(false);
+      }
+    } else {
+      if (!otp) { setError("Please enter OTP"); return; }
+      setIsVerifying(true);
+      setError("");
+      const result = await loginWithOTP(email, otp, "customer");
+      if (result.success) {
+        navigate("/");
+      } else {
+        setError(result.error);
+      }
+      setIsVerifying(false);
+    }
   };
 
   const handleSignup = async (e) => {
@@ -57,6 +111,7 @@ const CustomerLogin = () => {
         // Send OTP
         await API.post("/auth/send-otp", { mobile: phone });
         setShowOtpInput(true);
+        setCountdown(30);
         toast.success("OTP sent successfully!");
       } catch (err) {
         setError("Failed to send OTP. Please try again.");
@@ -162,7 +217,13 @@ const CustomerLogin = () => {
 
                   {showOtpInput && (
                     <div>
-                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Enter OTP</label>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Enter OTP</label>
+                        <button type="button" disabled={countdown > 0} onClick={handleResendOtp}
+                          className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors">
+                          {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
+                        </button>
+                      </div>
                       <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)}
                         className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
                         placeholder="6-digit OTP" />
@@ -231,30 +292,65 @@ const CustomerLogin = () => {
               {/* LOGIN (Email or Phone) */}
               {mode === "email" && (
                 <motion.form key="email-form" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }}
-                  onSubmit={handleEmailLogin} className="space-y-5">
+                  onSubmit={loginMethod === "password" ? handleEmailLogin : handleOtpLogin} className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Email or Mobile Number</label>
                     <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
                       className="h-12 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
                       placeholder="Enter email or phone number" autoFocus />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Password</label>
-                    <div className="relative">
-                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
-                        className="h-12 w-full rounded-xl border border-border bg-background px-4 pr-12 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                        placeholder="Enter password" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
+                  
+                  {loginMethod === "password" ? (
+                    <div>
+                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Password</label>
+                      <div className="relative">
+                        <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                          className="h-12 w-full rounded-xl border border-border bg-background px-4 pr-12 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
+                          placeholder="Enter password" />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
-                    {error && <p className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
-                  </div>
+                  ) : (
+                    showOtpInput && (
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Enter OTP</label>
+                          <button type="button" disabled={countdown > 0} onClick={handleResendOtp}
+                            className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors">
+                            {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
+                          </button>
+                        </div>
+                        <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)}
+                          className="h-12 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
+                          placeholder="6-digit OTP" />
+                      </div>
+                    )
+                  )}
+
+                  {error && <p className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
+
                   <motion.button whileTap={{ scale: 0.97 }} type="submit" disabled={isVerifying}
                     className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-4 text-sm font-extrabold text-white shadow-xl shadow-primary/20 disabled:opacity-60">
-                    {isVerifying ? "Logging in..." : <>Login <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></>}
+                    {isVerifying ? "Processing..." : (
+                      loginMethod === "password" ? 
+                      <>Login <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></> :
+                      (showOtpInput ? "Verify & Login" : "Send OTP")
+                    )}
                   </motion.button>
+
+                  <div className="text-center pt-2">
+                    <button type="button" onClick={() => {
+                        setLoginMethod(loginMethod === "password" ? "otp" : "password");
+                        setShowOtpInput(false);
+                        setError("");
+                      }} 
+                      className="text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
+                      {loginMethod === "password" ? "Login with OTP instead" : "Login with Password instead"}
+                    </button>
+                  </div>
                 </motion.form>
               )}
             </AnimatePresence>

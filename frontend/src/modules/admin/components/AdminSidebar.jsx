@@ -38,11 +38,11 @@ export const adminSidebarLinks = [
 
   { path: "/admin/feedback", label: "Feedback", icon: MessageSquare },
   { path: "/admin/services", label: "Services Catalog", icon: Briefcase },
-  { path: "/admin/subscriptions", label: "Subscription Plans", icon: CreditCard },
   { path: "/admin/benefit-policies", label: "Benefit Policies", icon: ShieldCheck },
   { path: "/admin/banners", label: "App Banners", icon: Image },
   { path: "/admin/help-training", label: "Help & Training", icon: HelpCircle },
   { path: "/admin/activity-log", label: "System Logs", icon: Terminal },
+  { path: "/admin/partner-program", label: "Partner Program", icon: ShieldCheck },
   { path: "/admin/settings", label: "Global Settings", icon: Settings },
 ];
 
@@ -74,17 +74,21 @@ const AdminSidebar = () => {
     setIsPinModalOpen(true);
   };
 
-  return (
-    <aside className="hidden md:flex h-screen w-68 flex-col border-r border-blue-100/50 bg-[#f8fbff] sticky top-0 py-6 transition-colors duration-300">
-      <div className="px-6 mb-8">
-        <Link to="/admin" className="flex items-center space-x-2 group">
-          <div className="relative">
-            <img src="/RozSewa.png" alt="RozSewa Admin" className="h-[2rem] w-auto object-contain drop-shadow-sm group-hover:scale-105 transition-transform" />
+    return (
+    <aside className="hidden md:flex h-screen w-68 flex-col border-r border-slate-800 bg-[#0B1120] sticky top-0 py-6 transition-colors duration-300">
+      <div className="px-6 mb-8 mt-2">
+        <Link to="/admin" className="flex items-center gap-3 group">
+          <div className="relative shrink-0">
+            <img src="/RozSewa.png" alt="RozSewa Admin" className="h-10 w-auto object-contain drop-shadow-sm group-hover:scale-105 transition-transform brightness-0 invert opacity-90" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-base font-black text-white tracking-tight">RozSewa</span>
+            <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Admin Panel</span>
           </div>
         </Link>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 space-y-1.5 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto px-4 space-y-1.5 sidebar-scrollbar pr-1">
         {filteredLinks.map((link) => {
           const isActive = location.pathname === link.path;
           const label = (link.path === "/admin/employees" && user?.role === 'supervisor') ? "My Team" : link.label;
@@ -93,27 +97,27 @@ const AdminSidebar = () => {
               key={link.path}
               to={link.path}
               className={`flex items-center gap-3 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all duration-200 ${isActive
-                ? "bg-white text-blue-700 shadow-[0_4px_12px_rgba(59,130,246,0.08)] border border-blue-50"
-                : "text-slate-500 hover:bg-white/50 hover:text-blue-600"
+                ? "bg-blue-600 text-white shadow-lg border border-transparent"
+                : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                 }`}
             >
-              <link.icon className={`h-4.5 w-4.5 ${isActive ? "text-blue-600" : "text-slate-400 group-hover:text-blue-500"}`} />
+              <link.icon className={`h-4.5 w-4.5 ${isActive ? "text-white" : "text-slate-500 group-hover:text-white"}`} />
               {label}
             </Link>
           );
         })}
 
         {user?.role === 'superadmin' && (
-          <div className="pt-4 mt-4 border-t border-gray-100 space-y-1">
+          <div className="pt-4 mt-4 border-t border-slate-800 space-y-1">
             <button
               onClick={handleSuperAdminClick}
               className={`w-full flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/super"
-                ? "bg-amber-50 text-amber-700 shadow-sm"
-                : "text-amber-600 hover:bg-amber-50"
+                ? "bg-amber-500/10 text-amber-500 shadow-sm border border-amber-500/20"
+                : "text-amber-500 hover:bg-amber-500/10"
                 }`}
             >
               <div className="flex items-center gap-3">
-                <SuperShield className={`h-4.5 w-4.5 ${location.pathname === "/admin/super" ? "text-amber-600" : "text-amber-500"}`} />
+                <SuperShield className={`h-4.5 w-4.5 ${location.pathname === "/admin/super" ? "text-amber-500" : "text-amber-600"}`} />
                 Super Admin
               </div>
               <Lock className="h-3.5 w-3.5 opacity-50" />
@@ -122,48 +126,48 @@ const AdminSidebar = () => {
             <Link
               to="/admin/audit-logs"
               className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/audit-logs"
-                ? "bg-blue-50 text-blue-700 shadow-sm"
-                : "text-slate-600 hover:bg-blue-50 hover:text-blue-600"
+                ? "bg-blue-500/10 text-blue-400 shadow-sm"
+                : "text-slate-400 hover:bg-slate-800/50 hover:text-blue-400"
                 }`}
             >
-              <History className={`h-4.5 w-4.5 ${location.pathname === "/admin/audit-logs" ? "text-blue-600" : "text-slate-400"}`} />
+              <History className={`h-4.5 w-4.5 ${location.pathname === "/admin/audit-logs" ? "text-blue-400" : "text-slate-500"}`} />
               Audit Logs
             </Link>
 
             <Link
               to="/admin/sewak-incentives"
               className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/sewak-incentives"
-                ? "bg-emerald-50 text-emerald-700 shadow-sm"
-                : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"
+                ? "bg-emerald-500/10 text-emerald-400 shadow-sm"
+                : "text-slate-400 hover:bg-slate-800/50 hover:text-emerald-400"
                 }`}
             >
-              <Zap className={`h-4.5 w-4.5 ${location.pathname === "/admin/sewak-incentives" ? "text-emerald-600" : "text-slate-400"}`} />
+              <Zap className={`h-4.5 w-4.5 ${location.pathname === "/admin/sewak-incentives" ? "text-emerald-400" : "text-slate-500"}`} />
               Sewak Incentives
             </Link>
 
             <Link
               to="/admin/night-charge"
               className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/night-charge"
-                ? "bg-indigo-50 text-indigo-700 shadow-sm"
-                : "text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                ? "bg-indigo-500/10 text-indigo-400 shadow-sm"
+                : "text-slate-400 hover:bg-slate-800/50 hover:text-indigo-400"
                 }`}
             >
-              <Moon className={`h-4.5 w-4.5 ${location.pathname === "/admin/night-charge" ? "text-indigo-600" : "text-slate-400"}`} />
+              <Moon className={`h-4.5 w-4.5 ${location.pathname === "/admin/night-charge" ? "text-indigo-400" : "text-slate-500"}`} />
               Night Charges
             </Link>
           </div>
         )}
       </div>
 
-      <div className="px-6 mt-auto pt-4 border-t border-gray-100">
+      <div className="px-6 mt-auto pt-4 border-t border-slate-800">
         <div className="flex items-center gap-3">
-          <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${user?.role === 'superadmin' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+          <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${user?.role === 'superadmin' ? 'bg-amber-500/20 text-amber-500' : 'bg-blue-500/20 text-blue-400'
             }`}>
             {user?.name?.charAt(0) || 'AD'}
           </div>
           <div>
-            <p className="text-xs font-black text-gray-900">{user?.name || 'Admin'}</p>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+            <p className="text-xs font-black text-white">{user?.name || 'Admin'}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
               {user?.role === 'superadmin' ? 'Super Administrator' : 
                user?.role === 'supervisor' ? 'Supervisor' : 
                user?.role === 'employee' ? 'Employee' : 'Administrator'}
@@ -174,7 +178,7 @@ const AdminSidebar = () => {
               logout();
               window.location.replace("/admin/login");
             }}
-            className="ml-auto p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+            className="ml-auto p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
             title="Logout"
           >
             <LogOut className="h-4.5 w-4.5" />

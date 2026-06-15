@@ -18,6 +18,12 @@ const RecentBookingTracker = () => {
     ];
 
     const fetchActiveBookings = async () => {
+        const authData = JSON.parse(localStorage.getItem('rozsewa_auth') || 'null');
+        if (!authData?.token) {
+            setLoading(false);
+            return;
+        }
+
         try {
             const res = await API.get('/bookings');
             const active = res.data.find(b =>

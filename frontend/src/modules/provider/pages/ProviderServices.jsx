@@ -73,8 +73,8 @@ const ProviderServices = () => {
     e.preventDefault();
     if (saving) return;
     const finalName = form.name === "custom" ? form.customName : form.name;
-    if (!finalName || !form.basic) { toast({ title: "Name & Basic price required", variant: "destructive" }); return; }
-    if (Number(form.basic) < 1) { toast({ title: "Price must be positive", variant: "destructive" }); return; }
+    if (!finalName || !form.price) { toast({ title: "Name & Price required", variant: "destructive" }); return; }
+    if (Number(form.price) < 1) { toast({ title: "Price must be positive", variant: "destructive" }); return; }
 
     setSaving(true);
 
@@ -85,12 +85,7 @@ const ProviderServices = () => {
       visible: form.visible,
       image: form.image,
       category: categoryName, // Force match provider's category
-      pricing: {
-        basic: Number(form.basic),
-        standard: form.standard ? Number(form.standard) : undefined,
-        premium: form.premium ? Number(form.premium) : undefined,
-        express: form.express ? Number(form.express) : 0
-      }
+      price: Number(form.price) || 0,
     };
 
     try {
@@ -149,12 +144,7 @@ const ProviderServices = () => {
       duration: "1 hour",
       visible: true,
       category: categoryName,
-      pricing: {
-        basic: isSewak ? (s.sewakPriceBasic || s.basePrice || 299) : (s.basePrice || 299),
-        standard: isSewak ? (s.sewakPriceStandard || 0) : ((s.basePrice || 299) * 1.5),
-        premium: isSewak ? (s.sewakPricePremium || 0) : ((s.basePrice || 299) * 2),
-        express: isSewak ? (s.sewakPriceExpress || 0) : 99
-      }
+      price: isSewak ? (s.basePrice || 299) : (s.basePrice || 299)
     };
     try {
       await API.post("/services", payload);
@@ -170,10 +160,7 @@ const ProviderServices = () => {
     setForm({
       name: s.name,
       description: s.description || `Professional ${s.name} service`,
-      basic: isSewak ? (s.sewakPriceBasic || s.basePrice || 299) : "",
-      standard: isSewak ? (s.sewakPriceStandard || "") : "",
-      premium: isSewak ? (s.sewakPricePremium || "") : "",
-      express: isSewak ? (s.sewakPriceExpress || "") : "",
+      price: isSewak ? (s.basePrice || 299) : "",
       duration: "1 hour",
       visible: true,
       image: ""
@@ -182,7 +169,7 @@ const ProviderServices = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const resetForm = () => { setForm({ name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", visible: true, image: "" }); setShowForm(false); setEditId(null); };
+  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "" }); setShowForm(false); setEditId(null); };
   const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); };
 
   const handleEdit = (s) => {
@@ -191,10 +178,7 @@ const ProviderServices = () => {
       name: isCustom ? "custom" : s.name,
       customName: isCustom ? s.name : "",
       description: s.description,
-      basic: s.pricing?.basic || "",
-      standard: s.pricing?.standard || "",
-      premium: s.pricing?.premium || "",
-      express: s.pricing?.express || "",
+      price: s.price || "",
       duration: s.duration || "30 min",
       visible: s.visible,
       image: s.image || ""
@@ -353,14 +337,7 @@ const ProviderServices = () => {
                     </div>
                     {s.description && <p className="text-[10px] text-muted-foreground mb-2 line-clamp-1 italic">{s.description}</p>}
                     <div className="flex gap-2 flex-wrap items-center">
-                      <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">Basic ₹{s.pricing?.basic}</span>
-                      {s.pricing?.standard > 0 && <span className="rounded-lg bg-blue-50 dark:bg-blue-900/30 px-2 py-1 text-[9px] font-bold text-blue-700 dark:text-blue-300">Std ₹{s.pricing.standard}</span>}
-                      {s.pricing?.premium > 0 && <span className="rounded-lg bg-purple-50 dark:bg-purple-900/30 px-2 py-1 text-[9px] font-bold text-purple-700 dark:text-purple-300">Prem ₹{s.pricing.premium}</span>}
-                      {s.pricing?.express > 0 && (
-                        <span className="flex items-center gap-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 px-2 py-1 text-[9px] font-bold text-amber-700 dark:text-amber-500 animate-pulse border border-amber-200 dark:border-amber-900">
-                          <Zap className="h-2.5 w-2.5 fill-amber-500" /> Express +₹{s.pricing.express}
-                        </span>
-                      )}
+                      <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">Price ₹{s.price}</span>
                     </div>
                     <p className="mt-2 text-[10px] text-muted-foreground font-medium">Duration: {s.duration}</p>
                   </div>
@@ -478,10 +455,8 @@ const ProviderServices = () => {
                             ...form,
                             name: val,
                             customName: "",
-                            basic: isSewak ? (selected?.sewakPriceBasic || selected?.basePrice) : "",
-                            standard: isSewak ? (selected?.sewakPriceStandard || "") : "",
-                            premium: isSewak ? (selected?.sewakPricePremium || "") : "",
-                            express: isSewak ? (selected?.sewakPriceExpress || "") : ""
+                            price: isSewak ? (selected?.basePrice) : "",
+
                           });
                         }
                       }}
@@ -511,54 +486,16 @@ const ProviderServices = () => {
                     className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none" placeholder="Describe the service..." />
                 </div>
 
-                <div className="space-y-4">
-                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Pricing Tiers (₹)</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="text-left">
-                      <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground flex items-center justify-between">
-                        Basic
-                        {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded uppercase">Master Rate</span>}
-                      </label>
-                      <input type="number" min="1" value={form.basic} onChange={e => setForm({ ...form, basic: e.target.value })}
-                        onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
-                        readOnly={user?.providerCategory === 'sewak'}
-                        className={`w-full rounded-xl border border-border p-3 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="299" />
-                    </div>
-                    <div className="text-left">
-                      <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground flex items-center justify-between">
-                        Standard
-                        {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded uppercase">Master Rate</span>}
-                      </label>
-                      <input type="number" value={form.standard} onChange={e => setForm({ ...form, standard: e.target.value })}
-                        onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
-                        readOnly={user?.providerCategory === 'sewak'}
-                        className={`w-full rounded-xl border border-border p-3 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="499" />
-                    </div>
-                    <div className="text-left">
-                      <label className="block text-[8px] font-bold uppercase mb-1 text-muted-foreground flex items-center justify-between">
-                        Premium
-                        {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded uppercase">Master Rate</span>}
-                      </label>
-                      <input type="number" value={form.premium} onChange={e => setForm({ ...form, premium: e.target.value })}
-                        onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
-                        readOnly={user?.providerCategory === 'sewak'}
-                        className={`w-full rounded-xl border border-border p-3 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="799" />
-                    </div>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-2 gap-3 text-left">
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Zap className="h-3 w-3 text-amber-500 fill-amber-500" /> Express Fee ₹
-                      </div>
-                      {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 px-1 rounded uppercase">Master Rate</span>}
+                      Service Price (₹)
+                      {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded uppercase">Master Rate</span>}
                     </label>
-                    <input type="number" value={form.express} onChange={e => setForm({ ...form, express: e.target.value })}
+                    <input type="number" min="1" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
                       onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
                       readOnly={user?.providerCategory === 'sewak'}
-                      className={`w-full rounded-2xl border border-amber-500/30 p-4 text-xs font-black text-amber-700 focus:border-amber-500 focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-amber-50/20 cursor-not-allowed' : 'bg-amber-50/10'}`} placeholder="99" />
+                      className={`w-full rounded-2xl border border-border p-4 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="299" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Duration</label>

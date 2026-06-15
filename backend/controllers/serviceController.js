@@ -27,12 +27,7 @@ const getMyServices = async (req, res) => {
                 duration: "1 hour",
                 visible: true,
                 category: categoryName,
-                pricing: {
-                    basic: catSvc.sewakPriceBasic ?? catSvc.basePrice ?? 299,
-                    standard: catSvc.sewakPriceStandard ?? 0,
-                    premium: catSvc.sewakPricePremium ?? 0,
-                    express: catSvc.sewakPriceExpress ?? 0
-                }
+                price: catSvc.basePrice ?? 299
             }));
 
             // Map category combos to the format expected by frontend
@@ -59,14 +54,14 @@ const getMyServices = async (req, res) => {
 // @route   POST /api/services
 // @access  Private (Provider)
 const createService = async (req, res) => {
-    const { name, description, pricing, duration, category, visible, image } = req.body;
+    const { name, description, price, duration, category, visible, image } = req.body;
 
     try {
         const service = await Service.create({
             providerId: req.user._id,
             name,
             description,
-            pricing,
+            price,
             duration,
             category: category || req.user.vendorType,
             visible: visible !== undefined ? visible : true,
@@ -97,7 +92,7 @@ const updateService = async (req, res) => {
 
             service.name = req.body.name || service.name;
             service.description = req.body.description || service.description;
-            service.pricing = req.body.pricing || service.pricing;
+            service.price = req.body.price !== undefined ? req.body.price : service.price;
             service.duration = req.body.duration || service.duration;
             service.visible = req.body.visible !== undefined ? req.body.visible : service.visible;
             service.image = req.body.image || service.image;

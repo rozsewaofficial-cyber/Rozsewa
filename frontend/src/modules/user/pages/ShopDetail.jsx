@@ -88,11 +88,9 @@ const ShopDetail = () => {
         duration: s.duration || "30 min",
         image: s.image,
         serviceType: s.serviceType || "home",
-        expressPrice: s.pricing?.express || 0,
+        expressPrice: 0,
         plans: [
-          { id: `${s._id}-basic`, name: "Basic", price: s.pricing?.basic || 299, desc: "Standard service" },
-          ...(s.pricing?.standard ? [{ id: `${s._id}-standard`, name: "Standard", price: s.pricing.standard, desc: "Enhanced service" }] : []),
-          ...(s.pricing?.premium ? [{ id: `${s._id}-premium`, name: "Premium", price: s.pricing.premium, desc: "Premium quality service" }] : []),
+          { id: s._id, name: "Standard Service", price: s.price || 299, desc: "Standard service" }
         ]
       }));
       setServicesList(mappedServices);
@@ -320,7 +318,6 @@ const ShopDetail = () => {
                             </h3>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{service.duration}</span>
-                              <span className="text-[10px] text-primary font-bold">{service.plans.length} Options</span>
                             </div>
                             {service.description && <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{service.description}</p>}
                           </div>

@@ -192,7 +192,13 @@ const RecentBookingsList = () => {
                 </div>
 
                 <h3 className="text-lg font-black text-foreground truncate">{req.serviceName}</h3>
-                <p className="text-sm font-bold text-muted-foreground">{req.userId?.name || "Customer"}</p>
+                
+                <div className="flex items-center gap-1.5 mt-1.5 mb-1 text-xs font-bold text-muted-foreground bg-muted/30 w-fit px-2 py-1 rounded-lg">
+                  <Clock className="h-3.5 w-3.5 text-primary" />
+                  <span>{req.bookingDate} • {req.bookingTime}</span>
+                </div>
+
+                <p className="text-sm font-bold text-muted-foreground mt-1">{req.userId?.name || "Customer"}</p>
 
                 <div className="mt-4 flex items-center justify-between">
                   <div>
@@ -246,10 +252,12 @@ const RecentBookingsList = () => {
 
                 {req.status === "on_the_way" && (
                   <div className="mt-5 space-y-3">
-                    <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-900/40">
-                      <p className="text-[10px] font-bold text-amber-600 uppercase">Tell User this OTP to Start</p>
-                      <p className="text-2xl font-black text-amber-700 dark:text-amber-400 tracking-[0.5em]">{req.startOTP || "----"}</p>
-                    </div>
+                    <button
+                      onClick={() => setOtpBooking(req._id)}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-xs font-black text-white shadow-xl hover:bg-primary/90 transition-all uppercase tracking-widest"
+                    >
+                      Verify OTP & Start Work
+                    </button>
                     <button
                       onClick={() => {
                         if (req.location?.coordinates && req.location.coordinates.length >= 2 && req.location.coordinates[0] !== 0) {
@@ -263,7 +271,6 @@ const RecentBookingsList = () => {
                     >
                       <MapIcon className="h-4 w-4" /> Open In-App Live Tracking
                     </button>
-                    <p className="text-[10px] text-center text-muted-foreground animate-pulse">Waiting for User to enter code...</p>
                   </div>
                 )}
 

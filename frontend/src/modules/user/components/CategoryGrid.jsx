@@ -50,16 +50,16 @@ const CategoryGrid = ({ showAll = true }) => {
 
   // Premium Glass Palette for Dark Theme
   const themes = [
-    { bg: "bg-white/10", icon: "text-emerald-400", shadow: "shadow-emerald-500/20" },
-    { bg: "bg-white/10", icon: "text-blue-400", shadow: "shadow-blue-500/20" },
-    { bg: "bg-white/10", icon: "text-pink-400", shadow: "shadow-pink-500/20" },
-    { bg: "bg-white/10", icon: "text-amber-400", shadow: "shadow-amber-500/20" },
-    { bg: "bg-white/10", icon: "text-violet-400", shadow: "shadow-violet-500/20" },
-    { bg: "bg-white/10", icon: "text-rose-400", shadow: "shadow-rose-500/20" },
-    { bg: "bg-white/10", icon: "text-cyan-400", shadow: "shadow-cyan-500/20" },
-    { bg: "bg-white/10", icon: "text-orange-400", shadow: "shadow-orange-500/20" },
-    { bg: "bg-white/10", icon: "text-indigo-400", shadow: "shadow-indigo-500/20" },
-    { bg: "bg-white/10", icon: "text-teal-400", shadow: "shadow-teal-500/20" },
+    { bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: "text-emerald-400", shadow: "shadow-emerald-500/20" },
+    { bg: "bg-blue-500/10", border: "border-blue-500/20", icon: "text-blue-400", shadow: "shadow-blue-500/20" },
+    { bg: "bg-pink-500/10", border: "border-pink-500/20", icon: "text-pink-400", shadow: "shadow-pink-500/20" },
+    { bg: "bg-amber-500/10", border: "border-amber-500/20", icon: "text-amber-400", shadow: "shadow-amber-500/20" },
+    { bg: "bg-violet-500/10", border: "border-violet-500/20", icon: "text-violet-400", shadow: "shadow-violet-500/20" },
+    { bg: "bg-rose-500/10", border: "border-rose-500/20", icon: "text-rose-400", shadow: "shadow-rose-500/20" },
+    { bg: "bg-cyan-500/10", border: "border-cyan-500/20", icon: "text-cyan-400", shadow: "shadow-cyan-500/20" },
+    { bg: "bg-orange-500/10", border: "border-orange-500/20", icon: "text-orange-400", shadow: "shadow-orange-500/20" },
+    { bg: "bg-indigo-500/10", border: "border-indigo-500/20", icon: "text-indigo-400", shadow: "shadow-indigo-500/20" },
+    { bg: "bg-teal-500/10", border: "border-teal-500/20", icon: "text-teal-400", shadow: "shadow-teal-500/20" },
   ];
 
   const displayList = showAll ? categories : categories.slice(0, 10);
@@ -76,7 +76,7 @@ const CategoryGrid = ({ showAll = true }) => {
   );
 
   return (
-    <div className="grid grid-cols-4 gap-x-2 gap-y-8 sm:grid-cols-5 lg:grid-cols-10">
+    <div className="grid grid-cols-3 min-[400px]:grid-cols-4 gap-x-2 gap-y-6 sm:gap-x-4 sm:gap-y-8 sm:grid-cols-5 lg:grid-cols-10">
       {displayList.map((cat, i) => {
         const theme = themes[i % themes.length];
         return (
@@ -85,19 +85,19 @@ const CategoryGrid = ({ showAll = true }) => {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: i * 0.02 }}
-            whileHover={!cat.isComingSoon ? { y: -5 } : {}}
+            whileHover={!cat.isComingSoon ? { y: -4, scale: 1.05 } : {}}
             whileTap={!cat.isComingSoon ? { scale: 0.95 } : {}}
             onClick={() => {
               if (!cat.isComingSoon) {
                 navigate(`/shops?category=${encodeURIComponent(cat.name)}`);
               }
             }}
-            className={`group flex flex-col items-center gap-2 ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
+            className={`group flex flex-col items-center gap-3 ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
           >
             <div className={`
-              relative flex h-16 w-16 items-center justify-center rounded-[1.75rem]
-              ${cat.image ? "bg-white p-0.5" : `${theme.bg} border border-white/10`}
-              transition-all duration-300 shadow-lg ${!cat.isComingSoon ? `group-hover:shadow-2xl ${theme.shadow} group-hover:scale-110` : ""}
+              relative flex h-14 w-14 sm:h-16 sm:w-16 lg:h-18 lg:w-18 items-center justify-center rounded-[1.25rem]
+              ${cat.image ? "bg-white p-0.5" : `${theme.bg} border ${theme.border}`}
+              transition-all duration-300 shadow-md ${!cat.isComingSoon ? `group-hover:shadow-xl ${theme.shadow}` : ""}
               overflow-hidden backdrop-blur-md
             `}>
               {/* Gloss effect overlay */}
@@ -112,15 +112,15 @@ const CategoryGrid = ({ showAll = true }) => {
               )}
 
               {cat.image ? (
-                <img src={cat.image} alt={cat.name} className={`h-full w-full object-cover rounded-[1.5rem] transition-transform duration-500 ${!cat.isComingSoon ? "group-hover:scale-110" : ""}`} />
+                <img src={cat.image} alt={cat.name} className={`h-full w-full object-cover rounded-[1.15rem] transition-transform duration-500 ${!cat.isComingSoon ? "group-hover:scale-110" : ""}`} />
               ) : (
-                <div className={`${theme.icon} transition-transform duration-300 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)] ${!cat.isComingSoon ? "group-hover:scale-125" : ""}`}>
+                <div className={`${theme.icon} transition-transform duration-300 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)] ${!cat.isComingSoon ? "group-hover:scale-110" : ""}`}>
                   {getIcon(cat.icon)}
                 </div>
               )}
             </div>
 
-            <span className={`text-[10px] font-black uppercase tracking-tight text-center leading-tight line-clamp-2 px-1 transition-colors ${cat.isComingSoon ? "text-white/50" : "text-white/80 group-hover:text-emerald-400"}`}>
+            <span className={`text-[10px] sm:text-xs font-bold tracking-tight text-center leading-tight line-clamp-2 px-1 transition-colors ${cat.isComingSoon ? "text-slate-500" : "text-slate-300 group-hover:text-white"}`}>
               {cat.name}
             </span>
           </motion.button>

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const partnerConfigController = require('../controllers/partnerConfigController');
 const {
     getProviders,
     deleteProvider,
@@ -210,5 +211,9 @@ router.post('/sewak-incentive-settings', protect, admin, updateIncentiveSettings
 // Sewak Enquiries
 router.get('/sewak-enquiries', protect, admin, getEnquiries);
 router.put('/sewak-enquiries/:id/status', protect, admin, updateEnquiryStatus);
+
+// Partner Program Configuration
+router.get('/partner-program-config', protect, admin, partnerConfigController.getConfig);
+router.put('/partner-program-config', protect, admin, partnerConfigController.updateConfig);
 
 module.exports = router;
