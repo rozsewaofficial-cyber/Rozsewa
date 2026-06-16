@@ -18,13 +18,6 @@ const dates = Array.from({ length: 7 }, (_, i) => {
   return { day: d.toLocaleDateString("en", { weekday: "short" }), date: d.getDate(), full: d.toISOString().split("T")[0] };
 });
 
-const timeSlots = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM"];
-
-const defaultAddresses = [
-  { id: 1, label: "Home", address: "123 MG Road, Lucknow, UP 226001", icon: "home", location: { type: "Point", coordinates: [80.9462, 26.8467] } },
-  { id: 2, label: "Office", address: "456 Hazratganj, Lucknow, UP 226001", icon: "office", location: { type: "Point", coordinates: [80.9462, 26.8467] } },
-];
-
 const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -37,20 +30,107 @@ const Checkout = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [serviceNotes, setServiceNotes] = useState("");
   const [appliedCouponData, setAppliedCouponData] = useState(null);
+  const [providerHours, setProviderHours] = useState({ openingTime: "09:00 AM", closingTime: "06:00 PM", availability: [] });
 
   const checkoutData = JSON.parse(localStorage.getItem("rozsewa_checkout_data")) || {
     shopName: "Provider",
     category: "General",
     items: [{ name: "Demo Service", price: 499, qty: 1 }],
-    total: 499
+    total: 499,
   };
+
+  useEffect(() => {
+    const fetchProviderHours = async () => {
+      if (checkoutData.providerId) {
+        try {
+          const { data } = await API.get(`/public/providers/${checkoutData.providerId}`);
+          if (data) {
+            setProviderHours({
+              openingTime: data.openingTime || "09:00 AM",
+              closingTime: data.closingTime || "06:00 PM",
+              availability: data.availability || []
+            });
+          }
+        } catch (error) {
+          console.error("Failed to fetch provider hours:", error);
+        }
+      }
+    };
+    fetchProviderHours();
+  }, [checkoutData.providerId]);
+
+  const defaultAddresses = [
+    { id: 1, label: "Home", address: "123 MG Road, Lucknow, UP 226001", icon: "home", location: { type: "Point", coordinates: [80.9462, 26.8467] } },
+    { id: 2, label: "Office", address: "456 Hazratganj, Lucknow, UP 226001", icon: "office", location: { type: "Point", coordinates: [80.9462, 26.8467] } },
+  ];
+
+  const generateTimeSlots = () => {
+    let startStr = providerHours.openingTime;
+    let endStr = providerHours.closingTime;
+
+    if (selectedDate && providerHours.availability?.length > 0) {
+      const dateObj = new Date(selectedDate);
+      const dayName = dateObj.toLocaleDateString("en", { weekday: "long" });
+      const dayAvail = providerHours.availability.find(d => d.day.toLowerCase() === dayName.toLowerCase());
+      
+      if (dayAvail) {
+        if (!dayAvail.isActive) {
+           return []; // Closed on this day
+        }
+        if (dayAvail.startTime) startStr = dayAvail.startTime;
+        if (dayAvail.endTime) endStr = dayAvail.endTime;
+      }
+    }
+
+    const parseTime = (t) => {
+      if (!t) return 9;
+      const parts = t.split(' ');
+      if (parts[0].includes(':')) {
+        let [hours, minutes] = parts[0].split(':');
+        hours = parseInt(hours, 10);
+        if (parts.length > 1) {
+          const modifier = parts[1];
+          if (hours === 12) hours = modifier === 'AM' || modifier === 'am' ? 0 : 12;
+          else if (modifier === 'PM' || modifier === 'pm') hours += 12;
+        }
+        return hours;
+      }
+      return 9;
+    };
+    
+    const start = parseTime(startStr);
+    const end = parseTime(endStr);
+    const slots = [];
+    for (let i = start; i <= end; i++) {
+      let hour = i % 12 || 12;
+      let ampm = i < 12 ? 'AM' : 'PM';
+      slots.push(`${hour.toString().padStart(2, '0')}:00 ${ampm}`);
+    }
+    return slots;
+  };
+
+  const timeSlots = generateTimeSlots();
+
+  const availableSlots = timeSlots.filter((t) => {
+    if (selectedDate === new Date().toISOString().split("T")[0]) {
+      const [time, modifier] = t.split(' ');
+      let [hours, minutes] = time.split(':');
+      hours = parseInt(hours, 10);
+      if (hours === 12) {
+        hours = modifier === 'AM' ? 0 : 12;
+      } else if (modifier === 'PM' || modifier === 'pm') {
+        hours += 12;
+      }
+      return hours > new Date().getHours();
+    }
+    return true;
+  });
 
   const subtotal = checkoutData.total || 499;
   const serviceNames = checkoutData.items?.length > 0 ? checkoutData.items.map(i => i.name).join(", ") : "General Service";
 
   // New features
   const [isExpress, setIsExpress] = useState(false);
-  const [isRequestingQuote, setIsRequestingQuote] = useState(false);
   const EXPRESS_FEE = checkoutData?.expressPrice || 0;
 
   // Address state (Sync with backend user)
@@ -88,6 +168,13 @@ const Checkout = () => {
   useEffect(() => {
     let interval;
     if (bookingConfirmed && bookingId) {
+      // Prevent hardware back button from going back to checkout form
+      window.history.pushState(null, "", window.location.href);
+      const handlePopState = () => {
+        navigate("/my-bookings", { replace: true });
+      };
+      window.addEventListener("popstate", handlePopState);
+
       interval = setInterval(async () => {
         try {
           const { data } = await API.get('/bookings');
@@ -100,9 +187,13 @@ const Checkout = () => {
           }
         } catch (err) {}
       }, 3000);
+
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener("popstate", handlePopState);
+      };
     }
-    return () => clearInterval(interval);
-  }, [bookingConfirmed, bookingId]);
+  }, [bookingConfirmed, bookingId, navigate]);
 
   const applyCoupon = async () => {
     try {
@@ -138,7 +229,7 @@ const Checkout = () => {
     }
   }
 
-  const total = subtotal - discount + (isExpress && !isRequestingQuote ? EXPRESS_FEE : 0);
+  const total = subtotal - discount + (isExpress ? EXPRESS_FEE : 0);
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -262,11 +353,6 @@ const Checkout = () => {
       return;
     }
 
-    if (isRequestingQuote) {
-      const confirmQuote = window.confirm("You are submitting a quote request. Real cost may vary. Continue?");
-      if (!confirmQuote) return;
-    }
-
     processBooking();
   };
 
@@ -361,7 +447,7 @@ const Checkout = () => {
           <div className="flex gap-3 pt-2">
             <motion.button 
               whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }} 
-              onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking")}
+              onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking", { replace: true })}
               className={`flex-1 rounded-2xl py-4 text-sm font-black transition-all ${
                 currentBookingStatus !== 'pending' 
                 ? "bg-primary text-primary-foreground shadow-xl shadow-primary/20 hover:shadow-2xl" 
@@ -369,7 +455,7 @@ const Checkout = () => {
               }`}>
               {currentBookingStatus !== 'pending' ? "Track Booking" : "Waiting for Provider..."}
             </motion.button>
-            <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/my-bookings")}
+            <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/my-bookings", { replace: true })}
               className="flex-1 rounded-2xl border-2 border-border py-4 text-sm font-extrabold text-foreground hover:bg-muted transition-colors">
               My Bookings
             </motion.button>
@@ -396,9 +482,20 @@ const Checkout = () => {
         </div>
 
         {/* Feature Toggles */}
-        <section className={`grid gap-3 ${EXPRESS_FEE > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {EXPRESS_FEE > 0 && (
-            <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsExpress(true); setIsRequestingQuote(false); }}
+        {EXPRESS_FEE > 0 && (
+          <section className="grid grid-cols-2 gap-3">
+            <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsExpress(false); }}
+              className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all ${!isExpress ? "border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/10" : "border-border bg-card hover:border-border/80"
+                }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className={`p-1.5 rounded-xl ${!isExpress ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"}`}><Clock className="h-4 w-4" /></div>
+                {!isExpress && <Check className="h-4 w-4 text-emerald-500" />}
+              </div>
+              <h3 className="text-sm font-black text-foreground">Standard Service</h3>
+              <p className="text-[10px] font-bold text-muted-foreground leading-tight mt-1">Book for a scheduled time</p>
+            </motion.div>
+
+            <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsExpress(true); }}
               className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all ${isExpress ? "border-amber-500 bg-amber-500/10 shadow-lg shadow-amber-500/10" : "border-border bg-card hover:border-border/80"
                 }`}>
               <div className="flex items-center justify-between mb-2">
@@ -406,30 +503,19 @@ const Checkout = () => {
                 {isExpress && <Check className="h-4 w-4 text-amber-500" />}
               </div>
               <h3 className="text-sm font-black text-foreground">Express Service</h3>
-              <p className="text-[10px] font-bold text-muted-foreground leading-tight mt-1">Get it done within 45 mins (+₹{EXPRESS_FEE})</p>
+              <p className="text-[10px] font-bold text-muted-foreground leading-tight mt-1">Get it done in 45 mins (+₹{EXPRESS_FEE})</p>
             </motion.div>
-          )}
-
-          <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsRequestingQuote(true); setIsExpress(false); setPaymentMode("after"); }}
-            className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all ${isRequestingQuote ? "border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/10" : "border-border bg-card hover:border-border/80"
-              }`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className={`p-1.5 rounded-xl ${isRequestingQuote ? "bg-blue-500 text-white" : "bg-muted text-muted-foreground"}`}><FileText className="h-4 w-4" /></div>
-              {isRequestingQuote && <Check className="h-4 w-4 text-blue-500" />}
-            </div>
-            <h3 className="text-sm font-black text-foreground">Request Quote</h3>
-            <p className="text-[10px] font-bold text-muted-foreground leading-tight mt-1">Submit details, get final pricing before payment</p>
-          </motion.div>
-        </section>
+          </section>
+        )}
 
         <AnimatePresence mode="wait">
           <motion.div key="scheduling" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
-            <section className={(isExpress || isRequestingQuote) ? "opacity-40 grayscale-[0.5]" : ""}>
+            <section className={isExpress ? "opacity-40 grayscale-[0.5]" : ""}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                   <Clock className="h-4 w-4 text-primary" /> Select Date
                 </h2>
-                {(isExpress || isRequestingQuote) && (
+                {isExpress && (
                   <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full uppercase">Not Required</span>
                 )}
               </div>
@@ -439,7 +525,6 @@ const Checkout = () => {
                     onClick={() => {
                       setSelectedDate(d.full);
                       setIsExpress(false);
-                      setIsRequestingQuote(false);
                     }}
                     className={`flex min-w-[72px] flex-col items-center justify-center rounded-2xl border-2 py-3 transition-all ${selectedDate === d.full ? "border-primary bg-primary shadow-md shadow-primary/20 text-primary-foreground" : "border-border bg-card text-foreground hover:bg-muted"
                       }`}>
@@ -451,18 +536,31 @@ const Checkout = () => {
             </section>
 
             <section>
-              <div className="grid grid-cols-3 gap-2">
-                {timeSlots.map((t) => (
-                  <motion.button key={t} whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setSelectedTime(t);
-                      setIsExpress(false);
-                      setIsRequestingQuote(false);
-                    }}
-                    className={`rounded-xl py-3 px-2 text-xs font-bold transition-all ${selectedTime === t ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" : "border border-border bg-card text-foreground hover:bg-muted"
-                      }`}>{t}</motion.button>
-                ))}
-              </div>
+              {availableSlots.length === 0 ? (
+                <div className="rounded-xl border border-border bg-muted p-4 text-center">
+                  <p className="text-sm font-bold text-muted-foreground">Provider is not available for booking on this date.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {availableSlots.map((t) => (
+                    <motion.button 
+                      key={t} 
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setSelectedTime(t);
+                        setIsExpress(false);
+                      }}
+                      className={`rounded-xl py-3 px-2 text-xs font-bold transition-all ${
+                        selectedTime === t 
+                          ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" 
+                          : "border border-border bg-card text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {t}
+                    </motion.button>
+                  ))}
+                </div>
+              )}
             </section>
           </motion.div>
         </AnimatePresence>
@@ -497,65 +595,60 @@ const Checkout = () => {
             className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
         </section>
 
-        {!isRequestingQuote && (
-          <>
-            {/* Coupon */}
-            <section className="relative rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-muted-foreground"><Tag className="h-4 w-4 text-emerald-500" /> Apply Promo</h3>
-                <button
-                  onClick={() => navigate("/offers")}
-                  className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline transition-all"
-                >
-                  View All Offers
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <input type="text" value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="Enter coupon code" disabled={couponApplied}
-                  className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm font-bold uppercase tracking-wider placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 transition-all" />
-                <motion.button whileTap={{ scale: 0.95 }} onClick={applyCoupon} disabled={couponApplied || !coupon}
-                  className="rounded-xl bg-emerald-500 px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all">
-                  {couponApplied ? "Applied ✓" : "Apply"}
-                </motion.button>
-              </div>
-            </section>
+        <>
+          {/* Coupon */}
+          <section className="relative rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-muted-foreground"><Tag className="h-4 w-4 text-emerald-500" /> Apply Promo</h3>
+              <button
+                onClick={() => navigate("/offers")}
+                className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline transition-all"
+              >
+                View All Offers
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <input type="text" value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="Enter coupon code" disabled={couponApplied}
+                className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm font-bold uppercase tracking-wider placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 transition-all" />
+              <motion.button whileTap={{ scale: 0.95 }} onClick={applyCoupon} disabled={couponApplied || !coupon}
+                className="rounded-xl bg-emerald-500 px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all">
+                {couponApplied ? "Applied ✓" : "Apply"}
+              </motion.button>
+            </div>
+          </section>
 
-            {/* Price Summary */}
-            <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
-              <div className="flex justify-between text-sm"><span className="font-semibold text-muted-foreground">Subtotal</span><span className="font-black text-foreground">₹{subtotal}</span></div>
-              {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-foreground">₹{EXPRESS_FEE}</span></div>}
-              {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Discount Applied</span><span className="font-black">-₹{discount}</span></div>}
-              <div className="border-t border-border pt-3 flex justify-between items-center">
-                <span className="text-sm font-black uppercase tracking-wider text-muted-foreground">Total To Pay</span>
-                <span className="text-xl font-black text-primary">₹{total}</span>
-              </div>
-            </section>
-
-            {/* Payment Mode removed as requested */}
-          </>
-        )}
+          {/* Price Summary */}
+          <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
+            <div className="flex justify-between text-sm"><span className="font-semibold text-muted-foreground">Subtotal</span><span className="font-black text-foreground">₹{subtotal}</span></div>
+            {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-foreground">₹{EXPRESS_FEE}</span></div>}
+            {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Discount Applied</span><span className="font-black">-₹{discount}</span></div>}
+            <div className="border-t border-border pt-3 flex justify-between items-center">
+              <span className="text-sm font-black uppercase tracking-wider text-muted-foreground">Total To Pay</span>
+              <span className="text-xl font-black text-primary">₹{total}</span>
+            </div>
+          </section>
+        </>
       </main>
 
-      {/* Floating Action */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-t border-border p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
-        <motion.button whileTap={{ scale: 0.97 }} onClick={handleConfirmBooking}
-          className={`flex w-full items-center justify-between rounded-2xl py-4 px-6 shadow-2xl transition-all ${isRequestingQuote
-            ? "bg-blue-600 text-white shadow-blue-600/20"
-            : "bg-primary text-primary-foreground shadow-primary/30"
-            }`}>
-          <div className="flex flex-col text-left">
-            <span className="text-[10px] font-bold uppercase tracking-widest opacity-80">
-              {isRequestingQuote ? "Submit Details" : "Grand Total"}
-            </span>
-            <span className="text-xl font-black">
-              {isRequestingQuote ? "Request Quote" : `₹${total}`}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl bg-black/20 px-4 py-2 text-sm font-bold uppercase tracking-wider">
-            {isRequestingQuote ? "Submit" : "Send Request"} <ArrowLeft className="h-4 w-4 rotate-180" />
-          </div>
-        </motion.button>
-      </div>
+      {/* Bottom Bar */}
+      {(availableSlots.length > 0 || isExpress) && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-t border-border p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
+          <motion.button whileTap={{ scale: 0.98 }} onClick={handleConfirmBooking} disabled={isProcessing}
+            className="flex w-full items-center justify-between rounded-2xl py-4 px-6 shadow-2xl transition-all bg-primary text-primary-foreground shadow-primary/30">
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
+                Grand Total
+              </span>
+              <span className="text-xl font-black">
+                ₹{total}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 font-black text-lg">
+              Send Request <ArrowLeft className="h-4 w-4 rotate-180" />
+            </div>
+          </motion.button>
+        </div>
+      )}
 
       {/* Modals -> Address Select Modal, Add Address Form, OTP Verification... (Kept identical structures, slightly styled up) */}
       {/* ADDRESS SELECT MODAL */}

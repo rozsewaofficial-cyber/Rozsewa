@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Star, BadgeCheck, MapPin, Phone, MessageCircle, Plus, Minus, ShoppingCart, ShieldCheck, Camera, CheckCircle2, ChevronDown, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Star, BadgeCheck, MapPin, Phone, MessageCircle, Plus, Minus, ShoppingCart, ShieldCheck, Camera, CheckCircle2, ChevronDown, X, Package } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -62,7 +62,7 @@ const ShopDetail = () => {
           id: found._id,
           name: found.shopName || found.ownerName || found.name,
           category: found.vendorType?.name || "General",
-          rating: found.rating || 4.5,
+          rating: found.rating !== undefined ? found.rating : 4.5,
           reviews: found.reviewCount || 0,
           verified: found.status === "verified",
           address: found.address || "Lucknow, India",
@@ -72,7 +72,9 @@ const ShopDetail = () => {
           qualifications: found.qualifications?.length > 0 ? found.qualifications : defaultProviderFallback.qualifications,
           warranty: found.warranty || defaultProviderFallback.warranty,
           isOnline: found.isOnline !== undefined ? found.isOnline : true,
-          portfolio: found.portfolio || []
+          portfolio: found.portfolio || [],
+          openingTime: found.openingTime || "09:00 AM",
+          closingTime: found.closingTime || "06:00 PM"
         });
       }
 
@@ -295,6 +297,60 @@ const ShopDetail = () => {
                 <button onClick={() => setServiceFilter('home')} className={`flex-1 py-2 rounded-lg transition-all ${serviceFilter === 'home' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>Home Visit</button>
                 <button onClick={() => setServiceFilter('24x7')} className={`flex-1 py-2 rounded-lg transition-all ${serviceFilter === '24x7' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>24x7 Emergency</button>
               </div>
+
+              {/* Combos Section */}
+              {serviceFilter === 'all' && combosList.length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-sm font-black text-foreground mb-3 flex items-center gap-2"><Package className="h-4 w-4 text-emerald-600" /> Discounted Combos</h2>
+                  <div className="space-y-4">
+                    {combosList.map((combo) => (
+                      <div key={combo.id} className="rounded-2xl border-2 border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 overflow-hidden">
+                        <div className="p-4">
+                          <div className="flex flex-col sm:flex-row gap-4">
+                            {combo.image && (
+                              <img src={combo.image} alt={combo.name} className="h-20 w-32 shrink-0 rounded-xl object-cover border border-emerald-500/20 bg-muted" />
+                            )}
+                            <div className="flex-1">
+                              <h3 className="text-base font-bold text-foreground">{combo.name}</h3>
+                              {combo.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{combo.description}</p>}
+                              
+                              <div className="mt-3 flex flex-wrap gap-1">
+                                {combo.services && combo.services.length > 0 && combo.services.map((svc, i) => (
+                                  <span key={i} className="text-[9px] font-bold uppercase tracking-wider bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md">
+                                    {svc.name || svc}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 pt-4 border-t border-emerald-500/10 flex items-center justify-between gap-4">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 mb-0.5">Combo Price</p>
+                              <p className="text-lg font-black text-foreground">₹{combo.price}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {cart[combo.id] ? (
+                                <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-1">
+                                  <button onClick={() => removeFromCart(combo.id)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-background shadow-sm hover:bg-slate-50 transition-colors"><Minus className="h-4 w-4 text-primary" /></button>
+                                  <span className="w-4 text-center text-sm font-bold">{cart[combo.id]}</span>
+                                  <button onClick={() => addToCart(combo.id)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"><Plus className="h-4 w-4" /></button>
+                                </div>
+                              ) : (
+                                <button onClick={() => addToCart(combo.id)} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
+                                  ADD COMBO
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Individual Services Section */}
+              <h2 className="text-sm font-black text-foreground mt-6 mb-3">Individual Services</h2>
 
               {servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').length === 0 ? (
                 <p className="text-center text-sm font-semibold text-muted-foreground py-8">No services found for this filter.</p>

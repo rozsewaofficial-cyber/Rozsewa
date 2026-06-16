@@ -57,6 +57,11 @@ const ProviderWallet = () => {
   const [withdrawError, setWithdrawError] = useState("");
 
   const handleWithdraw = async () => {
+    if (balance <= 0) {
+      toast({ title: "Insufficient Balance", description: "You need a positive balance to request a withdrawal.", variant: "destructive" });
+      return;
+    }
+
     if (!provider?.kycVerified) {
       toast({ title: "KYC Required", description: "Withdrawal feature will be active after KYC verification.", variant: "destructive" });
       return;
@@ -144,7 +149,11 @@ const ProviderWallet = () => {
                   <CheckCircle className="h-3 w-3" /> Auto-payout Active
                 </div>
               </div>
-              <button onClick={handleWithdraw} className="px-5 py-2.5 bg-white text-emerald-900 rounded-xl font-black text-xs hover:bg-emerald-50 transition-all shadow-lg active:scale-95">
+              <button 
+                onClick={handleWithdraw} 
+                disabled={balance <= 0}
+                className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all shadow-lg ${balance <= 0 ? 'bg-white/50 text-emerald-900/50 cursor-not-allowed shadow-none' : 'bg-white text-emerald-900 hover:bg-emerald-50 active:scale-95'}`}
+              >
                 Withdraw
               </button>
             </div>

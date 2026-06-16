@@ -270,6 +270,11 @@ const updateProviderProfile = async (req, res) => {
             // Check if critical fields are changing
             const nameChanged = req.body.shopName && req.body.shopName !== provider.shopName;
 
+            if (req.body.email && req.body.email !== provider.email) {
+                const emailExists = await Provider.findOne({ email: req.body.email, _id: { $ne: provider._id } });
+                if (emailExists) return res.status(400).json({ message: 'Email is already registered with another account' });
+            }
+
             provider.ownerName = req.body.ownerName || provider.ownerName;
             provider.shopName = req.body.shopName || provider.shopName;
             provider.email = req.body.email || provider.email;

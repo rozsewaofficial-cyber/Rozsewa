@@ -58,7 +58,7 @@ const ShopListing = () => {
     id: p._id,
     name: p.shopName || p.name,
     category: p.vendorType?.name || category,
-    rating: p.rating || 4.5,
+    rating: p.rating !== undefined ? p.rating : 4.5,
     reviews: p.reviewCount || 0,
     distance: "2.5 km",
     price: "Starts ₹199",

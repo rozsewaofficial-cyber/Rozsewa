@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 const CustomerLogin = () => {
   const navigate = useNavigate();
-  const { login, signup, loginWithOTP } = useAuth();
+  const { login, signup, loginWithOTP, detectLocation } = useAuth();
   const [mode, setMode] = useState("email"); // email | signup
   const [loginMethod, setLoginMethod] = useState("password"); // password | otp
   const [countdown, setCountdown] = useState(0);
@@ -54,6 +54,14 @@ const CustomerLogin = () => {
 
     const result = await login(email, password);
     if (result.success) {
+      try {
+        const loc = await detectLocation();
+        if (loc) {
+          await API.put("/auth/profile", { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } });
+        }
+      } catch (err) {
+        console.log("Location not granted during login", err);
+      }
       navigate("/");
     } else {
       setError(result.error);
@@ -84,6 +92,14 @@ const CustomerLogin = () => {
       setError("");
       const result = await loginWithOTP(email, otp, "customer");
       if (result.success) {
+        try {
+          const loc = await detectLocation();
+          if (loc) {
+            await API.put("/auth/profile", { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } });
+          }
+        } catch (err) {
+          console.log("Location not granted during login", err);
+        }
         navigate("/");
       } else {
         setError(result.error);
@@ -126,9 +142,17 @@ const CustomerLogin = () => {
       try {
         const { data: verifyData } = await API.post("/auth/verify-otp", { mobile: phone, otp });
         if (verifyData.success) {
+          let currentCoords = coords;
+          try {
+            const loc = await detectLocation();
+            if (loc) currentCoords = [loc.lng, loc.lat];
+          } catch (err) {
+            console.log("Location not granted during signup", err);
+          }
+
           const result = await signup({
             name, email, password, mobile: phone, address, city, state,
-            location: { type: 'Point', coordinates: coords }
+            location: { type: 'Point', coordinates: currentCoords }
           });
           if (result.success) {
             navigate("/");
@@ -204,7 +228,10 @@ const CustomerLogin = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Mobile Number</label>
-                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
+                    <input type="tel" value={phone} 
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      maxLength="10"
+                      inputMode="numeric"
                       className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
                       placeholder="10-digit number" />
                   </div>
@@ -216,17 +243,21 @@ const CustomerLogin = () => {
                   </div>
 
                   {showOtpInput && (
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Enter OTP</label>
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Authentication Code</label>
+                      <input type="text" value={otp} 
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        maxLength="6"
+                        inputMode="numeric"
+                        className="w-full text-center tracking-[0.4em] rounded-xl border border-primary bg-background py-3 text-xl font-bold focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-muted-foreground/30"
+                        placeholder="••••••" />
+                      <div className="flex justify-between items-center px-1 mt-2">
+                        <span className="text-[10px] font-bold text-muted-foreground">Didn't receive the code?</span>
                         <button type="button" disabled={countdown > 0} onClick={handleResendOtp}
-                          className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors">
+                          className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors hover:underline">
                           {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
                         </button>
                       </div>
-                      <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)}
-                        className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                        placeholder="6-digit OTP" />
                     </div>
                   )}
 
@@ -315,17 +346,21 @@ const CustomerLogin = () => {
                     </div>
                   ) : (
                     showOtpInput && (
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Enter OTP</label>
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Authentication Code</label>
+                        <input type="text" value={otp} 
+                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          maxLength="6"
+                          inputMode="numeric"
+                          className="w-full text-center tracking-[0.4em] rounded-xl border border-primary bg-background py-3 text-xl font-bold focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-muted-foreground/30"
+                          placeholder="••••••" />
+                        <div className="flex justify-between items-center px-1 mt-2">
+                          <span className="text-[10px] font-bold text-muted-foreground">Didn't receive the code?</span>
                           <button type="button" disabled={countdown > 0} onClick={handleResendOtp}
-                            className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors">
+                            className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors hover:underline">
                             {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
                           </button>
                         </div>
-                        <input type="text" value={otp} onChange={(e) => setOtp(e.target.value)}
-                          className="h-12 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                          placeholder="6-digit OTP" />
                       </div>
                     )
                   )}

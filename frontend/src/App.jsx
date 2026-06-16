@@ -87,6 +87,7 @@ import AdminDispatch from "./modules/admin/pages/AdminDispatch";
 import AdminEmergency from "./modules/admin/pages/AdminEmergency";
 import AdminFinance from "./modules/admin/pages/AdminFinance";
 import AdminQuality from "./modules/admin/pages/AdminQuality";
+import ProviderReports from "./modules/admin/pages/ProviderReports";
 
 
 import AdminHelpTraining from "./modules/admin/pages/AdminHelpTraining";
@@ -211,6 +212,7 @@ const App = () => (
                       <Route path="emergency" element={<AdminEmergency />} />
                       <Route path="finance" element={<AdminFinance />} />
                       <Route path="quality" element={<AdminQuality />} />
+                      <Route path="provider-reports" element={<ProviderReports />} />
                       <Route path="withdrawals" element={<AdminWithdrawals />} />
 
 

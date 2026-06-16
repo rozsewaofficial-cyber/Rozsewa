@@ -26,6 +26,7 @@ const ProviderServices = () => {
   const [uploading, setUploading] = useState(false);
   const [serviceSubTab, setServiceSubTab] = useState("active"); // "active" or "hidden"
   const [saving, setSaving] = useState(false);
+  const [newCustomService, setNewCustomService] = useState("");
 
   const { user } = useAuth();
 
@@ -304,15 +305,32 @@ const ProviderServices = () => {
               </section>
             )}
 
+            {activeTab === "services" && (
+              <div className="flex items-center justify-end gap-4 px-2 -mt-2 mb-2">
+                <button 
+                  onClick={() => setServiceSubTab("active")} 
+                  className={`text-[10px] font-black uppercase tracking-widest transition-colors ${serviceSubTab === "active" ? "text-emerald-600 dark:text-emerald-500" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Active
+                </button>
+                <button 
+                  onClick={() => setServiceSubTab("hidden")} 
+                  className={`text-[10px] font-black uppercase tracking-widest transition-colors ${serviceSubTab === "hidden" ? "text-slate-600 dark:text-slate-300" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Combo-Only
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {services.length === 0 && activeTab === "services" && (
+              {services.filter(s => serviceSubTab === "active" ? s.visible : !s.visible).length === 0 && activeTab === "services" && (
                 <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border p-12 text-center">
                   <IndianRupee className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-sm font-semibold text-muted-foreground">No services yet</p>
+                  <p className="text-sm font-semibold text-muted-foreground">{serviceSubTab === "active" ? "No active services yet" : "No combo-only services"}</p>
                 </div>
               )}
 
-              {activeTab === "services" && services.map((s, i) => (
+              {activeTab === "services" && services.filter(s => serviceSubTab === "active" ? s.visible : !s.visible).map((s, i) => (
                 <motion.div key={s._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className={`flex flex-col rounded-2xl border bg-card overflow-hidden transition-all ${s.visible ? "border-border" : "border-border/50 opacity-60"}`}>
                   {s.image && (
@@ -591,7 +609,7 @@ const ProviderServices = () => {
                                 duration: "1 hour",
                                 visible: false, // Hidden by default if added via Combo
                                 category: categoryName,
-                                pricing: { basic: catSvc.basePrice || 299, standard: (catSvc.basePrice || 299) * 1.5, premium: (catSvc.basePrice || 299) * 2, express: 99 }
+                                price: catSvc.basePrice || 299
                               };
                               try {
                                 const { data } = await API.post("/services", payload);
@@ -623,9 +641,67 @@ const ProviderServices = () => {
                         </button>
                       );
                     })}
-                    {categoryServices.length === 0 && (
+                    {/* Render Custom Services */}
+                    {services.filter(s => !categoryServices.some(catSvc => catSvc.name === s.name)).map((customSvc, i) => {
+                      const isSelected = comboForm.services.includes(customSvc._id);
+                      return (
+                        <button
+                          key={`custom-${i}`}
+                          type="button"
+                          onClick={() => {
+                            const selected = comboForm.services.includes(customSvc._id);
+                            setComboForm({
+                              ...comboForm,
+                              services: selected ? comboForm.services.filter(id => id !== customSvc._id) : [...comboForm.services, customSvc._id]
+                            });
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all flex items-center gap-1.5 ${isSelected
+                            ? "bg-emerald-600 text-white border-emerald-700 shadow-lg shadow-emerald-600/20"
+                            : "bg-white dark:bg-emerald-900/40 text-emerald-600 border-emerald-100 dark:border-emerald-800"
+                          }`}
+                        >
+                          {customSvc.name} (Custom)
+                          {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse ml-1" />}
+                        </button>
+                      );
+                    })}
+                    {categoryServices.length === 0 && services.length === 0 && (
                       <p className="text-[10px] font-bold text-slate-400 text-center w-full py-4">Loading catalog...</p>
                     )}
+                    <div className="w-full flex items-center gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <input 
+                        type="text" 
+                        placeholder="Type custom service name to add..." 
+                        value={newCustomService}
+                        onChange={(e) => setNewCustomService(e.target.value)}
+                        className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-[10px] font-bold focus:outline-none focus:border-emerald-500"
+                      />
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          if (!newCustomService.trim()) return;
+                          const payload = {
+                            name: newCustomService.trim(),
+                            description: `Custom ${newCustomService.trim()} service`,
+                            duration: "1 hour",
+                            visible: false,
+                            category: categoryName,
+                            price: 299
+                          };
+                          try {
+                            const { data } = await API.post("/services", payload);
+                            setServices(prev => [...prev, data]);
+                            setComboForm(prev => ({ ...prev, services: [...prev.services, data._id] }));
+                            setNewCustomService("");
+                          } catch (err) {
+                            toast({ title: "Failed to add custom service", variant: "destructive" });
+                          }
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </div>
 

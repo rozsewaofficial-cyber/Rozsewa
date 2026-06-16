@@ -70,7 +70,7 @@ const Index = () => {
         id: p._id,
         name: p.shopName || p.name,
         category: p.vendorType?.name || "Service",
-        rating: p.rating || 4.5,
+        rating: p.rating !== undefined ? p.rating : 4.5,
         reviews: p.reviews || 0,
         distance: "Nearby",
         price: "199",

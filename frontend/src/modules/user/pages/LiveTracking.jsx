@@ -101,7 +101,7 @@ const LiveTracking = () => {
       const { data } = await API.get('/bookings');
       // Find the most recent active booking (only include completed if not reviewed)
       const active = data.find(b => 
-        ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status) || 
+        ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status) || 
         (b.status === 'completed' && (!b.rating || b.rating === 0))
       );
       if (active) {
@@ -111,6 +111,7 @@ const LiveTracking = () => {
         else if (active.status === 'confirmed') setCurrentStep(1);
         else if (active.status === 'on_the_way') setCurrentStep(2);
         else if (active.status === 'started') setCurrentStep(3);
+        else if (active.status === 'cancelled') setCurrentStep(-1);
         else if (active.status === 'completed') {
           setCurrentStep(4);
           navigate('/post-service');
@@ -169,6 +170,7 @@ const LiveTracking = () => {
         description: "The provider has rejected your request.",
         variant: "destructive"
       });
+      fetchBookingStatus(); // Immediately refresh to catch the cancelled status
     };
 
     window.addEventListener('BOOKING_REJECTED', handleRejected);
@@ -233,31 +235,36 @@ const LiveTracking = () => {
           )}
         </div>
 
-        {/* Payment Required Warning */}
-        {bookingDetails?.paymentMode === 'now' && bookingDetails?.paymentStatus === 'pending' && bookingDetails?.status !== 'pending' && (
+        {/* Cancelled Warning UI */}
+        {bookingDetails?.status === 'cancelled' && (
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 p-5 flex flex-col items-center gap-4 text-center shadow-lg shadow-emerald-500/10"
+            className="rounded-2xl border-2 border-rose-500 bg-rose-500/10 p-6 flex flex-col items-center gap-4 text-center shadow-lg shadow-rose-500/10 mb-6"
           >
-            <div className="h-12 w-12 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-xl">
-              <CreditCard className="h-6 w-6" />
+            <div className="h-16 w-16 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-xl shadow-rose-500/30">
+              <AlertOctagon className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-lg font-black text-emerald-700">Payment Required!</h3>
-              <p className="text-xs font-bold text-emerald-600/80 mt-1 uppercase tracking-wider">Provider has accepted your request</p>
-              <p className="text-sm font-medium text-foreground mt-2">Please complete the payment of <span className="font-black">₹{bookingDetails.totalAmount}</span> to proceed with the service.</p>
+              <h3 className="text-xl font-black text-rose-700">Request Not Accepted</h3>
+              <p className="text-sm font-medium text-foreground mt-2">
+                We're sorry, but the provider was unable to accept your request at this time.
+              </p>
             </div>
-            <button
-              onClick={handleRazorpayPayment}
-              disabled={isPaying}
-              className="w-full py-4 bg-emerald-600 text-white rounded-xl font-black uppercase text-xs tracking-[0.2em] shadow-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+            <motion.button 
+              whileTap={{ scale: 0.95 }} 
+              onClick={() => navigate("/")}
+              className="mt-2 w-full rounded-xl bg-rose-600 py-3 text-sm font-black text-white hover:bg-rose-700 transition-colors shadow-lg shadow-rose-500/20 uppercase tracking-widest"
             >
-              {isPaying ? "Processing..." : <>Confirm & Pay <ArrowLeft className="h-4 w-4 rotate-180" /></>}
-            </button>
+              Book Another Provider
+            </motion.button>
           </motion.div>
         )}
 
+        {/* Payment section removed as per requirement: provider will collect payment */}
+
+        {bookingDetails?.status !== 'cancelled' && (
+        <>
         {/* Technician Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -287,8 +294,8 @@ const LiveTracking = () => {
               <p className="mt-0.5 text-xs text-muted-foreground">Expert Professional • Verified Partner</p>
             </div>
             <div className="flex flex-col gap-2">
-              <a href={`tel:${providerInfo.mobile}`} className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-muted"><Phone className="h-4 w-4 text-primary" /></a>
-              <button className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-muted"><MessageCircle className="h-4 w-4 text-primary" /></button>
+              <button onClick={() => { if(providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-muted"><Phone className="h-4 w-4 text-primary" /></button>
+              <button onClick={() => { if(providerInfo.mobile) window.location.href = `https://wa.me/${providerInfo.mobile.replace(/[^0-9]/g, '')}?text=Hi, I am contacting regarding my booking on RozSewa.` }} className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-muted"><MessageCircle className="h-4 w-4 text-primary" /></button>
             </div>
           </div>
           {/* Cancel Button */}
@@ -348,26 +355,20 @@ const LiveTracking = () => {
                 <div className="pb-8">
                   <p className={`text-sm font-semibold ${i <= currentStep ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
                   {step.time && <p className="text-xs text-muted-foreground">{step.time}</p>}
-                  {/* Only show OTP button on 'On the Way' step to START service */}
+                  {/* Start OTP Display */}
                   {i === currentStep && i === 2 && (
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setShowOTP(true)}
-                      className="mt-2 rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground"
-                    >
-                      Enter OTP to Start
-                    </motion.button>
+                    <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-100 w-fit">
+                      <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Share this OTP to Start Service</p>
+                      <p className="text-2xl font-black tracking-[0.5em] text-blue-700">{bookingDetails?.startOTP || "----"}</p>
+                    </div>
                   )}
 
-                  {/* New: Completion OTP to finish service */}
-                  {i === currentStep && i === 3 && (
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setShowOTP(true)}
-                      className="mt-2 rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground"
-                    >
-                      Enter OTP to Complete
-                    </motion.button>
+                  {/* Completion OTP Display */}
+                  {i === currentStep && i === 3 && bookingDetails?.endOTP && (
+                    <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 w-fit">
+                      <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Share this OTP to Complete Service</p>
+                      <p className="text-2xl font-black tracking-[0.5em] text-emerald-700">{bookingDetails?.endOTP || "----"}</p>
+                    </div>
                   )}
                   {i === currentStep && i === 4 && (
                     <motion.button
@@ -383,41 +384,9 @@ const LiveTracking = () => {
             ))}
           </div>
         </section>
-
-        {/* OTP Modal */}
-        {showOTP && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              className="w-full max-w-sm rounded-2xl bg-card p-6 text-center shadow-2xl"
-            >
-              <h3 className="text-lg font-bold text-card-foreground">Enter 4-digit OTP</h3>
-              <p className="mt-1 text-xs text-muted-foreground">Share this OTP with your technician</p>
-              <div className="mt-6 flex justify-center gap-3">
-                {otp.map((d, i) => (
-                  <input
-                    key={i}
-                    id={`otp-${i}`}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={d}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    className="h-14 w-14 rounded-xl border-2 border-border bg-background text-center text-2xl font-extrabold text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                ))}
-              </div>
-              <button onClick={() => setShowOTP(false)} className="mt-5 text-sm font-semibold text-muted-foreground hover:text-foreground">
-                Cancel
-              </button>
-            </motion.div>
-          </motion.div>
+        </>
         )}
+
       </main>
       <BottomNav />
     </div>

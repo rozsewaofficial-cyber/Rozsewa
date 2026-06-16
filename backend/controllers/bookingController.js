@@ -301,6 +301,13 @@ const updateBookingStatusByProvider = async (req, res) => {
             if (req.body.beforeImage) {
                 booking.beforeImage = req.body.beforeImage;
             }
+            if (req.body.adminRequest) {
+                booking.adminRequest = {
+                    status: 'pending',
+                    reason: req.body.adminRequest.reason,
+                    requestedAt: new Date()
+                };
+            }
             if (req.body.staffId) {
                 booking.staffId = req.body.staffId;
 
@@ -326,12 +333,12 @@ const updateBookingStatusByProvider = async (req, res) => {
                 const otp = Math.floor(1000 + Math.random() * 9000).toString();
                 booking.startOTP = otp;
 
-                // Notify Provider with OTP
+                // Notify User with OTP
                 await Notification.create({
-                    recipientId: req.user._id,
-                    recipientModel: 'Provider',
+                    recipientId: booking.userId,
+                    recipientModel: 'User',
                     title: 'Start OTP Generated',
-                    message: `Customer OTP to START service #${booking._id.toString().slice(-6)} is: ${otp}.`,
+                    message: `Your OTP to START the service is: ${otp}. Please share it with the provider.`,
                     type: 'system',
                     bookingId: booking._id
                 });
@@ -346,9 +353,18 @@ const updateBookingStatusByProvider = async (req, res) => {
                 }
                 await booking.save();
 
+                // Notify User with Completion OTP
+                await Notification.create({
+                    recipientId: booking.userId,
+                    recipientModel: 'User',
+                    title: 'Completion OTP Generated',
+                    message: `Your OTP to COMPLETE the service is: ${otp}. Please share it with the provider.`,
+                    type: 'system',
+                    bookingId: booking._id
+                });
+
                 return res.json({
-                    message: 'Completion OTP generated. Share this with customer to finish.',
-                    endOTP: otp,
+                    message: 'Completion OTP generated and sent to customer.',
                     status: 'started' // Keep as started until verified
                 });
             }

@@ -500,10 +500,15 @@ const ProviderRegister = () => {
   };
 
   const handleInitiateDigilocker = async () => {
+    if (!formData.kycAadhaar || formData.kycAadhaar.length !== 12) {
+      return toast({ title: "Invalid Aadhaar", description: "Please enter your 12-digit Aadhaar number first.", variant: "destructive" });
+    }
+    
     setVerifying(prev => ({ ...prev, aadhaar: true }));
     try {
       const { data } = await API.post("/digilocker/initiate", { 
         mobileNumber: formData.mobile,
+        aadhaarNumber: formData.kycAadhaar,
         redirectUrl: `${window.location.origin}/digilocker/callback`
       });
       console.log("DigiLocker API Response:", data); // Log to see the exact structure
@@ -1052,7 +1057,7 @@ const ProviderRegister = () => {
                         )}
                         {verificationStatus.email && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input type="email" required disabled={verificationStatus.email || showEmailOtpField} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="e.g. name@example.com" />
+                      <input type="email" required disabled={verificationStatus.email} value={formData.email} onChange={e => { setFormData({ ...formData, email: e.target.value }); if (showEmailOtpField) setShowEmailOtpField(false); }} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="e.g. name@example.com" />
                       
                       {showEmailOtpField && !verificationStatus.email && (
                         <div className="flex items-center gap-2 mt-2">

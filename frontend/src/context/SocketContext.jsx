@@ -29,14 +29,6 @@ export const SocketProvider = ({ children }) => {
             console.log("Global Socket: New booking received", data);
             sessionStorage.setItem('activeRequest', JSON.stringify(data));
             setIncomingRequest(data);
-            
-            // Play alert sound
-            try {
-                const audio = new Audio('/sounds/alert.mp3');
-                audio.play();
-            } catch (err) {
-                console.log("Failed to play alert sound:", err);
-            }
         });
 
         newSocket.on("BOOKING_TAKEN", (data) => {

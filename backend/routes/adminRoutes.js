@@ -3,6 +3,8 @@ const router = express.Router();
 const partnerConfigController = require('../controllers/partnerConfigController');
 const {
     getProviders,
+    getProviderReports,
+    resolveProviderReport,
     deleteProvider,
     updateProviderStatus,
     updateProviderPlan,
@@ -96,6 +98,8 @@ router.put('/employees/:id/reject', protect, admin, rejectEmployee);
 
 // Provider management
 router.get('/providers', protect, admin, getProviders);
+router.get('/provider-reports', protect, admin, getProviderReports);
+router.patch('/provider-reports/:id/resolve', protect, admin, resolveProviderReport);
 router.delete('/providers/:id', protect, admin, deleteProvider);
 router.put('/providers/:id/status', protect, admin, updateProviderStatus);
 router.put('/providers/:id/plan', protect, admin, updateProviderPlan);

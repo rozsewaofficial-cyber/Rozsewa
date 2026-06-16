@@ -6,7 +6,7 @@ const providerSchema = mongoose.Schema({
     shopName: { type: String, required: true },
     mobile: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    email: { type: String },
+    email: { type: String, unique: true, sparse: true },
     businessType: { type: String },
     vendorType: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
     subServices: [{ type: String }],
@@ -32,14 +32,14 @@ const providerSchema = mongoose.Schema({
             default: [0, 0]
         }
     },
-    gst: { type: String },
-    kycAadhaar: { type: String },
+    gst: { type: String, unique: true, sparse: true },
+    kycAadhaar: { type: String, unique: true, sparse: true },
     kycAadhaarPhoto: { type: String },
     kycAadhaarBackPhoto: { type: String },
-    kycPanNumber: { type: String },
+    kycPanNumber: { type: String, unique: true, sparse: true },
     kycPanPhoto: { type: String },
     bankDetails: {
-        accountNumber: { type: String },
+        accountNumber: { type: String, unique: true, sparse: true },
         ifscCode: { type: String },
         bankName: { type: String },
         accountHolderName: { type: String }

@@ -104,6 +104,11 @@ const bookingSchema = new mongoose.Schema({
     providerPayout: { type: Number, default: 0 },
     employeeCommission: { type: Number, default: 0 },
     commissionStatus: { type: String, default: 'free' },
+    adminRequest: {
+        status: { type: String, enum: ['none', 'pending', 'resolved'], default: 'none' },
+        reason: { type: String, default: '' },
+        requestedAt: { type: Date }
+    },
     createdAt: {
         type: Date,
         default: Date.now,

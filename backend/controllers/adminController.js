@@ -186,6 +186,60 @@ const getBookings = async (req, res) => {
     }
 };
 
+// @desc    Get all provider reports/disputes
+// @route   GET /api/admin/provider-reports
+// @access  Private/Admin
+const getProviderReports = async (req, res) => {
+    try {
+        // Fetch all bookings where adminRequest.status is 'pending'
+        const reports = await Booking.find({ 'adminRequest.status': 'pending' })
+            .populate('userId', 'name email mobile')
+            .populate('providerId', 'shopName ownerName mobile')
+            .sort({ 'adminRequest.requestedAt': -1 });
+        res.json(reports);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Resolve provider report
+// @route   PATCH /api/admin/provider-reports/:id/resolve
+// @access  Private/Admin
+const resolveProviderReport = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { actionTaken, notes, blockUser } = req.body;
+        
+        const booking = await Booking.findById(id).populate('userId');
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+        booking.adminRequest.status = 'resolved';
+        // Add notes if needed later via AuditLog or inside adminRequest
+        await booking.save();
+
+        if (blockUser && booking.userId) {
+            booking.userId.isActive = false;
+            await booking.userId.save();
+        }
+
+        // Log the resolution
+        await AuditLog.create({
+            actionType: "RESOLVE_DISPUTE",
+            entityType: "BOOKING",
+            entityId: booking._id,
+            entityName: `Dispute Resolution for Booking #${booking._id.toString().slice(-6)}`,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { actionTaken, notes, blockedUser: blockUser }
+        });
+
+        res.json({ message: 'Report resolved successfully', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const Service = require('../models/Service');
 const Combo = require('../models/Combo');
 
@@ -1740,6 +1794,8 @@ const rejectCombo = async (req, res) => {
 
 module.exports = {
     getProviders,
+    getProviderReports,
+    resolveProviderReport,
     updateProviderStatus,
     updateProviderPlan,
     getAdminStats,

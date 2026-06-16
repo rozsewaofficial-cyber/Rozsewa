@@ -13,29 +13,78 @@ const IncomingRequestModal = ({ request, onAction }) => {
     const [timeLeft, setTimeLeft] = useState(120); // 2 mins countdown
     const [audioStarted, setAudioStarted] = useState(false);
 
-    // Use backend's alert.mp3
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    const audioRef = useRef(new Audio(`${API_URL}/sounds/alert.mp3`));
+    // Use local frontend audio file
+    const audioSrc = `/sounds/alert.mp3`;
+    const audioRef = useRef(null);
+    const notificationRef = useRef(null);
 
     const playSound = () => {
-        audioRef.current.loop = true;
-        audioRef.current.play().then(() => {
-            setAudioStarted(true);
-        }).catch(err => {
-            console.log("Autoplay blocked:", err);
-        });
+        if (audioRef.current) {
+            audioRef.current.play().then(() => {
+                setAudioStarted(true);
+            }).catch(err => {
+                console.log("Autoplay blocked:", err);
+            });
+        }
     };
 
     useEffect(() => {
         playSound();
+        
+        // Safety check to ensure audio keeps playing if browser randomly pauses it
+        const ensurePlay = setInterval(() => {
+            // Only force play if the timer is still running
+            if (timeLeft > 0 && audioRef.current && audioRef.current.paused && audioStarted) {
+                audioRef.current.play().catch(e => console.log(e));
+            }
+        }, 2000);
+
+        if ('Notification' in window && Notification.permission === 'granted') {
+            try {
+                notificationRef.current = new Notification("RozSewa - New Booking Request!", {
+                    body: `New request for ${request.serviceName}\nDistance: ${request.address}\nTap to view details.`,
+                    requireInteraction: true,
+                    vibrate: [200, 100, 200, 100, 200, 100, 200]
+                });
+                
+                notificationRef.current.onclick = () => {
+                    window.focus();
+                    // Don't close it, wait for accept/reject
+                };
+            } catch (err) {
+                console.log("Notification API error:", err);
+            }
+        }
+
         const timer = setInterval(() => {
-            setTimeLeft(prev => prev > 0 ? prev - 1 : 0);
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    clearInterval(ensurePlay); // Stop the safety check loop
+                    // Stop audio and close notification when time expires
+                    if (audioRef.current) {
+                        audioRef.current.pause();
+                        audioRef.current.currentTime = 0;
+                    }
+                    if (notificationRef.current) {
+                        notificationRef.current.close();
+                    }
+                    return 0;
+                }
+                return prev - 1;
+            });
         }, 1000);
 
         return () => {
             clearInterval(timer);
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
+            clearInterval(ensurePlay);
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            if (notificationRef.current) {
+                notificationRef.current.close();
+            }
         };
     }, []);
 
@@ -56,13 +105,35 @@ const IncomingRequestModal = ({ request, onAction }) => {
                 bookingId: request.bookingId
             });
         }
-        audioRef.current.pause();
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
         sessionStorage.removeItem('activeRequest');
         onAction();
     };
 
+    useEffect(() => {
+        if (timeLeft === 0) {
+            handleReject();
+        }
+    }, [timeLeft]);
+
     return (
         <AnimatePresence>
+            {/* Native Audio Tag for better background loop support on mobile */}
+            <audio 
+                ref={audioRef} 
+                src={audioSrc} 
+                loop={true} 
+                preload="auto" 
+                onEnded={(e) => {
+                    if (e.target) {
+                        e.target.currentTime = 0;
+                        e.target.play().catch(console.error);
+                    }
+                }}
+            />
+            
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -122,14 +193,14 @@ const IncomingRequestModal = ({ request, onAction }) => {
                             <div className="flex items-start gap-3">
                                 <MapPin className="h-5 w-5 text-emerald-600 mt-1" />
                                 <div>
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Distance Estimate</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Customer Location</p>
                                     <p className="font-bold text-sm text-foreground">{request.address}</p>
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-between pt-2 border-t border-border">
                                 <div>
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Estimated Earning</p>
+                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
                                     <div className="flex items-center text-xl font-black text-emerald-600 italic">
                                         <IndianRupee className="h-5 w-5" /> {request.amount}
                                     </div>

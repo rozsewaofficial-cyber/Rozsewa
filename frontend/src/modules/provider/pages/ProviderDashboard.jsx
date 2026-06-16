@@ -184,6 +184,12 @@ const ProviderDashboard = () => {
 
   const toggleOnline = async () => {
     const newState = !isOnline;
+    
+    // Request notification permission to show incoming requests in the background
+    if (newState && 'Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+    }
+
     setIsOnline(newState); // Optimistic update
     try {
       await API.patch("/provider/status", { isOnline: newState });

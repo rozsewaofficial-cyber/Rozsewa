@@ -565,6 +565,13 @@ const sendEmailOtp = async (req, res) => {
     if (!email) return res.status(400).json({ message: 'Email address is required' });
 
     try {
+        const userExists = await User.findOne({ email });
+        const providerExists = await Provider.findOne({ email });
+        
+        if (userExists || providerExists) {
+            return res.status(400).json({ message: 'Email is already registered with another account' });
+        }
+
         // Generate 6 digit OTP
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
 

@@ -23,7 +23,17 @@ const verifyBank = async (req, res) => {
         return res.status(400).json({ success: false, message: 'IFSC code is required' });
     }
 
+    if (!accountNumber) {
+        return res.status(400).json({ success: false, message: 'Account number is required' });
+    }
+
     try {
+        const Provider = require('../models/Provider');
+        const exists = await Provider.findOne({ 'bankDetails.accountNumber': accountNumber });
+        if (exists) {
+            return res.status(400).json({ success: false, message: 'This Bank Account is already registered with another provider.' });
+        }
+
         // CGPEY IFSC API is currently broken on their end ("providerName is not defined").
         // We use Razorpay's free public API instead for reliable IFSC verification.
         const response = await axios.get(`https://ifsc.razorpay.com/${ifscCode}`);
@@ -55,6 +65,12 @@ const verifyPAN = async (req, res) => {
     }
 
     try {
+        const Provider = require('../models/Provider');
+        const exists = await Provider.findOne({ kycPanNumber: pan });
+        if (exists) {
+            return res.status(400).json({ success: false, message: 'PAN number is already registered with another account' });
+        }
+
         const response = await axios.post(`${BASE_URL}/api/v1/verify/pan`, { pan }, { headers: getHeaders() });
         res.json(response.data);
     } catch (error) {
@@ -78,6 +94,12 @@ const verifyGST = async (req, res) => {
     }
 
     try {
+        const Provider = require('../models/Provider');
+        const exists = await Provider.findOne({ gst: gstNumber });
+        if (exists) {
+            return res.status(400).json({ success: false, message: 'GST number is already registered with another account' });
+        }
+
         const response = await axios.post(`${BASE_URL}/api/v1/verify/gst`, { gstNumber }, { headers: getHeaders() });
         res.json(response.data);
     } catch (error) {
@@ -94,10 +116,18 @@ const verifyGST = async (req, res) => {
 // @route   POST /api/v1/digilocker/initiate
 // @access  Private
 const initiateDigilocker = async (req, res) => {
-    const { mobileNumber, redirectUrl: clientRedirectUrl } = req.body;
+    const { mobileNumber, aadhaarNumber, redirectUrl: clientRedirectUrl } = req.body;
 
     if (!mobileNumber) {
         return res.status(400).json({ success: false, message: 'Mobile number is required' });
+    }
+
+    if (aadhaarNumber) {
+        const Provider = require('../models/Provider');
+        const exists = await Provider.findOne({ kycAadhaar: aadhaarNumber });
+        if (exists) {
+            return res.status(400).json({ success: false, message: 'Aadhaar number is already registered with another account' });
+        }
     }
 
     try {

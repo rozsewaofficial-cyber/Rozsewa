@@ -83,44 +83,58 @@ const RecentBookingsList = () => {
   };
 
   const filteredRequests = requests.filter(req => {
-    if (activeTab === "active") {
-      return ["confirmed", "active", "on_the_way", "started"].includes(req.status);
-    }
-    return req.status === activeTab;
+    if (activeTab === "pending") return req.status === "pending";
+    if (activeTab === "active") return ['confirmed', 'on_the_way', 'started'].includes(req.status) || (req.status === 'completed' && req.paymentStatus !== 'paid');
+    if (activeTab === "completed") return req.status === "completed" && req.paymentStatus === 'paid';
+    if (activeTab === "cancelled") return req.status === "cancelled";
+    return true;
   });
   const counts = {
     pending: requests.filter(r => r.status === "pending").length,
-    active: requests.filter(r => (r.status === "active" || r.status === "confirmed" || r.status === "on_the_way" || r.status === "started")).length,
+    active: requests.filter(r => (['confirmed', 'on_the_way', 'started'].includes(r.status) || (r.status === 'completed' && r.paymentStatus !== 'paid'))).length,
     cancelled: requests.filter(r => r.status === "cancelled").length,
-    completed: requests.filter(r => r.status === "completed").length,
+    completed: requests.filter(r => r.status === "completed" && r.paymentStatus === 'paid').length,
   };
 
   const [otpBooking, setOtpBooking] = useState(null);
+  const [otpType, setOtpType] = useState('start');
   const [providerOtp, setProviderOtp] = useState(["", "", "", ""]);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [beforeWorkPhoto, setBeforeWorkPhoto] = useState(null);
   const [afterWorkPhoto, setAfterWorkPhoto] = useState(null);
 
   const [showExtraModal, setShowExtraModal] = useState(false);
-  const [newExtraCharges, setNewExtraCharges] = useState([]);
+  const [newExtraCharges, setNewExtraCharges] = useState([{ item: '', amount: '' }]);
   const [activeBookingForExtra, setActiveBookingForExtra] = useState(null);
+
+  const [reportBookingId, setReportBookingId] = useState(null);
+  const [reportReason, setReportReason] = useState("");
+  const [isReporting, setIsReporting] = useState(false);
 
   const handleOtpVerify = async () => {
     const fullOtp = providerOtp.join("");
     if (fullOtp.length !== 4) return;
     setIsVerifyingOtp(true);
     try {
-      await API.post(`/bookings/${otpBooking}/start`, {
-        otp: fullOtp,
-        beforeImage: beforeWorkPhoto
-      });
-      toast({ title: "Service Started Successfully" });
+      if (otpType === 'start') {
+        await API.post(`/bookings/${otpBooking}/start`, {
+          otp: fullOtp,
+          beforeImage: beforeWorkPhoto
+        });
+        toast({ title: "Service Started Successfully" });
+      } else {
+        await API.post(`/bookings/${otpBooking}/complete`, {
+          otp: fullOtp
+        });
+        toast({ title: "Service Completed Successfully" });
+      }
       setOtpBooking(null);
       setProviderOtp(["", "", "", ""]);
       setBeforeWorkPhoto(null);
+      setAfterWorkPhoto(null);
       fetchBookings();
     } catch (err) {
-      toast({ title: "Invalid OTP", description: "Please enter the correct start code.", variant: "destructive" });
+      toast({ title: "Invalid OTP", description: "Please enter the correct code.", variant: "destructive" });
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -141,6 +155,24 @@ const RecentBookingsList = () => {
       fetchBookings();
     } catch (err) {
       toast({ title: "Failed to add charges", variant: "destructive" });
+    }
+  };
+
+  const submitReport = async () => {
+    if (!reportReason.trim()) return toast({ title: "Please enter a reason", variant: "destructive" });
+    setIsReporting(true);
+    try {
+      await API.patch(`/bookings/${reportBookingId}/status`, {
+        adminRequest: { reason: reportReason }
+      });
+      toast({ title: "Report Sent", description: "Admin has been notified." });
+      setReportBookingId(null);
+      setReportReason("");
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to send report", variant: "destructive" });
+    } finally {
+      setIsReporting(false);
     }
   };
 
@@ -253,7 +285,7 @@ const RecentBookingsList = () => {
                 {req.status === "on_the_way" && (
                   <div className="mt-5 space-y-3">
                     <button
-                      onClick={() => setOtpBooking(req._id)}
+                      onClick={() => { setOtpBooking(req._id); setOtpType('start'); }}
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-xs font-black text-white shadow-xl hover:bg-primary/90 transition-all uppercase tracking-widest"
                     >
                       Verify OTP & Start Work
@@ -363,22 +395,70 @@ const RecentBookingsList = () => {
                       <button
                         onClick={() => {
                           handleAction(req._id, 'complete', { afterImage: afterWorkPhoto });
-                          setAfterWorkPhoto(null);
                         }}
                         disabled={!afterWorkPhoto || isUploading}
                         className={`w-full rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-all ${!afterWorkPhoto ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                       >
-                        {!afterWorkPhoto ? "Upload Photo to Complete" : "Mark as Completed"}
+                        {!afterWorkPhoto ? "Upload Photo to Complete" : "Generate Completion OTP"}
                       </button>
                     ) : (
-                      <div className="space-y-3">
-                        <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-900/40">
-                          <p className="text-[10px] font-bold text-blue-600 uppercase">Tell User this Completion OTP</p>
-                          <p className="text-2xl font-black text-blue-700 dark:text-blue-400 tracking-[0.5em]">{req.endOTP}</p>
+                      <button
+                        onClick={() => { setOtpBooking(req._id); setOtpType('complete'); }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl hover:bg-emerald-700 transition-all uppercase tracking-widest"
+                      >
+                        Verify Completion OTP
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Payment Collection UI (Visible during Started and Completed if unpaid) */}
+                {['started', 'completed'].includes(req.status) && req.paymentStatus !== "paid" && (
+                  <div className="mt-5 space-y-4 border-t border-border pt-4">
+                    <div className="rounded-xl border border-border p-4 bg-emerald-50/50 dark:bg-emerald-900/10">
+                      <h4 className="text-sm font-black text-foreground mb-3 uppercase tracking-wider text-center">Payment Collection</h4>
+                      <div className="flex justify-between text-xs font-bold text-muted-foreground mb-2">
+                        <span>Booking Amount</span>
+                        <span>₹{req.totalAmount || 0}</span>
+                      </div>
+                      {req.extraCharges && req.extraCharges.length > 0 && (
+                        <div className="flex justify-between text-xs font-bold text-muted-foreground mb-2">
+                          <span>Extra Charges</span>
+                          <span>₹{req.extraCharges.reduce((sum, c) => sum + (c.amount || 0), 0)}</span>
                         </div>
-                        <p className="text-[10px] text-center text-muted-foreground animate-pulse font-bold tracking-tight uppercase">Waiting for User Verify...</p>
+                      )}
+                      <div className="flex justify-between text-sm font-black text-emerald-700 dark:text-emerald-400 mt-3 pt-3 border-t border-emerald-100 dark:border-emerald-900">
+                        <span>Total Bill</span>
+                        <span>₹{(req.totalAmount || 0) + (req.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleAction(req._id, 'completed', { paymentStatus: 'paid' })}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest"
+                    >
+                      <Check className="h-4 w-4" /> Confirm Payment Collected
+                    </button>
+                    <p className="text-[10px] text-center text-muted-foreground font-bold uppercase tracking-tight">Click this after receiving cash or online transfer from customer.</p>
+                    
+                    {!req.adminRequest || req.adminRequest.status === 'none' ? (
+                      <button
+                        onClick={() => { setReportBookingId(req._id); setReportReason(""); }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-50 border border-rose-200 py-2.5 text-xs font-black text-rose-600 hover:bg-rose-100 transition-all uppercase tracking-widest mt-2"
+                      >
+                        <AlertTriangle className="h-4 w-4" /> Report Issue to Admin
+                      </button>
+                    ) : (
+                      <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
+                        <p className="text-[10px] font-bold text-amber-600 uppercase">Report Sent to Admin. Pending Action.</p>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {['started', 'completed'].includes(req.status) && req.paymentStatus === "paid" && (
+                  <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 p-2 text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
+                    <Check className="h-4 w-4" /> Payment Settled
                   </div>
                 )}
               </motion.div>
@@ -392,8 +472,8 @@ const RecentBookingsList = () => {
         {otpBooking && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-8 border border-border shadow-2xl">
-              <h3 className="text-lg font-black text-center mb-2">Service Verification</h3>
-              <p className="text-xs text-muted-foreground text-center mb-6">Enter the 4-digit code sent to you to start the service.</p>
+              <h3 className="text-lg font-black text-center mb-2">{otpType === 'start' ? 'Service Verification' : 'Completion Verification'}</h3>
+              <p className="text-xs text-muted-foreground text-center mb-6">Ask the customer for the 4-digit code to {otpType === 'start' ? 'start' : 'complete'} the service.</p>
 
               <div className="flex justify-center gap-3 mb-8">
                 {providerOtp.map((d, i) => (
@@ -410,35 +490,37 @@ const RecentBookingsList = () => {
               </div>
 
               {/* Upload Before Photo */}
-              <div className="mb-8 space-y-3">
-                <p className="text-[10px] font-black uppercase text-muted-foreground text-center tracking-widest">Before Work Photo (Mandatory)</p>
-                <div className="flex flex-col items-center">
-                  <label className={`w-full h-32 rounded-2xl border-2 border-dashed border-border bg-muted/50 hover:bg-muted transition-all cursor-pointer flex flex-col items-center justify-center gap-2 overflow-hidden relative ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                    {beforeWorkPhoto ? (
-                      <>
-                        <img src={beforeWorkPhoto} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                          <p className="text-[10px] font-bold text-white uppercase tracking-tighter">Click to Change</p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <ImagePlus className="h-6 w-6 text-muted-foreground" />
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">{isUploading ? 'Uploading...' : 'Tap to Upload Photo'}</span>
-                      </>
-                    )}
-                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                      const url = await handleImageUpload(e.target.files[0]);
-                      if (url) setBeforeWorkPhoto(url);
-                    }} />
-                  </label>
+              {otpType === 'start' && (
+                <div className="mb-8 space-y-3">
+                  <p className="text-[10px] font-black uppercase text-muted-foreground text-center tracking-widest">Before Work Photo (Mandatory)</p>
+                  <div className="flex flex-col items-center">
+                    <label className={`w-full h-32 rounded-2xl border-2 border-dashed border-border bg-muted/50 hover:bg-muted transition-all cursor-pointer flex flex-col items-center justify-center gap-2 overflow-hidden relative ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {beforeWorkPhoto ? (
+                        <>
+                          <img src={beforeWorkPhoto} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <p className="text-[10px] font-bold text-white uppercase tracking-tighter">Click to Change</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase">{isUploading ? 'Uploading...' : 'Tap to Upload Photo'}</span>
+                        </>
+                      )}
+                      <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                        const url = await handleImageUpload(e.target.files[0]);
+                        if (url) setBeforeWorkPhoto(url);
+                      }} />
+                    </label>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex gap-3">
                 <button onClick={() => setOtpBooking(null)} className="flex-1 py-3 text-xs font-bold text-muted-foreground">Cancel</button>
-                <button onClick={handleOtpVerify} disabled={isVerifyingOtp || !beforeWorkPhoto} className={`flex-1 py-3 rounded-xl text-xs font-black text-white shadow-lg transition-all ${(!beforeWorkPhoto || isVerifyingOtp) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}>
-                  {!beforeWorkPhoto ? "Upload Photo to Start" : (isVerifyingOtp ? "Verifying..." : "Verify & Start")}
+                <button onClick={handleOtpVerify} disabled={isVerifyingOtp || (otpType === 'start' && !beforeWorkPhoto)} className={`flex-1 py-3 rounded-xl text-xs font-black text-white shadow-lg transition-all ${((otpType === 'start' && !beforeWorkPhoto) || isVerifyingOtp) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}>
+                  {(otpType === 'start' && !beforeWorkPhoto) ? "Upload Photo to Start" : (isVerifyingOtp ? "Verifying..." : "Verify & " + (otpType === 'start' ? 'Start' : 'Complete'))}
                 </button>
               </div>
             </motion.div>
@@ -505,6 +587,46 @@ const RecentBookingsList = () => {
           onClose={() => setActiveTracking(null)}
         />
       )}
+
+      {/* REPORT MODAL */}
+      <AnimatePresence>
+        {reportBookingId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-8 border border-border shadow-2xl">
+              <h3 className="text-lg font-black text-center mb-2 text-rose-600">Report Issue</h3>
+              <p className="text-xs text-muted-foreground text-center mb-6">Describe the issue you are facing with this customer or booking.</p>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Reason</label>
+                  <textarea
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    placeholder="e.g., Customer refused to pay, Fake booking..."
+                    className="mt-1 w-full rounded-xl border border-border bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary h-24 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setReportBookingId(null)}
+                  className="flex-1 rounded-xl bg-muted py-3 text-xs font-bold text-muted-foreground hover:bg-muted/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitReport}
+                  disabled={isReporting}
+                  className="flex-1 rounded-xl bg-rose-600 py-3 text-xs font-black text-white hover:bg-rose-700 shadow-lg shadow-rose-500/20 uppercase tracking-widest"
+                >
+                  {isReporting ? "Sending..." : "Submit Report"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
