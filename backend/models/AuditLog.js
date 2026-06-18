@@ -8,7 +8,7 @@ const auditLogSchema = new mongoose.Schema({
     },
     entityType: {
         type: String,
-        enum: ["USER", "SEWAK", "VENDOR", "KYC", "ADMIN", "COMBO"],
+        enum: ["USER", "SEWAK", "VENDOR", "KYC", "ADMIN", "COMBO", "BOOKING"],
         required: true
     },
     entityId: {
