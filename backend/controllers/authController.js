@@ -242,6 +242,33 @@ const getUserProfile = async (req, res) => {
         }
 
         if (user) {
+            let debtLimitExceeded = false;
+            let currentDebt = 0;
+            let allowedLimit = 0;
+            if (user.ownerName || user.providerCategory) { // it's a provider
+                const { Wallet } = require('../models/Wallet');
+                const Setting = require('../models/Setting');
+                const wallet = await Wallet.findOne({ providerId: user._id });
+                if (wallet && wallet.balance < 0) {
+                    const configSetting = await Setting.findOne({ key: 'cash_limits_config' });
+                    let limit = 1500;
+                    if (configSetting && configSetting.value) {
+                        const cfg = configSetting.value;
+                        limit = Number(cfg.defaultLimit) || 1500;
+                        if (user.vendorType) {
+                            const catId = user.vendorType.toString();
+                            const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
+                            if (catLimitObj) limit = Number(catLimitObj.limit);
+                        }
+                    }
+                    if (wallet.balance <= -limit) {
+                        debtLimitExceeded = true;
+                        currentDebt = Math.abs(wallet.balance);
+                        allowedLimit = limit;
+                    }
+                }
+            }
+
             res.json({
                 _id: user._id,
                 name: user.name || user.ownerName, // Handle both models
@@ -257,7 +284,10 @@ const getUserProfile = async (req, res) => {
                 commissionFreeBookings: user.commissionFreeBookings || 0,
                 permissions: user.permissions || [],
                 providerCategory: user.providerCategory || "partner",
-                employeeCode: user.role === 'supervisor' || user.role === 'employee' ? (await require('../models/Employee').findOne({ userId: user._id }))?.ownCode : ""
+                employeeCode: user.role === 'supervisor' || user.role === 'employee' ? (await require('../models/Employee').findOne({ userId: user._id }))?.ownCode : "",
+                debtLimitExceeded,
+                currentDebt,
+                allowedLimit
             });
         } else {
             res.status(404).json({ message: 'User not found' });

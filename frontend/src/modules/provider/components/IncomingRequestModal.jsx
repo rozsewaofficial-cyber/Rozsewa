@@ -6,34 +6,57 @@ import { useToast } from '@/components/ui/use-toast';
 import { useSocket } from '@/context/SocketContext';
 import { useAuth } from '@/context/AuthContext';
 
+import alertSound from '@/assets/alert.mp3';
+
 const IncomingRequestModal = ({ request, onAction }) => {
     const { toast } = useToast();
     const { socket } = useSocket();
     const { user } = useAuth();
     const [timeLeft, setTimeLeft] = useState(120); // 2 mins countdown
     const [audioStarted, setAudioStarted] = useState(false);
+    
+    const [isScheduling, setIsScheduling] = useState(false);
+    const [scheduleDate, setScheduleDate] = useState('');
+    const [scheduleTime, setScheduleTime] = useState('');
+    const [scheduleMessage, setScheduleMessage] = useState('');
+    const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
 
-    // Use local frontend audio file
-    const audioSrc = `/sounds/alert.mp3`;
     const audioRef = useRef(null);
     const notificationRef = useRef(null);
 
-    const playSound = () => {
+    useEffect(() => {
+        if (!audioRef.current) {
+            audioRef.current = new Audio(alertSound);
+            audioRef.current.loop = true;
+            audioRef.current.volume = 1.0;
+            audioRef.current.muted = false;
+        }
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.src = "";
+                audioRef.current = null;
+            }
+        };
+    }, []);
+
+    const playSound = (e) => {
         if (audioRef.current) {
             audioRef.current.play().then(() => {
                 setAudioStarted(true);
             }).catch(err => {
                 console.log("Autoplay blocked:", err);
+                if (e && e.type === 'click') {
+                    toast({ title: "Audio Error", description: err.message || "Failed to play sound. Please check device volume.", variant: "destructive" });
+                }
             });
         }
     };
 
     useEffect(() => {
         playSound();
-        
-        // Safety check to ensure audio keeps playing if browser randomly pauses it
+
         const ensurePlay = setInterval(() => {
-            // Only force play if the timer is still running
             if (timeLeft > 0 && audioRef.current && audioRef.current.paused && audioStarted) {
                 audioRef.current.play().catch(e => console.log(e));
             }
@@ -46,10 +69,9 @@ const IncomingRequestModal = ({ request, onAction }) => {
                     requireInteraction: true,
                     vibrate: [200, 100, 200, 100, 200, 100, 200]
                 });
-                
+
                 notificationRef.current.onclick = () => {
                     window.focus();
-                    // Don't close it, wait for accept/reject
                 };
             } catch (err) {
                 console.log("Notification API error:", err);
@@ -60,15 +82,6 @@ const IncomingRequestModal = ({ request, onAction }) => {
             setTimeLeft(prev => {
                 if (prev <= 1) {
                     clearInterval(timer);
-                    clearInterval(ensurePlay); // Stop the safety check loop
-                    // Stop audio and close notification when time expires
-                    if (audioRef.current) {
-                        audioRef.current.pause();
-                        audioRef.current.currentTime = 0;
-                    }
-                    if (notificationRef.current) {
-                        notificationRef.current.close();
-                    }
                     return 0;
                 }
                 return prev - 1;
@@ -78,23 +91,53 @@ const IncomingRequestModal = ({ request, onAction }) => {
         return () => {
             clearInterval(timer);
             clearInterval(ensurePlay);
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
-            if (notificationRef.current) {
-                notificationRef.current.close();
-            }
+            if (notificationRef.current) notificationRef.current.close();
         };
-    }, []);
+    }, [request, audioStarted]);
 
     const handleAccept = async () => {
         try {
             await API.patch(`/bookings/${request.bookingId}/status`, { status: 'confirmed' });
             toast({ title: "Booking Accepted!", variant: "default" });
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
             onAction('accepted');
         } catch (err) {
-            toast({ title: "Failed to accept booking", variant: "destructive" });
+            toast({ 
+                title: "Failed to accept booking", 
+                description: err.response?.data?.message || "Something went wrong.", 
+                variant: "destructive" 
+            });
+        }
+    };
+
+    const handleScheduleSubmit = async () => {
+        if (!scheduleDate || !scheduleTime) {
+            toast({ title: "Validation Error", description: "Date and Time are required.", variant: "destructive" });
+            return;
+        }
+
+        setIsSubmittingSchedule(true);
+        try {
+            await API.patch(`/bookings/${request.bookingId}/propose-schedule`, { 
+                date: scheduleDate, 
+                time: scheduleTime, 
+                message: scheduleMessage 
+            });
+            toast({ title: "Schedule Proposed", description: "Waiting for customer approval.", variant: "default" });
+            
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            sessionStorage.removeItem('activeRequest');
+            onAction('scheduled');
+        } catch (err) {
+            toast({ title: "Failed to propose schedule", description: err.response?.data?.message || err.message, variant: "destructive" });
+        } finally {
+            setIsSubmittingSchedule(false);
         }
     };
 
@@ -107,6 +150,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
         }
         if (audioRef.current) {
             audioRef.current.pause();
+            audioRef.current.currentTime = 0;
         }
         sessionStorage.removeItem('activeRequest');
         onAction();
@@ -120,20 +164,6 @@ const IncomingRequestModal = ({ request, onAction }) => {
 
     return (
         <AnimatePresence>
-            {/* Native Audio Tag for better background loop support on mobile */}
-            <audio 
-                ref={audioRef} 
-                src={audioSrc} 
-                loop={true} 
-                preload="auto" 
-                onEnded={(e) => {
-                    if (e.target) {
-                        e.target.currentTime = 0;
-                        e.target.play().catch(console.error);
-                    }
-                }}
-            />
-            
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -181,53 +211,112 @@ const IncomingRequestModal = ({ request, onAction }) => {
                             </p>
                         </div>
 
-                        <div className="w-full bg-muted/50 rounded-3xl p-5 space-y-4 text-left border border-border">
-                            <div className="flex items-start gap-3">
-                                <ShieldAlert className="h-5 w-5 text-emerald-600 mt-1" />
-                                <div>
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Service Requested</p>
-                                    <p className="font-black text-lg text-foreground">{request.serviceName}</p>
+                        {isScheduling ? (
+                            <div className="w-full bg-muted/50 rounded-3xl p-5 space-y-4 text-left border border-border">
+                                <h3 className="text-sm font-black text-foreground uppercase tracking-widest text-center">Propose New Time</h3>
+                                
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Date</label>
+                                    <input 
+                                        type="date" 
+                                        value={scheduleDate}
+                                        onChange={(e) => setScheduleDate(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        min={new Date().toISOString().split('T')[0]}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Time</label>
+                                    <input 
+                                        type="time" 
+                                        value={scheduleTime}
+                                        onChange={(e) => setScheduleTime(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Message for Customer</label>
+                                    <textarea 
+                                        placeholder="e.g. Can we do it at this time? I'm currently busy."
+                                        value={scheduleMessage}
+                                        onChange={(e) => setScheduleMessage(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none h-20"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <button
+                                        onClick={() => setIsScheduling(false)}
+                                        className="h-12 rounded-xl border-2 border-border bg-background hover:bg-muted flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleScheduleSubmit}
+                                        disabled={isSubmittingSchedule}
+                                        className="h-12 rounded-xl bg-amber-500 text-white shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
+                                    >
+                                        {isSubmittingSchedule ? 'Sending...' : 'Send Proposal'}
+                                    </button>
                                 </div>
                             </div>
+                        ) : (
+                            <>
+                                <div className="w-full bg-muted/50 rounded-3xl p-5 space-y-4 text-left border border-border">
+                                    <div className="flex items-start gap-3">
+                                        <ShieldAlert className="h-5 w-5 text-emerald-600 mt-1" />
+                                        <div>
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Service Requested</p>
+                                            <p className="font-black text-lg text-foreground">{request.serviceName}</p>
+                                        </div>
+                                    </div>
 
-                            <div className="flex items-start gap-3">
-                                <MapPin className="h-5 w-5 text-emerald-600 mt-1" />
-                                <div>
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Customer Location</p>
-                                    <p className="font-bold text-sm text-foreground">{request.address}</p>
-                                </div>
-                            </div>
+                                    <div className="flex items-start gap-3">
+                                        <MapPin className="h-5 w-5 text-emerald-600 mt-1" />
+                                        <div>
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Customer Location</p>
+                                            <p className="font-bold text-sm text-foreground">{request.address}</p>
+                                        </div>
+                                    </div>
 
-                            <div className="flex items-center justify-between pt-2 border-t border-border">
-                                <div>
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
-                                    <div className="flex items-center text-xl font-black text-emerald-600 italic">
-                                        <IndianRupee className="h-5 w-5" /> {request.amount}
+                                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                                        <div>
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
+                                            <div className="flex items-center text-xl font-black text-emerald-600 italic">
+                                                <IndianRupee className="h-5 w-5" /> {request.amount}
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Payment Mode</p>
+                                            <p className={`font-bold text-xs ${request.paymentMode === 'now' ? 'text-blue-600' : 'text-amber-600'}`}>
+                                                {request.paymentMode === 'now' ? 'Wait for Online Pay' : 'Pay After Job (COD)'}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Payment Mode</p>
-                                    <p className={`font-bold text-xs ${request.paymentMode === 'now' ? 'text-blue-600' : 'text-amber-600'}`}>
-                                        {request.paymentMode === 'now' ? 'Wait for Online Pay' : 'Pay After Job (COD)'}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-3 w-full pt-2">
-                            <button
-                                onClick={handleReject}
-                                className="h-16 rounded-2xl border-2 border-border bg-background hover:bg-muted flex items-center justify-center gap-2 transition-all font-black uppercase text-xs tracking-widest text-muted-foreground group"
-                            >
-                                <X className="h-5 w-5 group-hover:scale-110 transition-transform" /> Reject
-                            </button>
-                            <button
-                                onClick={handleAccept}
-                                className="h-16 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 transition-all font-black uppercase text-xs tracking-widest group"
-                            >
-                                <Check className="h-5 w-5 group-hover:scale-110 transition-transform" /> Accept
-                            </button>
-                        </div>
+                                <div className="grid grid-cols-3 gap-2 w-full pt-2">
+                                    <button
+                                        onClick={handleReject}
+                                        className="h-14 rounded-2xl border-2 border-border bg-background hover:bg-muted flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground group"
+                                    >
+                                        <X className="h-4 w-4 group-hover:scale-110 transition-transform" /> Reject
+                                    </button>
+                                    <button
+                                        onClick={() => setIsScheduling(true)}
+                                        className="h-14 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-amber-700 group"
+                                    >
+                                        <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Schedule
+                                    </button>
+                                    <button
+                                        onClick={handleAccept}
+                                        className="h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest group"
+                                    >
+                                        <Check className="h-4 w-4 group-hover:scale-110 transition-transform" /> Accept
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </motion.div>
             </motion.div>

@@ -48,7 +48,8 @@ const Checkout = () => {
             setProviderHours({
               openingTime: data.openingTime || "09:00 AM",
               closingTime: data.closingTime || "06:00 PM",
-              availability: data.availability || []
+              availability: data.availability || [],
+              bookedSlots: data.bookedSlots || []
             });
           }
         } catch (error) {
@@ -112,17 +113,41 @@ const Checkout = () => {
   const timeSlots = generateTimeSlots();
 
   const availableSlots = timeSlots.filter((t) => {
-    if (selectedDate === new Date().toISOString().split("T")[0]) {
-      const [time, modifier] = t.split(' ');
-      let [hours, minutes] = time.split(':');
-      hours = parseInt(hours, 10);
-      if (hours === 12) {
-        hours = modifier === 'AM' ? 0 : 12;
-      } else if (modifier === 'PM' || modifier === 'pm') {
-        hours += 12;
+    // Helper to convert "HH:mm AM/PM" to minutes
+    const toMinutes = (timeStr) => {
+      if (!timeStr) return 0;
+      const parts = timeStr.split(' ');
+      let [h, m] = parts[0].split(':').map(Number);
+      if (parts[1]) {
+         const modifier = parts[1].toLowerCase();
+         if (modifier === 'pm' && h < 12) h += 12;
+         if (modifier === 'am' && h === 12) h = 0;
       }
-      return hours > new Date().getHours();
+      return h * 60 + (m || 0);
+    };
+
+    const slotStartMins = toMinutes(t);
+
+    // 1. Filter out past times for today
+    if (selectedDate === new Date().toISOString().split("T")[0]) {
+      const now = new Date();
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+      // Only allow slots that are in the future
+      if (slotStartMins <= currentMins) return false;
     }
+
+    // 2. Filter out already booked slots considering their duration
+    if (providerHours.bookedSlots && providerHours.bookedSlots.length > 0) {
+       const isBooked = providerHours.bookedSlots.some(b => {
+         if (b.date !== selectedDate) return false;
+         const bookedStart = toMinutes(b.time);
+         const bookedEnd = bookedStart + (b.duration || 30);
+         // The slot is unavailable if it falls within an existing booking's duration
+         return slotStartMins >= bookedStart && slotStartMins < bookedEnd;
+       });
+       if (isBooked) return false;
+    }
+
     return true;
   });
 

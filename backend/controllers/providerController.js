@@ -195,34 +195,68 @@ const authProvider = async (req, res) => {
 // @access  Private (Provider)
 const getProviderProfile = async (req, res) => {
     try {
-        const provider = await Provider.findById(req.user._id);
+        const providerDoc = await Provider.findById(req.user._id);
 
-        if (provider) {
+        if (providerDoc) {
             // Auto-sync legacy documents to the new array if it's empty
-            if (!provider.documents || provider.documents.length === 0) {
+            if (!providerDoc.documents || providerDoc.documents.length === 0) {
                 let changed = false;
-                if (provider.kycAadhaarPhoto) { provider.documents.push({ id: 'aadhaar_front', url: provider.kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Front.jpg' }); changed = true; }
-                if (provider.kycAadhaarBackPhoto) { provider.documents.push({ id: 'aadhaar_back', url: provider.kycAadhaarBackPhoto, status: 'pending', fileName: 'Aadhaar_Back.jpg' }); changed = true; }
-                if (provider.kycPanPhoto) { provider.documents.push({ id: 'pan', url: provider.kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' }); changed = true; }
-                if (provider.gst && provider.gst.startsWith('http')) { provider.documents.push({ id: 'gst', url: provider.gst, status: 'pending', fileName: 'GST_Registration.jpg' }); changed = true; }
+                if (providerDoc.kycAadhaarPhoto) { providerDoc.documents.push({ id: 'aadhaar_front', url: providerDoc.kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Front.jpg' }); changed = true; }
+                if (providerDoc.kycAadhaarBackPhoto) { providerDoc.documents.push({ id: 'aadhaar_back', url: providerDoc.kycAadhaarBackPhoto, status: 'pending', fileName: 'Aadhaar_Back.jpg' }); changed = true; }
+                if (providerDoc.kycPanPhoto) { providerDoc.documents.push({ id: 'pan', url: providerDoc.kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' }); changed = true; }
+                if (providerDoc.gst && providerDoc.gst.startsWith('http')) { providerDoc.documents.push({ id: 'gst', url: providerDoc.gst, status: 'pending', fileName: 'GST_Registration.jpg' }); changed = true; }
 
-                if (changed) await provider.save();
+                if (changed) await providerDoc.save();
             }
 
             // Fix for existing providers: If they are verified, their registration docs should be marked verified
-            if (provider.status === 'verified') {
+            if (providerDoc.status === 'verified') {
                 let statusFixed = false;
-                provider.documents.forEach(doc => {
+                providerDoc.documents.forEach(doc => {
                     if (doc.status === 'pending') {
                         doc.status = 'verified';
                         statusFixed = true;
                     }
                 });
-                if (statusFixed || !provider.kycVerified) {
-                    provider.kycVerified = true;
-                    await provider.save();
+                if (statusFixed || !providerDoc.kycVerified) {
+                    providerDoc.kycVerified = true;
+                    await providerDoc.save();
                 }
             }
+
+            const provider = providerDoc.toObject();
+
+            // Debt Limit Logic
+            const { Wallet } = require('../models/Wallet');
+            const Setting = require('../models/Setting');
+            let debtLimitExceeded = false;
+            let currentDebt = 0;
+            let allowedLimit = 0;
+            
+            const wallet = await Wallet.findOne({ providerId: provider._id });
+            if (wallet && wallet.balance < 0) {
+                const configSetting = await Setting.findOne({ key: 'cash_limits_config' });
+                let limit = 1500;
+                if (configSetting && configSetting.value) {
+                    const cfg = configSetting.value;
+                    limit = Number(cfg.defaultLimit) || 1500;
+                    if (provider.vendorType) {
+                        const catId = provider.vendorType.toString();
+                        const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
+                        if (catLimitObj) limit = Number(catLimitObj.limit);
+                    }
+                }
+                if (wallet.balance <= -limit) {
+                    debtLimitExceeded = true;
+                    currentDebt = Math.abs(wallet.balance);
+                    allowedLimit = limit;
+                }
+            }
+
+            provider.debtLimitExceeded = debtLimitExceeded;
+            provider.currentDebt = currentDebt;
+            provider.allowedLimit = allowedLimit;
+
             res.json(provider);
         } else {
             res.status(404).json({ message: 'Provider not found' });

@@ -73,8 +73,30 @@ const updateEnquiryStatus = async (req, res) => {
     }
 };
 
+// @desc    Delete Sewak Enquiry (Admin)
+// @route   DELETE /api/v1/admin/sewak-enquiries/:id
+// @access  Private/Admin
+const deleteEnquiry = async (req, res) => {
+    try {
+        const enquiry = await SewakEnquiry.findByIdAndDelete(req.params.id);
+        
+        if (!enquiry) {
+            return res.status(404).json({ message: 'Enquiry not found' });
+        }
+
+        res.json({
+            success: true,
+            message: 'Enquiry deleted successfully'
+        });
+    } catch (error) {
+        console.error('Delete Enquiry Error:', error);
+        res.status(500).json({ message: 'Server error while deleting enquiry' });
+    }
+};
+
 module.exports = {
     createEnquiry,
     getEnquiries,
-    updateEnquiryStatus
+    updateEnquiryStatus,
+    deleteEnquiry
 };

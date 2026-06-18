@@ -36,7 +36,6 @@ const defaultMenu = [
 ];
 
 import { useSocket } from "@/context/SocketContext";
-import IncomingRequestModal from "@/modules/provider/components/IncomingRequestModal";
 
 const ProviderDashboard = () => {
   const { toast } = useToast();
@@ -653,12 +652,6 @@ const ProviderDashboard = () => {
       </main>
       <ProviderBottomNav />
 
-      {incomingRequest && (
-        <IncomingRequestModal
-          request={incomingRequest}
-          onAction={() => setIncomingRequest(null)}
-        />
-      )}
     </div>
   );
 };

@@ -117,8 +117,8 @@ const createBooking = async (req, res) => {
                     console.log(`Specific Provider ${providerId} is either not verified or offline.`);
                     // Fallback to finding other providers if the requested one is not available
                 }
-            } 
-            
+            }
+
             // If no specific provider was requested or found online, use radius or fallback
             if (providersToNotify.length === 0) {
                 if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {
@@ -139,6 +139,43 @@ const createBooking = async (req, res) => {
 
             console.log(`Providers Found: ${providersToNotify.length}`);
 
+            // Filter out providers who have exceeded their cash limit
+            const { Wallet } = require('../models/Wallet');
+            const Setting = require('../models/Setting');
+            const configSetting = await Setting.findOne({ key: 'cash_limits_config' });
+            let cfg = { defaultLimit: 1500, categoryLimits: [], serviceLimits: [] };
+            if (configSetting && configSetting.value) {
+                cfg = configSetting.value;
+            }
+
+            const bookingServiceId = booking.serviceId ? booking.serviceId.toString() : (booking.services && booking.services.length > 0 ? booking.services[0].serviceId?.toString() : null);
+
+            let serviceLimitOverride = null;
+            if (bookingServiceId) {
+                const srvLimitObj = cfg.serviceLimits?.find(s => s.serviceId === bookingServiceId);
+                if (srvLimitObj) serviceLimitOverride = Number(srvLimitObj.limit);
+            }
+
+            const validProviders = [];
+            for (const provider of providersToNotify) {
+                let limit = serviceLimitOverride !== null ? serviceLimitOverride : (Number(cfg.defaultLimit) || 1500);
+
+                if (serviceLimitOverride === null && provider.vendorType) {
+                    const catId = provider.vendorType.toString();
+                    const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
+                    if (catLimitObj) limit = Number(catLimitObj.limit);
+                }
+
+                const wallet = await Wallet.findOne({ providerId: provider._id });
+                if (wallet && wallet.balance <= -limit) {
+                    console.log(`[Debt Enforcement] Provider ${provider._id} blocked from receiving booking (Balance: ${wallet.balance}, Limit: -${limit})`);
+                    continue;
+                }
+                validProviders.push(provider);
+            }
+            providersToNotify = validProviders;
+            console.log(`Providers Eligible After Debt Check: ${providersToNotify.length}`);
+
             const io = require('../config/socket').getIO();
             for (const provider of providersToNotify) {
                 console.log(`Sending notification to Provider ID: ${provider._id}`);
@@ -150,6 +187,8 @@ const createBooking = async (req, res) => {
                     address: booking.address,
                     userName: req.user.name,
                     paymentMode: booking.paymentMode,
+                    bookingDate: booking.bookingDate,
+                    bookingTime: booking.bookingTime,
                     expiresAt: new Date(Date.now() + 2 * 60 * 1000)
                 });
 
@@ -201,7 +240,7 @@ const createBooking = async (req, res) => {
 const getUserBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ userId: req.user._id })
-            .populate('providerId', 'shopName ownerName rating mobile profileImage')
+            .populate('providerId', 'shopName ownerName rating reviewCount mobile profileImage status planType')
             .sort({ createdAt: -1 });
         res.json(bookings);
     } catch (error) {
@@ -224,7 +263,7 @@ const updateBooking = async (req, res) => {
             booking.bookingTime = bookingTime || booking.bookingTime;
 
             const updatedBooking = await booking.save();
-            
+
             // Push Notification if cancelled
             if (status === 'cancelled' && booking.providerId) {
                 try {
@@ -274,21 +313,66 @@ const updateBookingStatusByProvider = async (req, res) => {
 
         if (booking) {
             const isAccepting = req.body.status === 'confirmed';
-            
-            const isAuthorized = (isAccepting && !booking.providerId) || 
-                                 (booking.providerId && booking.providerId.toString() === req.user._id.toString()) ||
-                                 (booking.userId && booking.userId.toString() === req.user._id.toString());
+
+            const isAuthorized = (isAccepting && !booking.providerId) ||
+                (booking.providerId && booking.providerId.toString() === req.user._id.toString()) ||
+                (booking.userId && booking.userId.toString() === req.user._id.toString());
             if (!isAuthorized) {
                 return res.status(401).json({ message: 'Not authorized for this booking' });
             }
 
             const newStatus = req.body.status || booking.status;
-            
+
             // Assign provider if accepting
             if (isAccepting && !booking.providerId) {
+                // Check overlap first
+                const overlap = await hasOverlap(req.user._id, booking.bookingDate, booking.bookingTime);
+                if (overlap) {
+                    return res.status(400).json({ message: 'You cannot accept this booking as it overlaps with an existing schedule (Blocked from 30 mins before to 20 mins after).' });
+                }
+
+                // Check if provider has excessive dues based on dynamic cash limits
+                const { Wallet } = require('../models/Wallet');
+                const Setting = require('../models/Setting');
+                const Provider = require('../models/Provider');
+
+                const [wallet, configSetting, provider] = await Promise.all([
+                    Wallet.findOne({ providerId: req.user._id }),
+                    Setting.findOne({ key: 'cash_limits_config' }),
+                    Provider.findById(req.user._id)
+                ]);
+
+                let limit = 1500; // default global fallback
+                if (configSetting && configSetting.value) {
+                    const cfg = configSetting.value;
+                    limit = Number(cfg.defaultLimit) || 1500;
+
+                    // Override by category
+                    if (provider && provider.vendorType) {
+                        const catId = provider.vendorType.toString();
+                        const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
+                        if (catLimitObj) limit = Number(catLimitObj.limit);
+                    }
+
+                    // Override by service
+                    // Since bookings might have multiple services or just serviceId.
+                    // Assuming booking.services array or booking.serviceId exists.
+                    // (Some apps use booking.services, others serviceId. If services is an array, we take max or min. Let's use the first one or serviceId).
+                    const bookingServiceId = booking.serviceId ? booking.serviceId.toString() : (booking.services && booking.services.length > 0 ? booking.services[0].serviceId?.toString() : null);
+
+                    if (bookingServiceId) {
+                        const srvLimitObj = cfg.serviceLimits?.find(s => s.serviceId === bookingServiceId);
+                        if (srvLimitObj) limit = Number(srvLimitObj.limit);
+                    }
+                }
+
+                if (wallet && wallet.balance <= -limit) {
+                    return res.status(403).json({ message: `Please settle your wallet dues to accept new bookings.` });
+                }
+
                 booking.providerId = req.user._id;
             }
-            
+
             if (req.body.paymentStatus) {
                 booking.paymentStatus = req.body.paymentStatus;
             }
@@ -380,7 +464,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                     try {
                         const configData = await Setting.findOne({ key: 'partner_program_config' });
                         if (configData) config = JSON.parse(configData.value);
-                    } catch (err) {}
+                    } catch (err) { }
                     const penalty = config?.penalties?.cancellationCharge ?? 50;
 
                     if (penalty > 0) {
@@ -405,9 +489,9 @@ const updateBookingStatusByProvider = async (req, res) => {
 
                     const User = require('../models/User');
                     const { sendNotificationToUser } = require('../config/notificationService');
-                    
+
                     const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
-                    
+
                     for (const admin of admins) {
                         await sendNotificationToUser(admin._id, 'admin', {
                             title: 'Booking Cancelled by Provider',
@@ -552,7 +636,7 @@ const verifyEndOTP = async (req, res) => {
                         // Amount Slabs by Category
                         const amt = booking.totalAmount;
                         const providerCategoryId = provider.vendorType?._id?.toString() || provider.vendorType?.toString();
-                        
+
                         let matchingSlabs = config.commissionSlabs.filter(s => s.categoryId === providerCategoryId);
                         if (matchingSlabs.length === 0) {
                             matchingSlabs = config.commissionSlabs.filter(s => !s.categoryId || s.categoryId === 'default' || s.categoryId === '');
@@ -590,7 +674,7 @@ const verifyEndOTP = async (req, res) => {
                             description: `Completed ${config.performanceBonuses.loyaltyBonusBookings} Bookings`
                         });
                     }
-                    
+
                     // Star Bonus
                     let starBonusPercent = 0;
                     if (provider.badges?.includes('GoldStar')) starBonusPercent = config.performanceBonuses.goldStarRate;
@@ -617,7 +701,7 @@ const verifyEndOTP = async (req, res) => {
                         durationAgo.setMonth(durationAgo.getMonth() - config.referral.durationMonths);
                         if (provider.joinedDate > durationAgo) {
                             const refComm = (booking.totalAmount * config.referral.commissionRate) / 100;
-                            
+
                             // Admin pays for referral commission
                             adminCommission = Math.max(0, adminCommission - refComm);
 
@@ -655,31 +739,51 @@ const verifyEndOTP = async (req, res) => {
                 if (!wallet) {
                     wallet = await Wallet.create({ providerId: provider._id, balance: 0 });
                 }
+                // Cash Collection Logic (Provider keeps full amount, owes admin commission)
+                let transactionAmount = 0;
+                let transactionType = 'credit';
+                let transactionTitle = '';
 
-                wallet.balance += providerPayout;
+                if (booking.paymentMode !== 'now') {
+                    // Provider collected cash, deduct commission
+                    wallet.balance -= adminCommission;
+                    transactionAmount = adminCommission;
+                    transactionType = 'debit';
+                    transactionTitle = `Commission Deducted: ${booking.serviceName}`;
+                } else {
+                    // Online payment to admin, credit provider payout
+                    wallet.balance += providerPayout;
+                    transactionAmount = providerPayout;
+                    transactionType = 'credit';
+                    transactionTitle = `Service Earnings: ${booking.serviceName}`;
+                }
+
                 wallet.updatedAt = Date.now();
+                await wallet.save();
 
                 const transaction = await Transaction.create({
                     providerId: provider._id,
-                    title: `Service Earnings: ${booking.serviceName}`,
-                    amount: providerPayout,
-                    type: 'credit',
+                    title: transactionTitle,
+                    amount: transactionAmount,
+                    type: transactionType,
                     status: 'completed',
                     bookingId: booking._id,
                     description: `Booking ID #${booking._id.toString().slice(-6)}`
                 });
 
                 provider.walletBalance = wallet.balance;
+                await provider.save();
 
                 // Push Notification for Provider
                 try {
                     const { sendNotificationToUser } = require('../config/notificationService');
-                    
-                    // 1. Wallet Credited (If payout > 0)
-                    if (providerPayout > 0) {
+
+                    // 1. Wallet Update Notification
+                    if (transactionAmount > 0) {
+                        const actionWord = transactionType === 'credit' ? 'credited to' : 'deducted from';
                         await sendNotificationToUser(booking.providerId, 'provider', {
-                            title: 'Wallet Credited!',
-                            body: `₹${providerPayout} credited to your wallet for booking #${booking._id.toString().slice(-6)}.`,
+                            title: `Wallet ${transactionType === 'credit' ? 'Credited' : 'Deducted'}`,
+                            body: `₹${transactionAmount} ${actionWord} your wallet for booking #${booking._id.toString().slice(-6)}.`,
                             data: {
                                 type: 'wallet',
                                 id: booking._id.toString(),
@@ -829,7 +933,7 @@ const submitReview = async (req, res) => {
         if (!booking) {
             return res.status(404).json({ message: 'Booking not found' });
         }
-        
+
         if (booking.userId.toString() !== req.user._id.toString()) {
             return res.status(401).json({ message: 'Not authorized' });
         }
@@ -837,7 +941,7 @@ const submitReview = async (req, res) => {
         booking.rating = rating;
         booking.comment = comment;
         booking.tags = tags || [];
-        
+
         await booking.save();
 
         // Push Notification for Provider (New Review)
@@ -861,6 +965,129 @@ const submitReview = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+const proposeSchedule = async (req, res) => {
+    try {
+        const { date, time, message } = req.body;
+        const providerId = req.user._id;
+
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+
+        if (booking.status !== 'pending') {
+            return res.status(400).json({ message: 'Can only propose schedule for pending bookings' });
+        }
+
+        // Check overlap for the proposed schedule
+        const overlap = await hasOverlap(providerId, date, time);
+        if (overlap) {
+            return res.status(400).json({ message: 'You cannot propose this schedule as it overlaps with an existing schedule (Blocked from 30 mins before to 20 mins after).' });
+        }
+
+        booking.proposedSchedule = {
+            providerId,
+            date,
+            time,
+            message,
+            status: 'pending'
+        };
+
+        await booking.save();
+
+        // Notify User
+        const { getIO } = require('../config/socket');
+        const io = getIO();
+        io.to(`user_${booking.userId}`).emit('SCHEDULE_PROPOSED', { bookingId: booking._id, proposedSchedule: booking.proposedSchedule });
+
+        res.json({ message: 'Schedule proposed successfully', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const acceptSchedule = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking || !booking.proposedSchedule || booking.proposedSchedule.status !== 'pending') {
+            return res.status(404).json({ message: 'Valid proposed schedule not found' });
+        }
+
+        // Must be the user
+        if (booking.userId.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        // Apply schedule
+        const proposedDate = booking.proposedSchedule.date;
+        const proposedTime = booking.proposedSchedule.time;
+        const providerId = booking.proposedSchedule.providerId;
+
+        // Check if provider got booked during the meantime
+        const overlap = await hasOverlap(providerId, proposedDate, proposedTime);
+        if (overlap) {
+            return res.status(400).json({ message: 'The provider has accepted another booking during this time. Please request a different time.' });
+        }
+
+        booking.bookingDate = proposedDate;
+        booking.bookingTime = proposedTime;
+        booking.providerId = providerId;
+        booking.status = 'confirmed';
+        booking.proposedSchedule.status = 'accepted';
+
+        await booking.save();
+
+        // Notify Provider
+        const { getIO } = require('../config/socket');
+        const io = getIO();
+        io.to(`provider_${booking.providerId}`).emit('SCHEDULE_ACCEPTED', { bookingId: booking._id, booking });
+        io.emit('NEW_BOOKING_REQUEST'); // broadcast change to refresh lists
+
+        res.json({ message: 'Schedule accepted successfully', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const rejectSchedule = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking || !booking.proposedSchedule || booking.proposedSchedule.status !== 'pending') {
+            return res.status(404).json({ message: 'Valid proposed schedule not found' });
+        }
+
+        if (booking.userId.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        const providerId = booking.proposedSchedule.providerId;
+        booking.proposedSchedule.status = 'rejected';
+        
+        await booking.save();
+
+        // Notify Provider
+        const { getIO } = require('../config/socket');
+        const io = getIO();
+        io.to(`provider_${providerId}`).emit('SCHEDULE_REJECTED', { bookingId: booking._id });
+
+        res.json({ message: 'Schedule rejected successfully', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const checkOverlapStatus = async (req, res) => {
+    try {
+        const { date, time } = req.query;
+        if (!date || !time) {
+            return res.status(400).json({ message: 'Date and time are required' });
+        }
+        const overlap = await hasOverlap(req.user._id, date, time);
+        res.json({ overlap });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 module.exports = {
     createBooking,
@@ -872,5 +1099,9 @@ module.exports = {
     verifyEndOTP,
     getProviderReviews,
     getPublicProviderReviews,
-    submitReview
+    submitReview,
+    proposeSchedule,
+    acceptSchedule,
+    rejectSchedule,
+    checkOverlapStatus
 };

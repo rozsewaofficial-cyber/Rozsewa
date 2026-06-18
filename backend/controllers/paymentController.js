@@ -74,7 +74,7 @@ const verifySubscriptionPayment = async (req, res) => {
 
         // Update provider subscription status
         provider.isSubscribed = true;
-        
+
         // Calculate expiry based on planType
         const expiryDate = new Date();
         const purchaseDate = new Date();
@@ -83,14 +83,14 @@ const verifySubscriptionPayment = async (req, res) => {
         } else {
             expiryDate.setDate(expiryDate.getDate() + 365);
         }
-        
+
         provider.subscriptionPurchaseDate = purchaseDate;
         provider.subscriptionExpiry = expiryDate;
         provider.subscriptionPrice = plan.price;
         provider.subscriptionRate = plan.offeredCommissionRate;
         provider.subscriptionType = plan.offeredCommissionType;
         provider.planType = plan.name.toLowerCase().includes('elite') ? 'Elite' : 'Pro';
-        
+
         // Crucial: Update the actual commission rate used for bookings
         provider.commissionRate = plan.offeredCommissionRate;
 
@@ -102,17 +102,64 @@ const verifySubscriptionPayment = async (req, res) => {
     }
 };
 
+// @desc    Verify Razorpay Payment for Wallet Recharge / Debt Settlement
+// @route   POST /api/payment/verify-wallet
+// @access  Private (Provider)
+const verifyWalletRecharge = async (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount } = req.body;
+
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(sign.toString())
+        .digest("hex");
+
+    if (razorpay_signature === expectedSign) {
+        const { Wallet, Transaction } = require('../models/Wallet');
+        const Provider = require('../models/Provider');
+
+        let wallet = await Wallet.findOne({ providerId: req.user._id });
+        if (!wallet) {
+            wallet = await Wallet.create({ providerId: req.user._id, balance: 0 });
+        }
+
+        const rechargeAmount = Number(amount);
+        wallet.balance += rechargeAmount;
+        await wallet.save();
+
+        await Transaction.create({
+            providerId: req.user._id,
+            title: 'Debt Settlement',
+            amount: rechargeAmount,
+            type: 'credit',
+            status: 'completed',
+            description: `Paid admin via Razorpay (ID: ${razorpay_payment_id})`
+        });
+
+        // Update provider wallet reference
+        const provider = await Provider.findById(req.user._id);
+        if (provider) {
+            provider.walletBalance = wallet.balance;
+            await provider.save();
+        }
+
+        res.json({ message: "Debt settled successfully!", success: true });
+    } else {
+        res.status(400).json({ message: "Invalid payment signature", success: false });
+    }
+};
+
 // @desc    Check for expiring subscriptions and notify providers
 // This function should be called by a cron job daily!
 const checkExpiringSubscriptions = async () => {
     try {
         const Provider = require('../models/Provider');
         const { sendNotificationToUser } = require('../config/notificationService');
-        
+
         const today = new Date();
         const twoDaysLater = new Date();
         twoDaysLater.setDate(today.getDate() + 2);
-        
+
         // Find providers whose subscription expires in exactly 2 days
         const providers = await Provider.find({
             isSubscribed: true,
@@ -121,7 +168,7 @@ const checkExpiringSubscriptions = async () => {
                 $lte: twoDaysLater
             }
         });
-        
+
         for (const provider of providers) {
             await sendNotificationToUser(provider._id, 'provider', {
                 title: 'Plan Expiring Soon!',
@@ -133,7 +180,7 @@ const checkExpiringSubscriptions = async () => {
                 }
             });
         }
-        
+
         console.log(`Checked expiring subscriptions. Notified ${providers.length} providers.`);
     } catch (error) {
         console.error('Error checking expiring subscriptions:', error.message);
@@ -144,5 +191,6 @@ module.exports = {
     createOrder,
     verifyPayment,
     verifySubscriptionPayment,
+    verifyWalletRecharge,
     checkExpiringSubscriptions
 };

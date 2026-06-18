@@ -8,6 +8,7 @@ const Setting = require('../models/Setting');
 // @access  Private (Admin)
 const getCommissionData = async (req, res) => {
     try {
+        const { Transaction } = require('../models/Wallet');
         // Stats
         const completedBookings = await Booking.find({ status: 'completed' });
         
@@ -61,6 +62,29 @@ const getCommissionData = async (req, res) => {
             };
         });
 
+        // Settlements Logic
+        const wallets = await Wallet.find({ providerId: { $exists: true } }).populate('providerId', 'shopName ownerName vendorCode');
+        const transactions = await Transaction.find({ title: 'Debt Settlement', status: 'completed' });
+
+        const settlements = wallets.map(w => {
+           if (!w.providerId) return null;
+           const providerTxns = transactions.filter(t => t.providerId && t.providerId.toString() === w.providerId._id.toString());
+           const totalSettled = providerTxns.reduce((sum, t) => sum + t.amount, 0);
+           
+           if (w.balance < 0 || totalSettled > 0) {
+              return {
+                 _id: w.providerId._id,
+                 shopName: w.providerId.shopName,
+                 ownerName: w.providerId.ownerName,
+                 vendorCode: w.providerId.vendorCode,
+                 currentDues: w.balance < 0 ? Math.abs(w.balance) : 0,
+                 totalSettled: totalSettled,
+                 walletBalance: w.balance
+              }
+           }
+           return null;
+        }).filter(Boolean);
+
         res.json({
             stats: {
                 platformRevenue: Math.round(platformRevenue * 100) / 100,
@@ -71,7 +95,8 @@ const getCommissionData = async (req, res) => {
                 processedToday: Math.round(processedToday * 100) / 100,
                 disputedHold: 0
             },
-            queue: formattedQueue
+            queue: formattedQueue,
+            settlements
         });
     } catch (error) {
         console.error('getCommissionData error:', error);

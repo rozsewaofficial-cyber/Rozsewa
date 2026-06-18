@@ -50,6 +50,23 @@ const AdminSewakEnquiries = () => {
         }
     };
 
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this enquiry?")) return;
+        try {
+            const { data } = await API.delete(`/admin/sewak-enquiries/${id}`);
+            if (data.success) {
+                toast({ title: "Deleted", description: "Enquiry removed successfully" });
+                setEnquiries(enquiries.filter(enq => enq._id !== id));
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: "Failed to delete enquiry",
+                variant: "destructive"
+            });
+        }
+    };
+
     const filteredEnquiries = enquiries.filter(enq => {
         const matchesSearch = enq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             enq.phone.includes(searchTerm) ||
@@ -201,15 +218,24 @@ const AdminSewakEnquiries = () => {
                                             {getStatusBadge(enq.status)}
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <select
-                                                value={enq.status}
-                                                onChange={(e) => handleStatusChange(enq._id, e.target.value)}
-                                                className="text-[10px] font-black uppercase tracking-widest bg-gray-50 border border-gray-200 text-gray-700 rounded-lg px-3 py-2 outline-none hover:bg-gray-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 cursor-pointer transition-all"
-                                            >
-                                                <option value="pending">Mark Pending</option>
-                                                <option value="contacted">Mark Contacted</option>
-                                                <option value="resolved">Mark Resolved</option>
-                                            </select>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <select
+                                                    value={enq.status}
+                                                    onChange={(e) => handleStatusChange(enq._id, e.target.value)}
+                                                    className="text-[10px] font-black uppercase tracking-widest bg-gray-50 border border-gray-200 text-gray-700 rounded-lg px-3 py-2 outline-none hover:bg-gray-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 cursor-pointer transition-all"
+                                                >
+                                                    <option value="pending">Mark Pending</option>
+                                                    <option value="contacted">Mark Contacted</option>
+                                                    <option value="resolved">Mark Resolved</option>
+                                                </select>
+                                                <button
+                                                    onClick={() => handleDelete(enq._id)}
+                                                    className="h-8 px-3 rounded-lg bg-red-50 border border-red-100 text-[10px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100 transition-colors"
+                                                    title="Delete Enquiry"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))

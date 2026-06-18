@@ -67,7 +67,30 @@ const getPublicProviderById = async (req, res) => {
         if (!provider) {
             return res.status(404).json({ message: 'Provider not found' });
         }
-        res.json(provider);
+        const activeBookings = await require('../models/Booking').find({
+            providerId: provider._id,
+            status: { $in: ['pending', 'confirmed', 'on_the_way', 'started'] }
+        }).select('bookingDate bookingTime serviceId');
+
+        const Service = require('../models/Service');
+        const bookedSlots = [];
+        for (const b of activeBookings) {
+            let duration = 30; // default 30 mins
+            if (b.serviceId && b.serviceId.length === 24) {
+                try {
+                    const s = await Service.findById(b.serviceId);
+                    if (s && s.duration) {
+                        duration = parseInt(s.duration) || 30;
+                    }
+                } catch (err) {}
+            }
+            bookedSlots.push({ date: b.bookingDate, time: b.bookingTime, duration });
+        }
+
+        const providerData = provider.toObject();
+        providerData.bookedSlots = bookedSlots;
+
+        res.json(providerData);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

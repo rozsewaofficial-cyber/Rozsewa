@@ -86,7 +86,9 @@ app.use('/mock', mockRoutes);
 
 // Start Cron Jobs
 const { startCronJobs } = require('./cron/payouts');
+const startBookingReminderCron = require('./cron/bookingReminders');
 startCronJobs();
+startBookingReminderCron();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });

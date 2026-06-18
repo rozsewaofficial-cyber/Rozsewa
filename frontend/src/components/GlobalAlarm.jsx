@@ -1,9 +1,33 @@
 import React from 'react';
 import { useSocket } from '@/context/SocketContext';
 import IncomingRequestModal from '@/modules/provider/components/IncomingRequestModal';
+import ScheduleAcceptedModal from '@/modules/provider/components/ScheduleAcceptedModal';
+import BookingReminderModal from '@/modules/provider/components/BookingReminderModal';
 
 const GlobalAlarm = () => {
-    const { incomingRequest, setIncomingRequest } = useSocket();
+    const { 
+        incomingRequest, setIncomingRequest, 
+        scheduleAcceptedData, setScheduleAcceptedData,
+        reminderData, setReminderData 
+    } = useSocket();
+
+    if (reminderData) {
+        return (
+            <BookingReminderModal
+                data={reminderData}
+                onDismiss={() => setReminderData(null)}
+            />
+        );
+    }
+
+    if (scheduleAcceptedData) {
+        return (
+            <ScheduleAcceptedModal
+                data={scheduleAcceptedData}
+                onDismiss={() => setScheduleAcceptedData(null)}
+            />
+        );
+    }
 
     if (!incomingRequest) return null;
 

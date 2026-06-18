@@ -35,12 +35,7 @@ const RecentBookingsList = () => {
   const fetchBookings = async () => {
     try {
       const { data } = await API.get("/bookings/provider");
-      // Map backend status to frontend expectations if needed
-      const mapped = data.map(b => ({
-        ...b,
-        status: b.status === "confirmed" ? "active" : b.status
-      }));
-      setRequests(mapped);
+      setRequests(data);
       
       // Fetch staff from API
       const { data: staffData } = await API.get("/provider/staff");
@@ -68,7 +63,11 @@ const RecentBookingsList = () => {
       toast({ title: `Booking ${action === 'complete' ? 'Completed' : action + 'ed'}` });
       fetchBookings();
     } catch (err) {
-      toast({ title: "Action failed", variant: "destructive" });
+      toast({ 
+          title: "Action failed", 
+          description: err.response?.data?.message || err.message, 
+          variant: "destructive" 
+      });
     }
   };
 
@@ -271,16 +270,60 @@ const RecentBookingsList = () => {
                   </div>
                 </div>
 
-                {req.status === "pending" && (
+                {req.status === "pending" && (!req.proposedSchedule || req.proposedSchedule.status !== 'pending') && (
                   <div className="mt-5 flex gap-3">
                     <button onClick={() => handleAction(req._id, 'reject')} className="flex-1 rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600">Reject</button>
                     <button onClick={() => handleAction(req._id, 'accept')} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-lg">Accept</button>
                   </div>
                 )}
 
-                {(req.status === "confirmed" || req.status === "active") && (
-                  <button onClick={() => handleAction(req._id, 'on_the_way')} className="mt-5 w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-lg">Start Journey (On the Way)</button>
+                {req.status === "pending" && req.proposedSchedule && req.proposedSchedule.status === 'pending' && (
+                  <div className="mt-5 rounded-xl border-2 border-amber-500/20 bg-amber-50/50 dark:bg-amber-900/10 p-3">
+                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">Schedule Proposed</p>
+                    <div className="flex justify-between items-center bg-background rounded-lg p-2 border border-border">
+                        <div>
+                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Date</p>
+                            <p className="font-bold text-xs">{req.proposedSchedule.date}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Time</p>
+                            <p className="font-bold text-xs">{req.proposedSchedule.time}</p>
+                        </div>
+                    </div>
+                    {req.proposedSchedule.message && (
+                        <p className="mt-2 text-xs italic text-muted-foreground bg-background p-2 rounded-lg border border-border">
+                            "{req.proposedSchedule.message}"
+                        </p>
+                    )}
+                    <p className="mt-2 text-[10px] font-bold text-amber-600 text-center uppercase tracking-widest animate-pulse">Waiting for customer approval...</p>
+                  </div>
                 )}
+
+                {(req.status === "confirmed" || req.status === "active") && (() => {
+                  const [year, month, day] = req.bookingDate.split('-');
+                  const timeParts = req.bookingTime.split(' ');
+                  let [hours, minutes] = timeParts[0].split(':').map(Number);
+                  if (timeParts[1]) {
+                      const ampm = timeParts[1].toUpperCase();
+                      if (ampm === 'PM' && hours < 12) hours += 12;
+                      if (ampm === 'AM' && hours === 12) hours = 0;
+                  }
+                  const bookingDateTime = new Date(year, month - 1, day, hours, minutes);
+                  const now = new Date();
+                  
+                  // Allow starting journey 30 minutes before the booking time
+                  const isReady = (bookingDateTime - now) <= 30 * 60 * 1000;
+
+                  return (
+                    <button 
+                      onClick={() => handleAction(req._id, 'on_the_way')} 
+                      disabled={!isReady}
+                      className={`mt-5 w-full rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
+                    >
+                      {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
+                    </button>
+                  );
+                })()}
 
                 {req.status === "on_the_way" && (
                   <div className="mt-5 space-y-3">
@@ -412,8 +455,8 @@ const RecentBookingsList = () => {
                   </div>
                 )}
 
-                {/* Payment Collection UI (Visible during Started and Completed if unpaid) */}
-                {['started', 'completed'].includes(req.status) && req.paymentStatus !== "paid" && (
+                {/* Payment Collection UI (Visible after Completion if unpaid) */}
+                {req.status === 'completed' && req.paymentStatus !== "paid" && (
                   <div className="mt-5 space-y-4 border-t border-border pt-4">
                     <div className="rounded-xl border border-border p-4 bg-emerald-50/50 dark:bg-emerald-900/10">
                       <h4 className="text-sm font-black text-foreground mb-3 uppercase tracking-wider text-center">Payment Collection</h4>

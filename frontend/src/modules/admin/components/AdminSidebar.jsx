@@ -45,6 +45,7 @@ export const adminSidebarLinks = [
   { path: "/admin/activity-log", label: "System Logs", icon: Terminal },
   { path: "/admin/partner-program", label: "Partner Program", icon: ShieldCheck },
   { path: "/admin/settings", label: "Global Settings", icon: Settings },
+  { path: "/admin/settings/cash-limits", label: "Cash Limits", icon: CreditCard },
 ];
 
 const AdminSidebar = () => {

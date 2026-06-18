@@ -71,6 +71,7 @@ import AdminFeedback from "./modules/admin/pages/AdminFeedback";
 import AdminServices from "./modules/admin/pages/AdminServices";
 import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
+import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
 import PartnerProgramConfig from "./modules/admin/pages/PartnerProgramConfig";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
 import AdminBanners from "./modules/admin/pages/AdminBanners";
@@ -193,6 +194,7 @@ const App = () => (
                       <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
                       <Route path="sewak-pricing" element={<SewakPricing />} />
                       <Route path="settings" element={<AdminSettings />} />
+                      <Route path="settings/cash-limits" element={<AdminCashLimits />} />
                       <Route path="partner-program" element={<PartnerProgramConfig />} />
                       <Route path="benefit-policies" element={<AdminBenefitPolicies />} />
                       <Route path="disputes" element={<AdminDisputes />} />

@@ -70,7 +70,11 @@ const {
     updateSewakIncentiveSettings,
     getCombos,
     verifyCombo,
-    rejectCombo
+    rejectCombo,
+    getCashLimitsConfig,
+    updateCashLimitsConfig,
+    deleteUser,
+    deleteBooking
 } = require('../controllers/adminController');
 
 const {
@@ -83,7 +87,7 @@ const {
 const { getWithdrawals, updateWithdrawalStatus } = require('../controllers/withdrawalController');
 const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updateIncentiveSettings } = require('../controllers/commissionController');
 
-const { getEnquiries, updateEnquiryStatus } = require('../controllers/sewakEnquiryController');
+const { getEnquiries, updateEnquiryStatus, deleteEnquiry } = require('../controllers/sewakEnquiryController');
 
 const { protect, admin, superadmin, supervisor, employee } = require('../middleware/authMiddleware');
 
@@ -120,6 +124,7 @@ router.delete('/categories/:id', protect, admin, deleteCategory);
 // User management
 router.get('/users', protect, admin, getUsers);
 router.put('/users/:id/toggle-status', protect, admin, toggleUserStatus);
+router.delete('/users/:id', protect, admin, deleteUser);
 
 // Banner management
 router.get('/banners', protect, admin, getBanners);
@@ -148,10 +153,13 @@ router.get('/activity', protect, admin, getActivityLogs);
 // Platform Settings & Profile
 router.get('/settings', protect, admin, getSettings);
 router.post('/settings', protect, admin, updateSettings);
+router.get('/settings/cash-limits', protect, admin, getCashLimitsConfig);
+router.put('/settings/cash-limits', protect, admin, updateCashLimitsConfig);
 router.post('/profile', protect, employee, updateAdminProfile);
 
 // Booking management
 router.get('/bookings', protect, admin, getBookings);
+router.delete('/bookings/:id', protect, admin, deleteBooking);
 
 // Promotion management
 router.get('/promotions', protect, admin, getPromotions);
@@ -215,6 +223,7 @@ router.post('/sewak-incentive-settings', protect, admin, updateIncentiveSettings
 // Sewak Enquiries
 router.get('/sewak-enquiries', protect, admin, getEnquiries);
 router.put('/sewak-enquiries/:id/status', protect, admin, updateEnquiryStatus);
+router.delete('/sewak-enquiries/:id', protect, admin, deleteEnquiry);
 
 // Partner Program Configuration
 router.get('/partner-program-config', protect, admin, partnerConfigController.getConfig);

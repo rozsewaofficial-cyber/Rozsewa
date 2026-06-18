@@ -44,6 +44,23 @@ const AdminBookings = () => {
     }
   };
 
+  const handleDeleteBooking = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this booking?")) return;
+    try {
+      const { data } = await API.delete(`/admin/bookings/${id}`);
+      if (data.success) {
+        toast({ title: "Deleted", description: "Booking removed successfully" });
+        setBookings(bookings.filter(b => b._id !== id));
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete booking",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Stats
   const stats = useMemo(() => {
     const all = bookings || [];
@@ -208,12 +225,13 @@ const AdminBookings = () => {
                 <th className="py-4 px-5 text-right">Amount</th>
                 <th className="py-4 px-5 text-center">Payment</th>
                 <th className="py-4 px-5 text-center">Status</th>
+                <th className="py-4 px-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filteredBookings.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="py-20 text-center">
+                  <td colSpan="10" className="py-20 text-center">
                     <CalendarDays className="h-10 w-10 text-gray-200 mx-auto" />
                     <p className="mt-3 text-gray-400 font-bold text-sm">No bookings found</p>
                     <p className="text-xs text-gray-300 mt-1">Try adjusting your search or filter</p>
@@ -318,6 +336,17 @@ const AdminBookings = () => {
                             <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`}></span>
                             {sc.label}
                           </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3.5 px-5 text-right">
+                          <button
+                            onClick={() => handleDeleteBooking(booking._id)}
+                            className="h-8 px-3 rounded-lg bg-red-50 border border-red-100 text-[10px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100 transition-colors"
+                            title="Delete Booking"
+                          >
+                            Delete
+                          </button>
                         </td>
                       </motion.tr>
                     );

@@ -186,6 +186,34 @@ const getBookings = async (req, res) => {
     }
 };
 
+// @desc    Delete a booking
+// @route   DELETE /api/admin/bookings/:id
+// @access  Private/Admin
+const deleteBooking = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+        await Booking.findByIdAndDelete(req.params.id);
+
+        // Log Action
+        await AuditLog.create({
+            actionType: "DELETE",
+            entityType: "BOOKING",
+            entityId: booking._id,
+            entityName: `Booking #${booking._id.toString().slice(-6)}`,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { action: 'delete_booking' }
+        });
+
+        res.json({ success: true, message: 'Booking deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Get all provider reports/disputes
 // @route   GET /api/admin/provider-reports
 // @access  Private/Admin
@@ -395,6 +423,34 @@ const toggleUserStatus = async (req, res) => {
         });
 
         res.json({ success: true, isActive: user.isActive });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Delete User
+// @route   DELETE /api/admin/users/:id
+// @access  Private/Admin
+const deleteUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        await User.findByIdAndDelete(req.params.id);
+
+        // Log Action
+        await AuditLog.create({
+            actionType: "DELETE",
+            entityType: "USER",
+            entityId: user._id,
+            entityName: user.name,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { action: 'delete_user' }
+        });
+
+        res.json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -1792,6 +1848,54 @@ const rejectCombo = async (req, res) => {
     }
 };
 
+// @desc    Get Cash Limits Config
+// @route   GET /api/admin/settings/cash-limits
+// @access  Private/Admin
+const getCashLimitsConfig = async (req, res) => {
+    try {
+        let configSetting = await Setting.findOne({ key: 'cash_limits_config' });
+        
+        let config = {
+            defaultLimit: 1500,
+            categoryLimits: [],
+            serviceLimits: []
+        };
+
+        if (configSetting) {
+            config = { ...config, ...configSetting.value };
+        }
+
+        res.json(config);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Update Cash Limits Config
+// @route   PUT /api/admin/settings/cash-limits
+// @access  Private/Admin
+const updateCashLimitsConfig = async (req, res) => {
+    try {
+        const { defaultLimit, categoryLimits, serviceLimits } = req.body;
+
+        const newConfig = {
+            defaultLimit: Number(defaultLimit) || 1500,
+            categoryLimits: Array.isArray(categoryLimits) ? categoryLimits : [],
+            serviceLimits: Array.isArray(serviceLimits) ? serviceLimits : []
+        };
+
+        await Setting.findOneAndUpdate(
+            { key: 'cash_limits_config' },
+            { value: newConfig, updatedAt: Date.now() },
+            { upsert: true, new: true }
+        );
+
+        res.json({ message: 'Cash limits updated successfully', config: newConfig });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     getProviderReports,
@@ -1861,5 +1965,9 @@ module.exports = {
     updateSewakIncentiveSettings,
     getCombos,
     verifyCombo,
-    rejectCombo
+    rejectCombo,
+    getCashLimitsConfig,
+    updateCashLimitsConfig,
+    deleteUser,
+    deleteBooking
 };

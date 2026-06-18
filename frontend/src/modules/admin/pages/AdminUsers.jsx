@@ -52,6 +52,22 @@ const AdminUsers = () => {
         }
     };
 
+    const handleDeleteUser = async (id) => {
+        if (!window.confirm("Are you sure you want to permanently delete this user? This action cannot be undone.")) return;
+        try {
+            const { data } = await API.delete(`/admin/users/${id}`);
+            if (data.success) {
+                setUsers(prev => prev.filter(u => u._id !== id));
+                toast({
+                    title: "User Deleted",
+                    description: "The user has been permanently removed from the database."
+                });
+            }
+        } catch (err) {
+            toast({ title: "Delete Failed", variant: "destructive", description: err.response?.data?.message || err.message });
+        }
+    };
+
     const filteredUsers = (users || []).filter(u => {
         const name = (u?.name || "").toLowerCase();
         const mobile = (u?.mobile || "").toLowerCase();
@@ -200,6 +216,13 @@ const AdminUsers = () => {
                                                     title="View Details"
                                                 >
                                                     Details
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteUser(user._id)}
+                                                    className="h-8 px-3 rounded-lg bg-red-50 border border-red-100 text-[10px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100 transition-colors"
+                                                    title="Delete User"
+                                                >
+                                                    Delete
                                                 </button>
                                             </div>
                                         </td>

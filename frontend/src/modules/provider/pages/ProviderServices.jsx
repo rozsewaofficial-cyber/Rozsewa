@@ -420,13 +420,13 @@ const ProviderServices = () => {
 
       <AnimatePresence>
         {showForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div key="service-form-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] bg-card text-left overflow-y-auto">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "tween", duration: 0.3 }}
               className="w-full min-h-screen bg-card sm:max-w-md sm:mx-auto sm:min-h-0 sm:rounded-[32px] sm:border sm:border-border sm:shadow-2xl">
               <div className="flex items-center justify-between border-b border-border px-5 py-3 sticky top-0 bg-card z-10 text-foreground">
                 <h3 className="text-lg font-black uppercase tracking-tighter">{editId ? "Edit Service" : "Add Service"}</h3>
-                <button onClick={resetForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
+                <button type="button" onClick={resetForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
               </div>
               <form onSubmit={handleSave} className="p-6 pb-32 space-y-5">
                 <div className="text-left">
@@ -544,13 +544,13 @@ const ProviderServices = () => {
           </motion.div>
         )}
         {showComboForm && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div key="combo-form-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] bg-card text-left overflow-y-auto">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "tween", duration: 0.3 }}
               className="w-full min-h-screen bg-card sm:max-w-md sm:mx-auto sm:min-h-0 sm:rounded-[32px] sm:border sm:border-border sm:shadow-2xl">
               <div className="flex items-center justify-between border-b border-border px-5 py-3 sticky top-0 bg-card z-10 text-foreground">
                 <h3 className="text-lg font-black uppercase tracking-tighter">{editId ? "Edit Combo" : "Create Combo"}</h3>
-                <button onClick={resetComboForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
+                <button type="button" onClick={resetComboForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
               </div>
               <form onSubmit={handleComboSave} className="p-6 pb-32 space-y-5">
                 <div className="text-left">
@@ -723,7 +723,7 @@ const ProviderServices = () => {
         {/* View Service Details Modal */}
         <AnimatePresence>
           {viewService && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div key="view-service-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
               <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-card w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-border flex flex-col max-h-[90vh]">
                 {viewService.image && (
                   <div className="w-full h-48 bg-muted shrink-0 relative">

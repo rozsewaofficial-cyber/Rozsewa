@@ -107,7 +107,14 @@ const bookingSchema = new mongoose.Schema({
     adminRequest: {
         status: { type: String, enum: ['none', 'pending', 'resolved'], default: 'none' },
         reason: { type: String, default: '' },
-        requestedAt: { type: Date }
+        requestedAt: { type: Date, default: null }
+    },
+    proposedSchedule: {
+        providerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider', default: null },
+        date: { type: String, default: null },
+        time: { type: String, default: null },
+        message: { type: String, default: null },
+        status: { type: String, enum: ['none', 'pending', 'accepted', 'rejected'], default: 'none' }
     },
     createdAt: {
         type: Date,
