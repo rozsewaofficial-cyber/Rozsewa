@@ -90,41 +90,41 @@ const Notifications = () => {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
-    <div className="min-h-screen bg-background pb-28 md:pb-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-28 md:pb-8">
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted transition-colors">
-              <ArrowLeft className="h-5 w-5 text-foreground" />
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition-colors">
+              <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
             </motion.button>
             <div>
-              <h1 className="text-xl font-black text-foreground tracking-tight">Notifications</h1>
-              <p className="text-xs font-semibold text-muted-foreground">{unreadCount} unread message{unreadCount !== 1 && "s"}</p>
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Notifications</h1>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{unreadCount} unread message{unreadCount !== 1 && "s"}</p>
             </div>
           </div>
           {unreadCount > 0 && (
-            <button onClick={handleMarkAllAsRead} className="flex h-10 items-center gap-2 rounded-full bg-primary/10 px-4 text-xs font-bold text-primary hover:bg-primary/20 transition-colors">
+            <button onClick={handleMarkAllAsRead} className="flex h-10 items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-900/30 px-4 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors">
               <CheckCircle2 className="h-4 w-4" /> Mark All Read
             </button>
           )}
         </div>
 
         {notifications.length === 0 ? (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-20 text-center rounded-3xl border-2 border-dashed border-border bg-muted/10">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted/50 mb-6">
-              <BellRing className="h-10 w-10 text-muted-foreground/40" />
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center py-20 text-center rounded-[24px] border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 mb-6">
+              <BellRing className="h-10 w-10 text-slate-400 dark:text-slate-600" />
             </div>
-            <h2 className="text-xl font-black text-foreground tracking-tight">You're all caught up!</h2>
-            <p className="text-sm font-medium text-muted-foreground mt-2 px-8 leading-relaxed">No new notifications right now. We'll let you know when there's an update.</p>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">You're all caught up!</h2>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-2 px-8 leading-relaxed">No new notifications right now. We'll let you know when there's an update.</p>
           </motion.div>
         ) : (
           <div className="space-y-8">
             {groups.map((group) => (
               <div key={group}>
-                <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-4 flex items-center gap-3">
-                  {group} <div className="h-px flex-1 bg-border/50" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4 flex items-center gap-3">
+                  {group} <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700/50" />
                 </h3>
                 <div className="space-y-3">
                   <AnimatePresence>
@@ -135,25 +135,25 @@ const Notifications = () => {
                       return (
                         <motion.div key={notif._id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: index * 0.05 }}
                           onClick={() => !notif.isRead && handleMarkAsRead(notif._id)}
-                          className={`group relative flex items-start gap-4 rounded-[24px] border border-border p-4 transition-all cursor-pointer overflow-hidden ${
-                            notif.isRead ? "bg-card hover:bg-muted/50" : "bg-primary/5 border-primary/20 shadow-lg shadow-primary/5"
+                          className={`group relative flex items-start gap-4 rounded-[24px] border border-slate-200 dark:border-slate-700 p-4 transition-all cursor-pointer overflow-hidden ${
+                            notif.isRead ? "bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800" : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg shadow-blue-500/5"
                           }`}>
                           
                           {/* Unread indicator line */}
-                          {!notif.isRead && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />}
+                          {!notif.isRead && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 dark:bg-blue-500" />}
                           
-                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${conf.outline} ${conf.bg}`}>
+                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] border ${conf.outline} ${conf.bg}`}>
                             <Icon className={`h-5 w-5 ${conf.color}`} />
                           </div>
                           
                           <div className="flex-1 min-w-0 pr-6">
                             <div className="flex justify-between items-start gap-2">
-                              <h3 className={`text-sm font-bold truncate ${notif.isRead ? "text-foreground" : "text-foreground"}`}>{notif.title}</h3>
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 shrink-0 mt-0.5">
+                              <h3 className={`text-sm font-bold truncate ${notif.isRead ? "text-slate-900 dark:text-white" : "text-slate-900 dark:text-white"}`}>{notif.title}</h3>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 shrink-0 mt-0.5">
                                 {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <p className={`mt-1 text-xs leading-relaxed ${notif.isRead ? "text-muted-foreground" : "font-medium text-foreground/80 font-bold"}`}>{notif.message}</p>
+                            <p className={`mt-1 text-xs leading-relaxed ${notif.isRead ? "text-slate-500 dark:text-slate-400" : "font-medium text-slate-700 dark:text-slate-300 font-bold"}`}>{notif.message}</p>
                           </div>
 
                           <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif._id); }}
@@ -172,7 +172,7 @@ const Notifications = () => {
 
         {notifications.length > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-8">
-            <button onClick={handleClearAll} className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-rose-200 py-4 text-xs font-black uppercase tracking-widest text-rose-500 hover:border-rose-300 hover:bg-rose-50 transition-colors dark:border-rose-900/40 dark:hover:bg-rose-900/10">
+            <button onClick={handleClearAll} className="flex w-full items-center justify-center gap-2 rounded-[20px] border-2 border-dashed border-rose-200 py-4 text-xs font-black uppercase tracking-widest text-rose-500 hover:border-rose-300 hover:bg-rose-50 transition-colors dark:border-rose-900/40 dark:hover:bg-rose-900/10">
               <Trash2 className="h-4 w-4" /> Clear All Notifications
             </button>
           </motion.div>

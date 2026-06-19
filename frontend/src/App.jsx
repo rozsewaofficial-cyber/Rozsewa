@@ -25,7 +25,7 @@ import Favorites from "./modules/user/pages/Favorites";
 import Addresses from "./modules/user/pages/Addresses";
 import ReferEarn from "./modules/user/pages/ReferEarn";
 import Notifications from "./modules/user/pages/Notifications";
-import Security from "./modules/user/pages/Security";
+
 import HelpSupport from "./modules/user/pages/HelpSupport";
 import CustomerLogin from "./modules/user/pages/CustomerLogin";
 import SubcategoryPage from "./modules/user/pages/SubcategoryPage";
@@ -139,11 +139,10 @@ const App = () => (
                     <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Profile /></ProtectedRoute>} />
                     <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Favorites /></ProtectedRoute>} />
                     <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
-                    <Route path="/security" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Security /></ProtectedRoute>} />
+                    <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
 
                     {/* Public Info Routes */}
                     <Route path="/post-service" element={<PostService />} />
-                    <Route path="/notifications" element={<Notifications />} />
                     <Route path="/help-support" element={<HelpSupport />} />
                     <Route path="/complaint" element={<ComplaintForm />} />
                     <Route path="/support-tickets" element={<SupportTickets />} />

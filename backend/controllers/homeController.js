@@ -134,8 +134,17 @@ const getFeaturedProviders = async (req, res) => {
 // @access  Public
 const getPublicProviders = async (req, res) => {
     try {
-        const { category, search, lat, lng, city, radius = 15 } = req.query;
+        const { category, search, lat, lng, city, radius = 15, mode } = req.query;
         let query = { status: 'verified', isOnline: true };
+        
+        if (mode === 'sewak') {
+            query.providerCategory = 'sewak';
+        } else if (mode === 'partner') {
+            query.providerCategory = 'partner';
+        } else {
+            // Default to partner if mode is not specified to maintain legacy behavior
+            query.providerCategory = 'partner';
+        }
 
         // Geolocation filtering
         if (lat && lng) {

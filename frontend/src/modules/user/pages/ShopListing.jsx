@@ -24,10 +24,14 @@ const ShopListing = () => {
   const [searchParams] = useSearchParams();
   const category = searchParams.get("category") || "";
   const isEmergency = searchParams.get("emergency") === "true";
-  const [sortBy, setSortBy] = useState("rating");
+  const filterParam = searchParams.get("filter");
+  const initialSort = filterParam === 'nearby' ? 'distance' : 'rating';
+
+  const [sortBy, setSortBy] = useState(initialSort);
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
+  const mode = searchParams.get("mode") || "partner";
 
   useEffect(() => {
     fetchProviders();
@@ -36,7 +40,7 @@ const ShopListing = () => {
   const fetchProviders = async () => {
     setLoading(true);
     try {
-      const params = { category, search: searchQuery };
+      const params = { category, search: searchQuery, emergency: isEmergency, mode: mode };
       if (userLocation) {
         params.lat = userLocation.lat;
         params.lng = userLocation.lng;
@@ -81,30 +85,39 @@ const ShopListing = () => {
   });
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 md:pb-0">
       <TopNav />
-      <main className="container max-w-6xl px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted">
-            <ArrowLeft className="h-5 w-5" />
-          </motion.button>
-          <div>
-            <h1 className="text-xl font-bold text-foreground">{isEmergency ? "🚨 Emergency Providers" : category || "All Services"}</h1>
-            <p className="text-xs text-muted-foreground">{sorted.length} providers near you</p>
+      
+      {/* New Gradient Header */}
+      <div className="relative pt-6 pb-12 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[3rem] shadow-sm mb-6">
+        <div className="max-w-6xl mx-auto flex flex-col gap-6">
+          <div className="flex items-center gap-4">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+              <ArrowLeft className="h-5 w-5" />
+            </motion.button>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{isEmergency ? "🚨 Emergency Providers" : category || "All Services"}</h1>
+              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{sorted.length} providers near you</p>
+            </div>
           </div>
+          
+          <SearchBar onSearch={(val, filter) => {
+            setSearchQuery(val);
+            if (filter === 'nearby') setSortBy('distance');
+            if (filter === 'top-rated') setSortBy('rating');
+          }} />
         </div>
+      </div>
 
-        <SearchBar onSearch={(val) => setSearchQuery(val)} />
-
+      <main className="container max-w-6xl px-5 sm:px-8 space-y-6">
         {/* Sort */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
           {["rating", "distance", "price"].map((key) => (
             <motion.button
               key={key}
               whileTap={{ scale: 0.93 }}
               onClick={() => setSortBy(key)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold capitalize transition-colors ${sortBy === key ? "bg-primary text-primary-foreground" : "border border-border bg-card text-card-foreground hover:bg-muted"
+              className={`shrink-0 rounded-full px-5 py-2 text-[13px] font-bold capitalize transition-colors ${sortBy === key ? "bg-blue-600 text-white shadow-md border border-blue-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
                 }`}
             >
               {key}
@@ -119,7 +132,7 @@ const ShopListing = () => {
           ))}
         </div>
       </main>
-      <BottomNav />
+      <BottomNav mode={mode} />
     </div>
   );
 };

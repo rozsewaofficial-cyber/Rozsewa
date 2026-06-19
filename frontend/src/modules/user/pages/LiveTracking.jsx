@@ -283,22 +283,22 @@ const LiveTracking = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 md:pb-0">
       <TopNav />
-      <main className="container max-w-2xl px-4 py-6 space-y-6">
+      <main className="container max-w-2xl px-5 sm:px-8 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted">
+          <div className="flex items-center gap-4">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
               <ArrowLeft className="h-5 w-5" />
             </motion.button>
             <div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white">Live Tracking</h1>
-            <p className="text-xs text-muted-foreground">Booking #{bookingDetails?._id ? bookingDetails._id.slice(-6).toUpperCase() : "..."}</p>
-          </div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Live Tracking</h1>
+              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Booking #{bookingDetails?._id ? bookingDetails._id.slice(-6).toUpperCase() : "..."}</p>
+            </div>
           </div>
           {cancelTimer > 0 && currentStep < 3 && (
-            <span className="rounded-full bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive">
+            <span className="rounded-full bg-rose-50 dark:bg-rose-900/30 px-3 py-1.5 text-[11px] font-bold tracking-widest text-rose-600 dark:text-rose-400 uppercase border border-rose-200 dark:border-rose-800">
               Free Cancel — {formatTime(cancelTimer)}
             </span>
           )}
@@ -309,20 +309,20 @@ const LiveTracking = () => {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="rounded-2xl border-2 border-rose-500 bg-rose-500/10 p-6 flex flex-col items-center gap-4 text-center shadow-lg shadow-rose-500/10 mb-6"
+            className="rounded-[24px] border-2 border-rose-500 bg-rose-50 dark:bg-rose-900/10 p-6 flex flex-col items-center gap-4 text-center shadow-sm mb-6"
           >
-            <div className="h-16 w-16 rounded-full bg-rose-500 flex items-center justify-center text-white shadow-xl shadow-rose-500/30">
+            <div className="h-16 w-16 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 shadow-inner">
               <AlertOctagon className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-xl font-black text-rose-700">Request Not Accepted</h3>
-              <p className="text-sm font-medium text-foreground mt-2">
+              <h3 className="text-xl font-black text-rose-700 dark:text-rose-500">Request Not Accepted</h3>
+              <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-2">
                 Unfortunately, no providers accepted your request. Please try booking again.
               </p>
             </div>
             <button
               onClick={() => navigate("/")}
-              className="mt-2 w-full max-w-[200px] h-12 rounded-xl bg-rose-600 text-white font-bold uppercase tracking-widest text-xs hover:bg-rose-700 shadow-lg shadow-rose-600/30 active:scale-95 transition-all"
+              className="mt-2 w-full max-w-[200px] h-12 rounded-full bg-rose-600 text-white font-bold tracking-wide text-sm hover:bg-rose-700 shadow-md shadow-rose-600/20 active:scale-95 transition-all"
             >
               Go to Home
             </button>
@@ -334,33 +334,33 @@ const LiveTracking = () => {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="rounded-2xl border-2 border-amber-500 bg-amber-500/10 p-6 flex flex-col gap-4 shadow-lg shadow-amber-500/10 mb-6"
+            className="rounded-[24px] border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
           >
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-amber-500 flex items-center justify-center text-white shadow-xl shadow-amber-500/30">
-                <Clock className="h-5 w-5" />
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 shadow-inner">
+                <Clock className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-amber-700">New Time Proposed</h3>
-                <p className="text-xs font-bold text-foreground opacity-70 uppercase tracking-widest">Provider requested a change</p>
+                <h3 className="text-lg font-black text-amber-700 dark:text-amber-500">New Time Proposed</h3>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Provider requested a change</p>
               </div>
             </div>
             
-            <div className="bg-background rounded-xl p-4 border border-border mt-2 space-y-3">
-              <div className="flex justify-between items-center pb-3 border-b border-border">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Date</p>
-                    <p className="font-bold text-sm">{proposedSchedule.date}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Date</p>
+                    <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.date}</p>
                  </div>
                  <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Time</p>
-                    <p className="font-bold text-sm">{proposedSchedule.time}</p>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Time</p>
+                    <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.time}</p>
                  </div>
               </div>
               {proposedSchedule.message && (
                 <div>
-                   <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Message</p>
-                   <p className="text-sm italic text-foreground bg-muted/50 p-2 rounded-lg mt-1">"{proposedSchedule.message}"</p>
+                   <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Message</p>
+                   <p className="text-[13px] font-medium italic text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl mt-1.5 border border-slate-100 dark:border-slate-700">"{proposedSchedule.message}"</p>
                 </div>
               )}
             </div>
@@ -368,13 +368,13 @@ const LiveTracking = () => {
             <div className="grid grid-cols-2 gap-3 mt-2">
               <button
                 onClick={handleRejectSchedule}
-                className="h-12 rounded-xl border-2 border-border bg-background hover:bg-muted flex items-center justify-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground"
+                className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
               >
                 <X className="h-4 w-4" /> Reject
               </button>
               <button
                 onClick={handleAcceptSchedule}
-                className="h-12 rounded-xl bg-amber-500 text-white shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 transition-all font-black uppercase text-[10px] tracking-widest"
+                className="h-12 rounded-full bg-amber-500 text-white shadow-md shadow-amber-500/20 hover:bg-amber-600 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px]"
               >
                 <Check className="h-4 w-4" /> Accept Time
               </button>
@@ -390,39 +390,33 @@ const LiveTracking = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+          className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
         >
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-primary/10 border border-border">
+            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[20px] bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50">
               {providerInfo.profileImage ? (
                 <img src={providerInfo.profileImage} alt={providerInfo.name} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-xl font-bold text-primary">
+                <div className="flex h-full w-full items-center justify-center text-xl font-black text-blue-600 dark:text-blue-500">
                   {providerInfo.name.substring(0, 2).toUpperCase()}
                 </div>
               )}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-card-foreground">{providerInfo.name}</h3>
-                <Shield className="h-4 w-4 text-primary" />
+                <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{providerInfo.name}</h3>
+                <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Star className="h-3.5 w-3.5 fill-secondary text-secondary" />
-                <span className="text-xs font-semibold text-card-foreground">{providerInfo.rating}</span>
-                <span className="text-xs text-muted-foreground">({providerInfo.jobs} jobs)</span>
+              <div className="flex items-center gap-2 mt-1">
+                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">{providerInfo.rating}</span>
+                <span className="text-[11px] font-bold text-slate-400">({providerInfo.jobs} jobs)</span>
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{providerInfo.tags || "Expert Professional • Verified Partner"}</p>
-              {providerInfo.mobile && (
-                  <p className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                      <Phone className="h-3 w-3 text-muted-foreground" />
-                      +91 {providerInfo.mobile}
-                  </p>
-              )}
+              <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{providerInfo.tags || "Expert Professional"}</p>
             </div>
-            <div className="flex flex-col gap-2">
-              <button onClick={() => { if(providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-muted"><Phone className="h-4 w-4 text-primary" /></button>
-              <button onClick={() => { if(providerInfo.mobile) window.location.href = `https://wa.me/${providerInfo.mobile.replace(/[^0-9]/g, '')}?text=Hi, I am contacting regarding my booking on RozSewa.` }} className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background hover:bg-muted"><MessageCircle className="h-4 w-4 text-primary" /></button>
+            <div className="flex flex-col gap-2 shrink-0">
+              <button onClick={() => { if(providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>
+              <button onClick={() => { if(providerInfo.mobile) window.location.href = `https://wa.me/${providerInfo.mobile.replace(/[^0-9]/g, '')}?text=Hi, I am contacting regarding my booking on RozSewa.` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
             </div>
           </div>
           {/* Cancel Button */}
@@ -430,18 +424,16 @@ const LiveTracking = () => {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleCancelBooking}
-              className="mt-4 w-full rounded-xl py-3 text-sm font-bold text-destructive border-2 border-destructive bg-transparent hover:bg-destructive/5 transition-colors"
+              className="mt-5 w-full rounded-xl py-3.5 text-[13px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-colors flex items-center justify-center gap-2"
             >
-              <div className="flex items-center justify-center gap-2">
-                <X className="h-5 w-5" />
-                Cancel Booking
-              </div>
+              <X className="h-4 w-4" />
+              Cancel Booking
             </motion.button>
           )}
         </motion.div>
 
         {/* Timeline */}
-        <section className="rounded-2xl border border-border bg-card p-5">
+        <section className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
           <h3 className="mb-5 text-sm font-bold text-card-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Order Status</h3>
           <div className="space-y-0">
             {steps.map((step, i) => (

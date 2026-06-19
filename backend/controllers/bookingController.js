@@ -375,7 +375,40 @@ const updateBookingStatusByProvider = async (req, res) => {
 
             if (req.body.paymentStatus) {
                 booking.paymentStatus = req.body.paymentStatus;
+
+                // Cash Payment Settlement: When provider confirms cash collected
+                // Credit providerPayout to Available Balance
+                if (req.body.paymentStatus === 'paid' && booking.paymentMode === 'after' && booking.providerPayout > 0) {
+                    try {
+                        const { Wallet, Transaction } = require('../models/Wallet');
+                        let wallet = await Wallet.findOne({ providerId: booking.providerId });
+                        if (!wallet) {
+                            wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
+                        }
+
+                        // Credit provider's share to Available Balance
+                        wallet.balance += booking.providerPayout;
+                        wallet.updatedAt = Date.now();
+                        await wallet.save();
+
+                        await Transaction.create({
+                            providerId: booking.providerId,
+                            title: `Cash Collected: ${booking.serviceName}`,
+                            amount: booking.providerPayout,
+                            type: 'credit',
+                            status: 'completed',
+                            bookingId: booking._id,
+                            description: `Cash payment collected from customer. Commission (₹${booking.adminCommission || 0}) already deducted separately.`
+                        });
+
+                        console.log(`[Cash Settlement] Provider ${booking.providerId} credited ₹${booking.providerPayout} for booking ${booking._id}`);
+                    } catch (walletErr) {
+                        console.error('[Cash Settlement] Wallet update failed:', walletErr.message);
+                        // Don't block the booking update
+                    }
+                }
             }
+
             if (req.body.extraStatus) {
                 booking.extraStatus = req.body.extraStatus;
             }

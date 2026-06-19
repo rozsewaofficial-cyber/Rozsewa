@@ -100,27 +100,33 @@ const SubcategoryPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-20 md:pb-0">
       <TopNav />
-      <main className="max-w-4xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted shrink-0">
-            <ArrowLeft className="h-5 w-5" />
-          </motion.button>
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-foreground truncate">{categoryName}</h1>
-            <p className="text-xs text-muted-foreground">{filtered.length} services available</p>
+      
+      {/* Gradient Header */}
+      <div className="relative pt-6 pb-12 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[3rem] shadow-sm mb-6">
+        <div className="max-w-4xl mx-auto flex flex-col gap-6">
+          <div className="flex items-center gap-4">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+              <ArrowLeft className="h-5 w-5" />
+            </motion.button>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white truncate">{categoryName}</h1>
+              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{filtered.length} services available</p>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <input type="text" placeholder={`Search in ${categoryName}...`} value={search} onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-full border-none bg-white dark:bg-slate-800 py-3.5 pl-12 pr-4 text-[13px] font-bold text-slate-900 dark:text-white shadow-[0_8px_30px_rgba(0,0,0,0.04)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-400" />
           </div>
         </div>
+      </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input type="text" placeholder={`Search in ${categoryName}...`} value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-2xl border border-border bg-card py-3.5 pl-11 pr-4 text-sm font-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground" />
-        </div>
+      <main className="max-w-4xl mx-auto px-5 sm:px-8 space-y-6">
 
         {/* Services Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

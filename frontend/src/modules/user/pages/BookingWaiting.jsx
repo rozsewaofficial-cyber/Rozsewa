@@ -62,43 +62,43 @@ const BookingWaiting = () => {
   }, [status]);
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="min-h-screen bg-gradient-to-br from-[#f0f9ff] via-[#e0f2fe] to-white dark:from-slate-900 dark:via-slate-900/80 dark:to-slate-950 pb-20 md:pb-0">
       <TopNav />
-      <main className="container max-w-2xl px-4 py-6 flex flex-col items-center justify-center min-h-[70vh] space-y-8">
+      <main className="container max-w-2xl px-5 py-6 flex flex-col items-center justify-center min-h-[75vh] space-y-8">
         <AnimatePresence mode="wait">
           {status === "waiting" && (
             <motion.div key="waiting" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="text-center space-y-6 w-full max-w-sm">
               {/* Pulsing Loader */}
-              <div className="relative mx-auto h-28 w-28">
+              <div className="relative mx-auto h-32 w-32">
                 <motion.div animate={{ scale: [1, 1.3, 1], opacity: [0.3, 0.1, 0.3] }} transition={{ repeat: Infinity, duration: 2 }}
-                  className="absolute inset-0 rounded-full bg-primary/20" />
+                  className="absolute inset-0 rounded-full bg-blue-500/20" />
                 <motion.div animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.2, 0.5] }} transition={{ repeat: Infinity, duration: 2, delay: 0.3 }}
-                  className="absolute inset-2 rounded-full bg-primary/30" />
-                <div className="absolute inset-4 flex items-center justify-center rounded-full bg-primary/10">
-                  <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                  className="absolute inset-2 rounded-full bg-blue-500/30" />
+                <div className="absolute inset-4 flex items-center justify-center rounded-full bg-blue-500/10 backdrop-blur-sm border border-blue-500/20 shadow-[0_8px_30px_rgba(59,130,246,0.2)]">
+                  <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-500 animate-spin" />
                 </div>
               </div>
 
               <div>
-                <h1 className="text-xl font-extrabold text-foreground">Finding a Provider...</h1>
-                <p className="mt-2 text-sm text-muted-foreground">Your booking request has been sent to nearby providers.</p>
+                <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Finding a Provider...</h1>
+                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">Your booking request has been sent to nearby professionals.</p>
               </div>
 
               {/* Countdown */}
-              <div className="rounded-2xl border border-border bg-card p-4">
-                <p className="text-xs text-muted-foreground">Estimated wait time</p>
-                <p className="text-3xl font-black text-primary mt-1">
+              <div className="rounded-[24px] border border-white/40 dark:border-slate-800/50 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Estimated Wait</p>
+                <p className="text-4xl font-black text-blue-600 dark:text-blue-500 mt-1">
                   00:{String(countdown).padStart(2, "0")}
                 </p>
               </div>
 
               {/* Booking Summary */}
-              <div className="rounded-2xl border border-border bg-card p-4 text-left space-y-2">
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Service</span><span className="font-semibold text-foreground text-right max-w-[60%]">{latestBooking?.service || "Service"}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Amount</span><span className="font-bold text-foreground">₹{latestBooking?.amount || 0}</span></div>
+              <div className="rounded-[24px] border border-white/40 dark:border-slate-800/50 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 text-left space-y-3 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+                <div className="flex justify-between items-center"><span className="text-[13px] font-bold text-slate-500 dark:text-slate-400">Service</span><span className="text-sm font-bold text-slate-900 dark:text-white text-right max-w-[60%] truncate">{latestBooking?.service || "Service"}</span></div>
+                <div className="flex justify-between items-center pt-3 border-t border-slate-200 dark:border-slate-800/50"><span className="text-[13px] font-bold text-slate-500 dark:text-slate-400">Amount</span><span className="text-lg font-black text-blue-600 dark:text-blue-500">₹{latestBooking?.amount || 0}</span></div>
               </div>
 
-              <button onClick={() => { navigate("/"); }} className="text-sm font-semibold text-destructive hover:underline">
+              <button onClick={() => { navigate("/"); }} className="text-[13px] font-bold text-rose-500 hover:text-rose-600 hover:underline transition-all">
                 Cancel Request
               </button>
             </motion.div>
@@ -107,28 +107,28 @@ const BookingWaiting = () => {
           {status === "accepted" && (
             <motion.div key="accepted" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-6 w-full max-w-sm">
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200 }}
-                className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-primary/10">
-                <CheckCircle2 className="h-14 w-14 text-primary" />
+                className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 shadow-[0_8px_30px_rgba(16,185,129,0.2)]">
+                <CheckCircle2 className="h-14 w-14 text-emerald-600 dark:text-emerald-500" />
               </motion.div>
               <div>
-                <h1 className="text-xl font-extrabold text-foreground">Provider Accepted! 🎉</h1>
-                <p className="mt-2 text-sm text-muted-foreground">A technician has accepted your booking and is getting ready.</p>
+                <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Provider Accepted! 🎉</h1>
+                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">A technician has accepted your booking and is getting ready.</p>
               </div>
               
               {/* Provider Card */}
-              <div className="rounded-2xl border border-border bg-card p-4 text-left">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">{(assignedProvider || "PRO").substring(0,2).toUpperCase()}</div>
-                  <div>
-                    <p className="font-bold text-foreground">{assignedProvider || "Ramesh Kumar"}</p>
-                    <p className="text-xs text-muted-foreground">⭐ 4.8 • Expert Professional</p>
+              <div className="rounded-[24px] border border-white/40 dark:border-slate-800/50 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 text-left shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-xl font-black text-blue-600 dark:text-blue-500">{(assignedProvider || "PRO").substring(0,2).toUpperCase()}</div>
+                  <div className="min-w-0">
+                    <p className="text-base font-bold text-slate-900 dark:text-white truncate">{assignedProvider || "Ramesh Kumar"}</p>
+                    <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">⭐ 4.8 • Expert Professional</p>
                   </div>
                 </div>
               </div>
 
               <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/")}
-                className="group w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground shadow-xl">
-                Track Booking <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                className="group w-full flex items-center justify-center gap-2 rounded-full bg-blue-600 py-4 text-sm font-bold tracking-wide text-white shadow-[0_8px_30px_rgba(59,130,246,0.3)] hover:bg-blue-700 transition-all">
+                Track Booking <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </motion.button>
             </motion.div>
           )}
@@ -136,20 +136,20 @@ const BookingWaiting = () => {
           {status === "rejected" && (
             <motion.div key="rejected" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center space-y-6 w-full max-w-sm">
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200 }}
-                className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-destructive/10">
-                <XCircle className="h-14 w-14 text-destructive" />
+                className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 shadow-[0_8px_30px_rgba(244,63,94,0.2)]">
+                <XCircle className="h-14 w-14 text-rose-600 dark:text-rose-500" />
               </motion.div>
               <div>
-                <h1 className="text-xl font-extrabold text-foreground">No Provider Available</h1>
-                <p className="mt-2 text-sm text-muted-foreground">We couldn't find a provider near you. Let us search again.</p>
+                <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">No Provider Available</h1>
+                <p className="mt-2 text-[13px] font-medium text-slate-500 dark:text-slate-400">We couldn't find a provider near you. Let us search again.</p>
               </div>
               <div className="flex gap-3">
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => { setStatus("waiting"); setCountdown(30); }}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-lg">
-                  <Search className="h-4 w-4" /> Find Another
+                  className="flex-1 flex items-center justify-center gap-2 rounded-full bg-blue-600 py-4 text-[13px] font-bold text-white shadow-[0_8px_30px_rgba(59,130,246,0.3)] hover:bg-blue-700 transition-all">
+                  <Search className="h-4 w-4" /> Try Again
                 </motion.button>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/")}
-                  className="flex-1 rounded-2xl border border-border py-3.5 text-sm font-bold text-foreground hover:bg-muted">
+                  className="flex-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-4 text-[13px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm">
                   Go Home
                 </motion.button>
               </div>
