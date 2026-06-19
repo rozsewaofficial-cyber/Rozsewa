@@ -39,7 +39,7 @@ const Offers = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-20 md:pb-8">
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         {/* Header */}
@@ -47,13 +47,13 @@ const Offers = () => {
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => navigate(-1)}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800"
           >
-            <ArrowLeft className="h-5 w-5 text-foreground" />
+            <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
           </motion.button>
           <div>
-            <h1 className="text-xl font-black text-foreground tracking-tight">Available Offers</h1>
-            <p className="text-xs font-medium text-muted-foreground mt-0.5">Save more on every booking</p>
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Available Offers</h1>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Save more on every booking</p>
           </div>
         </div>
 
@@ -61,15 +61,15 @@ const Offers = () => {
         <div className="space-y-4">
           {loading ? (
             <div className="flex justify-center py-20">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
             </div>
           ) : coupons.length === 0 ? (
             <div className="text-center py-12">
-              <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                <Tag className="h-8 w-8 text-muted-foreground/30" />
+              <div className="mx-auto w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                <Tag className="h-8 w-8 text-slate-400 dark:text-slate-500" />
               </div>
-              <p className="text-sm font-bold text-muted-foreground">No active offers right now.</p>
-              <p className="text-xs text-muted-foreground mt-1">Check back later for new deals!</p>
+              <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No active offers right now.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Check back later for new deals!</p>
             </div>
           ) : (
             coupons.map((coupon, idx) => (
@@ -78,11 +78,11 @@ const Offers = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.1 }}
-                className="relative overflow-hidden rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                className="relative overflow-hidden rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:shadow-md transition-shadow"
               >
                 {/* Decorative cutouts */}
-                <div className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border border-emerald-100 bg-background"></div>
-                <div className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border border-emerald-100 bg-background"></div>
+                <div className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"></div>
+                <div className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"></div>
 
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -92,11 +92,11 @@ const Offers = () => {
                       </div>
                       <span className="text-lg font-black text-emerald-600 tracking-tight">{coupon.discount} OFF</span>
                     </div>
-                    <h3 className="text-sm font-black text-foreground font-mono bg-muted/50 px-2 py-1 rounded w-fit">{coupon.code}</h3>
-                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white font-mono bg-slate-50 dark:bg-slate-900/50 px-2 py-1 rounded w-fit">{coupon.code}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
                       {coupon.description || `Get ${coupon.discount} discount on your order.`}
                     </p>
-                    <div className="flex items-center gap-1.5 mt-3 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5 mt-3 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                       <Clock className="h-3 w-3" /> Valid Till: {new Date(coupon.expiryDate).toLocaleDateString()}
                     </div>
                   </div>
@@ -104,9 +104,9 @@ const Offers = () => {
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleCopy(coupon.code)}
-                    className={`shrink-0 flex flex-col items-center justify-center gap-1.5 rounded-xl px-4 py-3 transition-all ${copiedCode === coupon.code
+                    className={`shrink-0 flex flex-col items-center justify-center gap-1.5 rounded-[16px] px-4 py-3 transition-all ${copiedCode === coupon.code
                       ? "bg-emerald-500 text-white"
-                      : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100"
                       }`}
                   >
                     {copiedCode === coupon.code ? (
@@ -121,14 +121,14 @@ const Offers = () => {
                 </div>
 
                 {/* Dashed line */}
-                <div className="mt-4 pt-4 border-t border-dashed border-emerald-100/50 flex items-center justify-between">
+                <div className="mt-4 pt-4 border-t border-dashed border-slate-200 dark:border-slate-800/50 flex items-center justify-between">
                   <p className="text-[10px] font-bold text-emerald-600/60 uppercase tracking-[0.2em]">Rozsewa EXCLUSIVE</p>
                   <button
                     onClick={() => {
                       localStorage.setItem("rozsewa_last_copied_coupon", coupon.code);
                       navigate("/checkout");
                     }}
-                    className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest"
+                    className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline uppercase tracking-widest"
                   >
                     Apply Now
                   </button>

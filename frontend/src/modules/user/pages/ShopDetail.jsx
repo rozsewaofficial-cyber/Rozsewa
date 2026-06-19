@@ -185,61 +185,68 @@ const ShopDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-0">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-28 md:pb-0 font-sans">
       <TopNav />
       {/* Hero Banner */}
-      <div className="relative h-56 sm:h-72 w-full bg-muted">
-        <img src={provider.image} alt={provider.name} className="h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+      <div className="relative h-72 sm:h-80 w-full bg-slate-900 rounded-b-[3rem] shadow-sm overflow-hidden mb-6">
+        <img src={provider.image} alt={provider.name} className="absolute inset-0 h-full w-full object-cover opacity-60" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+        
         <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
-          className="absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30">
+          className="absolute left-4 sm:left-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/40 shadow-sm transition-colors">
           <ArrowLeft className="h-5 w-5" />
         </motion.button>
-        <div className="absolute bottom-4 left-4 right-4">
-          <div className="flex items-end justify-between">
+
+        {/* Floating Info Box */}
+        <div className="absolute inset-x-4 sm:inset-x-8 bottom-6 z-20">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-black text-white">{provider.name}</h1>
-                {provider.verified && <BadgeCheck className="h-6 w-6 text-primary" />}
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">{provider.name}</h1>
+                {provider.verified && <BadgeCheck className="h-6 w-6 text-blue-400" />}
               </div>
-              <div className="mt-1.5 flex items-center gap-4 text-xs font-semibold text-white/90">
-                <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-1 text-amber-300 backdrop-blur-md"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" /> {provider.rating} ({provider.reviews})</span>
-                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 opacity-70" /> {provider.address}</span>
+              
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] font-bold text-slate-300">
+                <span className="flex items-center gap-1 rounded-[10px] bg-amber-500/20 px-3 py-1 text-amber-400 backdrop-blur-sm border border-amber-500/30">
+                  <Star className="h-3.5 w-3.5 fill-current" /> {provider.rating} ({provider.reviews})
+                </span>
+                <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-emerald-400" /> {provider.address}</span>
                 {!provider.isOnline && (
-                  <span className="flex items-center gap-1.5 rounded-full bg-rose-500 px-3 py-1 text-[10px] font-black uppercase text-white shadow-lg shadow-rose-500/20">
-                    <X className="h-3 w-3" /> Offline
+                  <span className="flex items-center gap-1 rounded-[10px] bg-rose-500/80 backdrop-blur-sm px-3 py-1 text-[11px] font-black uppercase text-white shadow-sm border border-rose-400/50">
+                    <X className="h-3.5 w-3.5" /> Offline
                   </span>
                 )}
               </div>
             </div>
-            <div className="flex gap-2">
-              <motion.button whileTap={{ scale: 0.9 }} onClick={handleCall} className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 backdrop-blur-md text-primary-foreground hover:bg-primary/40"><Phone className="h-4 w-4" /></motion.button>
-              <motion.button whileTap={{ scale: 0.9 }} onClick={handleChat} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/20 backdrop-blur-md text-emerald-400 hover:bg-emerald-500/40"><MessageCircle className="h-4 w-4" /></motion.button>
+
+            <div className="flex shrink-0 flex-col sm:flex-row gap-2">
+              <motion.button whileTap={{ scale: 0.9 }} onClick={handleCall} className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-blue-600/90 backdrop-blur-md border border-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-600/30 transition-all"><Phone className="h-5 w-5" /></motion.button>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={handleChat} className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-emerald-600/90 backdrop-blur-md border border-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-600/30 transition-all"><MessageCircle className="h-5 w-5" /></motion.button>
             </div>
           </div>
         </div>
       </div>
 
-      <main className="container max-w-2xl px-4 py-6 space-y-6">
+      <main className="container max-w-2xl px-4 sm:px-6 py-2 space-y-6">
         {/* Trust Badges */}
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2">
+        <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
           {provider.warranty && (
-            <div className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-50 dark:bg-emerald-900/10 px-3 py-2 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
-              <ShieldCheck className="h-3.5 w-3.5" /> {provider.warranty}
+            <div className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-2.5 text-[11px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest shadow-sm">
+              <ShieldCheck className="h-4 w-4" /> {provider.warranty}
             </div>
           )}
           {provider.qualifications.map(q => (
-            <div key={q} className="flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> {q}
+            <div key={q} className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-[11px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest shadow-sm">
+              <CheckCircle2 className="h-4 w-4 text-blue-500" /> {q}
             </div>
           ))}
         </div>
 
         {/* Tabs */}
-        <div className="flex rounded-xl bg-muted p-1">
+        <div className="flex rounded-[20px] bg-white dark:bg-slate-800 p-1.5 shadow-sm border border-slate-200 dark:border-slate-700">
           {[{ id: "services", label: "Services" }, { id: "reviews", label: "Reviews" }, { id: "about", label: "About" }].map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all ${tab === t.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+              className={`flex-1 rounded-[16px] py-3.5 text-[13px] font-black transition-all ${tab === t.id ? "bg-slate-100 dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" : "text-slate-500 hover:text-slate-700 dark:text-slate-400"}`}>
               {t.label}
             </button>
           ))}
@@ -248,42 +255,58 @@ const ShopDetail = () => {
         {/* Tab Content */}
         <AnimatePresence mode="wait">
           {tab === "services" && (
-            <motion.div key="services" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+            <motion.div key="services" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
 
-              {combosList.length > 0 && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-black italic tracking-tight text-slate-800 uppercase">Combo Deals <span className="text-primary text-[10px] bg-primary/10 px-2 py-0.5 rounded-full not-italic">SAVE BIG</span></h2>
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
+              {/* Service Filter Tabs */}
+              <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-full border border-slate-200 dark:border-slate-800 shadow-sm text-[13px] font-bold mb-2">
+                <button onClick={() => setServiceFilter('all')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === 'all' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>All Services</button>
+                <button onClick={() => setServiceFilter('home')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === 'home' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>Home Visit</button>
+                <button onClick={() => setServiceFilter('24x7')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === '24x7' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>24x7 Emergency</button>
+              </div>
+
+              {/* Combos Section */}
+              {serviceFilter === 'all' && combosList.length > 0 && (
+                <div className="space-y-3">
+                  <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest"><Package className="h-4 w-4 text-blue-500" /> Discounted Combos</h2>
+                  <div className="grid grid-cols-1 gap-3">
                     {combosList.map((combo) => (
-                      <motion.div key={combo.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
-                        className="relative rounded-3xl border border-emerald-500/20 bg-emerald-50/30 overflow-hidden flex flex-col sm:flex-row shadow-sm">
-                        {combo.image && (
-                          <div className="h-32 sm:h-auto sm:w-32 shrink-0">
-                            <img src={combo.image} className="h-full w-full object-cover" alt={combo.name} />
-                          </div>
-                        )}
-                        <div className="p-4 flex-1">
-                          <h3 className="text-sm font-black text-slate-900 leading-tight">{combo.name}</h3>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {combo.services.map(s => (
-                              <span key={s._id} className="text-[9px] font-bold text-emerald-700 bg-emerald-100/50 px-2 py-0.5 rounded-md">+ {s.name}</span>
-                            ))}
-                          </div>
-                          <div className="mt-3 flex items-center justify-between">
-                            <span className="text-base font-black text-emerald-600">₹{combo.price}</span>
-                            <div className="shrink-0">
-                              {cart[combo.id] ? (
-                                <div className="flex items-center gap-2 bg-white rounded-xl p-1 border border-emerald-500 shadow-sm">
-                                  <button onClick={() => removeFromCart(combo.id)} className="h-6 w-6 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><Minus className="h-3 w-3" /></button>
-                                  <span className="w-4 text-center text-xs font-bold">{cart[combo.id]}</span>
-                                  <button onClick={() => addToCart(combo.id)} className="h-6 w-6 flex items-center justify-center rounded-lg bg-emerald-600 text-white"><Plus className="h-3 w-3" /></button>
-                                </div>
-                              ) : (
-                                <button onClick={() => addToCart(combo.id)} className="px-5 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/20">ADD BUNDLE</button>
-                              )}
+                      <motion.div key={combo.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        className="relative rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                        <div className="p-3.5 flex gap-3.5">
+                          {combo.image && (
+                            <div className="h-20 w-20 shrink-0 rounded-[14px] overflow-hidden bg-slate-100 dark:bg-slate-900">
+                              <img src={combo.image} className="h-full w-full object-cover" alt={combo.name} />
                             </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-[14px] font-black text-slate-900 dark:text-white leading-tight truncate">{combo.name}</h3>
+                            {combo.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{combo.description}</p>}
+                            
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {combo.services && combo.services.length > 0 && combo.services.map((svc, i) => (
+                                <span key={i} className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800/50 px-2 py-0.5 rounded-[6px] uppercase tracking-widest">
+                                  + {svc.name || svc}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="px-4 pb-3.5 flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Combo Price</p>
+                            <p className="text-lg font-black text-slate-900 dark:text-white leading-none">₹{combo.price}</p>
+                          </div>
+                          <div className="shrink-0">
+                            {cart[combo.id] ? (
+                              <div className="flex items-center gap-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-1 border border-blue-200 dark:border-blue-800 shadow-sm">
+                                <button onClick={() => removeFromCart(combo.id)} className="h-7 w-7 flex items-center justify-center rounded-[8px] bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400"><Minus className="h-3.5 w-3.5" /></button>
+                                <span className="w-4 text-center text-[12px] font-bold text-slate-900 dark:text-white">{cart[combo.id]}</span>
+                                <button onClick={() => addToCart(combo.id)} className="h-7 w-7 flex items-center justify-center rounded-[8px] bg-blue-600 text-white"><Plus className="h-3.5 w-3.5" /></button>
+                              </div>
+                            ) : (
+                              <button onClick={() => addToCart(combo.id)} className="px-5 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[11px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm">ADD</button>
+                            )}
                           </div>
                         </div>
                       </motion.div>
@@ -292,132 +315,78 @@ const ShopDetail = () => {
                 </div>
               )}
 
-              <div className="flex bg-muted p-1 rounded-xl text-xs font-bold mb-4">
-                <button onClick={() => setServiceFilter('all')} className={`flex-1 py-2 rounded-lg transition-all ${serviceFilter === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>All Services</button>
-                <button onClick={() => setServiceFilter('home')} className={`flex-1 py-2 rounded-lg transition-all ${serviceFilter === 'home' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>Home Visit</button>
-                <button onClick={() => setServiceFilter('24x7')} className={`flex-1 py-2 rounded-lg transition-all ${serviceFilter === '24x7' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>24x7 Emergency</button>
-              </div>
-
-              {/* Combos Section */}
-              {serviceFilter === 'all' && combosList.length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-sm font-black text-foreground mb-3 flex items-center gap-2"><Package className="h-4 w-4 text-emerald-600" /> Discounted Combos</h2>
-                  <div className="space-y-4">
-                    {combosList.map((combo) => (
-                      <div key={combo.id} className="rounded-2xl border-2 border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 overflow-hidden">
-                        <div className="p-4">
-                          <div className="flex flex-col sm:flex-row gap-4">
-                            {combo.image && (
-                              <img src={combo.image} alt={combo.name} className="h-20 w-32 shrink-0 rounded-xl object-cover border border-emerald-500/20 bg-muted" />
-                            )}
-                            <div className="flex-1">
-                              <h3 className="text-base font-bold text-foreground">{combo.name}</h3>
-                              {combo.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{combo.description}</p>}
-                              
-                              <div className="mt-3 flex flex-wrap gap-1">
-                                {combo.services && combo.services.length > 0 && combo.services.map((svc, i) => (
-                                  <span key={i} className="text-[9px] font-bold uppercase tracking-wider bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded-md">
-                                    {svc.name || svc}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-4 pt-4 border-t border-emerald-500/10 flex items-center justify-between gap-4">
-                            <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 mb-0.5">Combo Price</p>
-                              <p className="text-lg font-black text-foreground">₹{combo.price}</p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {cart[combo.id] ? (
-                                <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-1">
-                                  <button onClick={() => removeFromCart(combo.id)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-background shadow-sm hover:bg-slate-50 transition-colors"><Minus className="h-4 w-4 text-primary" /></button>
-                                  <span className="w-4 text-center text-sm font-bold">{cart[combo.id]}</span>
-                                  <button onClick={() => addToCart(combo.id)} className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"><Plus className="h-4 w-4" /></button>
-                                </div>
-                              ) : (
-                                <button onClick={() => addToCart(combo.id)} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 text-xs font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-600/20">
-                                  ADD COMBO
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Individual Services Section */}
-              <h2 className="text-sm font-black text-foreground mt-6 mb-3">Individual Services</h2>
+              <div className="space-y-3">
+                <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Individual Services</h2>
 
-              {servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').length === 0 ? (
-                <p className="text-center text-sm font-semibold text-muted-foreground py-8">No services found for this filter.</p>
-              ) : (
-                servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').map((service, idx) => (
-                  <div key={service.id} className="rounded-2xl border border-border bg-card overflow-hidden">
-                    <div className="p-4" onClick={() => setExpandedPlan(expandedPlan === service.id ? null : service.id)}>
-                      <div className="flex items-start justify-between gap-4 cursor-pointer">
-                        <div className="flex flex-col sm:flex-row gap-4 flex-1">
-                          {(service.image || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=100&h=100&fit=crop") && (
-                            <img src={service.image || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=100&h=100&fit=crop"} alt={service.name} className="h-16 w-32 sm:h-20 sm:w-24 shrink-0 rounded-xl object-cover border border-border bg-muted shadow-sm" />
-                          )}
-                          <div className="flex-1">
-                            <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                              {service.name}
-                              {service.serviceType !== 'home' && (
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded border uppercase tracking-widest ${service.serviceType === '24x7' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-purple-50 text-purple-600 border-purple-200'}`}>
-                                  {service.serviceType}
-                                </span>
-                              )}
-                            </h3>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{service.duration}</span>
-                            </div>
-                            {service.description && <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{service.description}</p>}
-                          </div>
-                        </div>
-                        <ChevronDown className={`h-5 w-5 text-muted-foreground transition-transform ${expandedPlan === service.id ? "rotate-180" : ""}`} />
-                      </div>
-                    </div>
-
-                    <AnimatePresence>
-                      {(expandedPlan === service.id || servicesList.length === 1) && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-border bg-muted/20">
-                          {service.plans.map((plan, i) => (
-                            <div key={plan.id} className={`p-4 flex items-center justify-between gap-4 ${i !== service.plans.length - 1 ? "border-b border-border/50" : ""}`}>
-                              <div className="flex-1">
-                                <h4 className="text-sm font-bold text-foreground">{plan.name}</h4>
-                                <p className="text-xs text-muted-foreground mt-0.5">{plan.desc}</p>
-                                <p className="text-sm font-black text-primary mt-1">₹{plan.price}</p>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {cart[plan.id] ? (
-                                  <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-1">
-                                    <button onClick={() => removeFromCart(plan.id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-background shadow-sm"><Minus className="h-3.5 w-3.5 text-primary" /></button>
-                                    <span className="w-4 text-center text-sm font-bold">{cart[plan.id]}</span>
-                                    <button onClick={() => addToCart(plan.id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm"><Plus className="h-3.5 w-3.5" /></button>
-                                  </div>
-                                ) : (
-                                  <button onClick={() => addToCart(plan.id)} className="rounded-xl border border-primary/30 bg-primary/5 px-5 py-2 text-xs font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-all">
-                                    ADD
-                                  </button>
+                {servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').length === 0 ? (
+                  <p className="text-center text-sm font-medium text-slate-500 py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">No services found for this filter.</p>
+                ) : (
+                  servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').map((service, idx) => (
+                    <div key={service.id} className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm transition-all hover:border-blue-500/30">
+                      <div className="p-3.5" onClick={() => setExpandedPlan(expandedPlan === service.id ? null : service.id)}>
+                        <div className="flex items-start justify-between gap-3 cursor-pointer">
+                          <div className="flex gap-3 flex-1 min-w-0">
+                            {(service.image || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=100&h=100&fit=crop") && (
+                              <img src={service.image || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=100&h=100&fit=crop"} alt={service.name} className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-[14px] object-cover shadow-sm bg-slate-100 dark:bg-slate-900" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-[14px] font-bold text-slate-900 dark:text-white truncate">
+                                {service.name}
+                              </h3>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-[6px] tracking-widest uppercase">{service.duration}</span>
+                                {service.serviceType !== 'home' && (
+                                  <span className={`text-[9px] px-2 py-0.5 rounded-[6px] uppercase tracking-widest font-black ${service.serviceType === '24x7' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
+                                    {service.serviceType}
+                                  </span>
                                 )}
                               </div>
+                              {service.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{service.description}</p>}
                             </div>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                ))
-              )}
+                          </div>
+                          <div className={`shrink-0 h-7 w-7 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center transition-transform ${expandedPlan === service.id ? "rotate-180 bg-blue-50 dark:bg-blue-900/30 text-blue-600" : "text-slate-400"}`}>
+                            <ChevronDown className="h-4 w-4" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <AnimatePresence>
+                        {(expandedPlan === service.id || servicesList.length === 1) && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            {service.plans.map((plan, i) => (
+                              <div key={plan.id} className={`p-4 flex flex-row items-center justify-between gap-4 ${i !== service.plans.length - 1 ? "border-b border-slate-100 dark:border-slate-700" : ""}`}>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-[14px] font-bold text-slate-900 dark:text-white truncate">{plan.name}</h4>
+                                  <p className="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5">₹{plan.price}</p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {cart[plan.id] ? (
+                                    <div className="flex items-center gap-2 rounded-xl border border-blue-500 bg-blue-50 dark:bg-blue-900/30 p-1 shadow-sm">
+                                      <button onClick={() => removeFromCart(plan.id)} className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm"><Minus className="h-3.5 w-3.5" /></button>
+                                      <span className="w-4 text-center text-[12px] font-bold text-slate-900 dark:text-white">{cart[plan.id]}</span>
+                                      <button onClick={() => addToCart(plan.id)} className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-blue-600 text-white shadow-sm"><Plus className="h-3.5 w-3.5" /></button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => addToCart(plan.id)} className="rounded-[10px] border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-5 py-2 text-[11px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm">
+                                      ADD
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  ))
+                )}
+              </div>
             </motion.div>
           )}
 
           {tab === "reviews" && (
-            <motion.div key="reviews" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+            <motion.div key="reviews" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
               {(() => {
                 const totalReviews = reviewsList.length;
                 const avgRating = totalReviews > 0
@@ -425,23 +394,25 @@ const ShopDetail = () => {
                   : "0.0";
 
                 return (
-                  <div className="flex items-center gap-4 rounded-2xl border border-border bg-card p-5">
-                    <div className="text-center w-20">
-                      <p className="text-4xl font-black text-foreground">{avgRating}</p>
-                      <div className="flex justify-center gap-0.5 mt-1">
-                        {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`h-3 w-3 ${s <= Math.round(parseFloat(avgRating)) ? "fill-amber-400 text-amber-400" : "text-border"}`} />)}
+                  <div className="flex flex-col sm:flex-row items-center gap-6 rounded-[24px] border border-amber-200 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-slate-900 p-6 shadow-sm">
+                    <div className="text-center w-full sm:w-32 shrink-0 border-b sm:border-b-0 sm:border-r border-amber-200/50 dark:border-amber-900/50 pb-4 sm:pb-0 sm:pr-6">
+                      <p className="text-5xl font-black text-amber-500">{avgRating}</p>
+                      <div className="flex justify-center gap-1 mt-2">
+                        {[1, 2, 3, 4, 5].map(s => <Star key={s} className={`h-4 w-4 ${s <= Math.round(parseFloat(avgRating)) ? "fill-amber-400 text-amber-400" : "text-amber-200 dark:text-slate-700"}`} />)}
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1">{totalReviews} ratings</p>
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-amber-600/70 mt-2">{totalReviews} ratings</p>
                     </div>
-                    <div className="flex-1 space-y-1.5 border-l border-border pl-4">
+                    <div className="flex-1 w-full space-y-2">
                       {[5, 4, 3, 2, 1].map((n) => {
                         const starCount = reviewsList.filter(r => Math.round(r.rating) === n).length;
                         const percentage = totalReviews > 0 ? (starCount / totalReviews) * 100 : 0;
                         return (
-                          <div key={n} className="flex items-center gap-2">
-                            <span className="text-[10px] font-bold w-2">{n}</span><Star className="h-2 w-2 text-muted-foreground" />
-                            <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div className="h-full bg-amber-400" style={{ width: `${percentage}%` }} />
+                          <div key={n} className="flex items-center gap-3">
+                            <div className="flex items-center gap-1 w-8 shrink-0">
+                              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">{n}</span><Star className="h-3 w-3 text-amber-400 fill-amber-400" />
+                            </div>
+                            <div className="flex-1 h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                              <div className="h-full bg-amber-400 rounded-full" style={{ width: `${percentage}%` }} />
                             </div>
                           </div>
                         );
@@ -451,23 +422,24 @@ const ShopDetail = () => {
                 );
               })()}
 
-              <div className="space-y-3">
+              <div className="space-y-4">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Customer Reviews</h3>
                 {reviewsList.length === 0 ? (
-                  <p className="text-center text-sm font-semibold text-muted-foreground py-4">No reviews yet.</p>
+                  <p className="text-center text-sm font-medium text-slate-500 py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">No reviews yet.</p>
                 ) : reviewsList.map(r => (
-                  <div key={r._id} className="rounded-2xl border border-border bg-card p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{r.user.substring(0, 2)}</div>
+                  <div key={r._id} className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-sm font-bold text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">{r.user.substring(0, 2)}</div>
                         <div>
-                          <p className="text-sm font-bold text-foreground">{r.user}</p>
-                          <p className="text-[10px] text-muted-foreground">{new Date(r.date).toLocaleDateString()}</p>
+                          <p className="text-[14px] font-bold text-slate-900 dark:text-white">{r.user}</p>
+                          <p className="text-[11px] font-medium text-slate-500">{new Date(r.date).toLocaleDateString()}</p>
                         </div>
                       </div>
-                      <div className="flex gap-0.5">{[1, 2, 3, 4, 5].map(s => <Star key={s} className={`h-3 w-3 ${s <= r.rating ? "fill-amber-400 text-amber-400" : "text-border"}`} />)}</div>
+                      <div className="flex gap-0.5">{[1, 2, 3, 4, 5].map(s => <Star key={s} className={`h-3.5 w-3.5 ${s <= r.rating ? "fill-amber-400 text-amber-400" : "text-slate-200 dark:text-slate-700"}`} />)}</div>
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{r.review}</p>
-                    {r.service && <p className="text-[10px] font-bold text-primary mt-1">Service: {r.service}</p>}
+                    <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed">{r.review}</p>
+                    {r.service && <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mt-3 inline-block bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1 rounded-full border border-emerald-100 dark:border-emerald-800">Service: {r.service}</p>}
                   </div>
                 ))}
               </div>
@@ -476,37 +448,37 @@ const ShopDetail = () => {
 
           {tab === "about" && (
             <motion.div key="about" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <h3 className="text-sm font-bold text-foreground mb-2">About Provider</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{provider.about}</p>
+              <div className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-3">About Provider</h3>
+                <p className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed">{provider.about}</p>
               </div>
 
-              <div>
-                <h3 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2"><Camera className="h-4 w-4 text-primary" /> Previous Work</h3>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-4 flex items-center gap-2"><Camera className="h-5 w-5 text-blue-500" /> Previous Work</h3>
+                <div className="grid grid-cols-2 gap-4">
                   {provider.portfolio?.length > 0 ? (
                     provider.portfolio.map((p, i) => (
-                      <div key={i} className="col-span-2 grid grid-cols-2 gap-3">
+                      <div key={i} className="col-span-2 grid grid-cols-2 gap-4">
                         {p.before && (
-                          <div className="group relative rounded-2xl overflow-hidden aspect-video border border-border">
-                            <img src={p.before} className="w-full h-full object-cover" alt="Before" />
-                            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="text-[10px] font-bold text-white uppercase tracking-widest border border-white/50 px-2 py-1 rounded-full backdrop-blur-sm">Before</span>
+                          <div className="group relative rounded-2xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <img src={p.before} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Before" />
+                            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[10px] font-bold text-white uppercase tracking-widest border border-white/50 px-3 py-1.5 rounded-full backdrop-blur-sm">Before</span>
                             </div>
                           </div>
                         )}
                         {p.after && (
-                          <div className="group relative rounded-2xl overflow-hidden aspect-video border border-border">
-                            <img src={p.after} className="w-full h-full object-cover" alt="After" />
-                            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="text-[10px] font-bold text-white uppercase tracking-widest border border-white/50 px-2 py-1 rounded-full backdrop-blur-sm">After</span>
+                          <div className="group relative rounded-2xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-800 shadow-sm">
+                            <img src={p.after} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="After" />
+                            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-[10px] font-bold text-white uppercase tracking-widest border border-white/50 px-3 py-1.5 rounded-full backdrop-blur-sm">After</span>
                             </div>
                           </div>
                         )}
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground col-span-2 text-center py-4">No previous work uploaded yet.</p>
+                    <p className="text-[13px] font-medium text-slate-500 col-span-2 text-center py-6">No previous work uploaded yet.</p>
                   )}
                 </div>
               </div>
@@ -518,19 +490,19 @@ const ShopDetail = () => {
       {/* Cart Float */}
       <AnimatePresence>
         {cartCount > 0 && (
-          <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-20 left-0 right-0 z-40 p-4 md:bottom-4 flex justify-center pointer-events-none">
-            <div className="w-full max-w-2xl pointer-events-auto">
-              <div className="flex w-full items-center justify-between rounded-2xl bg-foreground px-6 py-4 shadow-2xl shadow-black/20 group">
+          <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-24 left-0 right-0 z-40 p-4 flex justify-center pointer-events-none">
+            <div className="w-full max-w-sm pointer-events-auto">
+              <div className="flex w-full items-center justify-between rounded-full bg-slate-900 px-6 py-3 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] border border-slate-700/50">
                 <div className="flex flex-col text-left">
-                  <span className="text-xs font-semibold text-background/70">{cartCount} items selected</span>
-                  <span className="text-lg font-black text-background">₹{cartTotal}</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{cartCount} item{cartCount > 1 ? 's' : ''}</span>
+                  <span className="text-base font-black text-white leading-tight">₹{cartTotal}</span>
                 </div>
                 <button
                   onClick={handleCheckout}
                   disabled={!provider.isOnline}
-                  className={`flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-black uppercase tracking-widest text-white shadow-xl transition-all ${!provider.isOnline ? 'bg-muted text-muted-foreground opacity-50 cursor-not-allowed' : 'bg-emerald-600 shadow-emerald-600/20 hover:bg-emerald-700 active:scale-95'}`}
+                  className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-bold tracking-wide transition-all ${!provider.isOnline ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}`}
                 >
-                  {!provider.isOnline ? 'Currently Offline' : 'Next'} <ArrowRight className="h-4 w-4" />
+                  {!provider.isOnline ? 'Offline' : 'Continue'} <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>

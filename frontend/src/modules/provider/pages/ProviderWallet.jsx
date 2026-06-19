@@ -215,12 +215,19 @@ const ProviderWallet = () => {
               <div className="relative z-10 flex-1 flex flex-col">
                 <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-[0.2em] mb-0.5">Available Balance</p>
                 <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-3xl font-black tracking-tighter">₹{balance.toLocaleString()}</span>
+                  <span className="text-3xl font-black tracking-tighter">₹{balance > 0 ? balance.toLocaleString() : '0'}</span>
                   <span className="text-emerald-300 text-xs font-bold">.00</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-emerald-200/80 font-semibold mb-4">
-                  <CheckCircle className="h-3 w-3" /> Earnings from bookings
+                <div className="flex items-center gap-1.5 text-[10px] text-emerald-200/80 font-semibold mb-2">
+                  <CheckCircle className="h-3 w-3" />
+                  {balance > 0 ? 'Net earnings after commission' : 'No earnings yet'}
                 </div>
+                {balance > 0 && (
+                  <div className="bg-white/10 rounded-xl px-3 py-2 mb-3">
+                    <p className="text-[10px] font-black text-emerald-100 uppercase tracking-widest">Wallet Balance</p>
+                    <p className="text-sm font-black text-white">₹{balance.toLocaleString()} ready to withdraw</p>
+                  </div>
+                )}
                 <div className="mt-auto">
                   <button
                     onClick={handleWithdraw}
@@ -244,12 +251,18 @@ const ProviderWallet = () => {
                   </span>
                   <span className="text-white/40 text-xs font-bold">.00</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-white/60 font-semibold mb-4">
+                <div className="flex items-center gap-1.5 text-[10px] text-white/60 font-semibold mb-2">
                   {balance < 0
                     ? <><span className="text-rose-200">⚠ Commission owed to admin</span></>
                     : <><CheckCircle className="h-3 w-3 text-emerald-400" /><span className="text-emerald-400">No dues pending</span></>
                   }
                 </div>
+                {balance < 0 && (
+                  <div className="bg-white/10 rounded-xl px-3 py-2 mb-3 border border-white/20">
+                    <p className="text-[10px] font-black text-rose-200 uppercase tracking-widest">⚠ Action Required</p>
+                    <p className="text-sm font-black text-white">Pay ₹{Math.abs(balance).toLocaleString()} to unlock bookings</p>
+                  </div>
+                )}
                 <div className="mt-auto">
                   <button
                     onClick={balance < 0 ? handlePayAdmin : undefined}
@@ -367,14 +380,20 @@ const ProviderWallet = () => {
                     <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${txn.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                       {txn.type === 'credit' ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-xs font-bold text-foreground">{txn.title}</p>
-                        {txn.description && (
-                          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${txn.description.includes('Free') ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40'}`}>
-                            {txn.description.includes('Free') ? 'Free Service' : 'Commission Applied'}
-                          </span>
-                        )}
+                        {(() => {
+                          const t = txn.title || '';
+                          const d = txn.description || '';
+                          if (t.includes('Cash Collected')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">💵 Cash</span>;
+                          if (t.includes('Commission Deducted')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">🏛 Commission</span>;
+                          if (t.includes('Service Earnings')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">💳 Online</span>;
+                          if (d.includes('Free') || t.includes('Free')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40">Free Service</span>;
+                          if (t.includes('Penalty')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">Penalty</span>;
+                          if (t.includes('Bonus')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">Bonus</span>;
+                          return null;
+                        })()}
                       </div>
                       <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{new Date(txn.createdAt).toLocaleDateString()} • {txn._id.slice(-6).toUpperCase()}</p>
                       {txn.description && <p className="text-[9px] text-muted-foreground mt-1 italic">{txn.description}</p>}

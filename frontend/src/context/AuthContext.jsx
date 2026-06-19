@@ -29,6 +29,14 @@ export const AuthProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
+  const [serviceMode, setServiceMode] = useState(() => {
+    return localStorage.getItem("rozsewa_service_mode") || "partner";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("rozsewa_service_mode", serviceMode);
+  }, [serviceMode]);
+
   const detectLocation = () => {
     return new Promise((resolve, reject) => {
       if (!("geolocation" in navigator)) {
@@ -259,6 +267,8 @@ export const AuthProvider = ({ children }) => {
     loginWithOTP,
     signup,
     logout,
+    serviceMode,
+    setServiceMode,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

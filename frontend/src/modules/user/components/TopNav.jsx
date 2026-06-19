@@ -7,8 +7,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { getUnreadCount } from "@/lib/notifications";
 
-const cities = ["Lucknow", "Delhi", "Mumbai", "Bangalore", "Pune", "Hyderabad", "Kolkata", "Chennai"];
-
 const navLinks = [
   { label: "Home", path: "/", icon: Home },
   { label: "Services", path: "/shops", icon: Store },
@@ -57,8 +55,6 @@ const TopNav = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    // Basic polling or event listening for unread count in a real app
-    // Here we'll just pull it on mount and when focus returns
     const updateCount = () => setUnreadCount(getUnreadCount("customer"));
     updateCount();
     window.addEventListener("focus", updateCount);
@@ -68,10 +64,9 @@ const TopNav = () => {
   const handleCitySelect = (selectedCity) => {
     setCity(selectedCity);
     localStorage.setItem("rozsewa_user_city", selectedCity);
-    // Clear GPS coordinates when city is manually selected to avoid cross-city issues
     localStorage.removeItem("rozsewa_user_location");
     setShowLocationModal(false);
-    window.location.reload(); // Refresh to re-fetch data with new city
+    window.location.reload(); 
   };
 
   const handleUseCurrentLocation = () => {
@@ -106,28 +101,36 @@ const TopNav = () => {
 
   return (
     <>
-      <motion.header initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="sticky top-0 z-50 glass border-b border-border/50">
-
+      <motion.header 
+        initial={{ y: -20, opacity: 0 }} 
+        animate={{ y: 0, opacity: 1 }} 
+        className="sticky top-0 z-50 bg-white/80 dark:bg-[#0B1120]/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 shadow-sm"
+      >
         {/* Desktop Navbar */}
         <div className="hidden md:block">
           <div className="max-w-7xl mx-auto px-6">
-            <div className="flex h-16 items-center gap-6">
+            <div className="flex h-[72px] items-center gap-6">
               <Link to="/" className="flex items-center shrink-0 mr-2">
-                <img src="/RozSewa.png" alt="RojSewa" className="h-7 w-auto object-contain" />
+                <img src="/RozSewa.png" alt="RojSewa" className="h-8 w-auto object-contain" />
               </Link>
 
-              <button onClick={() => setShowLocationModal(true)}
-                className="flex items-center gap-1.5 rounded-full border border-border bg-background/50 px-3 py-1.5 text-sm font-semibold hover:bg-muted hover:border-primary/30 group transition-all">
-                <MapPin className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                <span className="truncate max-w-[120px]">{city}</span>
-                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              <button 
+                onClick={() => setShowLocationModal(true)}
+                className="flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 text-[14px] font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all shadow-sm group"
+              >
+                <MapPin className="h-4 w-4 text-blue-600 group-hover:scale-110 transition-transform" />
+                <span className="truncate max-w-[140px]">{city}</span>
+                <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
               </button>
 
-              <nav className="flex items-center gap-1 ml-4">
+              <nav className="flex items-center gap-2 ml-4">
                 {navLinks.map((link) => (
                   <Link key={link.path} to={link.path}
-                    className={`relative px-4 py-2 text-sm font-black rounded-xl transition-all ${isActive(link.path) ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                      }`}>
+                    className={`relative px-4 py-2.5 text-[14px] font-black rounded-full transition-all ${
+                      isActive(link.path) 
+                      ? "text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" 
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}>
                     {link.label}
                   </Link>
                 ))}
@@ -136,26 +139,26 @@ const TopNav = () => {
               <div className="flex-1" />
 
               <div className="flex items-center gap-3">
-                <motion.button whileTap={{ scale: 0.9 }} onClick={toggleTheme} className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted hover:border-primary/30 transition-all">
-                  {isDark ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-foreground/80" />}
+                <motion.button 
+                  whileTap={{ scale: 0.9 }} 
+                  onClick={toggleTheme} 
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm"
+                >
+                  {isDark ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-slate-700" />}
                 </motion.button>
 
-                <Link to="/notifications" className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted hover:border-primary/30 transition-all">
-                  <Bell className="h-5 w-5 text-foreground/80" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-rose-500 text-[10px] font-black text-white">{unreadCount}</span>
-                  )}
-                </Link>
+                <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
 
-                <div className="h-6 w-px bg-border mx-1" />
-
-                <button onClick={handleProfileClick} className="flex items-center gap-2 rounded-full border border-border bg-background pl-1 pr-4 py-1 hover:bg-muted hover:border-primary/30 transition-all">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                    <User className="h-4 w-4 text-primary" />
+                <button 
+                  onClick={handleProfileClick} 
+                  className="flex items-center gap-3 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 pl-1.5 pr-5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm"
+                >
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/20">
+                    <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground leading-none">Account</span>
-                    <span className="text-sm font-bold text-foreground leading-none mt-0.5">{user ? (user.name || user.ownerName || "User").split(" ")[0] : "Login"}</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 leading-none">Account</span>
+                    <span className="text-[14px] font-bold text-slate-900 dark:text-white leading-none mt-1">{user ? (user.name || user.ownerName || "User").split(" ")[0] : "Login"}</span>
                   </div>
                 </button>
               </div>
@@ -164,25 +167,34 @@ const TopNav = () => {
         </div>
 
         {/* Mobile Navbar */}
-        <div className="md:hidden">
-          <div className="px-4 flex h-16 items-center justify-between">
+        <div className={`md:hidden ${location.pathname === '/' ? 'hidden' : ''}`}>
+          <div className="px-4 flex h-[68px] items-center justify-between">
             <Link to="/" className="flex items-center shrink-0">
               <img src="/RozSewa.png" alt="RojSewa" className="h-8 w-auto object-contain" />
             </Link>
 
-            <button onClick={() => setShowLocationModal(true)} className="flex items-center justify-center gap-1 rounded-full border border-border bg-background/50 px-3 py-1.5 text-xs font-bold transition-colors hover:bg-muted">
-              <MapPin className="h-4 w-4 text-primary" />
-              <span className="max-w-[80px] truncate">{city}</span>
-              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            <button 
+              onClick={() => setShowLocationModal(true)} 
+              className="flex items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3.5 py-2 text-[13px] font-bold text-slate-900 dark:text-white transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm"
+            >
+              <MapPin className="h-4 w-4 text-blue-600" />
+              <span className="max-w-[90px] truncate">{city}</span>
+              <ChevronDown className="h-3 w-3 text-slate-400" />
             </button>
 
             <div className="flex shrink-0 items-center gap-2">
-              <Link to="/notifications" className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background hover:bg-muted transition-colors">
-                <Bell className="h-[18px] w-[18px] text-foreground" />
-                {unreadCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-background bg-rose-500 text-[9px] font-bold text-white">{unreadCount}</span>}
-              </Link>
-              <button onClick={handleProfileClick} className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-primary/10 text-primary transition-colors hover:bg-primary/20">
-                <User className="h-[18px] w-[18px]" />
+              <motion.button 
+                whileTap={{ scale: 0.9 }} 
+                onClick={toggleTheme} 
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
+              >
+                {isDark ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-slate-700" />}
+              </motion.button>
+              <button 
+                onClick={handleProfileClick} 
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-100 dark:hover:bg-blue-500/30 shadow-sm"
+              >
+                <User className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -192,33 +204,53 @@ const TopNav = () => {
       {/* Location Selector Modal */}
       <AnimatePresence>
         {showLocationModal && (
-          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="w-full max-w-sm rounded-[2rem] bg-slate-900 p-8 shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-slate-700">
-              <div className="mb-8 flex items-center justify-between">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+            <motion.div 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }} 
+               exit={{ opacity: 0 }}
+               className="absolute inset-0"
+               onClick={() => setShowLocationModal(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, y: "100%" }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: "100%" }} 
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="relative w-full max-w-sm rounded-t-[32px] sm:rounded-[32px] bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-slate-800"
+            >
+              <div className="mb-6 flex items-center justify-between">
                 <div>
-                  <h3 className="text-2xl font-black text-white tracking-tight">Where are you?</h3>
-                  <p className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-widest">Select a city to check services</p>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Select Location</h3>
+                  <p className="text-[12px] font-bold text-slate-500 mt-1 uppercase tracking-widest">Find services near you</p>
                 </div>
-                <button onClick={() => setShowLocationModal(false)} className="rounded-full bg-slate-800 p-2 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                  <ChevronDown className="h-5 w-5 rotate-180" />
+                <button 
+                  onClick={() => setShowLocationModal(false)} 
+                  className="rounded-full bg-slate-100 dark:bg-slate-800 p-2.5 text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <ChevronDown className="h-5 w-5" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-2 gap-3">
                 {dynamicCities.map((c) => (
                   <button key={c} onClick={() => handleCitySelect(c)}
-                    className={`flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-bold transition-all ${city.includes(c) ? "border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-slate-700 bg-slate-800/50 text-slate-300 hover:border-slate-500 hover:bg-slate-800 hover:text-white"
-                      }`}>
-                    <MapPin className={`h-4 w-4 shrink-0 ${city.includes(c) ? "text-emerald-500" : "text-slate-500"}`} /> 
+                    className={`flex items-center gap-2.5 rounded-[16px] border-2 px-4 py-3.5 text-[14px] font-bold transition-all ${
+                      city.includes(c) 
+                      ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400" 
+                      : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}>
+                    <MapPin className={`h-4 w-4 shrink-0 ${city.includes(c) ? "text-blue-600 dark:text-blue-400" : "text-slate-400"}`} /> 
                     <span className="truncate">{c}</span>
                   </button>
                 ))}
               </div>
 
-              <button className="mt-8 w-full rounded-xl bg-white py-4 text-sm font-black text-slate-900 shadow-xl flex items-center justify-center gap-2 hover:bg-slate-100 transition-all active:scale-[0.98] group"
-                onClick={handleUseCurrentLocation}>
-                <MapPin className="h-5 w-5 fill-slate-900 text-white" />
+              <button 
+                className="mt-6 w-full rounded-[16px] bg-slate-900 dark:bg-white py-4 text-[14px] font-black tracking-wide text-white dark:text-slate-900 shadow-xl flex items-center justify-center gap-2 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all active:scale-[0.98]"
+                onClick={handleUseCurrentLocation}
+              >
+                <MapPin className="h-4 w-4" />
                 <span>Auto-Detect Location</span>
               </button>
             </motion.div>

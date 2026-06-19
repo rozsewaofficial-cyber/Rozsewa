@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Star, MapPin, BadgeCheck, Clock, Heart } from "lucide-react";
+import { motion } from "framer-motion";
+import { Heart, ArrowUpRight, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
@@ -17,7 +17,7 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
   }, [user, id]);
 
   const toggleFavorite = async (e) => {
-    e.stopPropagation(); // Prevent card click
+    e.stopPropagation();
     if (!user) {
       alert("Please login to add favorites");
       return;
@@ -38,57 +38,44 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
 
   return (
     <motion.div
-      whileHover={{ y: -6, scale: 1.02 }}
+      whileHover={{ y: -4 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => navigate(`/shop/${id}`)}
-      className="group cursor-pointer overflow-hidden rounded-2xl border border-border/50 bg-card shadow-sm transition-all duration-300 hover:shadow-xl hover:border-primary/20 flex flex-col relative"
+      className="group relative h-52 w-full overflow-hidden rounded-3xl cursor-pointer"
     >
-      {/* Image */}
-      <div className="relative h-28 sm:h-40 shrink-0 overflow-hidden bg-muted">
-        <img src={image} alt={name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-        
-        {/* Favorite Button */}
-        <motion.button
-          whileTap={{ scale: 0.8 }}
-          onClick={toggleFavorite}
-          className={`absolute right-2 top-2 z-10 flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full backdrop-blur-md transition-colors ${
-            isFavorite ? "bg-rose-500 text-white shadow-lg" : "bg-black/20 text-white hover:bg-black/40"
-          }`}
-        >
-          <Heart className={`h-4 w-4 sm:h-5 sm:w-5 ${isFavorite ? "fill-current" : ""}`} />
-        </motion.button>
+      <img src={image} alt={name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
+      
+      {/* Top Gradient for icons */}
+      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
 
-        {emergency && (
-          <span className="absolute left-3 top-3 rounded-md bg-rose-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold tracking-wide text-white shadow-sm border border-white/20">
-            24×7
-          </span>
-        )}
-        
-        {verified && (
-          <span className={`absolute left-3 flex items-center gap-1 rounded-md bg-emerald-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-bold tracking-wide text-white shadow-sm border border-white/20 ${emergency ? 'top-10' : 'top-3'}`}>
-            <BadgeCheck className="h-3 w-3" /> <span className="hidden sm:inline">Verified</span>
-          </span>
-        )}
+      {/* Favorite Button */}
+      <button
+        onClick={toggleFavorite}
+        className="absolute left-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-md text-white transition-colors hover:bg-white hover:text-rose-500"
+      >
+        <Heart className={`h-4 w-4 ${isFavorite ? "fill-rose-500 text-rose-500" : ""}`} />
+      </button>
+
+      {/* Action Arrow (Top Right) */}
+      <div className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-900 opacity-0 transform translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-lg">
+        <ArrowUpRight className="h-4 w-4" />
       </div>
-      {/* Info */}
-      <div className="flex flex-1 flex-col p-3 sm:p-4">
-        <h3 className="text-sm sm:text-base font-bold text-foreground truncate">{name}</h3>
-        <p className="mt-0.5 text-[11px] sm:text-xs font-medium text-muted-foreground truncate">{category}</p>
-        <div className="mt-2 sm:mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-1 bg-secondary/30 px-2 py-0.5 rounded-md">
-            <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-amber-500 text-amber-500" />
-            <span className="text-[11px] sm:text-xs font-bold text-foreground">{rating}</span>
-            <span className="text-[10px] sm:text-[11px] text-muted-foreground">({reviews})</span>
+
+      {/* Bottom Frosted Info Box */}
+      <div className="absolute inset-x-2 bottom-2 z-20 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-lg p-3 shadow-lg border border-white/40 dark:border-white/10 transition-transform duration-300 group-hover:-translate-y-1">
+        <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold uppercase tracking-wider">
+          <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+            <Zap className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+            <span>From ₹{price}</span>
           </div>
-          <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">
-            <MapPin className="h-3 w-3 shrink-0 text-slate-400" /> <span className="truncate">{distance}</span>
-          </div>
+          <span className="text-slate-400/50">•</span>
+          <span className="text-blue-600 dark:text-blue-400 truncate max-w-[80px]">{category}</span>
         </div>
-        <div className="mt-auto pt-3 flex items-center justify-between border-t border-border/50">
-          <span className="text-sm sm:text-base font-black text-emerald-600">₹{price}</span>
-          <span className="flex items-center gap-1 text-[10px] sm:text-xs font-medium text-muted-foreground shrink-0 bg-muted px-2 py-1 rounded-md">
-            <Clock className="h-3 w-3 text-slate-400" /> 30 min
-          </span>
+        <h3 className="text-sm font-black text-slate-900 dark:text-white truncate pr-6">{name}</h3>
+        
+        {/* Persistent Arrow button inside card bottom */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-100 dark:border-slate-700">
+          <ArrowUpRight className="h-4 w-4" />
         </div>
       </div>
     </motion.div>

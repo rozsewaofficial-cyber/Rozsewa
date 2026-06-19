@@ -432,40 +432,40 @@ const Checkout = () => {
   // ─── BOOKING CONFIRMED SCREEN ─────────────────────────────────
   if (bookingConfirmed) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans flex items-center justify-center px-4">
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md text-center space-y-6">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
             className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500/10">
             <Check className="h-12 w-12 text-emerald-500" />
           </motion.div>
           <div>
-            <h1 className="text-2xl font-black text-foreground">Request Sent! 📡</h1>
-            <p className="mt-2 text-sm font-medium text-muted-foreground leading-relaxed">
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white">Request Sent! 📡</h1>
+            <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
               We've sent your request to nearby providers. {paymentMode === "now" ? "Please check your alerts for a 'Pay Now' notification once a provider accepts your request." : "A provider will be assigned shortly."}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-5 space-y-3 text-left shadow-sm">
-            <div className="flex items-center justify-between pb-3 border-b border-border/50">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Booking ID</span>
+          <div className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3 text-left shadow-sm">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-700/50">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Booking ID</span>
               <button onClick={() => { navigator.clipboard.writeText(bookingId); toast({ title: "Copied!", description: bookingId }); }}
-                className="flex items-center gap-1.5 text-sm font-black text-primary hover:text-primary/80 transition-colors">
+                className="flex items-center gap-1.5 text-sm font-black text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:text-blue-400/80 transition-colors">
                 {bookingId} <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Date & Time</span>
-              <span className="text-sm font-black text-foreground">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Date & Time</span>
+              <span className="text-sm font-black text-slate-900 dark:text-white">
                 {isExpress ? "ASAP (Within 45m)" : `${selectedDate} • ${selectedTime}`}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Amount</span>
-              <span className="text-sm font-black text-primary">₹{total}</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Amount</span>
+              <span className="text-sm font-black text-blue-600 dark:text-blue-400">₹{total}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Payment</span>
-              <span className="text-sm font-black text-foreground">{paymentMode === "now" ? "Online (Wait for Acceptance)" : "Pay After Service"}</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Payment</span>
+              <span className="text-sm font-black text-slate-900 dark:text-white">{paymentMode === "now" ? "Online (Wait for Acceptance)" : "Pay After Service"}</span>
             </div>
           </div>
 
@@ -473,15 +473,15 @@ const Checkout = () => {
             <motion.button 
               whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }} 
               onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking", { replace: true })}
-              className={`flex-1 rounded-2xl py-4 text-sm font-black transition-all ${
+              className={`flex-1 rounded-[20px] py-4 text-sm font-black transition-all ${
                 currentBookingStatus !== 'pending' 
-                ? "bg-primary text-primary-foreground shadow-xl shadow-primary/20 hover:shadow-2xl" 
-                : "bg-muted text-muted-foreground cursor-not-allowed"
+                ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl" 
+                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
               }`}>
               {currentBookingStatus !== 'pending' ? "Track Booking" : "Waiting for Provider..."}
             </motion.button>
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/my-bookings", { replace: true })}
-              className="flex-1 rounded-2xl border-2 border-border py-4 text-sm font-extrabold text-foreground hover:bg-muted transition-colors">
+              className="flex-1 rounded-[20px] border-2 border-slate-200 dark:border-slate-700 py-4 text-sm font-extrabold text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">
               My Bookings
             </motion.button>
           </div>
@@ -492,17 +492,17 @@ const Checkout = () => {
 
   // ─── MAIN CHECKOUT ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background pb-28 md:pb-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-28 md:pb-8">
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted">
-            <ArrowLeft className="h-5 w-5 text-foreground" />
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800">
+            <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
           </motion.button>
           <div>
-            <h1 className="text-xl font-black text-foreground tracking-tight">Checkout</h1>
-            <p className="text-xs font-medium text-muted-foreground mt-0.5 line-clamp-1">{serviceNames}</p>
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Checkout</h1>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{serviceNames}</p>
           </div>
         </div>
 
@@ -510,25 +510,25 @@ const Checkout = () => {
         {EXPRESS_FEE > 0 && (
           <section className="grid grid-cols-2 gap-3">
             <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsExpress(false); }}
-              className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all ${!isExpress ? "border-emerald-500 bg-emerald-500/10 shadow-lg shadow-emerald-500/10" : "border-border bg-card hover:border-border/80"
+              className={`relative flex cursor-pointer flex-col p-4 rounded-[20px] border-2 transition-all overflow-hidden ${!isExpress ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300"
                 }`}>
               <div className="flex items-center justify-between mb-2">
-                <div className={`p-1.5 rounded-xl ${!isExpress ? "bg-emerald-500 text-white" : "bg-muted text-muted-foreground"}`}><Clock className="h-4 w-4" /></div>
-                {!isExpress && <Check className="h-4 w-4 text-emerald-500" />}
+                <div className={`p-2 rounded-[12px] ${!isExpress ? "bg-blue-500 text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-400"}`}><Clock className="h-4 w-4" /></div>
+                {!isExpress && <Check className="h-4 w-4 text-blue-600" />}
               </div>
-              <h3 className="text-sm font-black text-foreground">Standard Service</h3>
-              <p className="text-[10px] font-bold text-muted-foreground leading-tight mt-1">Book for a scheduled time</p>
+              <h3 className="text-[13px] font-black text-slate-900 dark:text-white">Standard Service</h3>
+              <p className="text-[10px] font-bold text-slate-500 leading-tight mt-1">Book for scheduled time</p>
             </motion.div>
 
             <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsExpress(true); }}
-              className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all ${isExpress ? "border-amber-500 bg-amber-500/10 shadow-lg shadow-amber-500/10" : "border-border bg-card hover:border-border/80"
+              className={`relative flex cursor-pointer flex-col p-4 rounded-[20px] border-2 transition-all overflow-hidden ${isExpress ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20 shadow-sm" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-300"
                 }`}>
               <div className="flex items-center justify-between mb-2">
-                <div className={`p-1.5 rounded-xl ${isExpress ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground"}`}><Zap className="h-4 w-4" /></div>
-                {isExpress && <Check className="h-4 w-4 text-amber-500" />}
+                <div className={`p-2 rounded-[12px] ${isExpress ? "bg-amber-500 text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-400"}`}><Zap className="h-4 w-4" /></div>
+                {isExpress && <Check className="h-4 w-4 text-amber-600" />}
               </div>
-              <h3 className="text-sm font-black text-foreground">Express Service</h3>
-              <p className="text-[10px] font-bold text-muted-foreground leading-tight mt-1">Get it done in 45 mins (+₹{EXPRESS_FEE})</p>
+              <h3 className="text-[13px] font-black text-slate-900 dark:text-white">Express Service</h3>
+              <p className="text-[10px] font-bold text-slate-500 leading-tight mt-1">In 45 mins (+₹{EXPRESS_FEE})</p>
             </motion.div>
           </section>
         )}
@@ -537,21 +537,21 @@ const Checkout = () => {
           <motion.div key="scheduling" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
             <section className={isExpress ? "opacity-40 grayscale-[0.5]" : ""}>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-primary" /> Select Date
+                <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-blue-500" /> Select Date
                 </h2>
                 {isExpress && (
-                  <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full uppercase">Not Required</span>
+                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-[6px] uppercase tracking-widest">Not Required</span>
                 )}
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
                 {dates.map((d) => (
                   <motion.button key={d.full} whileTap={{ scale: 0.93 }}
                     onClick={() => {
                       setSelectedDate(d.full);
                       setIsExpress(false);
                     }}
-                    className={`flex min-w-[72px] flex-col items-center justify-center rounded-2xl border-2 py-3 transition-all ${selectedDate === d.full ? "border-primary bg-primary shadow-md shadow-primary/20 text-primary-foreground" : "border-border bg-card text-foreground hover:bg-muted"
+                    className={`flex min-w-[72px] shrink-0 flex-col items-center justify-center rounded-[20px] border-2 py-3.5 transition-all ${selectedDate === d.full ? "border-blue-600 bg-blue-600 shadow-[0_8px_20px_rgba(37,99,235,0.2)] text-white" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-blue-300"
                       }`}>
                     <span className="text-[10px] font-bold uppercase opacity-80 mb-1">{d.day}</span>
                     <span className="text-xl font-black">{d.date}</span>
@@ -562,8 +562,8 @@ const Checkout = () => {
 
             <section>
               {availableSlots.length === 0 ? (
-                <div className="rounded-xl border border-border bg-muted p-4 text-center">
-                  <p className="text-sm font-bold text-muted-foreground">Provider is not available for booking on this date.</p>
+                <div className="rounded-[20px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-5 text-center shadow-inner">
+                  <p className="text-[13px] font-bold text-slate-500">Provider is not available for booking on this date.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
@@ -575,10 +575,10 @@ const Checkout = () => {
                         setSelectedTime(t);
                         setIsExpress(false);
                       }}
-                      className={`rounded-xl py-3 px-2 text-xs font-bold transition-all ${
+                      className={`rounded-[14px] py-3 px-2 text-[12px] font-bold transition-all border ${
                         selectedTime === t 
-                          ? "bg-primary text-primary-foreground shadow-md shadow-primary/20" 
-                          : "border border-border bg-card text-foreground hover:bg-muted"
+                          ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20" 
+                          : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-300"
                       }`}
                     >
                       {t}
@@ -591,65 +591,65 @@ const Checkout = () => {
         </AnimatePresence>
 
         {/* Address */}
-        <section className="rounded-2xl border border-border bg-card p-5">
+        <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2"><MapPin className="h-4 w-4 text-primary" /> Location</h3>
-            <button onClick={() => setShowAddressModal(true)} className="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/20 transition-colors">Change</button>
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Location</h3>
+            <button onClick={() => setShowAddressModal(true)} className="rounded-full bg-blue-50 dark:bg-blue-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors">Change</button>
           </div>
           {selectedAddress ? (
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-muted">
-                {selectedAddress.icon === "office" ? <Briefcase className="h-6 w-6 text-foreground" /> : <Home className="h-6 w-6 text-foreground" />}
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-slate-100 dark:bg-slate-800">
+                {selectedAddress.icon === "office" ? <Briefcase className="h-6 w-6 text-slate-900 dark:text-white" /> : <Home className="h-6 w-6 text-slate-900 dark:text-white" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-foreground">{selectedAddress.label}</p>
-                <p className="text-xs font-medium text-muted-foreground mt-0.5 leading-snug truncate">{selectedAddress.address}</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAddress.label}</p>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug truncate">{selectedAddress.address}</p>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowAddressModal(true)} className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-dashed border-border bg-muted/50 text-sm font-bold text-foreground hover:bg-muted transition-colors">
+            <button onClick={() => setShowAddressModal(true)} className="w-full flex items-center justify-center gap-2 py-4 rounded-[20px] border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">
               <Plus className="h-5 w-5" /> Add Delivery Address
             </button>
           )}
         </section>
 
         {/* Notes */}
-        <section className="rounded-2xl border border-border bg-card p-5">
-          <h3 className="mb-3 text-sm font-black uppercase tracking-wider text-muted-foreground">Service Notes / Instructions</h3>
+        <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+          <h3 className="mb-3 text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Service Notes / Instructions</h3>
           <textarea placeholder="Any special instructions for the provider..." rows={2} value={serviceNotes} onChange={(e) => setServiceNotes(e.target.value)}
-            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm font-medium placeholder:text-muted-foreground/60 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
+            className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm font-medium placeholder:text-slate-400 dark:text-slate-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all" />
         </section>
 
         <>
           {/* Coupon */}
-          <section className="relative rounded-2xl border border-border bg-card p-5">
+          <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-muted-foreground"><Tag className="h-4 w-4 text-emerald-500" /> Apply Promo</h3>
+              <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500"><Tag className="h-3.5 w-3.5 text-emerald-500" /> Apply Promo</h3>
               <button
                 onClick={() => navigate("/offers")}
-                className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline transition-all"
+                className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline transition-all"
               >
-                View All Offers
+                View Offers
               </button>
             </div>
             <div className="flex gap-2">
-              <input type="text" value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="Enter coupon code" disabled={couponApplied}
-                className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm font-bold uppercase tracking-wider placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 transition-all" />
+              <input type="text" value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="ENTER COUPON CODE" disabled={couponApplied}
+                className="flex-1 rounded-[14px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-[13px] font-black uppercase tracking-wider placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 transition-all" />
               <motion.button whileTap={{ scale: 0.95 }} onClick={applyCoupon} disabled={couponApplied || !coupon}
-                className="rounded-xl bg-emerald-500 px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all">
+                className="rounded-[14px] bg-[#82e2c0] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-[0_8px_20px_rgba(130,226,192,0.4)] disabled:opacity-50 transition-all hover:bg-[#68d8b1]">
                 {couponApplied ? "Applied ✓" : "Apply"}
               </motion.button>
             </div>
           </section>
 
           {/* Price Summary */}
-          <section className="rounded-2xl border border-border bg-card p-5 space-y-3">
-            <div className="flex justify-between text-sm"><span className="font-semibold text-muted-foreground">Subtotal</span><span className="font-black text-foreground">₹{subtotal}</span></div>
-            {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-foreground">₹{EXPRESS_FEE}</span></div>}
+          <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3">
+            <div className="flex justify-between text-sm"><span className="font-semibold text-slate-500 dark:text-slate-400">Subtotal</span><span className="font-black text-slate-900 dark:text-white">₹{subtotal}</span></div>
+            {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-slate-900 dark:text-white">₹{EXPRESS_FEE}</span></div>}
             {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Discount Applied</span><span className="font-black">-₹{discount}</span></div>}
-            <div className="border-t border-border pt-3 flex justify-between items-center">
-              <span className="text-sm font-black uppercase tracking-wider text-muted-foreground">Total To Pay</span>
-              <span className="text-xl font-black text-primary">₹{total}</span>
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
+              <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
+              <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{total}</span>
             </div>
           </section>
         </>
@@ -657,9 +657,9 @@ const Checkout = () => {
 
       {/* Bottom Bar */}
       {(availableSlots.length > 0 || isExpress) && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-t border-border p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-50 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-700 p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
           <motion.button whileTap={{ scale: 0.98 }} onClick={handleConfirmBooking} disabled={isProcessing}
-            className="flex w-full items-center justify-between rounded-2xl py-4 px-6 shadow-2xl transition-all bg-primary text-primary-foreground shadow-primary/30">
+            className="flex w-full items-center justify-between rounded-[20px] py-4 px-6 shadow-2xl transition-all bg-blue-600 text-white shadow-blue-600/30">
             <div className="flex flex-col items-start">
               <span className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
                 Grand Total
@@ -682,38 +682,38 @@ const Checkout = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/50 backdrop-blur-sm p-4">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="w-full max-w-md rounded-t-[32px] sm:rounded-3xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-              <div className="flex items-center justify-between border-b border-border bg-muted/30 p-5 shrink-0">
-                <h3 className="text-base font-black text-foreground">Select Address</h3>
-                <button onClick={() => { setShowAddressModal(false); setShowNewAddressForm(false); }} className="rounded-full p-2 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><X className="h-5 w-5" /></button>
+              className="w-full max-w-md rounded-t-[32px] sm:rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shrink-0">
+                <h3 className="text-base font-black text-slate-900 dark:text-white">Select Address</h3>
+                <button onClick={() => { setShowAddressModal(false); setShowNewAddressForm(false); }} className="rounded-full p-2 hover:bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white transition-colors"><X className="h-5 w-5" /></button>
               </div>
               <div className="p-5 space-y-3 overflow-y-auto">
                 {addresses.map(addr => (
                   <button key={addr.id} onClick={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
-                    className={`w-full flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all ${selectedAddress?.id === addr.id ? "border-primary bg-primary/5 shadow-md shadow-primary/5" : "border-border hover:bg-muted hover:border-border/80"
+                    className={`w-full flex items-center gap-4 rounded-[20px] border-2 p-4 text-left transition-all ${selectedAddress?.id === addr.id ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md shadow-blue-600/5" : "border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:bg-slate-800 hover:border-slate-200 dark:border-slate-700/80"
                       }`}>
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-muted/80">
-                      {addr.icon === "office" ? <Briefcase className="h-6 w-6 text-foreground" /> : <Home className="h-6 w-6 text-foreground" />}
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-slate-100 dark:bg-slate-800">
+                      {addr.icon === "office" ? <Briefcase className="h-6 w-6 text-slate-900 dark:text-white" /> : <Home className="h-6 w-6 text-slate-900 dark:text-white" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-black text-foreground">{addr.label}</p>
-                      <p className="text-xs font-medium text-muted-foreground truncate leading-relaxed">{addr.address}</p>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">{addr.label}</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate leading-relaxed">{addr.address}</p>
                     </div>
-                    {selectedAddress?.id === addr.id && <div className="rounded-full bg-primary/20 p-1"><Check className="h-4 w-4 text-primary shrink-0" /></div>}
+                    {selectedAddress?.id === addr.id && <div className="rounded-full bg-blue-100 dark:bg-blue-900/40 p-1"><Check className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" /></div>}
                   </button>
                 ))}
 
                 {!showNewAddressForm ? (
                   <button onClick={() => setShowNewAddressForm(true)}
-                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 text-sm font-bold text-primary hover:bg-primary/10 transition-colors mt-2">
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-[20px] border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-sm font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:bg-blue-900/30 transition-colors mt-2">
                     <Plus className="h-5 w-5" /> Add New Address
                   </button>
                 ) : (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-4 rounded-3xl border border-border bg-muted/30 p-5 mt-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground">New Address</h4>
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 mt-4">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">New Address</h4>
 
                     {isLoaded && (
-                      <div className="rounded-2xl overflow-hidden border border-border h-[180px] relative">
+                      <div className="rounded-[20px] overflow-hidden border border-slate-200 dark:border-slate-700 h-[180px] relative">
                         <GoogleMap
                           mapContainerStyle={{ width: '100%', height: '100%' }}
                           center={newAddress.location ? { lat: newAddress.location.coordinates[1], lng: newAddress.location.coordinates[0] } : center}
@@ -735,21 +735,21 @@ const Checkout = () => {
 
                     <input type="text" placeholder="Label (e.g. Home, Office)" value={newAddress.label}
                       onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
-                      className="w-full rounded-xl border border-border bg-background px-4 py-3.5 text-sm font-bold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" />
+                      className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3.5 text-sm font-bold focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all" />
                     <div className="relative">
                       <textarea rows={2} placeholder={isFetchingLocation ? "Detecting location..." : "Full address"} value={newAddress.address}
                         onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })} disabled={isFetchingLocation}
-                        className="w-full rounded-xl border border-border bg-background p-4 pr-12 text-sm font-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all disabled:opacity-70" />
+                        className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 pr-12 text-sm font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all disabled:opacity-70" />
                       <button type="button" onClick={handleDetectLocation}
-                        className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors" title="Detect location">
+                        className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors" title="Detect location">
                         <Navigation className={`h-4 w-4 ${isFetchingLocation ? "animate-pulse" : ""}`} />
                       </button>
                     </div>
                     <div className="flex gap-2 pt-2">
                       <button onClick={() => setShowNewAddressForm(false)}
-                        className="flex-1 rounded-xl border border-border bg-background py-3.5 text-xs font-bold uppercase tracking-wider text-foreground hover:bg-muted transition-colors">Cancel</button>
+                        className="flex-1 rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">Cancel</button>
                       <button onClick={handleSaveNewAddress}
-                        className="flex-1 rounded-xl bg-primary py-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:shadow-xl">Save</button>
+                        className="flex-1 rounded-[16px] bg-blue-600 py-3.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-blue-600/20 transition-all hover:shadow-xl">Save</button>
                     </div>
                   </motion.div>
                 )}

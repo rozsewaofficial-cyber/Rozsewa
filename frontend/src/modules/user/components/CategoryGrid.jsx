@@ -17,7 +17,7 @@ const defaultCategories = [
   { name: "Pandit", icon: "BookOpen", color: "bg-amber-50 text-amber-700" },
 ];
 
-const CategoryGrid = ({ showAll = true }) => {
+const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,69 +63,72 @@ const CategoryGrid = ({ showAll = true }) => {
   ];
 
   const displayList = showAll ? categories : categories.slice(0, 10);
+  const half = Math.ceil(displayList.length / 2);
+  const row1 = displayList.slice(0, half);
+  const row2 = displayList.slice(half);
 
   if (loading) return (
-    <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-10 gap-x-2 gap-y-6">
-      {[...Array(10)].map((_, i) => (
-        <div key={i} className="flex flex-col items-center gap-3 animate-pulse">
-          <div className="h-16 w-16 bg-white/5 rounded-2xl"></div>
-          <div className="h-2 w-12 bg-white/5 rounded"></div>
-        </div>
-      ))}
+    <div className="overflow-x-auto pb-4 snap-x scrollbar-hide -mx-1 px-1">
+      <div className="flex flex-col gap-4 w-max">
+        {[0, 1].map(rowIndex => (
+          <div key={rowIndex} className="flex gap-3 sm:gap-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex flex-col items-center gap-2 w-[85px] sm:w-[100px]">
+                <div className="w-14 h-14 bg-slate-200 dark:bg-slate-800 rounded-[16px] animate-pulse"></div>
+                <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse mt-1"></div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 
-  return (
-    <div className="grid grid-cols-3 min-[400px]:grid-cols-4 gap-x-2 gap-y-6 sm:gap-x-4 sm:gap-y-8 sm:grid-cols-5 lg:grid-cols-10">
-      {displayList.map((cat, i) => {
-        const theme = themes[i % themes.length];
-        return (
-          <motion.button
-            key={cat._id}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: i * 0.02 }}
-            whileHover={!cat.isComingSoon ? { y: -4, scale: 1.05 } : {}}
-            whileTap={!cat.isComingSoon ? { scale: 0.95 } : {}}
-            onClick={() => {
-              if (!cat.isComingSoon) {
-                navigate(`/shops?category=${encodeURIComponent(cat.name)}`);
-              }
-            }}
-            className={`group flex flex-col items-center gap-3 ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
-          >
-            <div className={`
-              relative flex h-14 w-14 sm:h-16 sm:w-16 lg:h-18 lg:w-18 items-center justify-center rounded-[1.25rem]
-              ${cat.image ? "bg-white p-0.5" : `${theme.bg} border ${theme.border}`}
-              transition-all duration-300 shadow-md ${!cat.isComingSoon ? `group-hover:shadow-xl ${theme.shadow}` : ""}
-              overflow-hidden backdrop-blur-md
-            `}>
-              {/* Gloss effect overlay */}
-              <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none z-10" />
-
-              {cat.isComingSoon && (
-                <div className="absolute inset-0 bg-black/50 z-20 flex items-center justify-center backdrop-blur-[1px]">
-                  <span className="bg-red-600 text-white text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shadow-xl -rotate-12">
-                    Soon
-                  </span>
-                </div>
-              )}
-
-              {cat.image ? (
-                <img src={cat.image} alt={cat.name} className={`h-full w-full object-cover rounded-[1.15rem] transition-transform duration-500 ${!cat.isComingSoon ? "group-hover:scale-110" : ""}`} />
-              ) : (
-                <div className={`${theme.icon} transition-transform duration-300 filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)] ${!cat.isComingSoon ? "group-hover:scale-110" : ""}`}>
-                  {getIcon(cat.icon)}
-                </div>
-              )}
+  const renderCategory = (cat, i) => {
+    const theme = themes[i % themes.length];
+    return (
+      <motion.button
+        key={cat._id}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: i * 0.05 }}
+        whileTap={!cat.isComingSoon ? { scale: 0.95 } : {}}
+        onClick={() => {
+          if (!cat.isComingSoon) {
+            navigate(`/shops?category=${encodeURIComponent(cat.name)}&mode=${mode}`);
+          }
+        }}
+        className={`group snap-start flex flex-col items-center text-center gap-2 w-[85px] sm:w-[100px] p-2 bg-transparent transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
+      >
+        <div className={`flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 shadow-sm ${theme.icon} mb-1 transition-transform group-hover:scale-110 group-hover:shadow-md group-hover:border-blue-500/30`}>
+          {cat.image ? (
+            <img src={cat.image} alt={cat.name} className="h-full w-full object-cover rounded-full p-0.5" />
+          ) : (
+            <div className="[&>svg]:w-6 [&>svg]:h-6">
+              {getIcon(cat.icon)}
             </div>
+          )}
+        </div>
 
-            <span className={`text-[10px] sm:text-xs font-bold tracking-tight text-center leading-tight line-clamp-2 px-1 transition-colors ${cat.isComingSoon ? "text-slate-500" : "text-slate-300 group-hover:text-white"}`}>
-              {cat.name}
-            </span>
-          </motion.button>
-        );
-      })}
+        <span className={`text-[11px] sm:text-[12px] font-bold leading-tight ${cat.isComingSoon ? "text-slate-500" : "text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white"}`}>
+          {cat.name}
+        </span>
+      </motion.button>
+    );
+  };
+
+  return (
+    <div className="overflow-x-auto pb-4 snap-x scrollbar-hide -mx-1 px-1">
+      <div className="flex flex-col gap-4 w-max">
+        <div className="flex gap-3 sm:gap-4">
+          {row1.map((cat, i) => renderCategory(cat, i))}
+        </div>
+        {row2.length > 0 && (
+          <div className="flex gap-3 sm:gap-4">
+            {row2.map((cat, i) => renderCategory(cat, half + i))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
