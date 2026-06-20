@@ -12,6 +12,7 @@ const getWallet = async (req, res) => {
 
         res.json({
             balance: wallet ? wallet.balance : 0,
+            availableBalance: wallet ? wallet.availableBalance : 0,
             transactions: transactions,
         });
     } catch (error) {

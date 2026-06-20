@@ -25,8 +25,8 @@ const requestWithdrawal = async (req, res) => {
 
         const wallet = await Wallet.findOne({ providerId: req.user._id });
 
-        if (!wallet || wallet.balance < amount) {
-            return res.status(400).json({ message: 'Insufficient balance.' });
+        if (!wallet || wallet.availableBalance < amount) {
+            return res.status(400).json({ message: 'Insufficient Available Balance.' });
         }
 
         // Create withdrawal request
@@ -58,8 +58,8 @@ const requestWithdrawal = async (req, res) => {
             console.log('Admin push notification failed (skipping):', err.message);
         }
 
-        // Deduct balance
-        wallet.balance -= amount;
+        // Deduct from availableBalance
+        wallet.availableBalance -= amount;
         await wallet.save();
 
         res.status(201).json({ message: 'Withdrawal request submitted successfully.', withdrawal });
@@ -102,11 +102,11 @@ const updateWithdrawalStatus = async (req, res) => {
         withdrawal.status = status;
         if (reason) withdrawal.reason = reason;
 
-        // If rejected, refund the money to wallet!
+        // If rejected, refund the money to availableBalance
         if (status === 'rejected') {
             const wallet = await Wallet.findOne({ providerId: withdrawal.providerId });
             if (wallet) {
-                wallet.balance += withdrawal.amount;
+                wallet.availableBalance += withdrawal.amount;
                 await wallet.save();
             }
         }

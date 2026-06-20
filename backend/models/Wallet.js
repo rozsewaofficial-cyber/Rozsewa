@@ -57,6 +57,10 @@ const walletSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    availableBalance: {
+        type: Number,
+        default: 0,
+    },
     updatedAt: {
         type: Date,
         default: Date.now,

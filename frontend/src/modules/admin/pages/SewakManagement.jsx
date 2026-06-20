@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Users, Plus, Search, Phone, Mail, Trash2, Building2,
     Briefcase, FileCheck, XCircle, Eye, EyeOff, Edit3, Loader2,
-    UserPlus, CheckCircle2, Shield, AlertCircle, X, Camera, Fingerprint
+    UserPlus, CheckCircle2, Shield, AlertCircle, X, Camera, Fingerprint, MapPin
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from "sonner";
@@ -29,12 +29,83 @@ const SewakManagement = () => {
     const [uploadingDoc, setUploadingDoc] = useState(null);
     const [categories, setCategories] = useState([]);
     const [editId, setEditId] = useState(null);
+    const [locationLoading, setLocationLoading] = useState(false);
+    const [ifscLoading, setIfscLoading] = useState(false);
 
     const [newSewak, setNewSewak] = useState({
         ownerName: '', email: '', mobile: '', password: '', confirmPassword: '',
         address: '', city: '', state: '', businessType: 'Internal Service',
         documents: [], bankDetails: { accountNumber: '', ifscCode: '', bankName: '', accountHolderName: '' }
     });
+
+    const fetchLiveLocation = () => {
+        if (!navigator.geolocation) {
+            toast.error("Geolocation is not supported by your browser");
+            return;
+        }
+
+        setLocationLoading(true);
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            try {
+                const { latitude, longitude } = position.coords;
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+                const data = await res.json();
+                
+                if (data && data.address) {
+                    const addr = data.address;
+                    const city = addr.city || addr.town || addr.village || addr.county || "";
+                    const state = addr.state || "";
+                    const fullAddress = data.display_name || "";
+
+                    setNewSewak(prev => ({
+                        ...prev,
+                        city: city,
+                        state: state,
+                        address: fullAddress
+                    }));
+                    toast.success("Location fetched successfully");
+                } else {
+                    toast.error("Could not fetch address details");
+                }
+            } catch (error) {
+                toast.error("Failed to fetch location details");
+            } finally {
+                setLocationLoading(false);
+            }
+        }, (error) => {
+            toast.error("Location permission denied or unavailable");
+            setLocationLoading(false);
+        });
+    };
+
+    const handleIfscChange = async (e) => {
+        const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        setNewSewak(prev => ({ ...prev, bankDetails: { ...prev.bankDetails, ifscCode: value } }));
+        
+        if (value.length === 11) {
+            setIfscLoading(true);
+            try {
+                const res = await fetch(`https://ifsc.razorpay.com/${value}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setNewSewak(prev => ({
+                        ...prev,
+                        bankDetails: {
+                            ...prev.bankDetails,
+                            bankName: data.BANK
+                        }
+                    }));
+                    toast.success(`Bank details fetched: ${data.BANK}, ${data.BRANCH}`);
+                } else {
+                    toast.error("Invalid IFSC Code");
+                }
+            } catch (error) {
+                toast.error("Failed to verify IFSC Code");
+            } finally {
+                setIfscLoading(false);
+            }
+        }
+    };
 
     useEffect(() => {
         fetchSewaks();
@@ -434,7 +505,13 @@ const SewakManagement = () => {
                                 </div>
 
                                 <div>
-                                    <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Building2 className="h-4 w-4"/> Location</h4>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className="text-xs font-black text-blue-600 uppercase tracking-widest flex items-center gap-2"><Building2 className="h-4 w-4"/> Location</h4>
+                                        <button type="button" onClick={fetchLiveLocation} disabled={locationLoading} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-[10px] font-bold text-blue-600 hover:bg-blue-100 transition-colors disabled:opacity-50">
+                                            {locationLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <MapPin className="h-3 w-3" />}
+                                            {locationLoading ? "Fetching..." : "Fetch Live Location"}
+                                        </button>
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <InputField label="Full Address">
                                             <input required type="text" value={newSewak.address} onChange={(e) => setNewSewak({ ...newSewak, address: e.target.value })} className={inputCls} placeholder="Complete address" />
@@ -469,9 +546,14 @@ const SewakManagement = () => {
                                                 className={inputCls} placeholder="Bank account no" />
                                         </InputField>
                                         <InputField label="IFSC Code">
-                                            <input required minLength={11} maxLength={11} type="text" value={newSewak.bankDetails.ifscCode}
-                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, ifscCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") } })}
-                                                className={`${inputCls} uppercase`} placeholder="11 digit code" />
+                                            <div className="relative">
+                                                <input required minLength={11} maxLength={11} type="text" value={newSewak.bankDetails.ifscCode}
+                                                    onChange={handleIfscChange}
+                                                    className={`${inputCls} uppercase ${ifscLoading ? 'pr-10' : ''}`} placeholder="11 digit code" />
+                                                {ifscLoading && (
+                                                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-600" />
+                                                )}
+                                            </div>
                                         </InputField>
                                     </div>
                                 </div>

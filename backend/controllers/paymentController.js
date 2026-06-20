@@ -14,7 +14,7 @@ const createOrder = async (req, res) => {
 
     try {
         const options = {
-            amount: amount * 100, // amount in smallest currency unit (paise)
+            amount: Math.round(amount * 100), // amount in smallest currency unit (paise)
             currency: currency || "INR",
             receipt: `receipt_${Date.now()}`,
         };
@@ -22,7 +22,8 @@ const createOrder = async (req, res) => {
         const order = await razorpay.orders.create(options);
         res.json(order);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error("Razorpay Error:", error);
+        res.status(500).json({ message: error.message, details: error });
     }
 };
 
@@ -125,6 +126,7 @@ const verifyWalletRecharge = async (req, res) => {
 
         const rechargeAmount = Number(amount);
         wallet.balance += rechargeAmount;
+        wallet.cashCommissionDues = Math.max(0, wallet.cashCommissionDues - rechargeAmount);
         await wallet.save();
 
         await Transaction.create({

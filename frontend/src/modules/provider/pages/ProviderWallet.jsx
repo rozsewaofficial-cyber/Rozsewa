@@ -9,6 +9,7 @@ import API from "@/lib/api";
 const ProviderWallet = () => {
   const { toast } = useToast();
   const [balance, setBalance] = useState(0);
+  const [availableBalance, setAvailableBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
   const [withdrawals, setWithdrawals] = useState([]);
   const [provider, setProvider] = useState(null);
@@ -42,6 +43,7 @@ const ProviderWallet = () => {
     try {
       const { data } = await API.get("/wallet");
       setBalance(data.balance);
+      setAvailableBalance(data.availableBalance || 0);
       setTransactions(data.transactions);
     } catch (err) {
       toast({ title: "Failed to load wallet", variant: "destructive" });
@@ -57,8 +59,8 @@ const ProviderWallet = () => {
   const [withdrawError, setWithdrawError] = useState("");
 
   const handleWithdraw = async () => {
-    if (balance <= 0) {
-      toast({ title: "Insufficient Balance", description: "You need a positive balance to request a withdrawal.", variant: "destructive" });
+    if (availableBalance <= 0) {
+      toast({ title: "Insufficient balance", description: "You need a positive balance to request a withdrawal.", variant: "destructive" });
       return;
     }
 
@@ -94,7 +96,7 @@ const ProviderWallet = () => {
   const handlePayAdmin = async () => {
     if (balance >= 0) return;
     const debtAmount = Math.abs(balance);
-    
+
     setIsProcessing(true);
     const res = await loadRazorpay();
 
@@ -153,8 +155,8 @@ const ProviderWallet = () => {
       setWithdrawError("Please enter a valid amount.");
       return;
     }
-    if (amount > balance) {
-      setWithdrawError(`Amount cannot exceed your balance of ₹${balance}.`);
+    if (amount > availableBalance) {
+      setWithdrawError(`Amount cannot exceed your balance of ₹${availableBalance}.`);
       return;
     }
     setWithdrawError("");
@@ -215,24 +217,24 @@ const ProviderWallet = () => {
               <div className="relative z-10 flex-1 flex flex-col">
                 <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-[0.2em] mb-0.5">Available Balance</p>
                 <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-3xl font-black tracking-tighter">₹{balance > 0 ? balance.toLocaleString() : '0'}</span>
+                  <span className="text-3xl font-black tracking-tighter">₹{availableBalance > 0 ? availableBalance.toLocaleString() : '0'}</span>
                   <span className="text-emerald-300 text-xs font-bold">.00</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-emerald-200/80 font-semibold mb-2">
                   <CheckCircle className="h-3 w-3" />
-                  {balance > 0 ? 'Net earnings after commission' : 'No earnings yet'}
+                  {availableBalance > 0 ? 'Net earnings after commission' : 'No earnings yet'}
                 </div>
-                {balance > 0 && (
+                {availableBalance > 0 && (
                   <div className="bg-white/10 rounded-xl px-3 py-2 mb-3">
-                    <p className="text-[10px] font-black text-emerald-100 uppercase tracking-widest">Wallet Balance</p>
-                    <p className="text-sm font-black text-white">₹{balance.toLocaleString()} ready to withdraw</p>
+                    <p className="text-[10px] font-black text-emerald-100 uppercase tracking-widest">Withdrawable</p>
+                    <p className="text-sm font-black text-white">₹{availableBalance.toLocaleString()} ready to withdraw</p>
                   </div>
                 )}
                 <div className="mt-auto">
                   <button
                     onClick={handleWithdraw}
-                    disabled={balance <= 0}
-                    className={`w-full py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${balance <= 0 ? 'bg-white/20 text-emerald-100/50 cursor-not-allowed' : 'bg-white text-emerald-900 shadow-md hover:bg-emerald-50 active:scale-95'}`}
+                    disabled={availableBalance <= 0}
+                    className={`w-full py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${availableBalance <= 0 ? 'bg-white/20 text-emerald-100/50 cursor-not-allowed' : 'bg-white text-emerald-900 shadow-md hover:bg-emerald-50 active:scale-95'}`}
                   >
                     Request Withdrawal
                   </button>
@@ -267,11 +269,10 @@ const ProviderWallet = () => {
                   <button
                     onClick={balance < 0 ? handlePayAdmin : undefined}
                     disabled={balance >= 0 || isProcessing}
-                    className={`w-full py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${
-                      balance < 0
+                    className={`w-full py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${balance < 0
                         ? 'bg-white text-rose-700 shadow-md hover:bg-rose-50 active:scale-95'
                         : 'bg-white/10 text-white/30 cursor-not-allowed'
-                    }`}
+                      }`}
                   >
                     {isProcessing ? 'Processing...' : balance < 0 ? 'Pay Admin Now' : 'All Clear'}
                   </button>
@@ -337,8 +338,8 @@ const ProviderWallet = () => {
                   <div key={req._id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-600' :
-                          req.status === 'rejected' ? 'bg-rose-50 text-rose-600' :
-                            'bg-amber-50 text-amber-600'
+                        req.status === 'rejected' ? 'bg-rose-50 text-rose-600' :
+                          'bg-amber-50 text-amber-600'
                         }`}>
                         <ArrowUpRight className="h-4 w-4" />
                       </div>
@@ -346,8 +347,8 @@ const ProviderWallet = () => {
                         <div className="flex items-center gap-2">
                           <p className="text-xs font-bold text-foreground">Withdrawal Request</p>
                           <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                              req.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
-                                'bg-amber-100 text-amber-700'
+                            req.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
+                              'bg-amber-100 text-amber-700'
                             }`}>
                             {req.status}
                           </span>
@@ -452,7 +453,7 @@ const ProviderWallet = () => {
 
             <form onSubmit={submitWithdrawal} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Amount (Max: ₹{balance})</label>
+                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Amount (Max: ₹{availableBalance})</label>
                 <input required type="number" min="1" value={withdrawAmount}
                   onChange={e => { const v = e.target.value; if (v === "" || parseFloat(v) > 0) { setWithdrawAmount(v); setWithdrawError(""); } }}
                   onKeyDown={e => { if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault(); }}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, ShieldCheck, Mail, Lock, Loader2 } from "lucide-react";
+import { ArrowRight, ShieldCheck, Mail, Lock, Loader2, LayoutDashboard } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -52,94 +52,112 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#fdfdfd] px-4 py-8 md:py-16">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center space-y-4">
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="mx-auto flex h-20 w-40 items-center justify-center rounded-2xl bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
-          >
-            <img src="/RozSewa.png" alt="RozSewa Logo" className="h-full w-full object-contain" />
-          </motion.div>
-          <div className="space-y-1">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Admin Terminal</h2>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Authorized Access Only</p>
+    <div className="flex min-h-[100dvh] bg-slate-50">
+      {/* Left side - Branding (Hidden on mobile) */}
+      <div className="hidden lg:flex w-1/2 bg-slate-900 relative overflow-hidden flex-col justify-between p-12">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/40 to-slate-900 z-0" />
+        
+        {/* Decorative Grid */}
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] opacity-10 z-0" />
+
+        <div className="relative z-10">
+          <div className="bg-white p-3 rounded-2xl inline-block mb-8">
+            <img src="/RozSewa.png" alt="RozSewa" className="h-8 object-contain" />
           </div>
+          <h1 className="text-4xl lg:text-5xl font-bold text-white tracking-tight leading-tight mb-6">
+            Enterprise <br />
+            <span className="text-emerald-400">Management</span> Portal
+          </h1>
+          <p className="text-slate-400 text-lg max-w-md leading-relaxed">
+            Secure, centralized control for the RozSewa platform. Oversee providers, manage finances, and orchestrate service delivery with enterprise-grade tools.
+          </p>
         </div>
 
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="relative rounded-[2rem] border border-slate-100 bg-white p-8 md:p-10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.05)] overflow-hidden"
-        >
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Email Terminal</label>
-                <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none placeholder:text-slate-300"
-                    placeholder="admin@rozsewa.com"
-                  />
-                </div>
-              </div>
+        <div className="relative z-10 flex items-center gap-3 text-emerald-400/80 text-sm font-medium">
+          <ShieldCheck className="h-5 w-5" />
+          SOC2 Type II Compliant & End-to-End Encrypted
+        </div>
+      </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Secure Key</label>
-                <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-3.5 pl-11 pr-5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none placeholder:text-slate-300"
-                    placeholder="••••••••"
-                  />
-                </div>
+      {/* Right side - Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-8 relative">
+        <div className="w-full max-w-[420px] space-y-8">
+          
+          <div className="lg:hidden text-center mb-8">
+            <div className="bg-white p-3 rounded-2xl inline-block shadow-sm border border-slate-100 mb-6">
+              <img src="/RozSewa.png" alt="RozSewa" className="h-8 object-contain" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-900">Admin Login</h2>
+            <p className="text-slate-500 mt-2">Sign in to your enterprise dashboard</p>
+          </div>
+
+          <div className="hidden lg:block space-y-2 mb-8">
+            <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Welcome back</h2>
+            <p className="text-slate-500">Please enter your admin credentials to continue.</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-slate-700">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all font-medium"
+                  placeholder="admin@rozsewa.com"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-700">Password</label>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all font-medium"
+                  placeholder="••••••••"
+                />
               </div>
             </div>
 
             <div className="pt-2">
-              <motion.button
-                whileTap={{ scale: 0.98 }}
+              <button
                 disabled={isLoading}
                 type="submit"
-                className="w-full h-14 rounded-xl bg-slate-950 text-white font-bold transition-all hover:bg-slate-900 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3 group"
+                className="w-full h-12 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <>
-                    Initialize Admin Session
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    Sign In to Dashboard
+                    <ArrowRight className="h-4 w-4" />
                   </>
                 )}
-              </motion.button>
+              </button>
             </div>
           </form>
 
-          <div className="mt-8 border-t border-slate-50 pt-6">
-            <div className="flex flex-col items-center gap-1.5 opacity-40">
-              <ShieldCheck className="h-4 w-4 text-emerald-600" />
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
-                RozSewa Infrastructure v3.0<br />End-to-End Encryption Enabled
-              </p>
-            </div>
+          <div className="pt-8">
+            <Link 
+              to="/provider/login" 
+              className="group flex items-center justify-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Not an admin? Switch to Provider Portal
+            </Link>
           </div>
-        </motion.div>
 
-        <p className="text-center">
-          <Link to="/provider/login" className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-emerald-600 transition-colors">
-            Switch to Provider Portal
-          </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

@@ -387,7 +387,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                         }
 
                         // Credit provider's share to Available Balance
-                        wallet.balance += booking.providerPayout;
+                        wallet.availableBalance += booking.providerPayout;
                         wallet.updatedAt = Date.now();
                         await wallet.save();
 
@@ -778,14 +778,14 @@ const verifyEndOTP = async (req, res) => {
                 let transactionTitle = '';
 
                 if (booking.paymentMode !== 'now') {
-                    // Provider collected cash, deduct commission
+                    // Provider collected cash, deduct commission from balance (dues)
                     wallet.balance -= adminCommission;
                     transactionAmount = adminCommission;
                     transactionType = 'debit';
                     transactionTitle = `Commission Deducted: ${booking.serviceName}`;
                 } else {
-                    // Online payment to admin, credit provider payout
-                    wallet.balance += providerPayout;
+                    // Online payment to admin, credit provider payout to availableBalance (withdrawable)
+                    wallet.availableBalance += providerPayout;
                     transactionAmount = providerPayout;
                     transactionType = 'credit';
                     transactionTitle = `Service Earnings: ${booking.serviceName}`;
@@ -1095,7 +1095,7 @@ const rejectSchedule = async (req, res) => {
 
         const providerId = booking.proposedSchedule.providerId;
         booking.proposedSchedule.status = 'rejected';
-        
+
         await booking.save();
 
         // Notify Provider

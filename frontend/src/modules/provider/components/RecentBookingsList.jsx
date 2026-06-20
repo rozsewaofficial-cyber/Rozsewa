@@ -55,7 +55,7 @@ const RecentBookingsList = () => {
     let newStatus = 'pending';
     if (action === 'accept') newStatus = 'confirmed';
     if (action === 'reject') newStatus = 'cancelled';
-    if (action === 'complete') newStatus = 'completed';
+    if (action === 'complete' || action === 'completed') newStatus = 'completed';
     if (action === 'on_the_way') newStatus = 'on_the_way';
 
     try {
