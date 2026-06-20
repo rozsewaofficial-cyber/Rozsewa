@@ -48,7 +48,7 @@ export const adminSidebarLinks = [
   { path: "/admin/settings/cash-limits", label: "Cash Limits", icon: CreditCard },
 ];
 
-const AdminSidebar = () => {
+const AdminSidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -77,7 +77,17 @@ const AdminSidebar = () => {
   };
 
     return (
-    <aside className="hidden md:flex h-screen w-68 flex-col border-r border-slate-800 bg-[#0B1120] sticky top-0 py-6 transition-colors duration-300">
+      <>
+        {/* Mobile Overlay */}
+        {isOpen && (
+          <div 
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+            onClick={() => setIsOpen(false)}
+          />
+        )}
+        
+        {/* Sidebar */}
+        <aside className={`fixed inset-y-0 left-0 z-50 h-screen w-68 flex-col border-r border-slate-800 bg-[#0B1120] py-6 transition-transform duration-300 md:sticky md:top-0 md:flex ${isOpen ? "translate-x-0 flex" : "-translate-x-full hidden md:translate-x-0"}`}>
       <div className="px-6 mb-8 mt-2">
         <Link to="/admin" className="flex items-center gap-3 group">
           <div className="relative shrink-0">
@@ -98,6 +108,7 @@ const AdminSidebar = () => {
             <Link
               key={link.path}
               to={link.path}
+              onClick={() => setIsOpen(false)}
               className={`flex items-center gap-3 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all duration-200 ${isActive
                 ? "bg-blue-600 text-white shadow-lg border border-transparent"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
@@ -127,6 +138,7 @@ const AdminSidebar = () => {
             
             <Link
               to="/admin/audit-logs"
+              onClick={() => setIsOpen(false)}
               className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/audit-logs"
                 ? "bg-blue-500/10 text-blue-400 shadow-sm"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-blue-400"
@@ -138,6 +150,7 @@ const AdminSidebar = () => {
 
             <Link
               to="/admin/sewak-incentives"
+              onClick={() => setIsOpen(false)}
               className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/sewak-incentives"
                 ? "bg-emerald-500/10 text-emerald-400 shadow-sm"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-emerald-400"
@@ -149,6 +162,7 @@ const AdminSidebar = () => {
 
             <Link
               to="/admin/night-charge"
+              onClick={() => setIsOpen(false)}
               className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-black transition-all ${location.pathname === "/admin/night-charge"
                 ? "bg-indigo-500/10 text-indigo-400 shadow-sm"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-indigo-400"
@@ -194,6 +208,7 @@ const AdminSidebar = () => {
         onSuccess={() => navigate("/admin/super")}
       />
     </aside>
+    </>
   );
 };
 

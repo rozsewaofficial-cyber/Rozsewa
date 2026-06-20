@@ -10,6 +10,7 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [title, setTitle] = useState("Dashboard");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const isAdmin = role === 'admin' || role === 'superadmin' || role === 'supervisor';
@@ -42,9 +43,9 @@ const AdminLayout = () => {
 
   return (
     <div className="flex min-h-screen bg-[#f1f7fe] text-gray-900 font-sans light selection:bg-blue-200">
-      <AdminSidebar />
+      <AdminSidebar isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <AdminTopNav title={title} />
+        <AdminTopNav title={title} toggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
         <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
           <Outlet context={{ setTitle }} />
         </main>
