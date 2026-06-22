@@ -11,7 +11,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
   const location = useLocation();
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [hasUnread, setHasUnread] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -21,14 +21,22 @@ const ProviderTopNav = ({ title, showBack = false }) => {
 
   useEffect(() => {
     if (!user) return;
-    const checkUnread = async () => {
+    const fetchUnread = async () => {
       try {
-        const { data } = await API.get("/notifications");
-        setHasUnread((data || []).some(n => !n.read));
+        const { data } = await API.get("/notifications/unread-count");
+        setUnreadCount(data?.unreadCount || 0);
       } catch {}
     };
-    checkUnread();
-  }, [user, location.pathname]); // re-check whenever page changes
+    fetchUnread();
+
+    const handleNewNotif = () => setUnreadCount(prev => prev + 1);
+    window.addEventListener('NEW_NOTIFICATION', handleNewNotif);
+    window.addEventListener('focus', fetchUnread);
+    return () => {
+      window.removeEventListener('NEW_NOTIFICATION', handleNewNotif);
+      window.removeEventListener('focus', fetchUnread);
+    };
+  }, [user, location.pathname]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/10 bg-white dark:bg-slate-950/80 backdrop-blur-md">
@@ -75,7 +83,11 @@ const ProviderTopNav = ({ title, showBack = false }) => {
               {!((user?.role === 'sewak' || user?.providerCategory === 'sewak') ? !user?.kycVerified : user?.status !== 'verified') && (
                 <Link to="/provider/notifications" className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
                   <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                  {hasUnread && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900"></span>}
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </Link>
               )}
 

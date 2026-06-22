@@ -83,4 +83,58 @@ async function sendNotificationToUser(userId, userRole, payload) {
     }
 }
 
-module.exports = { sendNotificationToUser };
+/**
+ * Unified notification handler:
+ * 1. Saves to Database (Notification collection)
+ * 2. Emits real-time via Socket.io
+ * 3. Sends FCM Push Notification
+ */
+async function notifyUser({ userId, userRole, title, message, type = 'system', data = {}, bookingId = null }) {
+    try {
+        const Notification = require('../models/Notification');
+        const { emitToUser, emitToProvider } = require('./socket');
+
+        // 1. Create DB Record
+        const notificationData = {
+            recipientId: userId,
+            recipientModel: userRole === 'provider' ? 'Provider' : 'User',
+            title,
+            message,
+            type,
+        };
+        if (bookingId) notificationData.bookingId = bookingId;
+
+        const newNotification = await Notification.create(notificationData);
+
+        // 2. Emit Socket Event
+        const socketPayload = {
+            _id: newNotification._id,
+            title,
+            message,
+            type,
+            bookingId,
+            createdAt: newNotification.createdAt,
+            isRead: false,
+            ...data
+        };
+
+        if (userRole === 'provider') {
+            emitToProvider(userId, 'NEW_NOTIFICATION', socketPayload);
+        } else {
+            emitToUser(userId, 'NEW_NOTIFICATION', socketPayload);
+        }
+
+        // 3. Send FCM Push Notification
+        await sendNotificationToUser(userId, userRole, {
+            title,
+            body: message,
+            data: { type, bookingId: bookingId ? bookingId.toString() : '', ...data }
+        });
+
+        return newNotification;
+    } catch (err) {
+        console.error('Error in notifyUser:', err);
+    }
+}
+
+module.exports = { sendNotificationToUser, notifyUser };

@@ -43,7 +43,21 @@ const verifyPayment = async (req, res) => {
         // If bookingId is provided, update the booking status
         if (bookingId) {
             const Booking = require('../models/Booking');
-            await Booking.findByIdAndUpdate(bookingId, { paymentStatus: 'paid' });
+            const booking = await Booking.findById(bookingId);
+            if (booking) {
+                booking.paymentStatus = 'paid';
+                await booking.save();
+
+                const { notifyUser } = require('../config/notificationService');
+                await notifyUser({
+                    userId: booking.userId,
+                    userRole: 'user',
+                    title: 'Payment Successful',
+                    message: `Payment of ₹${booking.totalAmount} for ${booking.serviceName} was successful.`,
+                    type: 'payment',
+                    bookingId: booking._id
+                });
+            }
         }
         res.json({ message: "Payment verified successfully", success: true });
     } else {

@@ -22,6 +22,14 @@ const Notifications = () => {
       }
     };
     fetchNotifications();
+
+    const handleNewNotification = (e) => {
+        const newNotif = e.detail;
+        setNotifications(prev => [newNotif, ...prev]);
+    };
+
+    window.addEventListener('NEW_NOTIFICATION', handleNewNotification);
+    return () => window.removeEventListener('NEW_NOTIFICATION', handleNewNotification);
   }, []);
 
   const handleMarkAsRead = async (id) => {

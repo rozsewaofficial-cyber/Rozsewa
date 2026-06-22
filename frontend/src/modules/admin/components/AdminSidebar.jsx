@@ -87,7 +87,7 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
         )}
         
         {/* Sidebar */}
-        <aside className={`fixed inset-y-0 left-0 z-50 h-screen w-68 flex-col border-r border-slate-800 bg-[#0B1120] py-6 transition-transform duration-300 md:sticky md:top-0 md:flex ${isOpen ? "translate-x-0 flex" : "-translate-x-full hidden md:translate-x-0"}`}>
+        <aside className={`fixed inset-y-0 left-0 z-50 h-screen w-68 flex flex-col border-r border-slate-800 bg-[#0B1120] py-6 transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 ${isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}>
       <div className="px-6 mb-8 mt-2">
         <Link to="/admin" className="flex items-center gap-3 group">
           <div className="relative shrink-0">

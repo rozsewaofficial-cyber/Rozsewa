@@ -333,6 +333,15 @@ const updateUserProfile = async (req, res) => {
 
             const updatedUser = await user.save();
 
+            const { notifyUser } = require('../config/notificationService');
+            await notifyUser({
+                userId: updatedUser._id,
+                userRole: isProvider ? 'provider' : 'user',
+                title: 'Profile Updated',
+                message: 'Your profile information has been successfully updated.',
+                type: 'system'
+            });
+
             res.json({
                 _id: updatedUser._id,
                 name: updatedUser.name || updatedUser.ownerName,

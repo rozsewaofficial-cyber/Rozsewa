@@ -29,14 +29,14 @@ const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
   const fetchCategories = async () => {
     try {
       const { data } = await API.get("/public/categories");
-      if (data && data.length > 0) {
+      if (data && Array.isArray(data)) {
         setCategories(data);
       } else {
-        setCategories(defaultCategories.map((c, i) => ({ ...c, _id: `def-${i}` })));
+        setCategories([]);
       }
     } catch (err) {
       console.error("Failed to fetch categories:", err);
-      setCategories(defaultCategories.map((c, i) => ({ ...c, _id: `def-${i}` })));
+      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -83,6 +83,18 @@ const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
       </div>
     </div>
   );
+
+  if (categories.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
+        <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
+          <LucideIcons.Layers className="w-6 h-6 text-slate-400" />
+        </div>
+        <p className="text-sm font-bold text-slate-600 dark:text-slate-400">No services available yet</p>
+        <p className="text-xs text-slate-500 mt-1">Check back later for new updates.</p>
+      </div>
+    );
+  }
 
   const renderCategory = (cat, i) => {
     const theme = themes[i % themes.length];

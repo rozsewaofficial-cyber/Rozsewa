@@ -17,6 +17,18 @@ const getNotifications = async (req, res) => {
     }
 };
 
+// @desc    Get user/provider unread notification count
+// @route   GET /api/notifications/unread-count
+// @access  Private
+const getUnreadCount = async (req, res) => {
+    try {
+        const count = await Notification.countDocuments({ recipientId: req.user._id, isRead: false });
+        res.json({ unreadCount: count });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Mark notification as read
 // @route   PATCH /api/notifications/:id/read
 // @access  Private
@@ -167,6 +179,7 @@ const testFCMNotification = async (req, res) => {
 
 module.exports = {
     getNotifications,
+    getUnreadCount,
     markAsRead,
     markAllAsRead,
     deleteNotification,

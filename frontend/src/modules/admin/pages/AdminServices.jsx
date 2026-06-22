@@ -255,21 +255,7 @@ const AdminServices = () => {
                             </p>
 
                             <div className="mt-auto space-y-3 pt-4 border-t border-gray-100">
-                                {/* Commission Tier summary */}
-                                <div className="flex gap-2">
-                                    <div className="flex-1 rounded-lg bg-gray-50 border border-gray-100 p-2 text-center">
-                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Base</p>
-                                        <p className="text-xs font-bold text-gray-900 mt-0.5">{cat.partnerCommissionBasic || 25}%</p>
-                                    </div>
-                                    <div className="flex-1 rounded-lg bg-gray-50 border border-gray-100 p-2 text-center">
-                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Std</p>
-                                        <p className="text-xs font-bold text-gray-900 mt-0.5">{cat.partnerCommissionStandard || 20}%</p>
-                                    </div>
-                                    <div className="flex-1 rounded-lg bg-gray-50 border border-gray-100 p-2 text-center">
-                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Prem</p>
-                                        <p className="text-xs font-bold text-emerald-600 mt-0.5">{cat.partnerCommissionPremium || 15}%</p>
-                                    </div>
-                                </div>
+
 
                                 {/* Services tags */}
                                 <div>
@@ -385,23 +371,7 @@ const AdminServices = () => {
                                         </div>
                                     </div>
 
-                                    {/* Section 3: Commission Settings */}
-                                    <div className="space-y-4">
-                                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                            Platform Commission Structure
-                                        </h4>
-                                        <div className="grid grid-cols-3 gap-4 p-5 rounded-xl border border-blue-100 bg-blue-50/50">
-                                            <InputField label="Basic Tier (%)">
-                                                <input type="number" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className={inputCls} required />
-                                            </InputField>
-                                            <InputField label="Standard Tier (%)">
-                                                <input type="number" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className={inputCls} required />
-                                            </InputField>
-                                            <InputField label="Premium Tier (%)">
-                                                <input type="number" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className={`${inputCls} font-black text-emerald-700`} required />
-                                            </InputField>
-                                        </div>
-                                    </div>
+
 
                                     {/* Section 4: Managed Services */}
                                     <div className="space-y-4 pt-4 border-t border-gray-100">

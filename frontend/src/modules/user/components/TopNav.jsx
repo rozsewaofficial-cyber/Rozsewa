@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
-import { getUnreadCount } from "@/lib/notifications";
+import API from "@/lib/api";
 
 const navLinks = [
   { label: "Home", path: "/", icon: Home },
@@ -55,10 +55,27 @@ const TopNav = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    const updateCount = () => setUnreadCount(getUnreadCount("customer"));
-    updateCount();
-    window.addEventListener("focus", updateCount);
-    return () => window.removeEventListener("focus", updateCount);
+    const fetchUnread = async () => {
+      try {
+        const { data } = await API.get('/notifications/unread-count');
+        if (data && data.unreadCount !== undefined) {
+          setUnreadCount(data.unreadCount);
+        }
+      } catch (err) {
+        console.error("Failed to fetch unread count");
+      }
+    };
+    fetchUnread();
+
+    const handleNewNotif = () => setUnreadCount(prev => prev + 1);
+    
+    window.addEventListener('NEW_NOTIFICATION', handleNewNotif);
+    window.addEventListener('focus', fetchUnread);
+    
+    return () => {
+      window.removeEventListener('NEW_NOTIFICATION', handleNewNotif);
+      window.removeEventListener('focus', fetchUnread);
+    };
   }, [location.pathname]);
 
   const handleCitySelect = (selectedCity) => {
@@ -139,6 +156,15 @@ const TopNav = () => {
               <div className="flex-1" />
 
               <div className="flex items-center gap-3">
+                <Link to="/notifications" className="relative flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm">
+                  <Bell className="h-5 w-5 text-slate-700 dark:text-slate-300" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-[#0B1120]">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </Link>
+
                 <motion.button 
                   whileTap={{ scale: 0.9 }} 
                   onClick={toggleTheme} 

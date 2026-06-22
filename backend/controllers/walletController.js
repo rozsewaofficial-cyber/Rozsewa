@@ -52,6 +52,16 @@ const addMoney = async (req, res) => {
             status: 'completed',
         });
 
+        // Notify User/Provider
+        const { notifyUser } = require('../config/notificationService');
+        await notifyUser({
+            userId: req.user._id,
+            userRole: req.user.role || 'user',
+            title: 'Wallet Update',
+            message: `₹${amt} has been ${type === 'credit' ? 'credited to' : 'debited from'} your wallet.`,
+            type: 'payment'
+        });
+
         res.json({
             balance: wallet.balance,
             transaction: transaction,

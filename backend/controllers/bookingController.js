@@ -192,26 +192,17 @@ const createBooking = async (req, res) => {
                     expiresAt: new Date(Date.now() + 2 * 60 * 1000)
                 });
 
-                // Persistence (Optional but good) - assuming Notification model exists
+                // Use unified notifyUser for persistence, socket, and push
                 try {
-                    const Notification = require('../models/Notification');
-                    await Notification.create({
-                        recipientId: provider._id,
-                        recipientModel: 'Provider',
+                    const { notifyUser } = require('../config/notificationService');
+                    await notifyUser({
+                        userId: provider._id,
+                        userRole: 'provider',
                         title: 'Urgent: Service Request!',
-                        message: `New request for ${booking.serviceName} at ${booking.address}`,
+                        message: `You received a new request for ${booking.serviceName}. Accept now!`,
                         type: 'booking',
-                        bookingId: booking._id
-                    });
-
-                    // Push Notification (English)
-                    const { sendNotificationToUser } = require('../config/notificationService');
-                    await sendNotificationToUser(provider._id, 'provider', {
-                        title: 'Urgent: Service Request!',
-                        body: `You received a new request for ${booking.serviceName}. Accept now!`,
+                        bookingId: booking._id,
                         data: {
-                            type: 'booking',
-                            id: booking._id.toString(),
                             link: `/provider/bookings`
                         }
                     });
@@ -221,6 +212,21 @@ const createBooking = async (req, res) => {
             }
 
             console.log('--- END DEBUG ---');
+
+            // Notify user (booking confirmation)
+            try {
+                const { notifyUser } = require('../config/notificationService');
+                await notifyUser({
+                    userId: booking.userId,
+                    userRole: 'user',
+                    title: 'Booking Confirmed! ✓',
+                    message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been placed.`,
+                    type: 'booking',
+                    bookingId: booking._id
+                });
+            } catch (err) {
+                console.log('User booking confirmation notification failed (skipping):', err.message);
+            }
 
             res.status(201).json({
                 booking,
@@ -264,21 +270,36 @@ const updateBooking = async (req, res) => {
 
             const updatedBooking = await booking.save();
 
-            // Push Notification if cancelled
-            if (status === 'cancelled' && booking.providerId) {
-                try {
-                    const { sendNotificationToUser } = require('../config/notificationService');
-                    await sendNotificationToUser(booking.providerId, 'provider', {
-                        title: 'Booking Cancelled',
-                        body: `User has cancelled booking ID #${booking._id.toString().slice(-6)}.`,
-                        data: {
+            // Notify if cancelled
+            if (status === 'cancelled') {
+                const { notifyUser } = require('../config/notificationService');
+                // Notify provider if assigned
+                if (booking.providerId) {
+                    try {
+                        await notifyUser({
+                            userId: booking.providerId,
+                            userRole: 'provider',
+                            title: 'Booking Cancelled',
+                            message: `User has cancelled booking #${booking._id.toString().slice(-6)} for ${booking.serviceName}.`,
                             type: 'booking',
-                            id: booking._id.toString(),
-                            link: `/provider/bookings`
-                        }
+                            bookingId: booking._id
+                        });
+                    } catch (err) {
+                        console.log('Provider cancel notification failed (skipping):', err.message);
+                    }
+                }
+                // Notify user (booking cancellation confirmation)
+                try {
+                    await notifyUser({
+                        userId: booking.userId,
+                        userRole: 'user',
+                        title: 'Booking Cancelled',
+                        message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been cancelled.`,
+                        type: 'booking',
+                        bookingId: booking._id
                     });
                 } catch (err) {
-                    console.log('Push notification failed (skipping):', err.message);
+                    console.log('User cancel notification failed (skipping):', err.message);
                 }
             }
 
@@ -450,10 +471,11 @@ const updateBookingStatusByProvider = async (req, res) => {
                 const otp = Math.floor(1000 + Math.random() * 9000).toString();
                 booking.startOTP = otp;
 
-                // Notify User with OTP
-                await Notification.create({
-                    recipientId: booking.userId,
-                    recipientModel: 'User',
+                // Notify User with OTP via unified service
+                const { notifyUser } = require('../config/notificationService');
+                await notifyUser({
+                    userId: booking.userId,
+                    userRole: 'user',
                     title: 'Start OTP Generated',
                     message: `Your OTP to START the service is: ${otp}. Please share it with the provider.`,
                     type: 'system',
@@ -470,10 +492,11 @@ const updateBookingStatusByProvider = async (req, res) => {
                 }
                 await booking.save();
 
-                // Notify User with Completion OTP
-                await Notification.create({
-                    recipientId: booking.userId,
-                    recipientModel: 'User',
+                // Notify User with Completion OTP via unified service
+                const { notifyUser } = require('../config/notificationService');
+                await notifyUser({
+                    userId: booking.userId,
+                    userRole: 'user',
                     title: 'Completion OTP Generated',
                     message: `Your OTP to COMPLETE the service is: ${otp}. Please share it with the provider.`,
                     type: 'system',

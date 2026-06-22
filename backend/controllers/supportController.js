@@ -86,16 +86,17 @@ const replyTicket = async (req, res) => {
         
         // Push Notification for User/Provider
         try {
-            const { sendNotificationToUser } = require('../config/notificationService');
+            const { notifyUser } = require('../config/notificationService');
             const recipientId = ticket.providerId || ticket.userId;
-            const recipientRole = ticket.providerId ? 'provider' : 'customer';
+            const recipientRole = ticket.providerId ? 'provider' : 'user';
             
-            await sendNotificationToUser(recipientId, recipientRole, {
+            await notifyUser({
+                userId: recipientId,
+                userRole: recipientRole,
                 title: 'Admin Replied to Support Ticket',
-                body: `Admin replied to your ticket: "${ticket.subject}".`,
+                message: `Admin replied to your ticket: "${ticket.subject}".`,
+                type: 'system',
                 data: {
-                    type: 'support',
-                    id: ticket._id.toString(),
                     link: ticket.providerId ? '/provider/support' : '/support-tickets'
                 }
             });

@@ -5,11 +5,16 @@ import ScheduleAcceptedModal from '@/modules/provider/components/ScheduleAccepte
 import BookingReminderModal from '@/modules/provider/components/BookingReminderModal';
 
 const GlobalAlarm = () => {
+    const socketData = useSocket();
+    
+    // Safety fallback for Vite HMR issues where context might be temporarily lost
+    if (!socketData) return null;
+
     const { 
         incomingRequest, setIncomingRequest, 
         scheduleAcceptedData, setScheduleAcceptedData,
         reminderData, setReminderData 
-    } = useSocket();
+    } = socketData;
 
     if (reminderData) {
         return (

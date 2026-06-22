@@ -62,6 +62,21 @@ export const SocketProvider = ({ children }) => {
             setReminderData(data);
         });
 
+        newSocket.on("NEW_NOTIFICATION", (data) => {
+            console.log("Global Socket: New Notification", data);
+            
+            // Show toast using sonner
+            import('sonner').then(({ toast }) => {
+                toast(data.title, {
+                    description: data.message,
+                    duration: 5000,
+                });
+            });
+
+            // Dispatch global event for UI components to update badge/list
+            window.dispatchEvent(new CustomEvent('NEW_NOTIFICATION', { detail: data }));
+        });
+
         return () => newSocket.close();
     }, []);
 

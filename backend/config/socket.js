@@ -66,4 +66,10 @@ const emitToProvider = (providerId, event, data) => {
     }
 };
 
-module.exports = { initSocket, getIO, emitToProvider };
+const emitToUser = (userId, event, data) => {
+    if (io) {
+        io.to(`user_${userId}`).emit(event, data);
+    }
+};
+
+module.exports = { initSocket, getIO, emitToProvider, emitToUser };
