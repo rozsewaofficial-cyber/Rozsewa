@@ -109,7 +109,7 @@ const ServiceHistory = () => {
       <TopNav />
       
       {/* Gradient Header */}
-      <div className="relative pt-6 pb-12 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[3rem] shadow-sm mb-6">
+      <div className="relative pt-6 pb-6 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm mb-2">
         <div className="max-w-2xl mx-auto flex flex-col gap-6">
           <div className="flex items-center gap-4">
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
@@ -194,7 +194,7 @@ const ServiceHistory = () => {
         <AnimatePresence>
           {selectedBooking && !showCancel && !showReschedule && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedBooking(null)}
-              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-4">
+              className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-4">
               <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} onClick={e => e.stopPropagation()}
                 className="w-full max-w-md rounded-t-[32px] sm:rounded-3xl bg-card shadow-2xl overflow-hidden border border-border flex flex-col max-h-[90vh]">
 
@@ -268,12 +268,9 @@ const ServiceHistory = () => {
 
                   {/* Secondary Actions */}
                   {selectedBooking.status === "confirmed" && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       <button onClick={() => setShowReschedule(true)} className="flex items-center justify-center gap-2 rounded-xl border border-border py-3 text-xs font-bold hover:bg-muted">
                         <Calendar className="h-4 w-4" /> Reschedule
-                      </button>
-                      <button onClick={() => setShowCancel(true)} className="flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 text-rose-600 py-3 text-xs font-bold hover:bg-rose-100 dark:bg-rose-900/10 dark:border-rose-900/30">
-                        <X className="h-4 w-4" /> Cancel Booking
                       </button>
                     </div>
                   )}

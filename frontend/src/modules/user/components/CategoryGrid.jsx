@@ -17,7 +17,7 @@ const defaultCategories = [
   { name: "Pandit", icon: "BookOpen", color: "bg-amber-50 text-amber-700" },
 ];
 
-const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
+const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +62,11 @@ const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
     { bg: "bg-teal-500/10", border: "border-teal-500/20", icon: "text-teal-400", shadow: "shadow-teal-500/20" },
   ];
 
-  const displayList = showAll ? categories : categories.slice(0, 10);
+  const filteredCategories = categories.filter(cat => 
+    !searchQuery || cat.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const displayList = showAll ? filteredCategories : filteredCategories.slice(0, 10);
   const half = Math.ceil(displayList.length / 2);
   const row1 = displayList.slice(0, half);
   const row2 = displayList.slice(half);
@@ -107,7 +111,11 @@ const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
         whileTap={!cat.isComingSoon ? { scale: 0.95 } : {}}
         onClick={() => {
           if (!cat.isComingSoon) {
-            navigate(`/shops?category=${encodeURIComponent(cat.name)}&mode=${mode}`);
+            if (mode === "sewak") {
+              navigate(`/sewak-services?category=${encodeURIComponent(cat.name)}`);
+            } else {
+              navigate(`/shops?category=${encodeURIComponent(cat.name)}&mode=${mode}`);
+            }
           }
         }}
         className={`group snap-start flex flex-col items-center text-center gap-2 w-[85px] sm:w-[100px] p-2 bg-transparent transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
@@ -122,7 +130,7 @@ const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
           )}
         </div>
 
-        <span className={`text-[11px] sm:text-[12px] font-bold leading-tight ${cat.isComingSoon ? "text-slate-500" : "text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white"}`}>
+        <span className={`text-[11px] sm:text-[12px] font-bold leading-tight line-clamp-2 px-1 ${cat.isComingSoon ? "text-slate-500" : "text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white"}`}>
           {cat.name}
         </span>
       </motion.button>
@@ -132,11 +140,11 @@ const CategoryGrid = ({ showAll = true, mode = "partner" }) => {
   return (
     <div className="overflow-x-auto pb-4 snap-x scrollbar-hide -mx-1 px-1">
       <div className="flex flex-col gap-4 w-max">
-        <div className="flex gap-3 sm:gap-4">
+        <div className="flex items-start gap-3 sm:gap-4">
           {row1.map((cat, i) => renderCategory(cat, i))}
         </div>
         {row2.length > 0 && (
-          <div className="flex gap-3 sm:gap-4">
+          <div className="flex items-start gap-3 sm:gap-4">
             {row2.map((cat, i) => renderCategory(cat, half + i))}
           </div>
         )}

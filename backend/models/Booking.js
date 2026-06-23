@@ -11,6 +11,11 @@ const bookingSchema = new mongoose.Schema({
         ref: 'Provider',
         required: false,
     },
+    requiredProviderCategory: {
+        type: String,
+        enum: ['partner', 'sewak'],
+        default: 'partner'
+    },
     staffId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Staff',

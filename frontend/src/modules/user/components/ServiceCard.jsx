@@ -63,15 +63,17 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
 
       {/* Bottom Frosted Info Box */}
       <div className="absolute inset-x-2 bottom-2 z-20 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-lg p-3 shadow-lg border border-white/40 dark:border-white/10 transition-transform duration-300 group-hover:-translate-y-1">
-        <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold uppercase tracking-wider">
-          <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
-            <Zap className="h-3 w-3 text-slate-500 dark:text-slate-400" />
-            <span>From ₹{price}</span>
+        <div className="pr-10">
+          <div className="flex items-center gap-1.5 mb-1 text-[10px] font-bold uppercase tracking-wider">
+            <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+              <Zap className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+              <span className="truncate max-w-[70px]">From ₹{price}</span>
+            </div>
+            <span className="text-slate-400/50 shrink-0">•</span>
+            <span className="text-blue-600 dark:text-blue-400 truncate max-w-[70px]">{category}</span>
           </div>
-          <span className="text-slate-400/50">•</span>
-          <span className="text-blue-600 dark:text-blue-400 truncate max-w-[80px]">{category}</span>
+          <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">{name}</h3>
         </div>
-        <h3 className="text-sm font-black text-slate-900 dark:text-white truncate pr-6">{name}</h3>
         
         {/* Persistent Arrow button inside card bottom */}
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-100 dark:border-slate-700">

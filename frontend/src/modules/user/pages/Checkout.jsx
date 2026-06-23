@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -341,6 +341,7 @@ const Checkout = () => {
         serviceId: checkoutData.serviceId || "DEMO-ID",
         serviceName: serviceNames,
         providerId: checkoutData.providerId || null,
+        requiredProviderCategory: checkoutData.requiredProviderCategory || 'partner',
         bookingDate: isExpress ? "ASAP" : selectedDate,
         bookingTime: isExpress ? "ASAP" : selectedTime,
         totalAmount: total,
@@ -434,14 +435,89 @@ const Checkout = () => {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans flex items-center justify-center px-4">
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md text-center space-y-6">
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 200, delay: 0.2 }}
-            className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500/10">
-            <Check className="h-12 w-12 text-emerald-500" />
-          </motion.div>
+          
+          {currentBookingStatus === 'pending' ? (
+            <div className="mx-auto flex h-48 w-48 items-center justify-center relative mb-8 mt-4">
+              {/* Faint distance rings */}
+              <div className="absolute inset-0 rounded-full border border-emerald-500/10" />
+              <div className="absolute inset-8 rounded-full border border-emerald-500/10" />
+              <div className="absolute inset-16 rounded-full border border-emerald-500/10" />
+              
+              {/* Radar Sweep */}
+              <motion.div 
+                animate={{ rotate: 360 }} 
+                transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
+                className="absolute inset-0 rounded-full"
+                style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(16, 185, 129, 0.4) 100%)' }}
+              />
+
+              {/* Multiple overlapping ripples */}
+              {[0, 1, 2].map((i) => (
+                <motion.div 
+                  key={i}
+                  animate={{ scale: [0.5, 3], opacity: [0.6, 0] }} 
+                  transition={{ repeat: Infinity, duration: 3, ease: "easeOut", delay: i * 1 }}
+                  className="absolute inset-0 m-auto h-16 w-16 bg-emerald-500 rounded-full"
+                />
+              ))}
+
+              {/* Center Map Pin */}
+              <div className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 shadow-[0_0_30px_rgba(16,185,129,0.5)] border-4 border-white dark:border-slate-800">
+                <MapPin className="h-7 w-7 text-white animate-bounce" />
+              </div>
+            </div>
+          ) : (
+            <div className="mx-auto flex h-48 w-48 items-center justify-center relative mb-8 mt-4">
+               {/* Expanding Outer Ring */}
+               <motion.div 
+                 initial={{ scale: 0.8, opacity: 1, borderWidth: "12px" }} 
+                 animate={{ scale: 1.6, opacity: 0, borderWidth: "0px" }} 
+                 transition={{ duration: 1, ease: "easeOut" }}
+                 className="absolute inset-0 rounded-full border-emerald-500 m-auto h-28 w-28"
+               />
+               
+               {/* Main Success Circle */}
+               <motion.div 
+                 initial={{ scale: 0, rotate: -45 }} 
+                 animate={{ scale: [0, 1.2, 1], rotate: 0 }} 
+                 transition={{ type: "spring", damping: 12, stiffness: 150, delay: 0.1 }}
+                 className="relative z-10 flex h-28 w-28 items-center justify-center rounded-full bg-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.7)] border-4 border-emerald-100 dark:border-emerald-900"
+               >
+                 <motion.div
+                   initial={{ scale: 0 }}
+                   animate={{ scale: 1 }}
+                   transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                 >
+                    <Check className="h-14 w-14 text-white stroke-[4]" />
+                 </motion.div>
+               </motion.div>
+               
+               {/* Starburst Particles */}
+               {[...Array(6)].map((_, i) => (
+                  <motion.div
+                    key={`starburst-${i}`}
+                    initial={{ scale: 0, x: 0, y: 0 }}
+                    animate={{ 
+                      scale: [0, 1.5, 0], 
+                      x: Math.cos((i * 60 - 30) * (Math.PI / 180)) * 90, 
+                      y: Math.sin((i * 60 - 30) * (Math.PI / 180)) * 90 
+                    }}
+                    transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+                    className="absolute m-auto h-3 w-3 bg-emerald-400 rounded-full"
+                    style={{ left: '50%', top: '50%', marginLeft: '-6px', marginTop: '-6px' }}
+                  />
+               ))}
+            </div>
+          )}
+
           <div>
-            <h1 className="text-2xl font-black text-slate-900 dark:text-white">Request Sent! 📡</h1>
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white">
+              {currentBookingStatus === 'pending' ? "Finding Nearby Sewak..." : "Sewak Assigned! 🎉"}
+            </h1>
             <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-              We've sent your request to nearby providers. {paymentMode === "now" ? "Please check your alerts for a 'Pay Now' notification once a provider accepts your request." : "A provider will be assigned shortly."}
+              {currentBookingStatus === 'pending' 
+                ? "Broadcasting your request to all available sewaks in your area. Please wait..." 
+                : (paymentMode === "now" ? "A sewak has accepted your request! Please check your alerts for a 'Pay Now' notification." : "A sewak has accepted your request and is assigned to you.")}
             </p>
           </div>
 
@@ -453,6 +529,21 @@ const Checkout = () => {
                 {bookingId} <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
+            
+            <div className="flex items-start justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0 mr-4">Service</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white text-right line-clamp-2">
+                {serviceNames}
+              </span>
+            </div>
+
+            <div className="flex items-start justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0 mr-4">Location</span>
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-right line-clamp-2 max-w-[200px]">
+                {selectedAddress?.address || "Address unavailable"}
+              </span>
+            </div>
+
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Date & Time</span>
               <span className="text-sm font-black text-slate-900 dark:text-white">

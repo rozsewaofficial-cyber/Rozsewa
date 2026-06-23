@@ -392,35 +392,59 @@ const LiveTracking = () => {
           animate={{ opacity: 1, y: 0 }}
           className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
         >
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[20px] bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50">
-              {providerInfo.profileImage ? (
-                <img src={providerInfo.profileImage} alt={providerInfo.name} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-xl font-black text-blue-600 dark:text-blue-500">
-                  {providerInfo.name.substring(0, 2).toUpperCase()}
+          {bookingDetails?.providerId ? (
+            <div className="flex items-center gap-4">
+              <div className="relative h-16 w-16 shrink-0">
+                <motion.div
+                  className="absolute inset-0 rounded-[20px] border-[3px] border-blue-500"
+                  animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
+                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                />
+                <div className="h-full w-full overflow-hidden rounded-[20px] bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 relative z-10">
+                  {providerInfo.profileImage ? (
+                    <img src={providerInfo.profileImage} alt={providerInfo.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-xl font-black text-blue-600 dark:text-blue-500 bg-blue-50/50">
+                      {providerInfo.name.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{providerInfo.name}</h3>
-                <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
               </div>
-              <div className="flex items-center gap-2 mt-1">
-                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">{providerInfo.rating}</span>
-                <span className="text-[11px] font-bold text-slate-400">({providerInfo.jobs} jobs)</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{providerInfo.name}</h3>
+                  <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                  <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">{providerInfo.rating}</span>
+                  <span className="text-[11px] font-bold text-slate-400">({providerInfo.jobs} jobs)</span>
+                </div>
+                <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{providerInfo.tags || "Expert Professional"}</p>
               </div>
-              <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{providerInfo.tags || "Expert Professional"}</p>
+              <div className="flex flex-col gap-2 shrink-0">
+                <button onClick={() => { if(providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>
+                <button onClick={() => { if(providerInfo.mobile) window.location.href = `https://wa.me/${providerInfo.mobile.replace(/[^0-9]/g, '')}?text=Hi, I am contacting regarding my booking on RozSewa.` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
+              </div>
             </div>
-            <div className="flex flex-col gap-2 shrink-0">
-              <button onClick={() => { if(providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>
-              <button onClick={() => { if(providerInfo.mobile) window.location.href = `https://wa.me/${providerInfo.mobile.replace(/[^0-9]/g, '')}?text=Hi, I am contacting regarding my booking on RozSewa.` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
+          ) : (
+            <div className="flex items-center gap-4 py-2">
+              <div className="h-16 w-16 shrink-0 rounded-[20px] bg-slate-50 dark:bg-slate-800 flex items-center justify-center relative overflow-hidden border border-slate-100 dark:border-slate-700">
+                <motion.div 
+                  className="absolute inset-0 border-[3px] border-transparent rounded-[20px] border-t-emerald-500 border-l-emerald-500 opacity-70" 
+                  animate={{ rotate: 360 }} 
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                />
+                <User className="h-6 w-6 text-slate-300 dark:text-slate-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Finding a Sewak...</h3>
+                <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">Please wait while we assign the best professional near you.</p>
+              </div>
             </div>
-          </div>
+          )}
           {/* Cancel Button */}
-          {currentStep < 3 && (
+          {bookingDetails?.status === 'pending' && (
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={handleCancelBooking}
@@ -444,11 +468,20 @@ const LiveTracking = () => {
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ delay: i * 0.15, type: "spring", stiffness: 300 }}
-                    className={`flex h-8 w-8 items-center justify-center rounded-full ${i <= currentStep
-                      ? "bg-primary text-primary-foreground"
-                      : "border-2 border-border bg-background text-muted-foreground"
+                    className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${i < currentStep
+                        ? "bg-primary text-primary-foreground"
+                        : i === currentStep
+                          ? "bg-primary text-primary-foreground ring-4 ring-primary/30"
+                          : "border-2 border-border bg-background text-muted-foreground"
                       }`}
                   >
+                    {i === currentStep && (
+                      <motion.div
+                        className="absolute inset-0 rounded-full border-[3px] border-primary"
+                        animate={{ scale: [1, 1.6, 1], opacity: [0.8, 0, 0.8] }}
+                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                      />
+                    )}
                     {i <= currentStep ? (
                       <motion.div
                         initial={{ scale: 0 }}

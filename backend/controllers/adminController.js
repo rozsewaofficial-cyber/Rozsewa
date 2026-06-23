@@ -15,6 +15,7 @@ const getProviders = async (req, res) => {
     try {
         const { status } = req.query;
         const query = status ? { status } : {};
+        query.providerCategory = { $ne: 'sewak' };
         const providers = await Provider.find(query).sort({ createdAt: -1 });
         res.json(providers);
     } catch (error) {

@@ -54,7 +54,7 @@ const getMyServices = async (req, res) => {
 // @route   POST /api/services
 // @access  Private (Provider)
 const createService = async (req, res) => {
-    const { name, description, price, duration, category, visible, image } = req.body;
+    const { name, description, price, duration, category, visible, image, amenities, serviceDetails } = req.body;
 
     try {
         const service = await Service.create({
@@ -65,7 +65,9 @@ const createService = async (req, res) => {
             duration,
             category: category || req.user.vendorType,
             visible: visible !== undefined ? visible : true,
-            image
+            image,
+            amenities: amenities || [],
+            serviceDetails: serviceDetails || []
         });
 
         if (service) {
@@ -96,6 +98,12 @@ const updateService = async (req, res) => {
             service.duration = req.body.duration || service.duration;
             service.visible = req.body.visible !== undefined ? req.body.visible : service.visible;
             service.image = req.body.image || service.image;
+            if (req.body.amenities !== undefined) {
+                service.amenities = req.body.amenities;
+            }
+            if (req.body.serviceDetails !== undefined) {
+                service.serviceDetails = req.body.serviceDetails;
+            }
 
             const updatedService = await service.save();
             res.json(updatedService);

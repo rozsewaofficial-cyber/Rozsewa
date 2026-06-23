@@ -42,11 +42,49 @@ const isNightTime = (timeStr, startStr, endStr) => {
     }
 };
 
+// Helper to check for schedule overlaps (30 mins before to 30 mins after)
+const hasOverlap = async (providerId, bookingDate, bookingTime) => {
+    try {
+        if (!providerId || !bookingDate || !bookingTime) return false;
+
+        const parseTime = (timeStr) => {
+            const [time, modifier] = timeStr.split(' ');
+            let [hours, minutes] = time.split(':');
+            if (hours === '12') hours = '00';
+            if (modifier && modifier.toUpperCase() === 'PM') hours = parseInt(hours, 10) + 12;
+            return parseInt(hours, 10) * 60 + parseInt(minutes, 10);
+        };
+
+        const newTimeInMins = parseTime(bookingTime);
+        const overlapStart = newTimeInMins - 30;
+        const overlapEnd = newTimeInMins + 30;
+
+        const bookingsOnDate = await Booking.find({
+            providerId,
+            bookingDate,
+            status: { $in: ['confirmed', 'on_the_way', 'started'] }
+        });
+
+        for (let b of bookingsOnDate) {
+            if (b.bookingTime) {
+                const existingTimeInMins = parseTime(b.bookingTime);
+                if (existingTimeInMins >= overlapStart && existingTimeInMins <= overlapEnd) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    } catch (err) {
+        console.error("Error checking overlap:", err);
+        return false;
+    }
+};
+
 // @desc    Create new booking
 // @route   POST /api/bookings
 // @access  Private
 const createBooking = async (req, res) => {
-    const { providerId, serviceName, serviceId, bookingDate, bookingTime, totalAmount, address, couponCode, discountAmount, paymentMode } = req.body;
+    const { providerId, serviceName, serviceId, bookingDate, bookingTime, totalAmount, address, couponCode, discountAmount, paymentMode, requiredProviderCategory } = req.body;
 
     try {
         let finalTotalAmount = totalAmount;
@@ -91,6 +129,7 @@ const createBooking = async (req, res) => {
             totalAmount: finalTotalAmount,
             address,
             location: req.body.location,
+            requiredProviderCategory: requiredProviderCategory || 'partner',
             couponCode,
             discountAmount,
             paymentMode,
@@ -119,21 +158,73 @@ const createBooking = async (req, res) => {
                 }
             }
 
-            // If no specific provider was requested or found online, use radius or fallback
             if (providersToNotify.length === 0) {
+                const targetCategory = requiredProviderCategory || 'partner';
+                
                 if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {
-                    console.log('FAILED: Booking has no valid coordinates. Dispatching to ALL online providers as fallback...');
-                    providersToNotify = await Provider.find({ status: 'verified', isOnline: true });
+                    console.log(`FAILED: Booking has no valid coordinates. Dispatching to ALL online ${targetCategory}s as fallback...`);
+                    providersToNotify = await Provider.find({ status: 'verified', isOnline: true, providerCategory: targetCategory });
                 } else {
-                    providersToNotify = await Provider.find({
+                    const radiusInKm = targetCategory === 'sewak' ? 10 : 15;
+                    const radiusInRadians = radiusInKm / 6371;
+                    
+                    let preliminaryProviders = await Provider.find({
                         status: 'verified',
                         isOnline: true,
+                        providerCategory: targetCategory,
                         location: {
                             $geoWithin: {
                                 $centerSphere: [booking.location.coordinates, radiusInRadians]
                             }
                         }
                     });
+
+                    if (preliminaryProviders.length > 0 && process.env.GOOGLE_MAPS_API_KEY) {
+                        try {
+                            const axios = require('axios');
+                            const originStr = `${booking.location.coordinates[1]},${booking.location.coordinates[0]}`; // Lat,Lng
+                            const maxDestinations = 25; // GMaps Distance Matrix limit
+                            const providersToCheck = preliminaryProviders.slice(0, maxDestinations);
+                            
+                            const destinationsStr = providersToCheck.map(p => {
+                                if (p.location && p.location.coordinates && p.location.coordinates.length >= 2) {
+                                    return `${p.location.coordinates[1]},${p.location.coordinates[0]}`;
+                                }
+                                return '';
+                            }).filter(s => s !== '').join('|');
+
+                            if (destinationsStr) {
+                                const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originStr}&destinations=${destinationsStr}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+                                const response = await axios.get(url);
+                                
+                                if (response.data && response.data.status === 'OK' && response.data.rows && response.data.rows.length > 0) {
+                                    const elements = response.data.rows[0].elements;
+                                    providersToNotify = [];
+                                    
+                                    providersToCheck.forEach((p, index) => {
+                                        const element = elements[index];
+                                        if (element && element.status === 'OK') {
+                                            const distanceInMeters = element.distance.value;
+                                            if (distanceInMeters <= radiusInKm * 1000) {
+                                                providersToNotify.push(p);
+                                            }
+                                        } else {
+                                            providersToNotify.push(p); // Fallback keep if individual calculation fails
+                                        }
+                                    });
+                                } else {
+                                    providersToNotify = preliminaryProviders; // Fallback keep all if API fails
+                                }
+                            } else {
+                                providersToNotify = preliminaryProviders;
+                            }
+                        } catch (err) {
+                            console.error('Google Maps Distance Matrix API Error:', err.message);
+                            providersToNotify = preliminaryProviders;
+                        }
+                    } else {
+                        providersToNotify = preliminaryProviders;
+                    }
                 }
             }
 
@@ -368,17 +459,12 @@ const updateBookingStatusByProvider = async (req, res) => {
                     const cfg = configSetting.value;
                     limit = Number(cfg.defaultLimit) || 1500;
 
-                    // Override by category
                     if (provider && provider.vendorType) {
                         const catId = provider.vendorType.toString();
                         const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
                         if (catLimitObj) limit = Number(catLimitObj.limit);
                     }
 
-                    // Override by service
-                    // Since bookings might have multiple services or just serviceId.
-                    // Assuming booking.services array or booking.serviceId exists.
-                    // (Some apps use booking.services, others serviceId. If services is an array, we take max or min. Let's use the first one or serviceId).
                     const bookingServiceId = booking.serviceId ? booking.serviceId.toString() : (booking.services && booking.services.length > 0 ? booking.services[0].serviceId?.toString() : null);
 
                     if (bookingServiceId) {
@@ -389,6 +475,17 @@ const updateBookingStatusByProvider = async (req, res) => {
 
                 if (wallet && wallet.balance <= -limit) {
                     return res.status(403).json({ message: `Please settle your wallet dues to accept new bookings.` });
+                }
+
+                // Atomically claim the booking to prevent race conditions
+                const claimedBooking = await Booking.findOneAndUpdate(
+                    { _id: booking._id, $or: [{ providerId: null }, { providerId: { $exists: false } }] },
+                    { $set: { providerId: req.user._id } },
+                    { new: true }
+                );
+
+                if (!claimedBooking) {
+                    return res.status(409).json({ message: 'This booking has already been accepted by another provider.' });
                 }
 
                 booking.providerId = req.user._id;

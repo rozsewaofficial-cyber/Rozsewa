@@ -109,10 +109,15 @@ export const AuthProvider = ({ children }) => {
             }
           }
         } catch (err) {
-          console.error("Auth session expired", err);
-          localStorage.removeItem(getStorageKey(path));
-          if (auth?.role === expectedRole || auth?.role === 'customer') {
-            setAuth(null);
+          console.error("Profile check failed:", err);
+          // Only clear session if it's explicitly an auth error (401 Unauthorized)
+          // Do not log out on network errors or 500 server errors
+          if (err.response && (err.response.status === 401 || err.response.status === 404)) {
+            console.warn(`Auth session invalid (${err.response.status}). Logging out.`);
+            localStorage.removeItem(getStorageKey(path));
+            if (auth?.role === expectedRole || auth?.role === 'customer') {
+              setAuth(null);
+            }
           }
         }
       }

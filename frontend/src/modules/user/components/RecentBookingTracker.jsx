@@ -32,9 +32,21 @@ const RecentBookingTracker = () => {
         if (!authData?.token) { setLoading(false); return; }
         try {
             const res = await API.get('/bookings');
-            const active = res.data.find(b =>
-                ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status) && (b.rating === undefined || b.rating === 0)
-            );
+            const active = res.data.find(b => {
+                const isValidStatus = ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status);
+                const isNotRated = b.rating === undefined || b.rating === 0;
+                
+                if (!isValidStatus || !isNotRated) return false;
+
+                if (b.status === 'cancelled' && b.updatedAt) {
+                    const updatedAt = new Date(b.updatedAt);
+                    const now = new Date();
+                    const diffMinutes = (now - updatedAt) / (1000 * 60);
+                    if (diffMinutes > 3) return false;
+                }
+                
+                return true;
+            });
             setActiveBooking(active || null);
         } catch (err) {
             console.error("Failed to fetch active bookings:", err);

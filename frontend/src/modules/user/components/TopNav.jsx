@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import { GoogleMap, useJsApiLoader, MarkerF } from "@react-google-maps/api";
 import API from "@/lib/api";
 
 const navLinks = [
@@ -22,6 +23,52 @@ const TopNav = () => {
     return localStorage.getItem("rozsewa_user_city") || "Lucknow";
   });
   const [dynamicCities, setDynamicCities] = useState(["Lucknow", "Delhi", "Mumbai", "Bangalore", "Pune", "Hyderabad", "Kolkata", "Chennai"]);
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ""
+  });
+  
+  const [mapCenter, setMapCenter] = useState({ lat: 26.8467, lng: 80.9462 });
+  const [selectedCoords, setSelectedCoords] = useState(null);
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+
+  const onMapClick = (e) => {
+    const lat = e.latLng.lat();
+    const lng = e.latLng.lng();
+    setSelectedCoords({ lat, lng });
+    setIsReverseGeocoding(true);
+    
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+      .then(res => res.json())
+      .then(data => {
+        setIsReverseGeocoding(false);
+        if (data?.address) {
+          const detectedCity = data.address.city || data.address.town || data.address.village || data.address.county || "Unknown City";
+          const cityWithLabel = `${detectedCity} (Map)`;
+          handleCitySelect(cityWithLabel);
+          toast({ title: "Location Updated", description: `Selected ${detectedCity} from map.` });
+        }
+      })
+      .catch(() => {
+        setIsReverseGeocoding(false);
+        toast({ title: "Detection Failed", description: "Could not identify the city.", variant: "destructive" });
+      });
+  };
+
+  useEffect(() => {
+    if (showLocationModal && "geolocation" in navigator && !selectedCoords) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          setMapCenter({ lat, lng });
+          setSelectedCoords({ lat, lng });
+        },
+        () => {} // Silent fail, fallback is default center
+      );
+    }
+  }, [showLocationModal]);
 
   useEffect(() => {
     fetchZones();
@@ -257,6 +304,27 @@ const TopNav = () => {
                   <ChevronDown className="h-5 w-5" />
                 </button>
               </div>
+
+              {isLoaded && (
+                <div className="mb-4 rounded-[16px] overflow-hidden border border-slate-200 dark:border-slate-700 h-[180px] relative shadow-inner">
+                  <GoogleMap
+                    mapContainerStyle={{ width: '100%', height: '100%' }}
+                    center={selectedCoords || mapCenter}
+                    zoom={11}
+                    onClick={onMapClick}
+                    options={{ disableDefaultUI: true, zoomControl: true }}
+                  >
+                    {selectedCoords && (
+                      <MarkerF position={selectedCoords} />
+                    )}
+                  </GoogleMap>
+                  <div className="absolute top-2 left-2 right-2 flex justify-center pointer-events-none">
+                    <span className="bg-white/90 dark:bg-slate-900/90 backdrop-blur text-[10px] font-bold text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-full shadow-sm border border-slate-200/50">
+                      {isReverseGeocoding ? "Detecting city..." : "Tap map to set location"}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 {dynamicCities.map((c) => (

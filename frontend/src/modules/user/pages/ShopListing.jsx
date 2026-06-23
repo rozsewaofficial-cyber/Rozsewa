@@ -18,6 +18,8 @@ import API from "@/lib/api";
 import { useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
+import CategoryGrid from "@/modules/user/components/CategoryGrid";
+
 const ShopListing = () => {
   const navigate = useNavigate();
   const { userLocation } = useAuth();
@@ -34,8 +36,12 @@ const ShopListing = () => {
   const mode = searchParams.get("mode") || "partner";
 
   useEffect(() => {
-    fetchProviders();
-  }, [category, isEmergency, searchQuery]);
+    if (mode !== "sewak") {
+      fetchProviders();
+    } else {
+      setLoading(false);
+    }
+  }, [category, isEmergency, searchQuery, mode]);
 
   const fetchProviders = async () => {
     setLoading(true);
@@ -65,7 +71,7 @@ const ShopListing = () => {
     rating: p.rating !== undefined ? p.rating : 4.5,
     reviews: p.reviewCount || 0,
     distance: "2.5 km",
-    price: "Starts ₹199",
+    price: "199",
     image: p.profileImage || `https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop`,
     verified: p.status === "verified",
     emergency: (p.vendorType?.name || "").toLowerCase().includes("ac") || (p.vendorType?.name || "").toLowerCase().includes("electric")
@@ -89,15 +95,19 @@ const ShopListing = () => {
       <TopNav />
       
       {/* New Gradient Header */}
-      <div className="relative pt-6 pb-12 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[3rem] shadow-sm mb-6">
+      <div className="relative pt-6 pb-6 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm mb-2">
         <div className="max-w-6xl mx-auto flex flex-col gap-6">
           <div className="flex items-center gap-4">
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
               <ArrowLeft className="h-5 w-5" />
             </motion.button>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{isEmergency ? "🚨 Emergency Providers" : category || "All Services"}</h1>
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{sorted.length} providers near you</p>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                {mode === "sewak" ? "Select a Service Category" : (isEmergency ? "🚨 Emergency Providers" : category || "All Services")}
+              </h1>
+              {mode !== "sewak" && (
+                <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{sorted.length} providers near you</p>
+              )}
             </div>
           </div>
           
@@ -110,27 +120,46 @@ const ShopListing = () => {
       </div>
 
       <main className="container max-w-6xl px-5 sm:px-8 space-y-6">
-        {/* Sort */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {["rating", "distance", "price"].map((key) => (
-            <motion.button
-              key={key}
-              whileTap={{ scale: 0.93 }}
-              onClick={() => setSortBy(key)}
-              className={`shrink-0 rounded-full px-5 py-2 text-[13px] font-bold capitalize transition-colors ${sortBy === key ? "bg-blue-600 text-white shadow-md border border-blue-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
-                }`}
-            >
-              {key}
-            </motion.button>
-          ))}
-        </div>
+        {mode === "sewak" ? (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Sewak Categories</h2>
+            </div>
+            {/* Replace the scrollbar hidden container to let CategoryGrid wrap or scroll naturally, or wrap it in a grid */}
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-[24px] border border-slate-200 dark:border-slate-800 shadow-sm">
+              <CategoryGrid showAll={true} mode={mode} searchQuery={searchQuery} />
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Sort */}
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {["rating", "distance", "price"].map((key) => (
+                <motion.button
+                  key={key}
+                  whileTap={{ scale: 0.93 }}
+                  onClick={() => setSortBy(key)}
+                  className={`shrink-0 rounded-full px-5 py-2 text-[13px] font-bold capitalize transition-colors ${sortBy === key ? "bg-blue-600 text-white shadow-md border border-blue-500" : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    }`}
+                >
+                  {key}
+                </motion.button>
+              ))}
+            </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-          {sorted.map((p) => (
-            <ServiceCard key={p.id} {...p} />
-          ))}
-        </div>
+            {/* Grid */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {sorted.map((p) => (
+                <ServiceCard key={p.id} {...p} />
+              ))}
+              {sorted.length === 0 && !loading && (
+                <div className="col-span-full py-10 text-center">
+                  <p className="text-slate-500 dark:text-slate-400">No providers found matching your search.</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </main>
       <BottomNav mode={mode} />
     </div>

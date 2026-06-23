@@ -35,10 +35,20 @@ const getPublicBanners = async (req, res) => {
 // @access  Public
 const getPublicCategoryByName = async (req, res) => {
     try {
-        const category = await Category.findOne({ name: req.params.name });
-        if (!category) return res.status(404).json({ message: 'Category not found' });
+        console.log(`[getPublicCategoryByName] Requested: "${req.params.name}"`);
+        // Use regex for case-insensitive match and to handle potential trailing/leading spaces in the DB
+        const safeName = req.params.name.trim().replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+        const category = await Category.findOne({ 
+            name: { $regex: new RegExp(`^\\s*${safeName}\\s*$`, 'i') } 
+        });
+        
+        if (!category) {
+            console.log(`[getPublicCategoryByName] Not found: "${req.params.name}"`);
+            return res.status(404).json({ message: 'Category not found' });
+        }
         res.json(category);
     } catch (error) {
+        console.error(`[getPublicCategoryByName] Error:`, error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -102,7 +112,7 @@ const getPublicProviderById = async (req, res) => {
 const getFeaturedProviders = async (req, res) => {
     try {
         const { lat, lng, city, radius = 15 } = req.query;
-        let query = { status: 'verified', isOnline: true };
+        let query = { status: 'verified', isOnline: true, providerCategory: { $ne: 'sewak' } };
 
         if (lat && lng) {
             query.location = {

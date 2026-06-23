@@ -106,10 +106,18 @@ const IncomingRequestModal = ({ request, onAction }) => {
             onAction('accepted');
         } catch (err) {
             toast({ 
-                title: "Failed to accept booking", 
+                title: err.response?.status === 409 ? "Booking Taken" : "Failed to accept booking", 
                 description: err.response?.data?.message || "Something went wrong.", 
-                variant: "destructive" 
+                variant: err.response?.status === 409 ? "default" : "destructive" 
             });
+            if (err.response?.status === 409 || err.response?.status === 401) {
+                if (audioRef.current) {
+                    audioRef.current.pause();
+                    audioRef.current.currentTime = 0;
+                }
+                sessionStorage.removeItem('activeRequest');
+                onAction('taken');
+            }
         }
     };
 

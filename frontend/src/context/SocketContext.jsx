@@ -82,13 +82,27 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         if (socket && user) {
-            if (user.role === 'provider' || user.role === 'sewak' || user.providerCategory) {
-                socket.emit('join_provider', user._id);
-                console.log('Provider joined socket room:', user._id);
-            } else {
-                socket.emit('join_user', user._id);
-                console.log('User joined socket room:', user._id);
+            const joinRooms = () => {
+                if (user.role === 'provider' || user.role === 'sewak' || user.providerCategory) {
+                    socket.emit('join_provider', user._id);
+                    console.log('Provider joined socket room:', user._id);
+                } else {
+                    socket.emit('join_user', user._id);
+                    console.log('User joined socket room:', user._id);
+                }
+            };
+
+            // Join immediately if already connected
+            if (socket.connected) {
+                joinRooms();
             }
+
+            // Re-join on reconnect
+            socket.on('connect', joinRooms);
+
+            return () => {
+                socket.off('connect', joinRooms);
+            };
         }
     }, [socket, user]);
 

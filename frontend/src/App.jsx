@@ -13,6 +13,7 @@ import { SocketProvider } from "@/context/SocketContext";
 import Index from "./modules/user/pages/Index";
 import ShopListing from "./modules/user/pages/ShopListing";
 import ShopDetail from "./modules/user/pages/ShopDetail";
+import SewakServices from "./modules/user/pages/SewakServices";
 import Checkout from "./modules/user/pages/Checkout";
 import LiveTracking from "./modules/user/pages/LiveTracking";
 import PostService from "./modules/user/pages/PostService";
@@ -129,6 +130,7 @@ const App = () => (
                     <Route path="/home" element={<Index />} />
                     <Route path="/shops" element={<ShopListing />} />
                     <Route path="/shop/:id" element={<ShopDetail />} />
+                    <Route path="/sewak-services" element={<SewakServices />} />
                     <Route path="/category" element={<SubcategoryPage />} />
 
                     {/* Protected Customer Routes */}

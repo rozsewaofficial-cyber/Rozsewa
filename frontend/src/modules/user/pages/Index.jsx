@@ -119,9 +119,9 @@ const Index = () => {
 
       {/* New Gradient Header Section */}
       <div className="relative pt-6 pb-4 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between mb-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-3xl font-medium tracking-tight text-slate-900 dark:text-white">
+            <h1 className="text-3xl font-outfit font-medium tracking-tight text-slate-900 dark:text-white">
               Hi, <span className="font-bold">{userName}</span>
             </h1>
             <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-1">
@@ -242,7 +242,7 @@ const Index = () => {
 
             {/* Featured Professionals */}
             {(loading || featured.length > 0) && (
-              <section className="space-y-6">
+              <section className="space-y-4 -mt-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Explore Our Providers</h2>
               </div>

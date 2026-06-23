@@ -13,6 +13,8 @@ const serviceSchema = mongoose.Schema({
     duration: { type: String, default: '30 min' },
     visible: { type: Boolean, default: true },
     image: { type: String },
+    amenities: [{ type: String }],
+    serviceDetails: [{ type: String }],
     createdAt: { type: Date, default: Date.now }
 }, {
     timestamps: true

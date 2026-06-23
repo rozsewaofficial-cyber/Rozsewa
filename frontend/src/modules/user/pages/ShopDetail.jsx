@@ -123,8 +123,6 @@ const ShopDetail = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleCall = () => { if (provider) window.location.href = `tel:${provider.phone}`; };
-  const handleChat = () => { if (provider) window.location.href = `https://wa.me/${provider.phone.replace(/[^0-9]/g, '')}?text=Hi, I want to book a service.`; };
 
   const addToCart = (planId) => { setCart((prev) => ({ ...prev, [planId]: (prev[planId] || 0) + 1 })); };
   const removeFromCart = (planId) => {
@@ -219,10 +217,7 @@ const ShopDetail = () => {
               </div>
             </div>
 
-            <div className="flex shrink-0 flex-col sm:flex-row gap-2">
-              <motion.button whileTap={{ scale: 0.9 }} onClick={handleCall} className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-blue-600/90 backdrop-blur-md border border-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-600/30 transition-all"><Phone className="h-5 w-5" /></motion.button>
-              <motion.button whileTap={{ scale: 0.9 }} onClick={handleChat} className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-emerald-600/90 backdrop-blur-md border border-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-600/30 transition-all"><MessageCircle className="h-5 w-5" /></motion.button>
-            </div>
+
           </div>
         </div>
       </div>

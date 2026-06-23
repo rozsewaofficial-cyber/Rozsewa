@@ -217,7 +217,7 @@ const AdminProviders = () => {
                             ) : (
                                 filteredProviders.map((provider) => (
                                     <tr key={provider._id} className="hover:bg-gray-50/50 transition-colors group">
-                                        <td className="px-6 py-4 max-w-[280px]">
+                                        <td className="px-6 py-4 max-w-[280px] align-middle">
                                             <div className="flex items-center gap-3">
                                                 <div className="flex shrink-0 h-10 w-10 items-center justify-center rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shadow-sm">
                                                     {provider.profileImage ? (
@@ -226,7 +226,7 @@ const AdminProviders = () => {
                                                         <span className="text-xl font-black text-gray-400 uppercase">{provider.shopName?.charAt(0)}</span>
                                                     )}
                                                 </div>
-                                                <div className="overflow-hidden">
+                                                <div className="overflow-hidden pt-0.5">
                                                     <p className="font-extrabold text-gray-900 truncate" title={provider.shopName}>{provider.shopName}</p>
                                                     <div className="flex items-center gap-1.5 mt-0.5">
                                                         <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest">{provider.ownerName}</p>
@@ -236,7 +236,7 @@ const AdminProviders = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 align-middle">
                                             <div className="space-y-1">
                                                 <div>
                                                     <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-600 border border-gray-200">
@@ -253,20 +253,8 @@ const AdminProviders = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 align-middle">
                                             <div className="flex flex-col gap-2.5 w-36">
-                                                <div className="flex flex-col gap-1">
-                                                    <label className="text-[8px] font-black uppercase tracking-widest text-gray-400">Plan Tier</label>
-                                                    <select
-                                                        value={provider.planType || 'basic'}
-                                                        onChange={(e) => handleUpdatePlan(provider._id, e.target.value)}
-                                                        className="w-full bg-white border border-gray-200 text-gray-700 text-[9px] font-black uppercase tracking-widest rounded-md px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 cursor-pointer shadow-sm transition-all"
-                                                    >
-                                                        <option value="basic">Basic (25%)</option>
-                                                        <option value="standard">Standard (20%)</option>
-                                                        <option value="premium">Premium (15%)</option>
-                                                    </select>
-                                                </div>
                                                 <div className="flex flex-col gap-1">
                                                     <label className="text-[8px] font-black uppercase tracking-widest text-gray-400">Provider Role</label>
                                                     <select
@@ -280,7 +268,7 @@ const AdminProviders = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-6 py-4 text-center align-middle">
                                             <div className="flex flex-col items-center justify-center gap-1">
                                                 <div className="flex items-center gap-1 bg-amber-50 px-2 py-1 rounded border border-amber-100 text-[10px] font-black text-amber-700">
                                                     {provider.rating ? provider.rating.toFixed(1) : '0.0'} <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
@@ -288,15 +276,17 @@ const AdminProviders = () => {
                                                 <span className="text-[9px] font-bold text-gray-400 uppercase">{provider.reviewCount || 0} reviews</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border ${statusStyles[provider.status] || statusStyles.pending}`}>
-                                                <span className={`h-1.5 w-1.5 rounded-full ${provider.status === 'verified' ? 'bg-emerald-500' :
-                                                    provider.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'
-                                                    }`}></span>
-                                                {provider.status}
-                                            </span>
+                                        <td className="px-6 py-4 align-middle">
+                                            <div>
+                                                <span className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[9px] font-black uppercase tracking-widest border ${statusStyles[provider.status] || statusStyles.pending}`}>
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${provider.status === 'verified' ? 'bg-emerald-500' :
+                                                        provider.status === 'pending' ? 'bg-amber-500' : 'bg-red-500'
+                                                        }`}></span>
+                                                    {provider.status}
+                                                </span>
+                                            </div>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-6 py-4 text-right align-middle">
                                             <div className="flex items-center justify-end gap-2">
                                                 {provider.status === "pending" && (
                                                     <>

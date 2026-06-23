@@ -20,13 +20,15 @@ const ProviderServices = () => {
   const [showForm, setShowForm] = useState(false);
   const [showComboForm, setShowComboForm] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", visible: true, image: "" });
+  const [form, setForm] = useState({ name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] });
   const [viewService, setViewService] = useState(null);
   const [comboForm, setComboForm] = useState({ name: "", description: "", services: [], price: "", image: "" });
   const [uploading, setUploading] = useState(false);
   const [serviceSubTab, setServiceSubTab] = useState("active"); // "active" or "hidden"
   const [saving, setSaving] = useState(false);
   const [newCustomService, setNewCustomService] = useState("");
+  const [newAmenity, setNewAmenity] = useState("");
+  const [newServiceDetail, setNewServiceDetail] = useState("");
 
   const { user } = useAuth();
 
@@ -85,6 +87,8 @@ const ProviderServices = () => {
       duration: form.duration,
       visible: form.visible,
       image: form.image,
+      amenities: form.amenities || [],
+      serviceDetails: form.serviceDetails || [],
       category: categoryName, // Force match provider's category
       price: Number(form.price) || 0,
     };
@@ -144,6 +148,8 @@ const ProviderServices = () => {
       description: s.description || `Professional ${s.name} service`,
       duration: "1 hour",
       visible: true,
+      amenities: s.amenities || [],
+      serviceDetails: s.serviceDetails || [],
       category: categoryName,
       price: isSewak ? (s.basePrice || 299) : (s.basePrice || 299)
     };
@@ -164,13 +170,15 @@ const ProviderServices = () => {
       price: isSewak ? (s.basePrice || 299) : "",
       duration: "1 hour",
       visible: true,
-      image: ""
+      image: "",
+      amenities: s.amenities || [],
+      serviceDetails: s.serviceDetails || []
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "" }); setShowForm(false); setEditId(null); };
+  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); };
   const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); };
 
   const handleEdit = (s) => {
@@ -182,7 +190,9 @@ const ProviderServices = () => {
       price: s.price || "",
       duration: s.duration || "30 min",
       visible: s.visible,
-      image: s.image || ""
+      image: s.image || "",
+      amenities: s.amenities || [],
+      serviceDetails: s.serviceDetails || []
     });
     setEditId(s._id);
     setShowForm(true);
@@ -524,6 +534,106 @@ const ProviderServices = () => {
                   </div>
                 </div>
 
+                <div className="text-left">
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Amenities / Inclusions</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newAmenity}
+                      onChange={e => setNewAmenity(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (newAmenity.trim()) {
+                            setForm({ ...form, amenities: [...(form.amenities || []), newAmenity.trim()] });
+                            setNewAmenity("");
+                          }
+                        }
+                      }}
+                      className="flex-1 rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none"
+                      placeholder="e.g. Bringing own equipment"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newAmenity.trim()) {
+                          setForm({ ...form, amenities: [...(form.amenities || []), newAmenity.trim()] });
+                          setNewAmenity("");
+                        }
+                      }}
+                      className="rounded-2xl bg-slate-100 dark:bg-slate-800 px-6 font-black uppercase text-[10px] hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {form.amenities && form.amenities.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {form.amenities.map((amenity, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-3 py-1.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-800">
+                          {amenity}
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, amenities: form.amenities.filter((_, i) => i !== idx) })}
+                            className="ml-1 text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-200"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-left">
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Details / Inclusions</label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newServiceDetail}
+                      onChange={e => setNewServiceDetail(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (newServiceDetail.trim()) {
+                            setForm({ ...form, serviceDetails: [...(form.serviceDetails || []), newServiceDetail.trim()] });
+                            setNewServiceDetail("");
+                          }
+                        }
+                      }}
+                      className="flex-1 rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none"
+                      placeholder="e.g. Deep cleaning of all surfaces"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newServiceDetail.trim()) {
+                          setForm({ ...form, serviceDetails: [...(form.serviceDetails || []), newServiceDetail.trim()] });
+                          setNewServiceDetail("");
+                        }
+                      }}
+                      className="rounded-2xl bg-slate-100 dark:bg-slate-800 px-6 font-black uppercase text-[10px] hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {form.serviceDetails && form.serviceDetails.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-3">
+                      {form.serviceDetails.map((detail, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 px-3 py-2 text-[10px] font-bold text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800">
+                          <span>{idx + 1}. {detail}</span>
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, serviceDetails: form.serviceDetails.filter((_, i) => i !== idx) })}
+                            className="ml-1 text-blue-500 hover:text-blue-700 dark:hover:text-blue-200"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="text-left bg-muted/50 p-4 rounded-2xl flex items-center justify-between border border-border">
                   <div>
                     <p className="text-xs font-black text-foreground">Visible on Public Shop</p>
@@ -608,6 +718,8 @@ const ProviderServices = () => {
                                 description: catSvc.description || `Professional ${catSvc.name} service`,
                                 duration: "1 hour",
                                 visible: false, // Hidden by default if added via Combo
+                                amenities: catSvc.amenities || [],
+                                serviceDetails: catSvc.serviceDetails || [],
                                 category: categoryName,
                                 price: catSvc.basePrice || 299
                               };
@@ -685,6 +797,8 @@ const ProviderServices = () => {
                             description: `Custom ${newCustomService.trim()} service`,
                             duration: "1 hour",
                             visible: false,
+                            amenities: [],
+                            serviceDetails: [],
                             category: categoryName,
                             price: 299
                           };
