@@ -780,33 +780,40 @@ const verifyEndOTP = async (req, res) => {
                     commissionStatus = 'free_new_joiner';
                 } else {
                     let rate = 10;
-                    const plan = provider.planType || 'none';
+                    let commissionAmount = 0;
 
-                    if (plan === 'elite') rate = config.subscriptionPlans.elite.commissionRate;
-                    else if (plan === 'pro') rate = config.subscriptionPlans.pro.commissionRate;
-                    else if (plan === 'basic') rate = config.subscriptionPlans.basic.commissionRate;
-                    else {
+                    if (provider.isSubscribed && provider.subscriptionRate !== null) {
+                        if (provider.subscriptionType === 'fixed') {
+                            commissionAmount = provider.subscriptionRate;
+                        } else {
+                            rate = provider.subscriptionRate;
+                            commissionAmount = (booking.totalAmount * rate) / 100;
+                        }
+                        commissionStatus = `subscription_active`;
+                    } else {
                         // Amount Slabs by Category
                         const amt = booking.totalAmount;
                         const providerCategoryId = provider.vendorType?._id?.toString() || provider.vendorType?.toString();
 
-                        let matchingSlabs = config.commissionSlabs.filter(s => s.categoryId === providerCategoryId);
+                        let matchingSlabs = config.commissionSlabs?.filter(s => s.categoryId === providerCategoryId) || [];
                         if (matchingSlabs.length === 0) {
-                            matchingSlabs = config.commissionSlabs.filter(s => !s.categoryId || s.categoryId === 'default' || s.categoryId === '');
+                            matchingSlabs = config.commissionSlabs?.filter(s => !s.categoryId || s.categoryId === 'default' || s.categoryId === '') || [];
                         }
 
                         const slab = matchingSlabs.find(s => amt >= s.min && amt <= s.max);
                         rate = slab ? slab.rate : (matchingSlabs.length > 0 ? matchingSlabs[0].rate : 10);
+                        commissionAmount = (booking.totalAmount * rate) / 100;
+                        commissionStatus = 'slab_commission';
                     }
 
-                    // Attendance Bonus Discount
-                    if (provider.attendanceBonusActive) {
-                        rate = Math.max(0, rate - config.attendance.discountRate);
+                    // Attendance Bonus Discount (Only applies if percentage based)
+                    if (provider.attendanceBonusActive && (!provider.isSubscribed || provider.subscriptionType !== 'fixed')) {
+                        const discount = (booking.totalAmount * (config.attendance?.discountRate || 0)) / 100;
+                        commissionAmount = Math.max(0, commissionAmount - discount);
                     }
 
-                    adminCommission = (booking.totalAmount * rate) / 100;
+                    adminCommission = commissionAmount;
                     providerPayout = booking.totalAmount - adminCommission;
-                    commissionStatus = plan !== 'none' ? `subscription_${plan}` : 'slab_commission';
                 }
 
                 // --- Partner Program Bonuses ---

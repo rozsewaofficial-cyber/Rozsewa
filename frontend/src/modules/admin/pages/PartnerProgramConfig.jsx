@@ -60,7 +60,13 @@ export default function PartnerProgramConfig() {
     setLoading(true);
     try {
       const { data } = await API.get(`/admin/partner-program-config?categoryId=${selectedCategoryId}`);
-      setConfig(data);
+      setConfig({
+        commissionSlabs: data.commissionSlabs || [],
+        performanceBonuses: data.performanceBonuses || { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
+        penalties: data.penalties || { cancellationCharge: 50 },
+        referral: data.referral || { commissionRate: 1, durationMonths: 12 },
+        attendance: data.attendance || { requiredDays: 30, discountRate: 2 }
+      });
     } catch (err) {
       toast({ title: 'Failed to load config', variant: 'destructive' });
     } finally {

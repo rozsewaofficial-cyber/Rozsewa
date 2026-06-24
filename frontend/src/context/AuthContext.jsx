@@ -73,17 +73,30 @@ export const AuthProvider = ({ children }) => {
       if (isPageAdmin) {
         expectedRole = (auth?.role === 'superadmin' || auth?.role === 'supervisor') ? auth.role : "admin";
       } else if (isPageProvider) {
-        expectedRole = (auth?.role === 'sewak') ? 'sewak' : 'provider';
+        expectedRole = "provider";
       }
 
+      // Check if current auth role is valid for the current panel
+      const isCustomerPanelMatch = (auth?.role === 'customer' || auth?.role === 'user') && !isPageProvider && !isPageAdmin;
+      const isProviderPanelMatch = (auth?.role === 'provider' || auth?.role === 'sewak') && isPageProvider;
+      const isAdminPanelMatch = (auth?.role === 'admin' || auth?.role === 'superadmin' || auth?.role === 'supervisor') && isPageAdmin;
+
+      const isMatch = isCustomerPanelMatch || isProviderPanelMatch || isAdminPanelMatch;
+
       // If the current auth doesn't match the panel we are in, re-sync
-      if (auth?.role !== expectedRole) {
+      if (!isMatch && auth) {
         const key = getStorageKey(path);
         const saved = localStorage.getItem(key);
         if (saved) {
           setAuth(JSON.parse(saved));
         } else {
           setAuth(null);
+        }
+      } else if (!auth) {
+        const key = getStorageKey(path);
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          setAuth(JSON.parse(saved));
         }
       }
 
@@ -94,7 +107,12 @@ export const AuthProvider = ({ children }) => {
           const endpoint = path.startsWith("/provider") ? "/provider/profile" : "/auth/profile";
           const res = await API.get(endpoint);
           const userData = res.data;
-          setAuth(prev => (prev ? { ...prev, ...userData } : null));
+          
+          setAuth(prev => {
+            if (prev) return { ...prev, ...userData };
+            const saved = JSON.parse(localStorage.getItem(getStorageKey(path)) || "{}");
+            return { ...saved, ...userData, token: currentToken };
+          });
 
           // If no live GPS location, use user's saved location (only if it matches the current selected city context)
           const currentCity = localStorage.getItem("rozsewa_user_city");
@@ -115,9 +133,7 @@ export const AuthProvider = ({ children }) => {
           if (err.response && (err.response.status === 401 || err.response.status === 404)) {
             console.warn(`Auth session invalid (${err.response.status}). Logging out.`);
             localStorage.removeItem(getStorageKey(path));
-            if (auth?.role === expectedRole || auth?.role === 'customer') {
-              setAuth(null);
-            }
+            setAuth(null);
           }
         }
       }
