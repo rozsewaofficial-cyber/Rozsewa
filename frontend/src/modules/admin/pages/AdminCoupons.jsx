@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { Search, Tag, Plus, CheckCircle2, XCircle, Clock, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
+import { normalizeNonNegativeNumber, validateNonNegativeNumber } from "@/lib/numberValidation";
+import { validateDate } from "@/lib/dateValidation";
 
 const initialCoupons = [
   { id: "C-1", code: "Rozsewa30", discount: "30%", maxUses: 100, used: 45, expiry: "2026-12-31", status: "active" },
@@ -20,6 +23,8 @@ const AdminCoupons = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [newCoupon, setNewCoupon] = useState({ code: "", discount: "", maxUses: "", expiry: "" });
+
+  useScrollLock(showModal);
 
   useEffect(() => {
     setTitle("Promo Codes & Coupons");
@@ -49,6 +54,22 @@ const AdminCoupons = () => {
       toast({ title: "Required Fields", description: "Please fill all fields.", variant: "destructive" });
       return;
     }
+
+    const maxUsesValidation = validateNonNegativeNumber(newCoupon.maxUses, { fieldName: "Max Uses", min: 1 });
+    if (!maxUsesValidation.isValid) {
+      toast({ title: "Invalid Input", description: maxUsesValidation.error, variant: "destructive" });
+      return;
+    }
+
+    const expiryValidation = validateDate(newCoupon.expiry, {
+      minDate: new Date(),
+      minErrorMessage: "Expiry date cannot be in the past."
+    });
+    if (!expiryValidation.isValid) {
+      toast({ title: "Invalid Date", description: expiryValidation.message, variant: "destructive" });
+      return;
+    }
+
     const coupon = {
       id: `C-${Date.now()}`,
       code: newCoupon.code.toUpperCase(),
@@ -190,13 +211,13 @@ const AdminCoupons = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">Max Uses</label>
-                    <input type="number" placeholder="Limit" value={newCoupon.maxUses} onChange={e => setNewCoupon({ ...newCoupon, maxUses: e.target.value })} className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 px-4 text-sm font-semibold placeholder:text-gray-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                    <input type="number" min="1" placeholder="Limit" value={newCoupon.maxUses} onChange={e => setNewCoupon({ ...newCoupon, maxUses: normalizeNonNegativeNumber(e.target.value) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 px-4 text-sm font-semibold placeholder:text-gray-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-1.5">Expiry Date</label>
-                  <input type="date" value={newCoupon.expiry} onChange={e => setNewCoupon({ ...newCoupon, expiry: e.target.value })} className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 px-4 text-sm font-semibold text-gray-700 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                  <input type="date" min={new Date().toISOString().split('T')[0]} value={newCoupon.expiry} onChange={e => setNewCoupon({ ...newCoupon, expiry: e.target.value })} className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 px-4 text-sm font-semibold text-gray-700 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
                 </div>
 
                 <div className="pt-4 flex gap-3">

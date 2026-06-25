@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Wallet, TrendingUp, Download, IndianRupee, History, Gift, Plus, X, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +23,8 @@ const WalletPage = () => {
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [addAmount, setAddAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+
+  useScrollLock(showAddMoney);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchWalletData = async () => {

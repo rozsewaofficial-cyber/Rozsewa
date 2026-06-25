@@ -408,11 +408,19 @@ const deleteUserAccount = async (req, res) => {
 // @route   POST /api/auth/check-existence
 // @access  Public
 const checkUserExistence = async (req, res) => {
-    const { mobile } = req.body;
+    const { mobile, type } = req.body;
     try {
-        const user = await User.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
-        const provider = await Provider.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
-        res.json({ exists: !!user || !!provider });
+        if (type === 'provider') {
+            const provider = await Provider.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
+            return res.json({ exists: !!provider });
+        } else if (type === 'user') {
+            const user = await User.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
+            return res.json({ exists: !!user });
+        } else {
+            const user = await User.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
+            const provider = await Provider.findOne({ $or: [{ phone: mobile }, { mobile: mobile }] });
+            return res.json({ exists: !!user || !!provider });
+        }
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

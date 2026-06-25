@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Image as ImageIcon, ToggleLeft, ToggleRight, Trash2, Edit3, X, Save, Camera, Loader2, Target, Presentation, EyeOff } from "lucide-react";
@@ -21,6 +22,8 @@ const AdminBanners = () => {
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editId, setEditId] = useState(null);
+
+    useScrollLock(showForm);
     const [isUploading, setIsUploading] = useState(false);
     const [form, setForm] = useState({
         title: "",

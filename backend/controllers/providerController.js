@@ -159,7 +159,11 @@ const authProvider = async (req, res) => {
     try {
         const provider = await Provider.findOne({ mobile });
 
-        if (provider && (await provider.matchPassword(password))) {
+        if (!provider) {
+            return res.status(404).json({ message: 'No account found with this mobile number' });
+        }
+
+        if (await provider.matchPassword(password)) {
             res.json({
                 success: true,
                 message: "Login successful",
@@ -183,7 +187,7 @@ const authProvider = async (req, res) => {
                 }
             });
         } else {
-            res.status(401).json({ message: 'Invalid mobile or password' });
+            res.status(401).json({ message: 'Invalid password' });
         }
     } catch (error) {
         res.status(500).json({ message: error.message });

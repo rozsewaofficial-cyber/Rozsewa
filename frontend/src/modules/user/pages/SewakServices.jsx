@@ -94,6 +94,7 @@ const SewakServices = () => {
     localStorage.setItem("rozsewa_checkout_data", JSON.stringify({
       providerId: null,
       requiredProviderCategory: "sewak",
+      serviceId: items[0]?.id || "DEMO-ID",
       shopName: "Sewak Broadcast",
       category: categoryName,
       items,

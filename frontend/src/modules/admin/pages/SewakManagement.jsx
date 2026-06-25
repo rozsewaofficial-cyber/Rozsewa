@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useScrollLock } from '@/lib/scrollLock';
 import {
     Users, Plus, Search, Phone, Mail, Trash2, Building2,
     Briefcase, FileCheck, XCircle, Eye, EyeOff, Edit3, Loader2,
@@ -7,6 +8,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from "sonner";
 import API from "@/lib/api";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 import axios from 'axios';
 
 const InputField = ({ label, children }) => (
@@ -23,6 +27,8 @@ const SewakManagement = () => {
     const [loading, setLoading] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+
+    useScrollLock(showCreateForm);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
@@ -113,9 +119,8 @@ const SewakManagement = () => {
     }, []);
 
     useEffect(() => {
-        document.body.style.overflow = showCreateForm ? "hidden" : "";
-        return () => { document.body.style.overflow = ""; };
-    }, [showCreateForm]);
+        fetchSewaks();
+    }, []);
 
     const fetchCategories = async () => {
         try {
@@ -150,21 +155,56 @@ const SewakManagement = () => {
 
     const handleCreateSewak = async (e) => {
         e.preventDefault();
+        const sanitizedOwnerName = sanitizeName(newSewak.ownerName);
+        const nameValidation = validateName(sanitizedOwnerName);
+        if (!nameValidation.isValid) {
+            toast.error(`Full Name: ${nameValidation.message}`);
+            return;
+        }
+
+        let sanitizedHolderName = "";
+        if (newSewak.bankDetails && newSewak.bankDetails.accountHolderName) {
+            sanitizedHolderName = sanitizeName(newSewak.bankDetails.accountHolderName);
+            const holderNameValidation = validateName(sanitizedHolderName);
+            if (!holderNameValidation.isValid) {
+                toast.error(`Account Name: ${holderNameValidation.message}`);
+                return;
+            }
+        }
+
+        if (newSewak.email && !validateEmail(newSewak.email)) {
+            toast.error("Please enter a valid email address.");
+            return;
+        }
+        const phoneValidation = validatePhone(newSewak.mobile);
+        if (!phoneValidation.isValid) {
+            toast.error(phoneValidation.message);
+            return;
+        }
         if (newSewak.password !== newSewak.confirmPassword) {
             toast.error("Passwords do not match");
             return;
         }
+
+        const sanitizedSewak = {
+            ...newSewak,
+            ownerName: sanitizedOwnerName,
+            bankDetails: newSewak.bankDetails
+                ? { ...newSewak.bankDetails, accountHolderName: sanitizedHolderName }
+                : undefined
+        };
+
         setUploadingDoc("saving");
         try {
             const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
             
             if (editId) {
-                await axios.put(`${import.meta.env.VITE_API_URL}/admin/sewaks/${editId}`, newSewak, {
+                await axios.put(`${import.meta.env.VITE_API_URL}/admin/sewaks/${editId}`, sanitizedSewak, {
                     headers: { Authorization: `Bearer ${auth?.token}` }
                 });
                 toast.success("Sewak updated successfully");
             } else {
-                await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewaks`, newSewak, {
+                await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewaks`, sanitizedSewak, {
                     headers: { Authorization: `Bearer ${auth?.token}` }
                 });
                 toast.success("Sewak registered successfully");
@@ -455,17 +495,18 @@ const SewakManagement = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <InputField label="Full Name">
                                             <input required type="text" value={newSewak.ownerName}
-                                                onChange={(e) => { const v = e.target.value.replace(/[^a-zA-Z\s]/g, ""); setNewSewak({ ...newSewak, ownerName: v }); }}
+                                                onChange={(e) => setNewSewak({ ...newSewak, ownerName: sanitizeNameOnChange(e.target.value) })}
                                                 className={inputCls} placeholder="Sewak Name" />
                                         </InputField>
                                         <InputField label="Mobile Number">
                                             <input required type="tel" value={newSewak.mobile}
-                                                onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 10) setNewSewak({ ...newSewak, mobile: v }); }}
+                                                onChange={(e) => setNewSewak({ ...newSewak, mobile: sanitizePhone(e.target.value) })}
+                                                maxLength="10"
                                                 className={inputCls} placeholder="10 digit mobile" />
                                         </InputField>
                                         <InputField label="Email Address">
                                             <input required type="email" value={newSewak.email}
-                                                onChange={(e) => { const v = e.target.value.replace(/\s/g, ""); setNewSewak({ ...newSewak, email: v }); }}
+                                                onChange={(e) => { setNewSewak({ ...newSewak, email: sanitizeEmail(e.target.value) }); }}
                                                 className={inputCls} placeholder="email@rozsewa.com" />
                                         </InputField>
                                     </div>
@@ -532,7 +573,7 @@ const SewakManagement = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <InputField label="Account Name">
                                             <input type="text" value={newSewak.bankDetails.accountHolderName}
-                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, "") } })}
+                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: sanitizeNameOnChange(e.target.value) } })}
                                                 className={inputCls} placeholder="As per passbook" />
                                         </InputField>
                                         <InputField label="Bank Name">

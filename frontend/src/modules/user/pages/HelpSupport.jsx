@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, MessageSquare, Phone, Mail, HelpCircle, ChevronRight, Search, Zap, ExternalLink, X, Ticket, ChevronDown, Headset } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +13,8 @@ const HelpSupport = () => {
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFaq, setExpandedFaq] = useState(null);
+
+  useScrollLock(!!selectedPolicy);
 
   useEffect(() => {
     const fetchFaqs = async () => {

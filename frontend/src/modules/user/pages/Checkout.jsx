@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +31,8 @@ const Checkout = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [serviceNotes, setServiceNotes] = useState("");
   const [appliedCouponData, setAppliedCouponData] = useState(null);
+  const [maxBargainLimit, setMaxBargainLimit] = useState(20);
+  const [customerOffer, setCustomerOffer] = useState("");
   const [providerHours, setProviderHours] = useState({ openingTime: "09:00 AM", closingTime: "06:00 PM", availability: [] });
 
   const checkoutData = JSON.parse(localStorage.getItem("rozsewa_checkout_data")) || {
@@ -166,6 +169,8 @@ const Checkout = () => {
   const [newAddress, setNewAddress] = useState({ label: "", address: "" });
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
 
+  useScrollLock(showAddressModal);
+
   // Booking Confirmed
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -188,6 +193,18 @@ const Checkout = () => {
       setCoupon(lastCopied);
       localStorage.removeItem("rozsewa_last_copied_coupon");
     }
+
+    const fetchConfig = async () => {
+      try {
+        const { data } = await API.get("/public/config");
+        if (data && data.maxBargainLimit !== undefined) {
+          setMaxBargainLimit(data.maxBargainLimit);
+        }
+      } catch (err) {
+        console.error("Failed to fetch public config:", err);
+      }
+    };
+    fetchConfig();
   }, []);
 
   useEffect(() => {
@@ -244,17 +261,40 @@ const Checkout = () => {
 
 
 
-  let discount = 0;
+  let couponDiscount = 0;
   if (couponApplied && appliedCouponData) {
     if (appliedCouponData.discount.includes("%")) {
       const percent = parseInt(appliedCouponData.discount);
-      discount = Math.round(subtotal * (percent / 100));
+      couponDiscount = Math.round(subtotal * (percent / 100));
     } else {
-      discount = parseInt(appliedCouponData.discount.replace(/[^0-9]/g, "")) || 0;
+      couponDiscount = parseInt(appliedCouponData.discount.replace(/[^0-9]/g, "")) || 0;
     }
   }
 
-  const total = subtotal - discount + (isExpress ? EXPRESS_FEE : 0);
+  // Cap couponDiscount to subtotal
+  couponDiscount = Math.min(couponDiscount, subtotal);
+
+  // Maximum allowed discount calculation
+  const maxAllowedDiscount = Math.round(subtotal * (maxBargainLimit / 100));
+  const minAllowedOffer = Math.max(0, subtotal - maxAllowedDiscount);
+
+  // Parse bargaining customerOffer
+  const hasCustomOffer = customerOffer !== "" && !isNaN(Number(customerOffer));
+  const parsedCustomerOffer = hasCustomOffer ? Number(customerOffer) : (subtotal - couponDiscount);
+  
+  // Calculate bargain discount
+  const bargainDiscount = Math.max(0, subtotal - couponDiscount - parsedCustomerOffer);
+  const totalDiscount = couponDiscount + bargainDiscount;
+
+  // Final subtotal price to pay after discounts (before express fees)
+  const payableSubtotal = parsedCustomerOffer;
+  const total = payableSubtotal + (isExpress ? EXPRESS_FEE : 0);
+
+  // Validation flags for custom offer
+  const isOfferTooLow = hasCustomOffer && (payableSubtotal < minAllowedOffer);
+  const isOfferTooHigh = hasCustomOffer && (payableSubtotal > subtotal - couponDiscount);
+  const isOfferNegative = hasCustomOffer && (payableSubtotal < 0);
+  const isOfferInvalid = isOfferTooLow || isOfferTooHigh || isOfferNegative;
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -338,7 +378,7 @@ const Checkout = () => {
     setIsProcessing(true);
     try {
       const bookingData = {
-        serviceId: checkoutData.serviceId || "DEMO-ID",
+        serviceId: checkoutData.serviceId || (checkoutData.items?.[0]?.id) || "DEMO-ID",
         serviceName: serviceNames,
         providerId: checkoutData.providerId || null,
         requiredProviderCategory: checkoutData.requiredProviderCategory || 'partner',
@@ -349,13 +389,14 @@ const Checkout = () => {
         location: selectedAddress.location,
         paymentMode: paymentMode,
         couponCode: appliedCouponData?.code || "",
-        discountAmount: discount || 0
+        discountAmount: totalDiscount,
+        customerOffer: hasCustomOffer ? payableSubtotal : null,
+        items: checkoutData.items || []
       };
 
       const { data } = await API.post("/bookings", bookingData);
 
-      setBookingId(data._id);
-      setBookingId(data._id);
+      setBookingId(data.booking._id);
       setBookingConfirmed(true);
 
       // Clear checkout data
@@ -376,6 +417,10 @@ const Checkout = () => {
     }
     if (!selectedAddress) {
       toast({ title: "Select Address", description: "Please select a delivery address.", variant: "destructive" });
+      return;
+    }
+    if (isOfferInvalid) {
+      toast({ title: "Invalid Offer", description: "Your customer offer does not meet bargaining rules.", variant: "destructive" });
       return;
     }
 
@@ -733,11 +778,62 @@ const Checkout = () => {
             </div>
           </section>
 
+          {/* Bargain & Save */}
+          <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500"><Tag className="h-3.5 w-3.5 text-blue-500" /> Bargain & Save</h3>
+              <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded uppercase tracking-wider">Max {maxBargainLimit}% Off</span>
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal">
+              Have a budget in mind? Make a custom Customer Offer for this service (minimum offer of ₹{minAllowedOffer} allowed).
+            </p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute inset-y-0 left-4 flex items-center text-slate-500 font-bold text-sm">₹</span>
+                <input
+                  type="number"
+                  value={customerOffer}
+                  onChange={(e) => setCustomerOffer(e.target.value)}
+                  placeholder={`Original Price: ₹${subtotal}`}
+                  className="w-full rounded-[14px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-8 pr-4 py-3 text-[13px] font-bold focus:border-blue-500 focus:outline-none transition-all"
+                />
+              </div>
+              {hasCustomOffer && (
+                <button
+                  onClick={() => setCustomerOffer("")}
+                  className="rounded-[14px] bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-white px-4 py-3 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            {hasCustomOffer && (
+              <div className="text-[11px] font-bold">
+                {isOfferTooLow && (
+                  <p className="text-red-500">Customer Offer is too low! Minimum allowed offer: ₹{minAllowedOffer}.</p>
+                )}
+                {isOfferTooHigh && (
+                  <p className="text-red-500">Offer cannot exceed ₹{subtotal - couponDiscount} (subtotal after coupon).</p>
+                )}
+                {isOfferNegative && (
+                  <p className="text-red-500">Offer cannot be negative.</p>
+                )}
+                {!isOfferInvalid && (
+                  <p className="text-emerald-500">
+                    Offer within rules! You save a custom bargain discount of ₹{bargainDiscount} (Total savings: ₹{totalDiscount}).
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+
           {/* Price Summary */}
           <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3">
             <div className="flex justify-between text-sm"><span className="font-semibold text-slate-500 dark:text-slate-400">Subtotal</span><span className="font-black text-slate-900 dark:text-white">₹{subtotal}</span></div>
             {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-slate-900 dark:text-white">₹{EXPRESS_FEE}</span></div>}
-            {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Discount Applied</span><span className="font-black">-₹{discount}</span></div>}
+            {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Coupon Discount</span><span className="font-black">-₹{couponDiscount}</span></div>}
+            {bargainDiscount > 0 && <div className="flex justify-between text-sm text-blue-500"><span className="font-bold">Bargain Discount</span><span className="font-black">-₹{bargainDiscount}</span></div>}
+            {totalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 font-bold"><span className="font-bold">Total Savings</span><span className="font-black">-₹{totalDiscount}</span></div>}
             <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
               <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
               <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{total}</span>

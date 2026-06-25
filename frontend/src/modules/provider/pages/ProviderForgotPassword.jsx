@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 
 const ProviderForgotPassword = () => {
   const navigate = useNavigate();
@@ -19,15 +20,16 @@ const ProviderForgotPassword = () => {
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
-    if (!mobile || mobile.length !== 10) {
-      toast({ title: "Invalid Mobile", description: "Please enter a valid 10-digit mobile number.", variant: "destructive" });
+    const phoneValidation = validatePhone(mobile);
+    if (!phoneValidation.isValid) {
+      toast({ title: "Invalid Mobile", description: phoneValidation.message, variant: "destructive" });
       return;
     }
 
     setIsLoading(true);
     try {
       // 1. Check if user exists
-      const { data: existData } = await API.post("/auth/check-existence", { mobile });
+      const { data: existData } = await API.post("/auth/check-existence", { mobile, type: "provider" });
 
       if (!existData.exists) {
         toast({ title: "Account Not Found", description: "No account is registered with this number.", variant: "destructive" });
@@ -151,7 +153,8 @@ const ProviderForgotPassword = () => {
                       <input
                         type="tel"
                         value={mobile}
-                        onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        onChange={(e) => setMobile(sanitizePhone(e.target.value))}
+                        maxLength="10"
                         required
                         className={`block w-full rounded-2xl border border-slate-200 bg-slate-50/30 py-4 pl-12 pr-4 text-sm font-bold text-slate-900 transition-all outline-none focus:ring-4 ${loginType === 'sewak' ? 'focus:border-blue-500 focus:ring-blue-500/10' : 'focus:border-emerald-500 focus:ring-emerald-500/10'}`}
                         placeholder="99999 00000"

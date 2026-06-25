@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Users, Plus, Search, Mail, Phone, Trash2,
@@ -8,6 +9,9 @@ import {
 } from "lucide-react";
 import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 import { useAuth } from "@/context/AuthContext";
 
 const ROLE_CONFIG = {
@@ -37,6 +41,8 @@ const AdminHRM = ({ view }) => {
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+
+    useScrollLock(showAddModal);
     const [editId, setEditId] = useState(null);
     const [search, setSearch] = useState("");
     const [roleFilter, setRoleFilter] = useState("all");
@@ -60,10 +66,7 @@ const AdminHRM = ({ view }) => {
 
     useEffect(() => { setFormData(prev => ({ ...prev, role: getDefaultRole() })); }, [view, user]);
     useEffect(() => { fetchEmployees(); }, []);
-    useEffect(() => {
-        document.body.style.overflow = showAddModal ? "hidden" : "";
-        return () => { document.body.style.overflow = ""; };
-    }, [showAddModal]);
+
 
     const fetchEmployees = async () => {
         try {
@@ -104,17 +107,29 @@ const AdminHRM = ({ view }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!/^[6-9]\d{9}$/.test(formData.mobile)) {
-            return toast({ title: "Invalid Mobile", description: "Enter a valid 10-digit Indian mobile number.", variant: "destructive" });
+        const sanitizedName = sanitizeName(formData.name);
+        const nameValidation = validateName(sanitizedName);
+        if (!nameValidation.isValid) {
+            return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
         }
-        if (formData.panCard && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.panCard)) {
+        setFormData(prev => ({ ...prev, name: sanitizedName }));
+        const finalFormData = { ...formData, name: sanitizedName };
+
+        if (finalFormData.email && !validateEmail(finalFormData.email)) {
+            return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+        }
+        const phoneValidation = validatePhone(finalFormData.mobile);
+        if (!phoneValidation.isValid) {
+            return toast({ title: "Invalid Mobile", description: phoneValidation.message, variant: "destructive" });
+        }
+        if (finalFormData.panCard && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(finalFormData.panCard)) {
             return toast({ title: "Invalid PAN", description: "Format: ABCDE1234F", variant: "destructive" });
         }
-        if (formData.aadharCard && !/^\d{12}$/.test(formData.aadharCard)) {
+        if (finalFormData.aadharCard && !/^\d{12}$/.test(finalFormData.aadharCard)) {
             return toast({ title: "Invalid Aadhaar", description: "Must be 12 digits.", variant: "destructive" });
         }
         if (!editId) {
-            if (!formData.panCard || !formData.aadharCard) {
+            if (!finalFormData.panCard || !finalFormData.aadharCard) {
                 return toast({ title: "Documents Required", description: "Enter both PAN and Aadhaar numbers.", variant: "destructive" });
             }
             if (!panPhotoFile || !aadharPhotoFile) {
@@ -134,7 +149,7 @@ const AdminHRM = ({ view }) => {
                 const { data } = await API.post('/upload', fd);
                 aadharCardPhoto = data.url;
             }
-            const submitData = { ...formData, panCardPhoto, aadharCardPhoto };
+            const submitData = { ...finalFormData, panCardPhoto, aadharCardPhoto };
             if (submitData.password === "********") delete submitData.password;
 
             if (editId) {
@@ -444,7 +459,7 @@ const AdminHRM = ({ view }) => {
                                     </InputField>
                                     <InputField label="Full Name">
                                         <input required type="text" value={formData.name}
-                                            onChange={(e) => { const v = e.target.value; if (v === "" || /^[a-zA-Z\s]*$/.test(v)) setFormData({ ...formData, name: v }); }}
+                                            onChange={(e) => setFormData({ ...formData, name: sanitizeNameOnChange(e.target.value) })}
                                             maxLength={50} className={inputCls} placeholder="Rahul Verma" />
                                     </InputField>
                                 </div>
@@ -452,12 +467,13 @@ const AdminHRM = ({ view }) => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <InputField label="Mobile">
                                         <input required type="tel" value={formData.mobile}
-                                            onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 10) setFormData({ ...formData, mobile: v }); }}
+                                            onChange={(e) => setFormData({ ...formData, mobile: sanitizePhone(e.target.value) })}
+                                            maxLength="10"
                                             className={inputCls} placeholder="9876543210" />
                                     </InputField>
                                     <InputField label="Email">
                                         <input required type="email" value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                            onChange={(e) => setFormData({ ...formData, email: sanitizeEmail(e.target.value) })}
                                             className={inputCls} placeholder="email@rozsewa.com" />
                                     </InputField>
                                 </div>

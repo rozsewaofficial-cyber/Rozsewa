@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -25,6 +26,8 @@ const AdminKYC = () => {
     const [loading, setLoading] = useState(true);
     const [selectedDoc, setSelectedDoc] = useState(null);
     const [selectedProvider, setSelectedProvider] = useState(null);
+
+    useScrollLock(!!selectedDoc || !!selectedProvider);
 
     useEffect(() => {
         setTitle("KYC Verification");

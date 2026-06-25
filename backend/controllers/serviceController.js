@@ -92,18 +92,14 @@ const updateService = async (req, res) => {
                 return res.status(401).json({ message: 'Not authorized' });
             }
 
-            service.name = req.body.name || service.name;
-            service.description = req.body.description || service.description;
-            service.price = req.body.price !== undefined ? req.body.price : service.price;
-            service.duration = req.body.duration || service.duration;
-            service.visible = req.body.visible !== undefined ? req.body.visible : service.visible;
-            service.image = req.body.image || service.image;
-            if (req.body.amenities !== undefined) {
-                service.amenities = req.body.amenities;
-            }
-            if (req.body.serviceDetails !== undefined) {
-                service.serviceDetails = req.body.serviceDetails;
-            }
+            if (req.body.name !== undefined) service.name = req.body.name;
+            if (req.body.description !== undefined) service.description = req.body.description;
+            if (req.body.price !== undefined) service.price = req.body.price;
+            if (req.body.duration !== undefined) service.duration = req.body.duration;
+            if (req.body.visible !== undefined) service.visible = req.body.visible;
+            if (req.body.image !== undefined) service.image = req.body.image;
+            if (req.body.amenities !== undefined) service.amenities = req.body.amenities;
+            if (req.body.serviceDetails !== undefined) service.serviceDetails = req.body.serviceDetails;
 
             const updatedService = await service.save();
             res.json(updatedService);

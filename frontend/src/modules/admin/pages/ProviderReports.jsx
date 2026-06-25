@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useScrollLock } from '@/lib/scrollLock';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, CheckCircle, Ban, AlertTriangle, User, UserCog, Calendar, IndianRupee } from 'lucide-react';
 import API from '@/lib/api';
@@ -8,6 +9,9 @@ const ProviderReports = () => {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeReport, setActiveReport] = useState(null);
+  const [resolving, setResolving] = useState(false);
+
+  useScrollLock(!!activeReport);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [blockUser, setBlockUser] = useState(false);
   const { toast } = useToast();

@@ -9,6 +9,8 @@ const Service = require('../models/Service');
 const Category = require('../models/Category');
 const Setting = require('../models/Setting');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
+const Combo = require('../models/Combo');
+const Coupon = require('../models/Coupon');
 
 // Helper to check if time is within night window
 const isNightTime = (timeStr, startStr, endStr) => {
@@ -84,14 +86,152 @@ const hasOverlap = async (providerId, bookingDate, bookingTime) => {
 // @route   POST /api/bookings
 // @access  Private
 const createBooking = async (req, res) => {
-    const { providerId, serviceName, serviceId, bookingDate, bookingTime, totalAmount, address, couponCode, discountAmount, paymentMode, requiredProviderCategory } = req.body;
+    const {
+        providerId,
+        serviceName,
+        serviceId,
+        bookingDate,
+        bookingTime,
+        totalAmount,
+        address,
+        couponCode,
+        discountAmount,
+        paymentMode,
+        requiredProviderCategory,
+        items = [],
+        customerOffer
+    } = req.body;
 
     try {
-        let finalTotalAmount = totalAmount;
+        // --- 1. Compute Trusted Subtotal on Backend ---
+        let subtotal = 0;
+        
+        if (items && items.length > 0) {
+            for (const item of items) {
+                const itemId = item.id;
+                const qty = Number(item.qty) || 1;
+                let basePrice = 0;
+                
+                if (mongoose.Types.ObjectId.isValid(itemId)) {
+                    // Check individual service
+                    const service = await Service.findById(itemId);
+                    if (service) {
+                        basePrice = service.price || 0;
+                    } else {
+                        // Check combo
+                        const combo = await Combo.findById(itemId);
+                        if (combo) {
+                            basePrice = combo.price || 0;
+                        } else {
+                            // Check sewak sub-service or combo under Category
+                            const category = await Category.findOne({
+                                $or: [
+                                    { "services._id": itemId },
+                                    { "combos._id": itemId }
+                                ]
+                            });
+                            if (category) {
+                                const subSvc = category.services.id(itemId);
+                                if (subSvc) {
+                                    basePrice = subSvc.basePrice || 0;
+                                } else {
+                                    const subCombo = category.combos.id(itemId);
+                                    if (subCombo) {
+                                        basePrice = subCombo.sewakPrice || 0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                subtotal += basePrice * qty;
+            }
+        } else {
+            // Fallback if no items passed: lookup single serviceId
+            if (mongoose.Types.ObjectId.isValid(serviceId)) {
+                const service = await Service.findById(serviceId);
+                if (service) {
+                    subtotal = service.price || 0;
+                } else {
+                    const combo = await Combo.findById(serviceId);
+                    if (combo) {
+                        subtotal = combo.price || 0;
+                    } else {
+                        const category = await Category.findOne({
+                            $or: [
+                                { "services._id": serviceId },
+                                { "combos._id": serviceId }
+                            ]
+                        });
+                        if (category) {
+                            const subSvc = category.services.id(serviceId);
+                            if (subSvc) {
+                                subtotal = subSvc.basePrice || 0;
+                            } else {
+                                const subCombo = category.combos.id(serviceId);
+                                if (subCombo) {
+                                    subtotal = subCombo.sewakPrice || 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback if still 0
+        if (subtotal === 0) {
+            subtotal = Number(totalAmount) || 0;
+        }
+
+        // --- 2. Calculate Coupon Discount ---
+        let couponDiscount = 0;
+        if (couponCode) {
+            const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true });
+            if (coupon && new Date() <= coupon.expiryDate && coupon.usageCount < coupon.maxUsage && subtotal >= coupon.minOrderAmount) {
+                if (coupon.discount.includes("%")) {
+                    const percent = parseInt(coupon.discount);
+                    couponDiscount = Math.round(subtotal * (percent / 100));
+                } else {
+                    couponDiscount = parseInt(coupon.discount.replace(/[^0-9]/g, "")) || 0;
+                }
+                if (coupon.maxDiscountAmount) {
+                    couponDiscount = Math.min(couponDiscount, coupon.maxDiscountAmount);
+                }
+                couponDiscount = Math.max(0, Math.min(couponDiscount, subtotal));
+            }
+        }
+
+        // --- 3. Calculate Bargain Discount ---
+        // Payable amount is customerOffer if provided, otherwise defaults to subtotal - couponDiscount
+        const parsedCustomerOffer = customerOffer !== undefined && customerOffer !== null ? Number(customerOffer) : (subtotal - couponDiscount);
+        const payableAmount = Math.max(0, parsedCustomerOffer);
+        const bargainDiscount = Math.max(0, subtotal - couponDiscount - payableAmount);
+        const totalDiscount = couponDiscount + bargainDiscount;
+
+        // --- 4. Validate Maximum Discount Limit ---
+        const limitConfig = await Setting.findOne({ key: 'max_bargain_discount_limit' });
+        const limit = limitConfig && limitConfig.value !== undefined ? Number(limitConfig.value) : 20;
+
+        const maxAllowedDiscount = Math.round(subtotal * (limit / 100));
+        const minAllowedOfferAmount = Math.max(0, subtotal - maxAllowedDiscount);
+
+        // Security check: discounts should not exceed subtotal, customerOffer should not be negative
+        if (totalDiscount > maxAllowedDiscount || payableAmount < 0 || totalDiscount > subtotal || bargainDiscount < 0 || couponDiscount < 0) {
+            // Log warning trace for rejected bargaining attempts
+            console.warn(`[BARGAIN REJECTED] User ID: ${req.user._id}, Subtotal: ${subtotal}, Customer Offer: ${customerOffer}, Coupon Code: ${couponCode}, Total Discount: ${totalDiscount}, Configured Limit: ${limit}%`);
+            return res.status(400).json({
+                message: 'Customer Offer is too low.',
+                minAllowedOffer: minAllowedOfferAmount,
+                maxDiscountLimit: limit
+            });
+        }
+
+        // --- 5. Calculate Night Charge & Express Fee ---
+        let finalTotalAmount = payableAmount;
         let nightChargeAmount = 0;
         let appliedNightChargePercent = 0;
 
-        // --- Night Charge Logic ---
         try {
             const config = await Setting.findOne({ key: 'night_charge_config' });
             if (config && config.value.enabled) {
@@ -109,8 +249,8 @@ const createBooking = async (req, res) => {
                             }
 
                             appliedNightChargePercent = percent;
-                            nightChargeAmount = (totalAmount * percent) / 100;
-                            finalTotalAmount = totalAmount + nightChargeAmount;
+                            nightChargeAmount = (payableAmount * percent) / 100;
+                            finalTotalAmount = payableAmount + nightChargeAmount;
                         }
                     }
                 }
@@ -118,6 +258,12 @@ const createBooking = async (req, res) => {
         } catch (err) {
             console.error("Night charge calculation error:", err);
         }
+
+        let originalFixedPrice = subtotal - couponDiscount;
+        if (nightChargeAmount > 0 && appliedNightChargePercent > 0) {
+            originalFixedPrice += (originalFixedPrice * appliedNightChargePercent) / 100;
+        }
+        originalFixedPrice = Math.round(originalFixedPrice);
 
         const booking = await Booking.create({
             userId: req.user._id,
@@ -131,7 +277,12 @@ const createBooking = async (req, res) => {
             location: req.body.location,
             requiredProviderCategory: requiredProviderCategory || 'partner',
             couponCode,
-            discountAmount,
+            discountAmount: totalDiscount,
+            customerOffer: customerOffer !== undefined && customerOffer !== null ? payableAmount : null,
+            originalFixedPrice,
+            bargainDiscount,
+            couponDiscount,
+            totalDiscount,
             paymentMode,
             extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
         });
@@ -280,7 +431,11 @@ const createBooking = async (req, res) => {
                     paymentMode: booking.paymentMode,
                     bookingDate: booking.bookingDate,
                     bookingTime: booking.bookingTime,
-                    expiresAt: new Date(Date.now() + 2 * 60 * 1000)
+                    expiresAt: new Date(Date.now() + 2 * 60 * 1000),
+                    bargainDiscount: booking.bargainDiscount,
+                    customerOffer: booking.customerOffer,
+                    originalFixedPrice: booking.originalFixedPrice,
+                    offerStatus: booking.offerStatus
                 });
 
                 // Use unified notifyUser for persistence, socket, and push
@@ -353,6 +508,141 @@ const updateBooking = async (req, res) => {
         const booking = await Booking.findById(req.params.id);
 
         if (booking && booking.userId.toString() === req.user._id.toString()) {
+            if (req.body.counterDecision) {
+                const counterDecision = req.body.counterDecision; // 'accept' or 'reject'
+                if (!['accept', 'reject'].includes(counterDecision)) {
+                    return res.status(400).json({ message: 'Invalid counterDecision. Must be accept or reject.' });
+                }
+
+                // Check Expiration first
+                const isExpired = (booking.counterOfferExpiresAt && new Date() > booking.counterOfferExpiresAt) ||
+                                  booking.offerStatus === 'counter_expired' ||
+                                  booking.offerStatus === 'counter_rejected' ||
+                                  booking.offerStatus === 'counter_accepted';
+                
+                if (isExpired) {
+                    if (booking.offerStatus !== 'counter_expired' || booking.status !== 'cancelled') {
+                        booking.offerStatus = 'counter_expired';
+                        booking.status = 'cancelled';
+                        await booking.save();
+                    }
+                    return res.status(410).json({ message: 'This counter-offer has expired.' });
+                }
+
+                // Check Provider Availability
+                if (!booking.providerId) {
+                    return res.status(400).json({ message: 'No provider is associated with this counter-offer.' });
+                }
+                
+                const provider = await Provider.findById(booking.providerId);
+                
+                if (!provider || provider.isOnline === false || provider.status !== 'verified') {
+                    booking.offerStatus = 'counter_expired';
+                    booking.status = 'cancelled';
+                    booking.providerId = null; // clear locks/providerId
+                    await booking.save();
+
+                    // Notify customer
+                    try {
+                        const { notifyUser } = require('../config/notificationService');
+                        await notifyUser({
+                            userId: booking.userId,
+                            userRole: 'user',
+                            title: 'Provider Unavailable',
+                            message: 'The counter-offer is no longer available as the provider is unavailable.',
+                            type: 'booking',
+                            bookingId: booking._id
+                        });
+                    } catch (err) {
+                        console.log('Customer notification failed:', err.message);
+                    }
+                    return res.status(400).json({ message: 'The provider is no longer available.' });
+                }
+
+                // Perform atomic update using findOneAndUpdate
+                const updateFields = {};
+                if (counterDecision === 'accept') {
+                    const nightCharge = booking.extraCharges && booking.extraCharges.find(c => c.item && c.item.startsWith('Night Charge'));
+                    const oldAmount = nightCharge ? (nightCharge.amount || 0) : 0;
+                    const ratio = oldAmount && booking.customerOffer ? (oldAmount / booking.customerOffer) : 0;
+                    const newNightChargeAmount = Math.round(ratio * booking.partnerCounterOffer);
+                    const newExtraCharges = booking.extraCharges.map(charge => {
+                        if (charge.item && charge.item.startsWith('Night Charge')) {
+                            return { item: charge.item, amount: newNightChargeAmount };
+                        }
+                        return charge;
+                    });
+                    const newTotalAmount = booking.partnerCounterOffer + newNightChargeAmount;
+                    const bargainDiscount = booking.originalFixedPrice - newTotalAmount;
+                    const totalDiscount = booking.couponDiscount + bargainDiscount;
+
+                    updateFields.totalAmount = newTotalAmount;
+                    updateFields.bargainDiscount = bargainDiscount;
+                    updateFields.totalDiscount = totalDiscount;
+                    updateFields.acceptedPrice = newTotalAmount;
+                    updateFields.pricingDecision = 'partner_counter_offer';
+                    updateFields.status = 'confirmed';
+                    updateFields.offerStatus = 'counter_accepted';
+                    updateFields.extraCharges = newExtraCharges;
+                } else {
+                    updateFields.status = 'cancelled';
+                    updateFields.offerStatus = 'counter_rejected';
+                }
+
+                const updatedBooking = await Booking.findOneAndUpdate(
+                    {
+                        _id: booking._id,
+                        status: 'pending',
+                        offerStatus: 'countered',
+                        counterOfferExpiresAt: { $gt: new Date() }
+                    },
+                    { $set: updateFields },
+                    { new: true }
+                );
+
+                if (!updatedBooking) {
+                    return res.status(409).json({ message: 'This counter-offer has already been processed or is no longer valid.' });
+                }
+
+                // Send socket notifications to the provider and user
+                const io = require('../config/socket').getIO();
+                io.to(`provider_${booking.providerId}`).emit('COUNTER_DECISION', {
+                    bookingId: booking._id.toString(),
+                    decision: counterDecision,
+                    status: updatedBooking.status,
+                    offerStatus: updatedBooking.offerStatus
+                });
+                io.emit('NEW_BOOKING_REQUEST'); // broadcast change to refresh provider list
+
+                // Send push/in-app notifications
+                try {
+                    const { notifyUser } = require('../config/notificationService');
+                    if (counterDecision === 'accept') {
+                        await notifyUser({
+                            userId: booking.providerId,
+                            userRole: 'provider',
+                            title: 'Counter-Offer Accepted!',
+                            message: `Customer accepted your counter-offer of ₹${updatedBooking.totalAmount} for ${booking.serviceName}.`,
+                            type: 'booking',
+                            bookingId: booking._id
+                        });
+                    } else {
+                        await notifyUser({
+                            userId: booking.providerId,
+                            userRole: 'provider',
+                            title: 'Counter-Offer Rejected',
+                            message: `Customer has rejected your counter-offer of ₹${booking.partnerCounterOffer} for ${booking.serviceName}.`,
+                            type: 'booking',
+                            bookingId: booking._id
+                        });
+                    }
+                } catch (err) {
+                    console.log('Provider counter decision notification failed:', err.message);
+                }
+
+                return res.json(updatedBooking);
+            }
+
             const { status, bookingDate, bookingTime } = req.body;
 
             booking.status = status || booking.status;
@@ -424,7 +714,12 @@ const updateBookingStatusByProvider = async (req, res) => {
         const booking = await Booking.findById(req.params.id);
 
         if (booking) {
-            const isAccepting = req.body.status === 'confirmed';
+            // Lock the booking to one provider during negotiation
+            if (req.user.role === 'provider' && booking.providerId && booking.providerId.toString() !== req.user._id.toString()) {
+                return res.status(403).json({ message: 'This booking is locked by another provider.' });
+            }
+
+            const isAccepting = req.body.status === 'confirmed' || req.body.offerDecision === 'counter';
 
             const isAuthorized = (isAccepting && !booking.providerId) ||
                 (booking.providerId && booking.providerId.toString() === req.user._id.toString()) ||
@@ -433,10 +728,15 @@ const updateBookingStatusByProvider = async (req, res) => {
                 return res.status(401).json({ message: 'Not authorized for this booking' });
             }
 
-            const newStatus = req.body.status || booking.status;
+            const newStatus = req.body.offerDecision === 'counter' ? 'pending' : (req.body.status || booking.status);
 
             // Assign provider if accepting
             if (isAccepting && !booking.providerId) {
+                // Pre-check for race condition
+                if (booking.status !== 'pending' || booking.offerStatus !== 'pending') {
+                    return res.status(409).json({ message: 'This booking request is no longer pending or has already been processed.' });
+                }
+
                 // Check overlap first
                 const overlap = await hasOverlap(req.user._id, booking.bookingDate, booking.bookingTime);
                 if (overlap) {
@@ -477,10 +777,63 @@ const updateBookingStatusByProvider = async (req, res) => {
                     return res.status(403).json({ message: `Please settle your wallet dues to accept new bookings.` });
                 }
 
+                // Process custom offer decisions
+                if (booking.customerOffer !== null) {
+                    if (req.body.offerDecision === 'fixed_price') {
+                        const nightCharge = booking.extraCharges && booking.extraCharges.find(c => c.item && c.item.startsWith('Night Charge'));
+                        const oldAmount = nightCharge ? (nightCharge.amount || 0) : 0;
+                        const ratio = oldAmount && booking.customerOffer ? (oldAmount / booking.customerOffer) : 0;
+                        const newExtraCharges = booking.extraCharges.map(charge => {
+                            if (charge.item && charge.item.startsWith('Night Charge')) {
+                                const newAmount = Math.round(booking.originalFixedPrice - (booking.originalFixedPrice / (1 + ratio)));
+                                return { item: charge.item, amount: newAmount };
+                            }
+                            return charge;
+                        });
+                        booking.totalAmount = booking.originalFixedPrice;
+                        booking.bargainDiscount = 0;
+                        booking.totalDiscount = booking.couponDiscount;
+                        booking.offerStatus = 'rejected_fixed_price';
+                        booking.pricingDecision = 'fixed_price';
+                        booking.extraCharges = newExtraCharges;
+                    } else if (req.body.offerDecision === 'counter') {
+                        const counterAmount = Number(req.body.counterAmount);
+                        if (!counterAmount || isNaN(counterAmount) || counterAmount <= 0) {
+                            return res.status(400).json({ message: 'Counter offer must be a valid positive number.' });
+                        }
+                        if (counterAmount <= booking.customerOffer) {
+                            return res.status(400).json({ message: `Counter offer must be greater than customer's offer of ₹${booking.customerOffer}.` });
+                        }
+                        if (counterAmount > booking.originalFixedPrice) {
+                            return res.status(400).json({ message: `Counter offer cannot exceed original fixed price of ₹${booking.originalFixedPrice}.` });
+                        }
+                        booking.partnerCounterOffer = counterAmount;
+                        booking.offerStatus = 'countered';
+                        booking.counterOfferExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
+                    } else {
+                        booking.offerStatus = 'accepted';
+                        booking.pricingDecision = 'customer_offer';
+                    }
+                } else {
+                    booking.offerStatus = 'accepted';
+                    booking.pricingDecision = 'fixed_price';
+                }
+
                 // Atomically claim the booking to prevent race conditions
                 const claimedBooking = await Booking.findOneAndUpdate(
-                    { _id: booking._id, $or: [{ providerId: null }, { providerId: { $exists: false } }] },
-                    { $set: { providerId: req.user._id } },
+                    { _id: booking._id, status: 'pending', offerStatus: 'pending' },
+                    { $set: { 
+                        providerId: req.user._id,
+                        status: booking.offerStatus === 'countered' ? 'pending' : 'confirmed',
+                        offerStatus: booking.offerStatus,
+                        totalAmount: booking.totalAmount,
+                        bargainDiscount: booking.bargainDiscount,
+                        totalDiscount: booking.totalDiscount,
+                        extraCharges: booking.extraCharges,
+                        partnerCounterOffer: booking.partnerCounterOffer,
+                        counterOfferExpiresAt: booking.counterOfferExpiresAt,
+                        pricingDecision: booking.pricingDecision
+                    } },
                     { new: true }
                 );
 
@@ -489,6 +842,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                 }
 
                 booking.providerId = req.user._id;
+                booking.status = booking.offerStatus === 'countered' ? 'pending' : 'confirmed';
             }
 
             if (req.body.paymentStatus) {
@@ -661,20 +1015,56 @@ const updateBookingStatusByProvider = async (req, res) => {
                 }
             }
 
-            // If confirmed, notify other potential providers to stop their alarms
-            if (newStatus === 'confirmed') {
+            // If confirmed or countered, notify other potential providers to stop their alarms
+            if (newStatus === 'confirmed' || booking.offerStatus === 'countered') {
                 const io = require('../config/socket').getIO();
-                // We don't have the original dispatch list here easily, 
-                // but we can broadcast it or just rely on the fact that 
-                // it emits to a room or we can find who was notified.
-                // For simplicity, we can emit a global event for this booking ID
-                // or use a 'dispatch' room if we had one.
-                // Since each provider is in their own room, we broadcast to everyone
-                // or we could track notified providers in the booking model.
                 io.emit('BOOKING_TAKEN', { bookingId: booking._id.toString() });
+
+                if (booking.offerStatus === 'countered') {
+                    io.to(`user_${booking.userId}`).emit('COUNTER_OFFER_RECEIVED', {
+                        bookingId: booking._id.toString(),
+                        partnerCounterOffer: booking.partnerCounterOffer,
+                        counterOfferExpiresAt: booking.counterOfferExpiresAt
+                    });
+
+                    // Notify user
+                    try {
+                        const { notifyUser } = require('../config/notificationService');
+                        await notifyUser({
+                            userId: booking.userId,
+                            userRole: 'user',
+                            title: 'New Counter-Offer Proposed!',
+                            message: `A partner has proposed a counter-offer of ₹${booking.partnerCounterOffer} for your request.`,
+                            type: 'booking',
+                            bookingId: booking._id
+                        });
+                    } catch (err) {
+                        console.log('User counter-offer notification failed:', err.message);
+                    }
+                } else {
+                    // Notify user that booking was accepted
+                    try {
+                        const { notifyUser } = require('../config/notificationService');
+                        const isOfferAccepted = booking.offerStatus === 'accepted';
+                        const message = isOfferAccepted 
+                            ? `A partner has accepted your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} at ₹${booking.totalAmount}.`
+                            : `A partner has accepted your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} at the fixed price of ₹${booking.totalAmount}.`;
+                        
+                        await notifyUser({
+                            userId: booking.userId,
+                            userRole: 'user',
+                            title: isOfferAccepted ? 'Booking Accepted!' : 'Booking Accepted at Fixed Price!',
+                            message: message,
+                            type: 'booking',
+                            bookingId: booking._id
+                        });
+                    } catch (err) {
+                        console.log('User booking acceptance notification failed:', err.message);
+                    }
+                }
             }
 
-            res.json(updatedBooking);
+             res.json(updatedBooking);
         } else {
             res.status(404).json({ message: 'Booking not found' });
         }

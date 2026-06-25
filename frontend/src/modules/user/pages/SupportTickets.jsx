@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Plus, Ticket, Clock, CheckCircle2, MessageCircle, Send, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +16,8 @@ const SupportTickets = () => {
   const [message, setMessage] = useState("");
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useScrollLock(showCreate);
 
   useEffect(() => {
     fetchTickets();

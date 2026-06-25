@@ -686,6 +686,7 @@ const getSettings = async (req, res) => {
             terms: config.terms || "Standard Terms",
             privacy: config.privacy || "Standard Privacy",
             cancellation: config.cancellation || "Standard Cancellation",
+            max_bargain_discount_limit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20,
             adminProfile: {
                 name: req.user.name,
                 email: req.user.email,
@@ -703,6 +704,14 @@ const getSettings = async (req, res) => {
 const updateSettings = async (req, res) => {
     try {
         const { key, value } = req.body;
+        
+        if (key === 'max_bargain_discount_limit') {
+            const numVal = Number(value);
+            if (isNaN(numVal) || numVal < 0 || numVal > 90) {
+                return res.status(400).json({ message: 'Max bargain discount limit must be between 0% and 90%.' });
+            }
+        }
+
         await Setting.findOneAndUpdate(
             { key },
             { value, updatedAt: Date.now() },

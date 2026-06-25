@@ -5,11 +5,14 @@ import API from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { useSocket } from '@/context/SocketContext';
 import { useAuth } from '@/context/AuthContext';
+import { useScrollLock } from '@/lib/scrollLock';
 
 import alertSound from '@/assets/alert.mp3';
 
 const IncomingRequestModal = ({ request, onAction }) => {
+    useScrollLock(true);
     const { toast } = useToast();
+
     const { socket } = useSocket();
     const { user } = useAuth();
     const [timeLeft, setTimeLeft] = useState(120); // 2 mins countdown
@@ -20,6 +23,10 @@ const IncomingRequestModal = ({ request, onAction }) => {
     const [scheduleTime, setScheduleTime] = useState('');
     const [scheduleMessage, setScheduleMessage] = useState('');
     const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
+
+    const [isCountering, setIsCountering] = useState(false);
+    const [counterAmount, setCounterAmount] = useState('');
+    const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
     const audioRef = useRef(null);
     const notificationRef = useRef(null);
@@ -95,9 +102,13 @@ const IncomingRequestModal = ({ request, onAction }) => {
         };
     }, [request, audioStarted]);
 
-    const handleAccept = async () => {
+    const handleAccept = async (decision = null) => {
         try {
-            await API.patch(`/bookings/${request.bookingId}/status`, { status: 'confirmed' });
+            const payload = { status: 'confirmed' };
+            if (decision) {
+                payload.offerDecision = decision;
+            }
+            await API.patch(`/bookings/${request.bookingId}/status`, payload);
             toast({ title: "Booking Accepted!", variant: "default" });
             if (audioRef.current) {
                 audioRef.current.pause();
@@ -118,6 +129,55 @@ const IncomingRequestModal = ({ request, onAction }) => {
                 sessionStorage.removeItem('activeRequest');
                 onAction('taken');
             }
+        }
+    };
+
+    const handleCounterSubmit = async () => {
+        const amt = Number(counterAmount);
+        if (!amt || isNaN(amt) || amt <= 0) {
+            toast({ title: "Validation Error", description: "Please enter a valid positive amount.", variant: "destructive" });
+            return;
+        }
+        if (amt <= request.amount) {
+            toast({ title: "Validation Error", description: `Counter offer must be greater than customer's offer of ₹${request.amount}.`, variant: "destructive" });
+            return;
+        }
+        if (amt > request.originalFixedPrice) {
+            toast({ title: "Validation Error", description: `Counter offer cannot exceed original fixed price of ₹${request.originalFixedPrice}.`, variant: "destructive" });
+            return;
+        }
+
+        setIsSubmittingCounter(true);
+        try {
+            await API.patch(`/bookings/${request.bookingId}/status`, { 
+                status: 'pending',
+                offerDecision: 'counter',
+                counterAmount: amt
+            });
+            toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
+            
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            sessionStorage.removeItem('activeRequest');
+            onAction('countered');
+        } catch (err) {
+            toast({ 
+                title: err.response?.status === 409 ? "Booking Taken" : "Failed to send counter-offer", 
+                description: err.response?.data?.message || "Something went wrong.", 
+                variant: err.response?.status === 409 ? "default" : "destructive" 
+            });
+            if (err.response?.status === 409 || err.response?.status === 401) {
+                if (audioRef.current) {
+                    audioRef.current.pause();
+                    audioRef.current.currentTime = 0;
+                }
+                sessionStorage.removeItem('activeRequest');
+                onAction('taken');
+            }
+        } finally {
+            setIsSubmittingCounter(false);
         }
     };
 
@@ -251,7 +311,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                         className="w-full bg-background border border-border rounded-xl p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none h-20"
                                     />
                                 </div>
-
+ 
                                 <div className="grid grid-cols-2 gap-3 pt-2">
                                     <button
                                         onClick={() => setIsScheduling(false)}
@@ -268,6 +328,40 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                     </button>
                                 </div>
                             </div>
+                        ) : isCountering ? (
+                            <div className="w-full bg-muted/50 rounded-3xl p-5 space-y-4 text-left border border-border">
+                                <h3 className="text-sm font-black text-foreground uppercase tracking-widest text-center">Propose Counter Offer</h3>
+                                
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Counter Amount (₹)</label>
+                                    <input 
+                                        type="number" 
+                                        placeholder={`Between ₹${request.amount + 1} and ₹${request.originalFixedPrice}`}
+                                        value={counterAmount}
+                                        onChange={(e) => setCounterAmount(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                                    />
+                                    <p className="text-[9px] text-muted-foreground">
+                                        Must be greater than customer's offer (₹{request.amount}) and less than or equal to fixed price (₹{request.originalFixedPrice}).
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <button
+                                        onClick={() => setIsCountering(false)}
+                                        className="h-12 rounded-xl border-2 border-border bg-background hover:bg-muted flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleCounterSubmit}
+                                        disabled={isSubmittingCounter}
+                                        className="h-12 rounded-xl bg-purple-600 text-white shadow-lg shadow-purple-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
+                                    >
+                                        {isSubmittingCounter ? 'Sending...' : 'Send Counter'}
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
                             <>
                                 <div className="w-full bg-muted/50 rounded-3xl p-5 space-y-4 text-left border border-border">
@@ -278,7 +372,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                             <p className="font-black text-lg text-foreground">{request.serviceName}</p>
                                         </div>
                                     </div>
-
+ 
                                     <div className="flex items-start gap-3">
                                         <MapPin className="h-5 w-5 text-emerald-600 mt-1" />
                                         <div>
@@ -286,13 +380,27 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                             <p className="font-bold text-sm text-foreground">{request.address}</p>
                                         </div>
                                     </div>
-
+ 
                                     <div className="flex items-center justify-between pt-2 border-t border-border">
                                         <div>
-                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
-                                            <div className="flex items-center text-xl font-black text-emerald-600 italic">
-                                                <IndianRupee className="h-5 w-5" /> {request.amount}
-                                            </div>
+                                            {request.bargainDiscount > 0 ? (
+                                                <div className="space-y-1">
+                                                    <p className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">Customer Offer (Bargained)</p>
+                                                    <div className="flex items-center text-xl font-black text-amber-600 italic">
+                                                        <IndianRupee className="h-5 w-5" /> {request.amount}
+                                                    </div>
+                                                    <p className="text-[9px] text-muted-foreground font-bold">
+                                                        Original Price: ₹{request.originalFixedPrice} (Saved ₹{request.bargainDiscount})
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
+                                                    <div className="flex items-center text-xl font-black text-emerald-600 italic">
+                                                        <IndianRupee className="h-5 w-5" /> {request.amount}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Payment Mode</p>
@@ -302,28 +410,65 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                         </div>
                                     </div>
                                 </div>
-
-                                <div className="grid grid-cols-3 gap-2 w-full pt-2">
-                                    <button
-                                        onClick={handleReject}
-                                        className="h-14 rounded-2xl border-2 border-border bg-background hover:bg-muted flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground group"
-                                    >
-                                        <X className="h-4 w-4 group-hover:scale-110 transition-transform" /> Reject
-                                    </button>
-                                    <button
-                                        onClick={() => setIsScheduling(true)}
-                                        className="h-14 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-amber-700 group"
-                                    >
-                                        <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Schedule
-                                    </button>
-                                    <button
-                                        onClick={handleAccept}
-                                        className="h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest group"
-                                    >
-                                        <Check className="h-4 w-4 group-hover:scale-110 transition-transform" /> Accept
-                                    </button>
-                                </div>
-                            </>
+ 
+                                {request.bargainDiscount > 0 ? (
+                                    <div className="flex flex-col gap-2 w-full pt-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={handleReject}
+                                                className="h-12 rounded-xl border-2 border-border bg-background hover:bg-muted flex items-center justify-center gap-1.5 transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground group"
+                                            >
+                                                <X className="h-4 w-4 group-hover:scale-110 transition-transform" /> Reject
+                                            </button>
+                                            <button
+                                                onClick={() => setIsScheduling(true)}
+                                                className="h-12 rounded-xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 flex items-center justify-center gap-1.5 transition-all font-black uppercase text-[10px] tracking-widest text-amber-700 group"
+                                            >
+                                                <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Schedule
+                                            </button>
+                                        </div>
+                                        <button
+                                            onClick={() => setIsCountering(true)}
+                                            className="h-12 rounded-xl border-2 border-purple-500/20 bg-purple-50 dark:bg-purple-900/10 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/20 flex items-center justify-center gap-1.5 transition-all font-black uppercase text-[10px] tracking-widest group"
+                                        >
+                                            <IndianRupee className="h-4 w-4 text-purple-600 dark:text-purple-400" /> Counter Offer
+                                        </button>
+                                        <button
+                                            onClick={() => handleAccept('fixed_price')}
+                                            className="h-12 rounded-xl border-2 border-blue-500/20 bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 flex items-center justify-center gap-1.5 transition-all font-black uppercase text-[10px] tracking-widest group"
+                                        >
+                                            <Check className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Accept at Fixed Price (₹{request.originalFixedPrice})
+                                        </button>
+                                        <button
+                                            onClick={() => handleAccept('accept')}
+                                            className="h-12 rounded-xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5 transition-all font-black uppercase text-[10px] tracking-widest group"
+                                        >
+                                            <Check className="h-4 w-4 group-hover:scale-110 transition-transform" /> Accept Offer (₹{request.amount})
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-3 gap-2 w-full pt-2">
+                                        <button
+                                            onClick={handleReject}
+                                            className="h-14 rounded-2xl border-2 border-border bg-background hover:bg-muted flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground group"
+                                        >
+                                            <X className="h-4 w-4 group-hover:scale-110 transition-transform" /> Reject
+                                        </button>
+                                        <button
+                                            onClick={() => setIsScheduling(true)}
+                                            className="h-14 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-amber-700 group"
+                                        >
+                                            <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Schedule
+                                        </button>
+                                        <button
+                                            onClick={() => handleAccept()}
+                                            className="h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest group"
+                                        >
+                                            <Check className="h-4 w-4 group-hover:scale-110 transition-transform" /> Accept
+                                        </button>
+                                    </div>
+                                )}
+                             </>
                         )}
                     </div>
                 </motion.div>

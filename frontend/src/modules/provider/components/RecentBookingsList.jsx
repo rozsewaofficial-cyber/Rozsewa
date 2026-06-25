@@ -4,6 +4,7 @@ import LiveTrackingView from "./LiveTrackingView";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const RecentBookingsList = () => {
   const [requests, setRequests] = useState([]);
@@ -12,6 +13,47 @@ const RecentBookingsList = () => {
   const [staffList, setStaffList] = useState([]);
   const [activeTracking, setActiveTracking] = useState(null);
   const { toast } = useToast();
+
+  const [counteringBookingId, setCounteringBookingId] = useState(null);
+  const [counterAmount, setCounterAmount] = useState('');
+  const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
+
+  const handleCounterSubmit = async (bookingId, originalFixedPrice, customerOffer) => {
+    const amt = Number(counterAmount);
+    if (!amt || isNaN(amt) || amt <= 0) {
+      toast({ title: "Validation Error", description: "Please enter a valid positive amount.", variant: "destructive" });
+      return;
+    }
+    if (amt <= customerOffer) {
+      toast({ title: "Validation Error", description: `Counter offer must be greater than customer's offer of ₹${customerOffer}.`, variant: "destructive" });
+      return;
+    }
+    if (amt > originalFixedPrice) {
+      toast({ title: "Validation Error", description: `Counter offer cannot exceed original fixed price of ₹${originalFixedPrice}.`, variant: "destructive" });
+      return;
+    }
+
+    setIsSubmittingCounter(true);
+    try {
+      await API.patch(`/bookings/${bookingId}/status`, {
+        status: 'pending',
+        offerDecision: 'counter',
+        counterAmount: amt
+      });
+      toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
+      setCounteringBookingId(null);
+      setCounterAmount('');
+      fetchBookings();
+    } catch (err) {
+      toast({
+        title: "Failed to send counter-offer",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmittingCounter(false);
+    }
+  };
 
   const [isUploading, setIsUploading] = useState(false);
   const handleImageUpload = async (file) => {
@@ -97,7 +139,7 @@ const RecentBookingsList = () => {
 
   const [otpBooking, setOtpBooking] = useState(null);
   const [otpType, setOtpType] = useState('start');
-  const [providerOtp, setProviderOtp] = useState(["", "", "", ""]);
+  const [providerOtp, setProviderOtp] = useState("");
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [beforeWorkPhoto, setBeforeWorkPhoto] = useState(null);
   const [afterWorkPhoto, setAfterWorkPhoto] = useState(null);
@@ -111,7 +153,7 @@ const RecentBookingsList = () => {
   const [isReporting, setIsReporting] = useState(false);
 
   const handleOtpVerify = async () => {
-    const fullOtp = providerOtp.join("");
+    const fullOtp = providerOtp;
     if (fullOtp.length !== 4) return;
     setIsVerifyingOtp(true);
     try {
@@ -128,7 +170,7 @@ const RecentBookingsList = () => {
         toast({ title: "Service Completed Successfully" });
       }
       setOtpBooking(null);
-      setProviderOtp(["", "", "", ""]);
+      setProviderOtp("");
       setBeforeWorkPhoto(null);
       setAfterWorkPhoto(null);
       fetchBookings();
@@ -234,7 +276,18 @@ const RecentBookingsList = () => {
                 <div className="mt-4 flex items-center justify-between">
                   <div>
                     {/* Total collected from customer */}
-                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.totalAmount || 0}</div>
+                    {req.bargainDiscount > 0 ? (
+                      <div className="space-y-0.5">
+                        <div className="text-xl font-black text-amber-600 dark:text-amber-400">
+                          ₹{req.totalAmount || 0} <span className="text-[9px] text-amber-700 bg-amber-50 dark:bg-amber-900/30 px-1.5 py-0.5 rounded font-black tracking-wider uppercase">Offer</span>
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-400">
+                          Fixed Price: ₹{req.originalFixedPrice}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.totalAmount || 0}</div>
+                    )}
                     {/* Provider payout vs commission breakdown */}
                     {req.providerPayout > 0 ? (
                       <div className="mt-1 space-y-0.5">
@@ -281,20 +334,100 @@ const RecentBookingsList = () => {
                         <Navigation className="h-4 w-4" />
                       </button>
                     )}
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg max-w-[120px]">
-                      <MapPin className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{req.address}</span>
+                    <div className="flex items-start gap-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg max-w-[180px]">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{req.address}</span>
                     </div>
                   </div>
                 </div>
 
-                {req.status === "pending" && (!req.proposedSchedule || req.proposedSchedule.status !== 'pending') && (
-                  <div className="mt-5 flex gap-3">
-                    <button onClick={() => handleAction(req._id, 'reject')} className="flex-1 rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600">Reject</button>
-                    <button onClick={() => handleAction(req._id, 'accept')} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-lg">Accept</button>
+                {req.status === "pending" && req.offerStatus === "countered" && (
+                  <div className="mt-5 rounded-xl border-2 border-purple-500/20 bg-purple-50/50 dark:bg-purple-900/10 p-3">
+                    <p className="text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1">Counter-Offer Proposed</p>
+                    <div className="flex justify-between items-center bg-background rounded-lg p-2 border border-border">
+                        <div>
+                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Your Counter</p>
+                            <p className="font-bold text-xs">₹{req.partnerCounterOffer}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Customer Offer</p>
+                            <p className="font-bold text-xs text-amber-600">₹{req.customerOffer}</p>
+                        </div>
+                    </div>
+                    <p className="mt-2 text-[10px] font-bold text-purple-600 text-center uppercase tracking-widest animate-pulse">Waiting for customer response...</p>
                   </div>
                 )}
 
+                {req.status === "pending" && req.offerStatus !== "countered" && (!req.proposedSchedule || req.proposedSchedule.status !== 'pending') && (
+                  req.bargainDiscount > 0 ? (
+                    counteringBookingId === req._id ? (
+                      <div className="mt-5 bg-muted/50 rounded-xl p-3 border border-border space-y-3">
+                        <p className="text-[10px] font-black uppercase text-purple-700 tracking-wider">Propose Counter Offer</p>
+                        <input
+                          type="number"
+                          placeholder={`Enter amount between ₹${req.customerOffer + 1} and ₹${req.originalFixedPrice}`}
+                          value={counterAmount}
+                          onChange={(e) => setCounterAmount(e.target.value)}
+                          className="w-full bg-background border border-border rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => {
+                              setCounteringBookingId(null);
+                              setCounterAmount('');
+                            }}
+                            className="rounded-lg border border-border py-1.5 text-xs font-bold text-muted-foreground bg-background hover:bg-muted"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleCounterSubmit(req._id, req.originalFixedPrice, req.customerOffer)}
+                            disabled={isSubmittingCounter}
+                            className="rounded-lg bg-purple-600 py-1.5 text-xs font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-50"
+                          >
+                            {isSubmittingCounter ? 'Sending...' : 'Send'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-5 flex flex-col gap-2 w-full">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            onClick={() => handleAction(req._id, 'reject')} 
+                            className="rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          >
+                            Reject
+                          </button>
+                          <button 
+                            onClick={() => handleAction(req._id, 'accept', { offerDecision: 'accept' })} 
+                            className="rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-lg hover:bg-emerald-700"
+                          >
+                            Accept Offer
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button 
+                            onClick={() => setCounteringBookingId(req._id)} 
+                            className="rounded-xl border-2 border-purple-500/20 bg-purple-50 dark:bg-purple-900/10 py-2.5 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                          >
+                            Counter Offer
+                          </button>
+                          <button 
+                            onClick={() => handleAction(req._id, 'accept', { offerDecision: 'fixed_price' })} 
+                            className="rounded-xl border-2 border-blue-500/20 bg-blue-50 dark:bg-blue-900/10 py-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20"
+                          >
+                            Accept Fixed Price (₹{req.originalFixedPrice})
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  ) : (
+                    <div className="mt-5 flex gap-3">
+                      <button onClick={() => handleAction(req._id, 'reject')} className="flex-1 rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600">Reject</button>
+                      <button onClick={() => handleAction(req._id, 'accept')} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-lg">Accept</button>
+                    </div>
+                  )
+                )}
                 {req.status === "pending" && req.proposedSchedule && req.proposedSchedule.status === 'pending' && (
                   <div className="mt-5 rounded-xl border-2 border-amber-500/20 bg-amber-50/50 dark:bg-amber-900/10 p-3">
                     <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">Schedule Proposed</p>
@@ -536,18 +669,18 @@ const RecentBookingsList = () => {
               <h3 className="text-lg font-black text-center mb-2">{otpType === 'start' ? 'Service Verification' : 'Completion Verification'}</h3>
               <p className="text-xs text-muted-foreground text-center mb-6">Ask the customer for the 4-digit code to {otpType === 'start' ? 'start' : 'complete'} the service.</p>
 
-              <div className="flex justify-center gap-3 mb-8">
-                {providerOtp.map((d, i) => (
-                  <input key={i} maxLength={1} value={d}
-                    onChange={(e) => {
-                      const newOtp = [...providerOtp];
-                      newOtp[i] = e.target.value.slice(-1);
-                      setProviderOtp(newOtp);
-                      if (e.target.value && i < 3) document.getElementById(`potp-${i + 1}`)?.focus();
-                    }}
-                    id={`potp-${i}`}
-                    className="h-14 w-12 rounded-xl border-2 border-border bg-muted text-center text-2xl font-black text-foreground focus:border-primary focus:outline-none" />
-                ))}
+              <div className="flex justify-center mb-8">
+                <InputOTP maxLength={4} value={providerOtp} onChange={setProviderOtp}>
+                  <InputOTPGroup className="gap-3">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                      <InputOTPSlot 
+                        key={i} 
+                        index={i} 
+                        className="h-14 w-12 rounded-xl border-2 border-border bg-muted text-center text-2xl font-black text-foreground first:rounded-xl first:border-2 last:rounded-xl focus-visible:border-primary focus-visible:ring-0 focus-visible:outline-none" 
+                      />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
               </div>
 
               {/* Upload Before Photo */}

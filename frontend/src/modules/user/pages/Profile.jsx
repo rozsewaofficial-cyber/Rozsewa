@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +8,9 @@ import BottomNav from "@/modules/user/components/BottomNav";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const menuItems = [
   { icon: Clock, label: "My Bookings", desc: "View booking history", path: "/my-bookings" },
@@ -31,6 +35,8 @@ const Profile = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState(profile);
   const [isSaving, setIsSaving] = useState(false);
+
+  useScrollLock(showEdit);
 
   // Sync profile when user context updates
   useEffect(() => {
@@ -61,16 +67,33 @@ const Profile = () => {
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+    const sanitizedName = sanitizeName(editForm.name);
+    const nameValidation = validateName(sanitizedName);
+    if (!nameValidation.isValid) {
+      toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+      return;
+    }
+    const updatedForm = { ...editForm, name: sanitizedName };
+
+    if (updatedForm.email && !validateEmail(updatedForm.email)) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    const phoneValidation = validatePhone(updatedForm.phone);
+    if (!phoneValidation.isValid) {
+      toast({ title: "Invalid Mobile", description: phoneValidation.message, variant: "destructive" });
+      return;
+    }
     setIsSaving(true);
     try {
       const res = await API.put("/auth/profile", {
-        name: editForm.name,
-        email: editForm.email,
-        mobile: editForm.phone,
-        avatar: editForm.avatar,
-        location: editForm.location
+        name: updatedForm.name,
+        email: updatedForm.email,
+        mobile: updatedForm.phone,
+        avatar: updatedForm.avatar,
+        location: updatedForm.location
       });
-      setProfile(editForm);
+      setProfile(updatedForm);
       toast({ title: "Profile Updated Successfully" });
       setShowEdit(false);
     } catch (err) {
@@ -206,17 +229,21 @@ const Profile = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Full Name</label>
-                    <input type="text" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    <input type="text" value={editForm.name} onChange={e => { const val = sanitizeNameOnChange(e.target.value); setEditForm(f => ({ ...f, name: val })); }}
                       className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3.5 text-[15px] font-semibold text-slate-900 dark:text-white focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Mobile Number</label>
-                    <input type="tel" value={editForm.phone} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                    <input type="tel" value={editForm.phone} onChange={e => {
+                      const sanitized = sanitizePhone(e.target.value);
+                      setEditForm(f => ({ ...f, phone: sanitized }));
+                    }}
+                      maxLength="10"
                       className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3.5 text-[15px] font-semibold text-slate-900 dark:text-white focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" />
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1.5 ml-1">Email Address</label>
-                    <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                    <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: sanitizeEmail(e.target.value) }))}
                       className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3.5 text-[15px] font-semibold text-slate-900 dark:text-white focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" />
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Clock, MapPin, RotateCcw, ChevronRight, CalendarDays, Package, Receipt, Info, Star, X, Download, AlertTriangle, Calendar } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -35,6 +36,8 @@ const ServiceHistory = () => {
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
 
+  useScrollLock(!!selectedBooking || showCancel || showReschedule);
+
   const fetchBookings = async () => {
     try {
       const { data } = await API.get("/bookings");
@@ -43,7 +46,7 @@ const ServiceHistory = () => {
         ...b,
         id: b._id,
         service: b.serviceName,
-        total: b.totalAmount,
+        total: (b.totalAmount || 0) + (b.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0),
         date: b.bookingDate,
         time: b.bookingTime,
         status: b.status,
@@ -157,8 +160,8 @@ const ServiceHistory = () => {
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{booking.id}</span>
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{booking.service}</h3>
-                  <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-1 truncate flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" /> {booking.address}
+                  <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                    <MapPin className="h-3.5 w-3.5 inline mr-1 -mt-0.5" /> {booking.address}
                   </p>
                 </div>
                 <div className="text-right shrink-0">

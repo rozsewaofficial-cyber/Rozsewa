@@ -1,25 +1,33 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, ArrowRight, Sparkles, Eye, EyeOff } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 import { toast } from "sonner";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const CustomerLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state?.from?.pathname || "/") + (location.state?.from?.search || "");
   const { login, signup, loginWithOTP, detectLocation } = useAuth();
-  const [mode, setMode] = useState("email"); // email | signup
-  const [loginMethod, setLoginMethod] = useState("password"); // password | otp
+  
+  const draft = JSON.parse(sessionStorage.getItem("customer-signup-draft") || "{}");
+  
+  const [mode, setMode] = useState(draft.mode || "email"); // email | signup
+  const [loginMethod, setLoginMethod] = useState(draft.loginMethod || "password"); // password | otp
   const [countdown, setCountdown] = useState(0);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState(""); // Used as identifier (email or phone)
+  const [name, setName] = useState(draft.name || "");
+  const [phone, setPhone] = useState(draft.phone || "");
+  const [email, setEmail] = useState(draft.email || ""); // Used as identifier (email or phone)
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
+  const [address, setAddress] = useState(draft.address || "");
+  const [city, setCity] = useState(draft.city || "");
+  const [state, setState] = useState(draft.state || "");
   const [coords, setCoords] = useState([0, 0]);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
@@ -33,6 +41,17 @@ const CustomerLogin = () => {
     }
     return () => clearInterval(timer);
   }, [countdown]);
+
+  useEffect(() => {
+    sessionStorage.setItem("customer-signup-draft", JSON.stringify({
+      mode, loginMethod, name, phone, email, address, city, state
+    }));
+  }, [mode, loginMethod, name, phone, email, address, city, state]);
+
+  const clearDraftAndNavigate = () => {
+    sessionStorage.removeItem("customer-signup-draft");
+    navigate(from);
+  };
 
   const handleResendOtp = async () => {
     const mobileNo = mode === "signup" ? phone : email;
@@ -49,6 +68,10 @@ const CustomerLogin = () => {
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) { setError("Fill all fields"); return; }
+    if (email.includes('@') && !validateEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
     setIsVerifying(true);
     setError("");
 
@@ -62,7 +85,7 @@ const CustomerLogin = () => {
       } catch (err) {
         console.log("Location not granted during login", err);
       }
-      navigate("/");
+      clearDraftAndNavigate();
     } else {
       setError(result.error);
     }
@@ -74,6 +97,11 @@ const CustomerLogin = () => {
     if (!email) { setError("Enter mobile number"); return; }
     
     if (!showOtpInput) {
+      const phoneValidation = validatePhone(email);
+      if (!phoneValidation.isValid) {
+        setError(phoneValidation.message);
+        return;
+      }
       setIsVerifying(true);
       setError("");
       try {
@@ -100,7 +128,7 @@ const CustomerLogin = () => {
         } catch (err) {
           console.log("Location not granted during login", err);
         }
-        navigate("/");
+        clearDraftAndNavigate();
       } else {
         setError(result.error);
       }
@@ -111,6 +139,22 @@ const CustomerLogin = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     if (!name || !email || !password || !phone) { setError("Fill all fields"); return; }
+    
+    const nameSanitized = sanitizeName(name);
+    setName(nameSanitized);
+    const nameValidation = validateName(nameSanitized);
+    if (!nameValidation.isValid) {
+      setError(nameValidation.message);
+      return;
+    }
+
+    if (!validateEmail(email)) { setError("Please enter a valid email address."); return; }
+    
+    const phoneValidation = validatePhone(phone);
+    if (!phoneValidation.isValid) {
+      setError(phoneValidation.message);
+      return;
+    }
     
     if (!showOtpInput) {
       setIsVerifying(true);
@@ -155,7 +199,7 @@ const CustomerLogin = () => {
             location: { type: 'Point', coordinates: currentCoords }
           });
           if (result.success) {
-            navigate("/");
+            clearDraftAndNavigate();
           } else {
             setError(result.error);
           }
@@ -216,20 +260,20 @@ const CustomerLogin = () => {
                   onSubmit={handleSignup} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Full Name</label>
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+                    <input type="text" value={name} onChange={(e) => setName(sanitizeNameOnChange(e.target.value))}
                       className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
                       placeholder="Enter your name" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Email</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    <input type="email" value={email} onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
                       className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
                       placeholder="you@example.com" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Mobile Number</label>
                     <input type="tel" value={phone} 
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      onChange={(e) => setPhone(sanitizePhone(e.target.value))}
                       maxLength="10"
                       inputMode="numeric"
                       className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
@@ -326,7 +370,10 @@ const CustomerLogin = () => {
                   onSubmit={loginMethod === "password" ? handleEmailLogin : handleOtpLogin} className="space-y-5">
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Email or Mobile Number</label>
-                    <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
+                    <input type="text" value={email} onChange={(e) => {
+                      const val = e.target.value;
+                      setEmail(val.includes('@') ? sanitizeEmail(val) : val);
+                    }}
                       className="h-12 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
                       placeholder="Enter email or phone number" autoFocus />
                   </div>

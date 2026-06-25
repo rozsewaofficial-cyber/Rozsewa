@@ -8,13 +8,14 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 
-const steps = [
-  { label: "Booking Placed", time: "10:00 AM" },
-  { label: "Provider Accepted", time: "10:02 AM" },
-  { label: "On the Way", time: "10:15 AM" },
-  { label: "Service Started", time: "" },
-  { label: "Completed", time: "" },
+const baseSteps = [
+  { label: "Booking Placed" },
+  { label: "Provider Accepted" },
+  { label: "On the Way" },
+  { label: "Service Started" },
+  { label: "Completed" },
 ];
+
 
 const LiveTracking = () => {
   const navigate = useNavigate();
@@ -22,6 +23,15 @@ const LiveTracking = () => {
   const [bookingDetails, setBookingDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
+
+  const steps = baseSteps.map((step, idx) => {
+    let timeStr = "";
+    if (idx === 0 && bookingDetails?.createdAt) {
+      timeStr = new Date(bookingDetails.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return { ...step, time: timeStr };
+  });
+
   const [cancelTimer, setCancelTimer] = useState(250);
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [showOTP, setShowOTP] = useState(false);
@@ -29,6 +39,7 @@ const LiveTracking = () => {
   const { user } = useAuth();
   const [isPaying, setIsPaying] = useState(false);
   const [proposedSchedule, setProposedSchedule] = useState(null);
+  const [counterTimer, setCounterTimer] = useState(0);
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -52,8 +63,9 @@ const LiveTracking = () => {
     }
 
     try {
+      const finalAmount = (bookingDetails.totalAmount || 0) + (bookingDetails.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
       const { data: order } = await API.post("/payment/order", {
-        amount: bookingDetails.totalAmount,
+        amount: finalAmount,
         currency: "INR"
       });
 
@@ -137,6 +149,16 @@ const LiveTracking = () => {
           setCancelTimer(0);
         }
 
+        // Calculate counter-offer timer
+        if (active.offerStatus === 'countered' && active.counterOfferExpiresAt) {
+          const expiryTime = new Date(active.counterOfferExpiresAt).getTime();
+          const nowTime = new Date().getTime();
+          const remaining = Math.max(0, Math.floor((expiryTime - nowTime) / 1000));
+          setCounterTimer(remaining);
+        } else {
+          setCounterTimer(0);
+        }
+
       }
     } catch (err) {
       console.error("Failed to fetch booking status", err);
@@ -198,6 +220,42 @@ const LiveTracking = () => {
     }, 1000);
     return () => clearInterval(timer);
   }, [cancelTimer]);
+
+  useEffect(() => {
+    if (counterTimer <= 0) return;
+    const timer = setInterval(() => {
+      setCounterTimer(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [counterTimer]);
+
+  const handleCounterDecision = async (decision) => {
+    if (!bookingDetails) return;
+    try {
+      await API.put(`/bookings/${bookingDetails._id}`, { counterDecision: decision });
+      toast({
+        title: decision === 'accept' ? "Counter-Offer Accepted!" : "Counter-Offer Rejected",
+        description: decision === 'accept' ? "Your booking is now confirmed." : "Your booking has been cancelled.",
+        variant: "default"
+      });
+      fetchBookingStatus();
+    } catch (err) {
+      if (err.response?.status === 410) {
+        toast({
+          title: "Offer Expired",
+          description: "This counter-offer has expired.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: err.response?.data?.message || err.message,
+          variant: "destructive"
+        });
+      }
+      fetchBookingStatus();
+    }
+  };
 
   useEffect(() => {
     const handleRejected = (e) => {
@@ -377,6 +435,67 @@ const LiveTracking = () => {
                 className="h-12 rounded-full bg-amber-500 text-white shadow-md shadow-amber-500/20 hover:bg-amber-600 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px]"
               >
                 <Check className="h-4 w-4" /> Accept Time
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Counter-Offer Proposal UI */}
+        {bookingDetails?.status === 'pending' && bookingDetails?.offerStatus === 'countered' && (
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="rounded-[24px] border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
+          >
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 shadow-inner">
+                <CreditCard className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black text-purple-700 dark:text-purple-500">Counter-Offer Received</h3>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                  Partner proposed a new price
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-4">
+              <div className="flex justify-between items-center">
+                 <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Original Price</p>
+                    <p className="font-bold text-[13px] text-slate-500 line-through mt-0.5">₹{bookingDetails.originalFixedPrice}</p>
+                 </div>
+                 <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Your Offer</p>
+                    <p className="font-bold text-[13px] text-slate-500 mt-0.5">₹{bookingDetails.customerOffer}</p>
+                 </div>
+                 <div className="text-right">
+                    <p className="text-[10px] text-purple-600 uppercase font-black tracking-wider">Partner Counter</p>
+                    <p className="font-black text-lg text-purple-700 dark:text-purple-400 mt-0.5">₹{bookingDetails.partnerCounterOffer}</p>
+                 </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+                 <span className="font-bold text-slate-500">Expires in:</span>
+                 <span className="font-black text-purple-600 animate-pulse">
+                    {formatTime(counterTimer)}
+                 </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <button
+                onClick={() => handleCounterDecision('reject')}
+                className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
+              >
+                <X className="h-4 w-4" /> Reject & Cancel
+              </button>
+              <button
+                onClick={() => handleCounterDecision('accept')}
+                disabled={counterTimer <= 0}
+                className="h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px] disabled:opacity-50"
+              >
+                <Check className="h-4 w-4" /> Accept Counter
               </button>
             </div>
           </motion.div>

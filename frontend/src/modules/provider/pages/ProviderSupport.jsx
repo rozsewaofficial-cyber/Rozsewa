@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
@@ -11,7 +12,9 @@ const ProviderSupport = () => {
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [isRaisingTicket, setIsRaisingTicket] = useState(false);
-  const [newTicket, setNewTicket] = useState({ subject: "", description: "", category: "other", priority: "low" });
+  const [newTicket, setNewTicket] = useState({ subject: "", category: "General", priority: "Low", description: "" });
+
+  useScrollLock(isRaisingTicket);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {

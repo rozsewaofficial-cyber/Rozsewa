@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { Landmark, ArrowRightLeft, CalendarCheck, TrendingUp, IndianRupee, Percent, CreditCard, AlertTriangle, CheckCircle, Clock, XCircle, ShieldAlert, ArrowDownToLine } from "lucide-react";
 import API from "@/lib/api";
@@ -37,6 +38,8 @@ const AdminCommission = () => {
     const [processing, setProcessing] = useState({});
     const [rejectModal, setRejectModal] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
+
+    useScrollLock(!!rejectModal);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

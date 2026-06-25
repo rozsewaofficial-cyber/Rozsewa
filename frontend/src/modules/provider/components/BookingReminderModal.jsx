@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, Clock, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useScrollLock } from '@/lib/scrollLock';
 
 const BookingReminderModal = ({ data, onDismiss }) => {
+    useScrollLock(true);
     const audioRef = useRef(null);
     const navigate = useNavigate();
     const [audioStarted, setAudioStarted] = useState(true);

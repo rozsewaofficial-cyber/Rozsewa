@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const AdminSettings = () => {
   const { setTitle } = useOutletContext();
@@ -20,6 +22,7 @@ const AdminSettings = () => {
     autoAssign: true,
     vendorCardEnabled: true,
     vendorCardPrice: 99,
+    max_bargain_discount_limit: 20
   });
 
   const [adminProfile, setAdminProfile] = useState({
@@ -49,6 +52,7 @@ const AdminSettings = () => {
         autoAssign: data.autoAssign !== undefined ? data.autoAssign : true,
         vendorCardEnabled: data.vendorCardEnabled !== undefined ? data.vendorCardEnabled : true,
         vendorCardPrice: data.vendorCardPrice || 99,
+        max_bargain_discount_limit: data.max_bargain_discount_limit !== undefined ? data.max_bargain_discount_limit : 20,
       });
       setPolicySettings({
         terms: data.terms || "",
@@ -79,12 +83,19 @@ const AdminSettings = () => {
   };
 
   const saveSettingsGroup = async () => {
+    const maxLimit = parseInt(platformSettings.max_bargain_discount_limit);
+    if (isNaN(maxLimit) || maxLimit < 0 || maxLimit > 90) {
+      toast({ title: "Validation Error", description: "Max bargain limit must be between 0% and 90%.", variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
     try {
       const updates = [
         API.post("/admin/settings", { key: "commissionRate", value: platformSettings.commissionRate }),
         API.post("/admin/settings", { key: "minBookingAmount", value: platformSettings.minBookingAmount }),
         API.post("/admin/settings", { key: "vendorCardPrice", value: platformSettings.vendorCardPrice }),
+        API.post("/admin/settings", { key: "max_bargain_discount_limit", value: platformSettings.max_bargain_discount_limit }),
       ];
       await Promise.all(updates);
       toast({ title: "Settings Saved", description: "Global rules updated successfully." });
@@ -112,10 +123,22 @@ const AdminSettings = () => {
   };
 
   const handleSaveProfile = async () => {
+    const sanitizedName = sanitizeName(adminProfile.name);
+    const nameValidation = validateName(sanitizedName);
+    if (!nameValidation.isValid) {
+      toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+      return;
+    }
+    setAdminProfile(prev => ({ ...prev, name: sanitizedName }));
+
+    if (adminProfile.email && !validateEmail(adminProfile.email)) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       await API.post("/admin/profile", {
-        name: adminProfile.name,
+        name: sanitizedName,
         email: adminProfile.email,
         mobile: adminProfile.phone
       });
@@ -160,11 +183,11 @@ const AdminSettings = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5"><IndianRupee className="h-3.5 w-3.5" /> Commission Rate (%)</label>
                 <div className="relative">
-                  <input type="number" value={platformSettings.commissionRate} onChange={e => setPlatformSettings({ ...platformSettings, commissionRate: e.target.value })} className="block w-full rounded-xl border border-border bg-muted/20 py-3 px-4 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                  <input type="number" value={platformSettings.commissionRate} onChange={e => setPlatformSettings({ ...platformSettings, commissionRate: e.target.value })} className="block w-full rounded-xl border border-border bg-muted/20 py-3 px-4 text-sm font-bold focus:border-emerald-500/20 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
                   <span className="absolute inset-y-0 right-4 flex items-center text-gray-500 font-bold">%</span>
                 </div>
                 <p className="mt-1.5 text-xs text-gray-400 font-medium tracking-tight">Platform's cut from each booking.</p>
@@ -177,6 +200,18 @@ const AdminSettings = () => {
                   <input type="number" value={platformSettings.minBookingAmount} onChange={e => setPlatformSettings({ ...platformSettings, minBookingAmount: e.target.value })} className="block w-full rounded-xl border border-border bg-muted/20 py-3 pl-8 pr-4 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
                 </div>
                 <p className="mt-1.5 text-xs text-gray-400 font-medium tracking-tight">Lowest possible cart checkout value.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Max Bargain Limit (%)</label>
+                <div className="relative">
+                  <input type="number" min="0" max="90" value={platformSettings.max_bargain_discount_limit} onChange={e => {
+                    const val = Math.min(90, Math.max(0, parseInt(e.target.value) || 0));
+                    setPlatformSettings({ ...platformSettings, max_bargain_discount_limit: val });
+                  }} className="block w-full rounded-xl border border-border bg-muted/20 py-3 px-4 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
+                  <span className="absolute inset-y-0 right-4 flex items-center text-gray-500 font-bold">%</span>
+                </div>
+                <p className="mt-1.5 text-xs text-gray-400 font-medium tracking-tight">Maximum allowed discount limit (0-90%).</p>
               </div>
             </div>
 
@@ -289,11 +324,11 @@ const AdminSettings = () => {
             <div className="w-full mt-8 space-y-4 text-left">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" /> Full Name</label>
-                <input type="text" value={adminProfile.name} onChange={e => setAdminProfile({ ...adminProfile, name: e.target.value })} className="block w-full rounded-xl border border-border bg-muted/20 py-2.5 px-3 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none transition-all" />
+                <input type="text" value={adminProfile.name} onChange={e => setAdminProfile({ ...adminProfile, name: sanitizeNameOnChange(e.target.value) })} className="block w-full rounded-xl border border-border bg-muted/20 py-2.5 px-3 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Mail className="h-3 w-3" /> Email</label>
-                <input type="email" value={adminProfile.email} onChange={e => setAdminProfile({ ...adminProfile, email: e.target.value })} className="block w-full rounded-xl border border-border bg-muted/20 py-2.5 px-3 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none transition-all" />
+                <input type="email" value={adminProfile.email} onChange={e => setAdminProfile({ ...adminProfile, email: sanitizeEmail(e.target.value) })} className="block w-full rounded-xl border border-border bg-muted/20 py-2.5 px-3 text-sm font-semibold focus:border-emerald-500 focus:bg-white focus:outline-none transition-all" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Phone className="h-3 w-3" /> Phone</label>

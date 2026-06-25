@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
@@ -25,6 +26,9 @@ const AdminProviders = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [filter, setFilter] = useState("all");
     const [selectedProvider, setSelectedProvider] = useState(null);
+    const [showStatusModal, setShowStatusModal] = useState(false);
+
+    useScrollLock(!!selectedProvider || showStatusModal);
 
     useEffect(() => {
         setTitle("Manage Providers");

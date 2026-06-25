@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { Plus, Search, Edit, Trash2, Loader2, Image as ImageIcon, Layers, X, Briefcase, Zap, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { normalizeNonNegativeNumber, validateNonNegativeNumber } from "@/lib/numberValidation";
 
 const InputField = ({ label, children }) => (
     <div className="space-y-1.5">
@@ -22,6 +24,8 @@ const AdminServices = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [showModal, setShowModal] = useState(false);
     const [editingCat, setEditingCat] = useState(null);
+
+    useScrollLock(showModal);
     const [isUploading, setIsUploading] = useState(false);
 
     const [newCat, setNewCat] = useState({
@@ -72,6 +76,14 @@ const AdminServices = () => {
     const handleSaveCategory = async (e) => {
         e.preventDefault();
         if (!newCat.name) return;
+
+        for (const [idx, service] of newCat.services.entries()) {
+            const priceValidation = validateNonNegativeNumber(service.basePrice, { fieldName: `Service ${idx + 1} Base Price`, min: 0 });
+            if (!priceValidation.isValid) {
+                toast({ title: "Invalid Input", description: priceValidation.error, variant: "destructive" });
+                return;
+            }
+        }
 
         try {
             if (editingCat) {
@@ -394,7 +406,7 @@ const AdminServices = () => {
                                                         <input type="text" placeholder="Service Name" value={s.name} onChange={e => updateServiceRow(idx, 'name', e.target.value)} className="flex-1 rounded-lg border-none bg-transparent px-2 text-sm font-bold focus:ring-0 outline-none" required />
                                                         <div className="relative w-32 shrink-0 border-l border-gray-100 pl-2">
                                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
-                                                            <input type="number" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', e.target.value)} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
+                                                            <input type="number" min="0" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', normalizeNonNegativeNumber(e.target.value))} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
                                                         </div>
                                                         <button type="button" onClick={() => removeServiceRow(idx)} className="h-8 w-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg shrink-0 transition-colors"><Trash2 className="h-4 w-4" /></button>
                                                     </div>
