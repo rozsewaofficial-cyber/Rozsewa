@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Clock, MapPin, RotateCcw, ChevronRight, CalendarDays, Package, Receipt, Info, Star, X, Download, AlertTriangle, Calendar } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, RotateCcw, ChevronRight, CalendarDays, Package, Receipt, Info, Star, X, Download, AlertTriangle, Calendar, MessageCircle } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import ChatModal from "@/components/ChatModal";
 
 const demoBookings = [
   { id: "ROJ-A1B2C3", service: "AC Repair & Gas Refill", provider: "CoolTech Services", date: "2026-03-08", time: "10:00 AM", total: 1598, status: "completed", rating: 5, address: "Home - Phase 2, Lucknow" },
@@ -34,6 +35,7 @@ const ServiceHistory = () => {
   const [showReschedule, setShowReschedule] = useState(false);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const fetchBookings = async () => {
     try {
@@ -47,6 +49,7 @@ const ServiceHistory = () => {
         date: b.bookingDate,
         time: b.bookingTime,
         status: b.status,
+        negotiation: b.negotiation,
       }));
       setBookings(formatted);
     } catch (err) {
@@ -98,6 +101,26 @@ const ServiceHistory = () => {
       link.download = `Invoice_${selectedBooking.id}.txt`;
       link.click();
     }, 1000);
+  };
+
+  const handleAcceptCounter = async (id) => {
+    try {
+      await API.patch(`/bookings/${id}/accept-counter`);
+      toast({ title: "Price Accepted!", description: "Booking is now confirmed." });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to accept price", variant: "destructive" });
+    }
+  };
+
+  const handleRejectCounter = async (id) => {
+    try {
+      await API.patch(`/bookings/${id}/reject-counter`);
+      toast({ title: "Price Rejected", description: "Booking has been cancelled." });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to reject price", variant: "destructive" });
+    }
   };
 
   const openDetails = (booking) => {
@@ -185,6 +208,18 @@ const ServiceHistory = () => {
                     Track Service <ChevronRight className="h-4 w-4" />
                   </motion.button>
                 )}
+                {booking.status === "provider_countered" && (
+                  <div className="flex w-full gap-2 mt-2">
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleRejectCounter(booking.id); }}
+                      className="flex-1 rounded-xl border-2 border-red-200 bg-red-50 py-3 text-[13px] font-bold text-red-600 hover:bg-red-100 transition-all">
+                      Reject Price
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleAcceptCounter(booking.id); }}
+                      className="flex-1 rounded-xl border-2 border-blue-600 bg-blue-600 py-3 text-[13px] font-bold text-white hover:bg-blue-700 transition-all">
+                      Accept ₹{booking.negotiation?.providerCounterAmount}
+                    </motion.button>
+                  </div>
+                )}
               </div>
             </motion.div>
           ))}
@@ -263,19 +298,46 @@ const ServiceHistory = () => {
                         <span className="font-black text-foreground">Total Paid</span>
                         <span className="text-xl font-black text-primary">₹{selectedBooking.total}</span>
                       </div>
+                      
+                      {selectedBooking.negotiation && selectedBooking.negotiation.userProposedAmount && (
+                        <div className="border-t border-border mt-3 pt-3">
+                            <h5 className="text-xs font-bold text-muted-foreground mb-2">Negotiation Details</h5>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">You Proposed:</span>
+                                <span>₹{selectedBooking.negotiation.userProposedAmount}</span>
+                            </div>
+                            {selectedBooking.negotiation.providerCounterAmount && (
+                                <div className="flex justify-between text-sm mt-1">
+                                    <span className="text-blue-500 font-bold">Provider Countered:</span>
+                                    <span className="text-blue-500 font-bold">₹{selectedBooking.negotiation.providerCounterAmount}</span>
+                                </div>
+                            )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Secondary Actions */}
                   {selectedBooking.status === "confirmed" && (
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <button onClick={() => setShowReschedule(true)} className="flex items-center justify-center gap-2 rounded-xl border border-border py-3 text-xs font-bold hover:bg-muted">
                         <Calendar className="h-4 w-4" /> Reschedule
+                      </button>
+                      <button onClick={() => setIsChatOpen(true)} className="flex items-center justify-center gap-2 rounded-xl border border-blue-600 bg-blue-50 py-3 text-xs font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50">
+                        <MessageCircle className="h-4 w-4" /> Chat
                       </button>
                     </div>
                   )}
 
-                  <button onClick={() => navigate("/complaint")} className="w-full rounded-xl border border-border py-3 text-xs font-bold hover:bg-muted flex items-center justify-center gap-2">
+                  {selectedBooking.status === "pending" && (
+                    <div className="grid grid-cols-1 gap-3">
+                      <button onClick={() => setIsChatOpen(true)} className="flex items-center justify-center gap-2 rounded-xl border border-blue-600 bg-blue-50 py-3 text-xs font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50">
+                        <MessageCircle className="h-4 w-4" /> Chat
+                      </button>
+                    </div>
+                  )}
+
+                  <button onClick={() => navigate("/complaint")} className="w-full rounded-xl border border-border py-3 text-xs font-bold hover:bg-muted flex items-center justify-center gap-2 mt-3">
                     <AlertTriangle className="h-4 w-4 text-amber-500" /> Report an Issue
                   </button>
                 </div>
@@ -341,6 +403,13 @@ const ServiceHistory = () => {
         </AnimatePresence>
       </main>
       <BottomNav />
+
+      <ChatModal 
+        isOpen={isChatOpen} 
+        onClose={() => setIsChatOpen(false)} 
+        bookingId={selectedBooking?.id} 
+        userType="User" 
+      />
     </div>
   );
 };

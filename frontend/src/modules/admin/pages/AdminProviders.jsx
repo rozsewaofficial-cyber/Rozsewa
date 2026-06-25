@@ -25,11 +25,32 @@ const AdminProviders = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [filter, setFilter] = useState("all");
     const [selectedProvider, setSelectedProvider] = useState(null);
+    const [categories, setCategories] = useState([]);
 
     useEffect(() => {
         setTitle("Manage Providers");
         fetchProviders();
+        fetchCategories();
     }, [setTitle]);
+
+    const fetchCategories = async () => {
+        try {
+            const { data } = await API.get("/admin/categories");
+            setCategories(data);
+        } catch (err) {
+            console.error("Failed to fetch categories", err);
+        }
+    };
+
+    const handleUpdateVendorType = async (id, newVendorType) => {
+        try {
+            const { data } = await API.put(`/admin/providers/${id}/category-role`, { vendorType: newVendorType });
+            setProviders(providers.map(p => p._id === id ? { ...p, vendorType: newVendorType } : p));
+            toast({ title: "Category Updated", description: `Provider category changed.` });
+        } catch (err) {
+            toast({ title: "Update Failed", variant: "destructive" });
+        }
+    };
 
     const fetchProviders = async () => {
         setLoading(true);
@@ -240,7 +261,7 @@ const AdminProviders = () => {
                                             <div className="space-y-1">
                                                 <div>
                                                     <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-600 border border-gray-200">
-                                                        {provider.vendorType || 'Unknown'}
+                                                        {categories.find(c => c._id === provider.vendorType)?.name || provider.vendorType || 'Unknown'}
                                                     </span>
                                                 </div>
                                                 <div className="flex flex-col gap-1 mt-1 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
@@ -255,6 +276,19 @@ const AdminProviders = () => {
                                         </td>
                                         <td className="px-6 py-4 align-middle">
                                             <div className="flex flex-col gap-2.5 w-36">
+                                                <div className="flex flex-col gap-1">
+                                                    <label className="text-[8px] font-black uppercase tracking-widest text-gray-400">Category</label>
+                                                    <select
+                                                        value={provider.vendorType || ''}
+                                                        onChange={(e) => handleUpdateVendorType(provider._id, e.target.value)}
+                                                        className="w-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-widest rounded-md px-2 py-1.5 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 cursor-pointer shadow-sm transition-all"
+                                                    >
+                                                        <option value="">Select Category</option>
+                                                        {categories.map(c => (
+                                                            <option key={c._id} value={c._id}>{c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                                 <div className="flex flex-col gap-1">
                                                     <label className="text-[8px] font-black uppercase tracking-widest text-gray-400">Provider Role</label>
                                                     <select

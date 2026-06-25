@@ -80,11 +80,23 @@ const Profile = () => {
     }
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setEditForm({ ...editForm, avatar: url });
+      setIsSaving(true);
+      const formData = new FormData();
+      formData.append("image", file);
+      try {
+        const { data } = await API.post("/upload", formData, {
+          headers: { "Content-Type": "multipart/form-data" }
+        });
+        setEditForm({ ...editForm, avatar: data.url });
+        toast({ title: "Image Uploaded", description: "Profile photo updated. Click Save to confirm." });
+      } catch (err) {
+        toast({ title: "Upload Failed", description: "Could not upload image.", variant: "destructive" });
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -100,7 +112,7 @@ const Profile = () => {
           <div className="flex items-center gap-5 relative z-10">
             <div className="relative group cursor-pointer" onClick={() => { setEditForm(profile); setShowEdit(true); }}>
               <div className="h-24 w-24 overflow-hidden rounded-[24px] border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-inner">
-                {profile.avatar ? (
+                {profile.avatar && !profile.avatar.startsWith('blob:') ? (
                   <img src={profile.avatar} alt="Profile" className="h-full w-full object-cover" />
                 ) : (
                   <div className="h-full w-full flex items-center justify-center bg-blue-50 dark:bg-slate-800/50 text-blue-500">
@@ -194,7 +206,15 @@ const Profile = () => {
                 <div className="flex justify-center">
                   <div className="relative group">
                     <div className="h-28 w-28 overflow-hidden rounded-[28px] border-4 border-white dark:border-slate-800 bg-slate-100 dark:bg-slate-800 shadow-xl">
-                      {editForm.avatar ? <img src={editForm.avatar} className="h-full w-full object-cover" alt="Avatar" /> : <User className="h-full w-full p-6 text-slate-400" />}
+                      {isSaving ? (
+                        <div className="h-full w-full flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        </div>
+                      ) : editForm.avatar && !editForm.avatar.startsWith('blob:') ? (
+                        <img src={editForm.avatar} className="h-full w-full object-cover" alt="Avatar" />
+                      ) : (
+                        <User className="h-full w-full p-6 text-slate-400" />
+                      )}
                     </div>
                     <label className="absolute -bottom-2 -right-2 cursor-pointer rounded-full bg-blue-600 p-3 text-white shadow-lg border-4 border-white dark:border-slate-900 hover:bg-blue-700 transition-colors">
                       <Edit3 className="h-4 w-4" />

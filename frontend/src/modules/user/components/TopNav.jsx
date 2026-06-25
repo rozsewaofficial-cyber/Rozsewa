@@ -326,6 +326,30 @@ const TopNav = () => {
                 </div>
               )}
 
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target;
+                const input = form.elements.manualCity.value.trim();
+                if (input) {
+                  handleCitySelect(input);
+                }
+              }} className="mb-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    name="manualCity"
+                    placeholder="Or type city name manually..."
+                    className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 pr-20 text-[14px] font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  />
+                  <button
+                    type="submit"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-slate-900 dark:bg-blue-600 px-4 py-1.5 text-[12px] font-bold text-white hover:bg-slate-800 dark:hover:bg-blue-700 transition-colors"
+                  >
+                    Set
+                  </button>
+                </div>
+              </form>
+
               <div className="grid grid-cols-2 gap-3">
                 {dynamicCities.map((c) => (
                   <button key={c} onClick={() => handleCitySelect(c)}

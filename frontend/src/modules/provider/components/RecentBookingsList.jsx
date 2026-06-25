@@ -1,9 +1,10 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink } from "lucide-react";
+import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink, MessageCircle } from "lucide-react";
 import LiveTrackingView from "./LiveTrackingView";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import ChatModal from "@/components/ChatModal";
 
 const RecentBookingsList = () => {
   const [requests, setRequests] = useState([]);
@@ -11,6 +12,7 @@ const RecentBookingsList = () => {
   const [activeTab, setActiveTab] = useState("pending");
   const [staffList, setStaffList] = useState([]);
   const [activeTracking, setActiveTracking] = useState(null);
+  const [activeChatBookingId, setActiveChatBookingId] = useState(null);
   const { toast } = useToast();
 
   const [isUploading, setIsUploading] = useState(false);
@@ -57,6 +59,9 @@ const RecentBookingsList = () => {
     if (action === 'reject') newStatus = 'cancelled';
     if (action === 'complete' || action === 'completed') newStatus = 'completed';
     if (action === 'on_the_way') newStatus = 'on_the_way';
+
+    // Optimistically update the UI so the card instantly moves to the correct tab (or disappears)
+    setRequests(prev => prev.map(req => req._id === id ? { ...req, status: newStatus } : req));
 
     try {
       await API.patch(`/bookings/${id}/status`, { status: newStatus, ...extraData });
@@ -234,7 +239,25 @@ const RecentBookingsList = () => {
                 <div className="mt-4 flex items-center justify-between">
                   <div>
                     {/* Total collected from customer */}
-                    <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.totalAmount || 0}</div>
+                    {req.negotiation && req.negotiation.userProposedAmount ? (
+                      <div className="flex flex-col">
+                        <div className="text-sm font-black text-emerald-600/60 dark:text-emerald-400/60 italic line-through">₹{req.totalAmount}</div>
+                        <div className="flex items-center gap-2">
+                            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.negotiation.userProposedAmount}</div>
+                            <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded">Proposed</span>
+                        </div>
+                      </div>
+                    ) : req.discountAmount > 0 ? (
+                      <div className="flex flex-col">
+                        <div className="text-sm font-black text-emerald-600/60 dark:text-emerald-400/60 italic line-through">₹{(req.totalAmount || 0) + req.discountAmount}</div>
+                        <div className="flex items-center gap-2">
+                            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.totalAmount}</div>
+                            <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-1.5 py-0.5 rounded">Discounted</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.totalAmount || 0}</div>
+                    )}
                     {/* Provider payout vs commission breakdown */}
                     {req.providerPayout > 0 ? (
                       <div className="mt-1 space-y-0.5">
@@ -292,6 +315,9 @@ const RecentBookingsList = () => {
                   <div className="mt-5 flex gap-3">
                     <button onClick={() => handleAction(req._id, 'reject')} className="flex-1 rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600">Reject</button>
                     <button onClick={() => handleAction(req._id, 'accept')} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-lg">Accept</button>
+                    <button onClick={() => setActiveChatBookingId(req._id)} className="w-12 h-[42px] flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                      <MessageCircle className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
 
@@ -333,13 +359,18 @@ const RecentBookingsList = () => {
                   const isReady = (bookingDateTime - now) <= 30 * 60 * 1000;
 
                   return (
-                    <button 
-                      onClick={() => handleAction(req._id, 'on_the_way')} 
-                      disabled={!isReady}
-                      className={`mt-5 w-full rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
-                    >
-                      {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
-                    </button>
+                    <div className="flex gap-2 w-full mt-5">
+                        <button 
+                          onClick={() => handleAction(req._id, 'on_the_way')} 
+                          disabled={!isReady}
+                          className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
+                        >
+                          {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
+                        </button>
+                        <button onClick={() => setActiveChatBookingId(req._id)} className="w-12 h-[42px] shrink-0 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                          <MessageCircle className="h-4 w-4" />
+                        </button>
+                    </div>
                   );
                 })()}
 
@@ -688,6 +719,13 @@ const RecentBookingsList = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <ChatModal 
+        isOpen={!!activeChatBookingId} 
+        onClose={() => setActiveChatBookingId(null)} 
+        bookingId={activeChatBookingId} 
+        userType="Provider" 
+      />
     </div>
   );
 };

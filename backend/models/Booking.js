@@ -114,6 +114,11 @@ const bookingSchema = new mongoose.Schema({
         reason: { type: String, default: '' },
         requestedAt: { type: Date, default: null }
     },
+    negotiation: {
+        userProposedAmount: { type: Number, default: null },
+        providerCounterAmount: { type: Number, default: null },
+        status: { type: String, enum: ['none', 'user_proposed', 'provider_countered', 'accepted', 'rejected'], default: 'none' }
+    },
     proposedSchedule: {
         providerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider', default: null },
         date: { type: String, default: null },
@@ -121,6 +126,10 @@ const bookingSchema = new mongoose.Schema({
         message: { type: String, default: null },
         status: { type: String, enum: ['none', 'pending', 'accepted', 'rejected'], default: 'none' }
     },
+    acceptedAt: { type: Date, default: null },
+    onTheWayAt: { type: Date, default: null },
+    startedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
     createdAt: {
         type: Date,
         default: Date.now,

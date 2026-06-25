@@ -21,6 +21,11 @@ const IncomingRequestModal = ({ request, onAction }) => {
     const [scheduleMessage, setScheduleMessage] = useState('');
     const [isSubmittingSchedule, setIsSubmittingSchedule] = useState(false);
 
+    // Counter Offer state
+    const [isCountering, setIsCountering] = useState(false);
+    const [counterAmount, setCounterAmount] = useState('');
+    const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
+
     const audioRef = useRef(null);
     const notificationRef = useRef(null);
 
@@ -146,6 +151,36 @@ const IncomingRequestModal = ({ request, onAction }) => {
             toast({ title: "Failed to propose schedule", description: err.response?.data?.message || err.message, variant: "destructive" });
         } finally {
             setIsSubmittingSchedule(false);
+        }
+    };
+
+    const handleCounterSubmit = async () => {
+        if (!counterAmount || counterAmount <= 0) {
+            toast({ title: "Validation Error", description: "Please enter a valid amount.", variant: "destructive" });
+            return;
+        }
+
+        setIsSubmittingCounter(true);
+        try {
+            await API.patch(`/bookings/${request.bookingId}/counter-offer`, { 
+                amount: Number(counterAmount)
+            });
+            toast({ title: "Counter Offer Sent", description: "Waiting for customer approval.", variant: "default" });
+            
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            sessionStorage.removeItem('activeRequest');
+            onAction('countered');
+        } catch (err) {
+            toast({ title: "Failed to send counter offer", description: err.response?.data?.message || err.message, variant: "destructive" });
+            if (err.response?.status === 409 || err.response?.status === 400) {
+                sessionStorage.removeItem('activeRequest');
+                onAction('taken');
+            }
+        } finally {
+            setIsSubmittingCounter(false);
         }
     };
 
@@ -290,9 +325,32 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                     <div className="flex items-center justify-between pt-2 border-t border-border">
                                         <div>
                                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
-                                            <div className="flex items-center text-xl font-black text-emerald-600 italic">
-                                                <IndianRupee className="h-5 w-5" /> {request.amount}
-                                            </div>
+                                            
+                                            {request.userProposedAmount ? (
+                                                <>
+                                                    <div className="flex items-center text-sm font-black text-emerald-600 italic line-through opacity-70">
+                                                        <IndianRupee className="h-3 w-3" /> {request.amount}
+                                                    </div>
+                                                    <div className="flex items-center text-xl font-black text-emerald-600 mt-0.5">
+                                                        <IndianRupee className="h-5 w-5" /> {request.userProposedAmount}
+                                                        <span className="text-[9px] ml-2 text-blue-600 font-black bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full uppercase tracking-widest">Proposed</span>
+                                                    </div>
+                                                </>
+                                            ) : request.discountAmount > 0 ? (
+                                                <>
+                                                    <div className="flex items-center text-sm font-black text-emerald-600 italic line-through opacity-70">
+                                                        <IndianRupee className="h-3 w-3" /> {request.amount + request.discountAmount}
+                                                    </div>
+                                                    <div className="flex items-center text-xl font-black text-emerald-600 mt-0.5">
+                                                        <IndianRupee className="h-5 w-5" /> {request.amount}
+                                                        <span className="text-[9px] ml-2 text-emerald-700 font-black bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full uppercase tracking-widest">Discounted</span>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="flex items-center text-xl font-black text-emerald-600">
+                                                    <IndianRupee className="h-5 w-5" /> {request.amount}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Payment Mode</p>
@@ -303,26 +361,57 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-2 w-full pt-2">
-                                    <button
-                                        onClick={handleReject}
-                                        className="h-14 rounded-2xl border-2 border-border bg-background hover:bg-muted flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground group"
-                                    >
-                                        <X className="h-4 w-4 group-hover:scale-110 transition-transform" /> Reject
-                                    </button>
-                                    <button
-                                        onClick={() => setIsScheduling(true)}
-                                        className="h-14 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-amber-700 group"
-                                    >
-                                        <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Schedule
-                                    </button>
-                                    <button
-                                        onClick={handleAccept}
-                                        className="h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest group"
-                                    >
-                                        <Check className="h-4 w-4 group-hover:scale-110 transition-transform" /> Accept
-                                    </button>
-                                </div>
+                                {isCountering ? (
+                                    <div className="w-full bg-blue-50 dark:bg-blue-900/20 rounded-3xl p-5 space-y-4 text-left border border-blue-200 dark:border-blue-800">
+                                        <h3 className="text-sm font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest text-center">Counter Offer</h3>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-blue-500 uppercase tracking-wider">Your Price</label>
+                                            <input 
+                                                type="number" 
+                                                value={counterAmount}
+                                                onChange={(e) => setCounterAmount(e.target.value)}
+                                                placeholder={`e.g. ${request.amount}`}
+                                                className="w-full bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-700 rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 pt-2">
+                                            <button
+                                                onClick={() => setIsCountering(false)}
+                                                className="h-12 rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 hover:bg-slate-50 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-slate-500"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleCounterSubmit}
+                                                disabled={isSubmittingCounter}
+                                                className="h-12 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
+                                            >
+                                                {isSubmittingCounter ? 'Sending...' : 'Send'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-3 gap-2 w-full pt-2">
+                                        <button
+                                            onClick={handleReject}
+                                            className="h-14 rounded-2xl border-2 border-border bg-background hover:bg-muted flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground group"
+                                        >
+                                            <X className="h-4 w-4 group-hover:scale-110 transition-transform" /> Reject
+                                        </button>
+                                        <button
+                                            onClick={() => setIsScheduling(true)}
+                                            className="h-14 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-amber-700 group"
+                                        >
+                                            <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Time
+                                        </button>
+                                        <button
+                                            onClick={handleAccept}
+                                            className="h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest group"
+                                        >
+                                            <Check className="h-4 w-4 group-hover:scale-110 transition-transform" /> Accept
+                                        </button>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>

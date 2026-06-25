@@ -31,6 +31,11 @@ const initSocket = (server) => {
             console.log(`User ${userId} joined room`);
         });
 
+        socket.on("join_chat_room", (bookingId) => {
+            socket.join(`booking_${bookingId}`);
+            console.log(`Client ${socket.id} joined chat room booking_${bookingId}`);
+        });
+
         socket.on("reject_booking", async ({ providerId, bookingId }) => {
             console.log(`Provider ${providerId} rejected booking ${bookingId}`);
             // Future: Store rejection in DB to prevent re-dispatching to this provider

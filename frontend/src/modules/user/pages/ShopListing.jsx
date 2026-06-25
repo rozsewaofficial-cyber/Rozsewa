@@ -64,18 +64,40 @@ const ShopListing = () => {
     }
   };
 
-  const allProvidersList = providers.map(p => ({
-    id: p._id,
-    name: p.shopName || p.name,
-    category: p.vendorType?.name || category,
-    rating: p.rating !== undefined ? p.rating : 4.5,
-    reviews: p.reviewCount || 0,
-    distance: "2.5 km",
-    price: "199",
-    image: p.profileImage || `https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop`,
-    verified: p.status === "verified",
-    emergency: (p.vendorType?.name || "").toLowerCase().includes("ac") || (p.vendorType?.name || "").toLowerCase().includes("electric")
-  }));
+  // Helper function to calculate distance in km using Haversine formula
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return (R * c).toFixed(1);
+  };
+
+  const allProvidersList = providers.map(p => {
+    let distanceStr = "N/A";
+    if (userLocation && p.location && p.location.coordinates && p.location.coordinates.length === 2) {
+      // coordinates is [longitude, latitude]
+      const dist = calculateDistance(userLocation.lat, userLocation.lng, p.location.coordinates[1], p.location.coordinates[0]);
+      if (dist) distanceStr = `${dist} km`;
+    }
+
+    return {
+      id: p._id,
+      name: p.shopName || p.name,
+      category: p.vendorType?.name || category,
+      rating: p.rating !== undefined ? p.rating : 4.5,
+      reviews: p.reviewCount || 0,
+      distance: distanceStr,
+      price: "199",
+      image: p.profileImage || `https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop`,
+      verified: p.status === "verified",
+      emergency: (p.vendorType?.name || "").toLowerCase().includes("ac") || (p.vendorType?.name || "").toLowerCase().includes("electric")
+    };
+  });
 
   const filtered = allProvidersList.filter((p) => {
     const sQuery = searchQuery.toLowerCase();

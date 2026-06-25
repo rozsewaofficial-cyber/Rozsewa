@@ -7,14 +7,9 @@ import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import ChatModal from "@/components/ChatModal";
 
-const steps = [
-  { label: "Booking Placed", time: "10:00 AM" },
-  { label: "Provider Accepted", time: "10:02 AM" },
-  { label: "On the Way", time: "10:15 AM" },
-  { label: "Service Started", time: "" },
-  { label: "Completed", time: "" },
-];
+
 
 const LiveTracking = () => {
   const navigate = useNavigate();
@@ -22,6 +17,24 @@ const LiveTracking = () => {
   const [bookingDetails, setBookingDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
+
+  const getDynamicSteps = () => {
+    const formatTimestamp = (dateString) => {
+      if (!dateString) return "";
+      const d = new Date(dateString);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
+    return [
+      { label: "Booking Placed", time: formatTimestamp(bookingDetails?.createdAt) },
+      { label: "Provider Accepted", time: formatTimestamp(bookingDetails?.acceptedAt) },
+      { label: "On the Way", time: formatTimestamp(bookingDetails?.onTheWayAt) },
+      { label: "Service Started", time: formatTimestamp(bookingDetails?.startedAt) },
+      { label: "Completed", time: formatTimestamp(bookingDetails?.completedAt) },
+    ];
+  };
+
+  const dynamicSteps = getDynamicSteps();
   const [cancelTimer, setCancelTimer] = useState(250);
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [showOTP, setShowOTP] = useState(false);
@@ -29,6 +42,7 @@ const LiveTracking = () => {
   const { user } = useAuth();
   const [isPaying, setIsPaying] = useState(false);
   const [proposedSchedule, setProposedSchedule] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -424,7 +438,7 @@ const LiveTracking = () => {
               </div>
               <div className="flex flex-col gap-2 shrink-0">
                 <button onClick={() => { if(providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>
-                <button onClick={() => { if(providerInfo.mobile) window.location.href = `https://wa.me/${providerInfo.mobile.replace(/[^0-9]/g, '')}?text=Hi, I am contacting regarding my booking on RozSewa.` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
+                <button onClick={() => setIsChatOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
               </div>
             </div>
           ) : (
@@ -460,7 +474,7 @@ const LiveTracking = () => {
         <section className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
           <h3 className="mb-5 text-sm font-bold text-card-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Order Status</h3>
           <div className="space-y-0">
-            {steps.map((step, i) => (
+            {dynamicSteps.map((step, i) => (
               <div key={step.label} className="flex gap-4">
                 {/* Line + Dot */}
                 <div className="flex flex-col items-center">
@@ -494,7 +508,7 @@ const LiveTracking = () => {
                       <span className="text-xs font-bold">{i + 1}</span>
                     )}
                   </motion.div>
-                  {i < steps.length - 1 && (
+                  {i < dynamicSteps.length - 1 && (
                     <div className="relative h-10 w-0.5 bg-border">
                       <motion.div
                         initial={{ height: 0 }}
@@ -543,6 +557,13 @@ const LiveTracking = () => {
 
       </main>
       <BottomNav />
+
+      <ChatModal 
+        isOpen={isChatOpen} 
+        onClose={() => setIsChatOpen(false)} 
+        bookingId={bookingDetails?._id || bookingDetails?.id} 
+        userType="User" 
+      />
     </div>
   );
 };

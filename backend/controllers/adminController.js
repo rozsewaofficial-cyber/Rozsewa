@@ -113,7 +113,7 @@ const updateProviderCategory = async (req, res) => {
             return res.status(404).json({ message: 'Provider not found' });
         }
 
-        provider.providerCategory = req.body.providerCategory || provider.providerCategory;
+        if (req.body.providerCategory !== undefined) { provider.providerCategory = req.body.providerCategory; } if (req.body.vendorType !== undefined) { provider.vendorType = req.body.vendorType; }
         const updatedProvider = await provider.save();
         res.json(updatedProvider);
     } catch (error) {

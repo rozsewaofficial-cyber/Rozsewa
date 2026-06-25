@@ -4,7 +4,8 @@ const {
     createBooking, getUserBookings, getProviderBookings, updateBooking, 
     updateBookingStatusByProvider, verifyStartOTP, verifyEndOTP, 
     getProviderReviews, submitReview,
-    proposeSchedule, acceptSchedule, rejectSchedule, checkOverlapStatus
+    proposeSchedule, acceptSchedule, rejectSchedule, checkOverlapStatus,
+    counterOfferBooking, acceptCounterOffer, rejectCounterOffer
 } = require('../controllers/bookingController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -22,5 +23,9 @@ router.get('/provider/reviews', protect, getProviderReviews);
 router.patch('/:id/propose-schedule', protect, proposeSchedule);
 router.patch('/:id/accept-schedule', protect, acceptSchedule);
 router.patch('/:id/reject-schedule', protect, rejectSchedule);
+
+router.patch('/:id/counter-offer', protect, counterOfferBooking);
+router.patch('/:id/accept-counter', protect, acceptCounterOffer);
+router.patch('/:id/reject-counter', protect, rejectCounterOffer);
 
 module.exports = router;

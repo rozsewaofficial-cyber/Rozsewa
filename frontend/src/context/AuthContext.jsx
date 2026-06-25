@@ -128,13 +128,8 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (err) {
           console.error("Profile check failed:", err);
-          // Only clear session if it's explicitly an auth error (401 Unauthorized)
-          // Do not log out on network errors or 500 server errors
-          if (err.response && (err.response.status === 401 || err.response.status === 404)) {
-            console.warn(`Auth session invalid (${err.response.status}). Logging out.`);
-            localStorage.removeItem(getStorageKey(path));
-            setAuth(null);
-          }
+          // Automatic logout removed to fix the random logout issue
+          // Users will have to manually logout if their session truly expires
         }
       }
       setLoading(false);

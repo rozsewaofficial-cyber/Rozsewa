@@ -62,6 +62,7 @@ const ShopDetail = () => {
           id: found._id,
           name: found.shopName || found.ownerName || found.name,
           category: found.vendorType?.name || "General",
+          providerCategory: found.providerCategory || 'partner',
           rating: found.rating !== undefined ? found.rating : 4.5,
           reviews: found.reviewCount || 0,
           verified: found.status === "verified",
@@ -91,6 +92,8 @@ const ShopDetail = () => {
         image: s.image,
         serviceType: s.serviceType || "home",
         expressPrice: 0,
+        amenities: s.amenities || [],
+        serviceDetails: s.serviceDetails || [],
         plans: [
           { id: s._id, name: "Standard Service", price: s.price || 299, desc: "Standard service" }
         ]
@@ -163,6 +166,7 @@ const ShopDetail = () => {
       providerId: provider?.id,
       shopName: provider?.name,
       category: provider?.category,
+      requiredProviderCategory: provider?.providerCategory,
       items,
       expressPrice: maxExpress,
       total: cartTotal
@@ -349,6 +353,45 @@ const ShopDetail = () => {
                       <AnimatePresence>
                         {(expandedPlan === service.id || servicesList.length === 1) && (
                           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50">
+                            
+                            {/* Amenities & Service Details section */}
+                            {(service.amenities?.length > 0 || service.serviceDetails?.length > 0 || service.description) && (
+                              <div className="p-4 border-b border-slate-100 dark:border-slate-700">
+                                {service.description && (
+                                  <div className="mb-3">
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">About Service</h5>
+                                    <p className="text-[12px] text-slate-600 dark:text-slate-400">{service.description}</p>
+                                  </div>
+                                )}
+                                {service.amenities?.length > 0 && (
+                                  <div className="mb-3">
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Amenities / Inclusions</h5>
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                      {service.amenities.map((item, idx) => (
+                                        <li key={idx} className="flex items-start gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500 mt-0.5" />
+                                          <span>{item}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {service.serviceDetails?.length > 0 && (
+                                  <div>
+                                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">Details</h5>
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                      {service.serviceDetails.map((item, idx) => (
+                                        <li key={idx} className="flex items-start gap-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-300">
+                                          <div className="h-1.5 w-1.5 rounded-full bg-slate-300 dark:bg-slate-600 mt-1.5 shrink-0" />
+                                          <span>{item}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {service.plans.map((plan, i) => (
                               <div key={plan.id} className={`p-4 flex flex-row items-center justify-between gap-4 ${i !== service.plans.length - 1 ? "border-b border-slate-100 dark:border-slate-700" : ""}`}>
                                 <div className="flex-1 min-w-0">

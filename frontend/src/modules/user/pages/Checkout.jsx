@@ -31,6 +31,7 @@ const Checkout = () => {
   const [serviceNotes, setServiceNotes] = useState("");
   const [appliedCouponData, setAppliedCouponData] = useState(null);
   const [providerHours, setProviderHours] = useState({ openingTime: "09:00 AM", closingTime: "06:00 PM", availability: [] });
+  const [userProposedAmount, setUserProposedAmount] = useState("");
 
   const checkoutData = JSON.parse(localStorage.getItem("rozsewa_checkout_data")) || {
     shopName: "Provider",
@@ -335,6 +336,15 @@ const Checkout = () => {
 
 
   const processBooking = async () => {
+    if (userProposedAmount && Number(userProposedAmount) >= total) {
+      toast({
+        title: "Invalid Price",
+        description: "Your proposed price must be less than the actual total amount.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const bookingData = {
@@ -349,13 +359,13 @@ const Checkout = () => {
         location: selectedAddress.location,
         paymentMode: paymentMode,
         couponCode: appliedCouponData?.code || "",
-        discountAmount: discount || 0
+        discountAmount: discount || 0,
+        userProposedAmount: userProposedAmount ? Number(userProposedAmount) : undefined
       };
 
       const { data } = await API.post("/bookings", bookingData);
 
-      setBookingId(data._id);
-      setBookingId(data._id);
+      setBookingId(data.booking._id);
       setBookingConfirmed(true);
 
       // Clear checkout data
@@ -733,6 +743,33 @@ const Checkout = () => {
             </div>
           </section>
 
+          {/* Propose a Price */}
+          {(checkoutData?.requiredProviderCategory === "partner" || !checkoutData?.requiredProviderCategory) && (
+            <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
+                  <Wallet className="h-3.5 w-3.5 text-blue-500" /> Propose a Price
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-500 mb-3">You can suggest a budget. The provider will either accept or send a counter-offer.</p>
+              <div className="flex gap-2 relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                <input type="number" value={userProposedAmount} onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val || Number(val) < total) {
+                    setUserProposedAmount(val);
+                  }
+                }} placeholder="e.g. 500"
+                  onKeyDown={(e) => {
+                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="w-full rounded-[14px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-8 pr-4 py-3 text-[13px] font-black tracking-wider placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all" />
+              </div>
+            </section>
+          )}
+
           {/* Price Summary */}
           <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3">
             <div className="flex justify-between text-sm"><span className="font-semibold text-slate-500 dark:text-slate-400">Subtotal</span><span className="font-black text-slate-900 dark:text-white">₹{subtotal}</span></div>
@@ -740,7 +777,7 @@ const Checkout = () => {
             {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Discount Applied</span><span className="font-black">-₹{discount}</span></div>}
             <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
               <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
-              <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{total}</span>
+              <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{userProposedAmount || total}</span>
             </div>
           </section>
         </>
@@ -756,7 +793,7 @@ const Checkout = () => {
                 Grand Total
               </span>
               <span className="text-xl font-black">
-                ₹{total}
+                ₹{userProposedAmount || total}
               </span>
             </div>
             <div className="flex items-center gap-2 font-black text-lg">
@@ -778,7 +815,7 @@ const Checkout = () => {
                 <h3 className="text-base font-black text-slate-900 dark:text-white">Select Address</h3>
                 <button onClick={() => { setShowAddressModal(false); setShowNewAddressForm(false); }} className="rounded-full p-2 hover:bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white transition-colors"><X className="h-5 w-5" /></button>
               </div>
-              <div className="p-5 space-y-3 overflow-y-auto">
+              <div className="flex-1 min-h-0 p-5 space-y-3 overflow-y-auto">
                 {addresses.map(addr => (
                   <button key={addr.id} onClick={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
                     className={`w-full flex items-center gap-4 rounded-[20px] border-2 p-4 text-left transition-all ${selectedAddress?.id === addr.id ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md shadow-blue-600/5" : "border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:bg-slate-800 hover:border-slate-200 dark:border-slate-700/80"
@@ -804,7 +841,7 @@ const Checkout = () => {
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">New Address</h4>
 
                     {isLoaded && (
-                      <div className="rounded-[20px] overflow-hidden border border-slate-200 dark:border-slate-700 h-[180px] relative">
+                      <div className="rounded-[20px] overflow-hidden border border-slate-200 dark:border-slate-700 h-[150px] relative">
                         <GoogleMap
                           mapContainerStyle={{ width: '100%', height: '100%' }}
                           center={newAddress.location ? { lat: newAddress.location.coordinates[1], lng: newAddress.location.coordinates[0] } : center}
@@ -816,8 +853,8 @@ const Checkout = () => {
                             <MarkerF position={{ lat: newAddress.location.coordinates[1], lng: newAddress.location.coordinates[0] }} />
                           )}
                         </GoogleMap>
-                        <div className="absolute bottom-2 left-2 right-2">
-                          <p className="bg-white/80 backdrop-blur text-[8px] font-bold text-center py-1 rounded-lg shadow-sm border border-white/50">
+                        <div className="absolute top-2 left-2 right-2">
+                          <p className="bg-white/90 dark:bg-slate-800/90 backdrop-blur text-[9px] font-black text-slate-700 dark:text-slate-200 text-center py-1.5 rounded-lg shadow-sm border border-slate-200/50 dark:border-slate-700/50">
                             Tap on map to pin exact service location
                           </p>
                         </div>

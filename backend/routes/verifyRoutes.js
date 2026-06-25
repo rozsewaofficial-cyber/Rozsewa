@@ -4,7 +4,8 @@ const {
     verifyBank,
     verifyPAN,
     verifyGST,
-    initiateDigilocker
+    initiateOKYC,
+    verifyOKYC
 } = require('../controllers/verifyController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -12,5 +13,7 @@ const { protect } = require('../middleware/authMiddleware');
 router.post('/bank', verifyBank);
 router.post('/pan', verifyPAN);
 router.post('/gst', verifyGST);
+router.post('/okyc/initiate', initiateOKYC);
+router.post('/okyc/verify', verifyOKYC);
 
 module.exports = router;

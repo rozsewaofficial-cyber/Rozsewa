@@ -129,7 +129,7 @@ const getFeaturedProviders = async (req, res) => {
         }
 
         const providers = await Provider.find(query)
-            .select('name shopName mobile profileImage vendorType vendorCode rating joinedDate reviewCount')
+            .select('name shopName mobile profileImage vendorType vendorCode rating joinedDate reviewCount location')
             .populate('vendorType', 'name icon')
             .limit(8)
             .sort({ rating: -1 });
@@ -195,7 +195,7 @@ const getPublicProviders = async (req, res) => {
         }
 
         let providers = Provider.find(query)
-            .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address')
+            .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location')
             .populate('vendorType', 'name icon');
 
         if (!lat || !lng) {

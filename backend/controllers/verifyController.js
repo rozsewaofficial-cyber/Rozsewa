@@ -112,47 +112,61 @@ const verifyGST = async (req, res) => {
     }
 };
 
-// @desc    Initiate DigiLocker OAuth
-// @route   POST /api/v1/digilocker/initiate
+// @desc    Initiate Aadhaar OKYC
+// @route   POST /api/v1/verify/okyc/initiate
 // @access  Private
-const initiateDigilocker = async (req, res) => {
-    const { mobileNumber, aadhaarNumber, redirectUrl: clientRedirectUrl } = req.body;
+const initiateOKYC = async (req, res) => {
+    const { aadhaarNumber } = req.body;
 
-    if (!mobileNumber) {
-        return res.status(400).json({ success: false, message: 'Mobile number is required' });
+    if (!aadhaarNumber || aadhaarNumber.length !== 12) {
+        return res.status(400).json({ success: false, message: 'Valid 12-digit Aadhaar number is required' });
     }
 
-    if (aadhaarNumber) {
+    try {
         const Provider = require('../models/Provider');
         const exists = await Provider.findOne({ kycAadhaar: aadhaarNumber });
         if (exists) {
             return res.status(400).json({ success: false, message: 'Aadhaar number is already registered with another account' });
         }
-    }
 
-    try {
-        let baseUrl = 'http://localhost:5173';
-        if (process.env.FRONTEND_URL) {
-            // Take the first URL if there are multiple comma-separated URLs
-            baseUrl = process.env.FRONTEND_URL.split(',')[0].trim();
-        }
-        const redirectUrl = clientRedirectUrl || `${baseUrl}/digilocker/callback`;
-        
-        const response = await axios.post(`${BASE_URL}/api/v1/digilocker/initiate`, {
-            mobileNumber,
-            redirectUrl,
-            consent: true,
-            consentPurpose: "Merchant KYC Verification - Aadhaar",
-            redirectToSignup: false,
-            documentsForConsent: ["AADHAAR_XML"]
+        const response = await axios.post(`${BASE_URL}/api/v1/verify/okyc/initiate`, {
+            aadhaarNumber: aadhaarNumber
         }, { headers: getHeaders() });
 
         res.json(response.data);
     } catch (error) {
-        console.error('DigiLocker Initiate Error:', error.response?.data || error.message);
+        console.error('OKYC Initiate Error:', error.response?.data || error.message);
         res.status(500).json({ 
             success: false, 
-            message: error.response?.data?.message || 'DigiLocker initiation failed',
+            message: error.response?.data?.message || 'Aadhaar OTP initiation failed',
+            error: error.response?.data 
+        });
+    }
+};
+
+// @desc    Verify Aadhaar OKYC OTP
+// @route   POST /api/v1/verify/okyc/verify
+// @access  Private
+const verifyOKYC = async (req, res) => {
+    const { sessionId, otp, aadhaarNumber } = req.body;
+
+    if (!sessionId || !otp || !aadhaarNumber) {
+        return res.status(400).json({ success: false, message: 'Session ID, OTP and Aadhaar Number are required' });
+    }
+
+    try {
+        const response = await axios.post(`${BASE_URL}/api/v1/verify/okyc/verify`, {
+            sessionId,
+            otp,
+            aadhaarNumber
+        }, { headers: getHeaders() });
+
+        res.json(response.data);
+    } catch (error) {
+        console.error('OKYC Verify Error:', error.response?.data || error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: error.response?.data?.message || 'Aadhaar OTP verification failed',
             error: error.response?.data 
         });
     }
@@ -162,5 +176,6 @@ module.exports = {
     verifyBank,
     verifyPAN,
     verifyGST,
-    initiateDigilocker
+    initiateOKYC,
+    verifyOKYC
 };

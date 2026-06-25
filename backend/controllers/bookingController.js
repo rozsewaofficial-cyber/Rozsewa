@@ -84,7 +84,7 @@ const hasOverlap = async (providerId, bookingDate, bookingTime) => {
 // @route   POST /api/bookings
 // @access  Private
 const createBooking = async (req, res) => {
-    const { providerId, serviceName, serviceId, bookingDate, bookingTime, totalAmount, address, couponCode, discountAmount, paymentMode, requiredProviderCategory } = req.body;
+    const { providerId, serviceName, serviceId, bookingDate, bookingTime, totalAmount, address, couponCode, discountAmount, paymentMode, requiredProviderCategory, userProposedAmount } = req.body;
 
     try {
         let finalTotalAmount = totalAmount;
@@ -119,24 +119,32 @@ const createBooking = async (req, res) => {
             console.error("Night charge calculation error:", err);
         }
 
-        const booking = await Booking.create({
+        const newBooking = new Booking({
             userId: req.user._id,
             providerId,
+            requiredProviderCategory: requiredProviderCategory || 'partner',
             serviceName,
             serviceId,
             bookingDate,
             bookingTime,
             totalAmount: finalTotalAmount,
             address,
-            location: req.body.location,
-            requiredProviderCategory: requiredProviderCategory || 'partner',
-            couponCode,
-            discountAmount,
-            paymentMode,
-            extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
+            location: req.body.location || { type: 'Point', coordinates: [0, 0] },
+            couponCode: couponCode || '',
+            discountAmount: discountAmount || 0,
+            paymentMode: paymentMode || 'now',
+            extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : [],
+            extraStatus: nightChargeAmount > 0 ? 'approved' : 'none',
+            negotiation: userProposedAmount ? {
+                userProposedAmount: Number(userProposedAmount),
+                status: 'user_proposed'
+            } : undefined
         });
 
-        if (booking) {
+        const savedBooking = await newBooking.save();
+
+        if (savedBooking) {
+            const booking = savedBooking;
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
 
             // Radius-based dispatching (15km)
@@ -275,11 +283,13 @@ const createBooking = async (req, res) => {
                     bookingId: booking._id,
                     serviceName: booking.serviceName,
                     amount: booking.totalAmount,
+                    discountAmount: booking.discountAmount || 0,
                     address: booking.address,
                     userName: req.user.name,
                     paymentMode: booking.paymentMode,
                     bookingDate: booking.bookingDate,
                     bookingTime: booking.bookingTime,
+                    userProposedAmount: booking.negotiation?.userProposedAmount,
                     expiresAt: new Date(Date.now() + 2 * 60 * 1000)
                 });
 
@@ -489,6 +499,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                 }
 
                 booking.providerId = req.user._id;
+                booking.acceptedAt = Date.now();
             }
 
             if (req.body.paymentStatus) {
@@ -606,6 +617,9 @@ const updateBookingStatusByProvider = async (req, res) => {
                 });
             }
 
+            if (newStatus === 'on_the_way' && booking.status !== 'on_the_way') {
+                booking.onTheWayAt = Date.now();
+            }
             booking.status = newStatus;
             const updatedBooking = await booking.save();
 
@@ -708,6 +722,7 @@ const verifyStartOTP = async (req, res) => {
 
             if (booking.startOTP === otp) {
                 booking.status = 'started';
+                booking.startedAt = Date.now();
                 booking.beforeImage = beforeImage;
                 await booking.save();
                 res.json({ message: 'Service started successfully', status: 'started' });
@@ -886,6 +901,7 @@ const verifyEndOTP = async (req, res) => {
 
                 // Update booking with commission details
                 booking.status = 'completed';
+                booking.completedAt = Date.now();
                 if (afterImage) {
                     booking.afterImage = afterImage;
                 }
@@ -1249,6 +1265,147 @@ const checkOverlapStatus = async (req, res) => {
     }
 };
 
+// @desc    Counter offer a booking (Provider)
+// @route   PATCH /api/bookings/:id/counter-offer
+// @access  Private (Provider)
+const counterOfferBooking = async (req, res) => {
+    try {
+        const { amount } = req.body;
+        if (!amount || amount <= 0) return res.status(400).json({ message: 'Valid amount is required' });
+
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+        if (booking.status !== 'pending') return res.status(400).json({ message: 'Booking is no longer pending' });
+
+        if (!booking.providerId) {
+            // Assign this provider temporarily for negotiation
+            booking.providerId = req.user._id;
+        } else if (booking.providerId.toString() !== req.user._id.toString()) {
+            return res.status(400).json({ message: 'Another provider is currently negotiating this booking' });
+        }
+
+        booking.negotiation.providerCounterAmount = amount;
+        booking.negotiation.status = 'provider_countered';
+        
+        await booking.save();
+        await booking.populate('providerId', 'name mobile shopName location category');
+        await booking.populate('userId', 'name mobile email');
+
+        // Notify User
+        const { emitToUser } = require('../config/socket');
+        emitToUser(booking.userId._id, 'booking_update', booking);
+        
+        // Push notification
+        await Notification.create({
+            recipientId: booking.userId._id,
+            recipientModel: 'User',
+            title: 'Provider Counter-Offer',
+            message: `A provider has proposed ₹${amount} for your request.`,
+            type: 'booking_update',
+            relatedId: booking._id
+        });
+
+        res.json(booking);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Accept provider's counter offer (User)
+// @route   PATCH /api/bookings/:id/accept-counter
+// @access  Private (User)
+const acceptCounterOffer = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+        
+        if (booking.userId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        if (booking.negotiation.status !== 'provider_countered') {
+            return res.status(400).json({ message: 'No counter offer to accept' });
+        }
+
+        booking.totalAmount = booking.negotiation.providerCounterAmount;
+        booking.negotiation.status = 'accepted';
+        booking.status = 'confirmed'; // Booking is now confirmed
+        
+        await booking.save();
+        await booking.populate('providerId', 'name mobile shopName location category');
+        await booking.populate('userId', 'name mobile email');
+
+        // Notify Provider
+        const { emitToProvider } = require('../config/socket');
+        emitToProvider(booking.providerId._id, 'booking_update', booking);
+
+        await Notification.create({
+            recipientId: booking.providerId._id,
+            recipientModel: 'Provider',
+            title: 'Offer Accepted!',
+            message: `Customer accepted your counter-offer of ₹${booking.totalAmount}.`,
+            type: 'booking_update',
+            relatedId: booking._id
+        });
+
+        res.json(booking);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// @desc    Reject provider's counter offer (User)
+// @route   PATCH /api/bookings/:id/reject-counter
+// @access  Private (User)
+const rejectCounterOffer = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+        
+        if (booking.userId.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Not authorized' });
+        }
+
+        if (booking.negotiation.status !== 'provider_countered') {
+            return res.status(400).json({ message: 'No counter offer to reject' });
+        }
+
+        const oldProvider = booking.providerId;
+        
+        // Send it back to broadcast pool
+        booking.providerId = null;
+        booking.negotiation.status = booking.negotiation.userProposedAmount ? 'user_proposed' : 'none';
+        booking.negotiation.providerCounterAmount = null;
+        
+        await booking.save();
+
+        // Notify rejected Provider
+        const { emitToProvider, emitToRole } = require('../config/socket');
+        emitToProvider(oldProvider, 'booking_update', { _id: booking._id, status: 'rejected_counter' });
+
+        await Notification.create({
+            recipientId: oldProvider,
+            recipientModel: 'Provider',
+            title: 'Offer Rejected',
+            message: `Customer rejected your counter-offer for ${booking.serviceName}.`,
+            type: 'booking_update',
+            relatedId: booking._id
+        });
+
+        // Re-broadcast to all sewaks
+        if (booking.requiredProviderCategory === 'sewak') {
+            emitToRole('sewak', 'new_booking_request', booking);
+        }
+
+        res.json(booking);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     createBooking,
     getUserBookings,
@@ -1263,5 +1420,8 @@ module.exports = {
     proposeSchedule,
     acceptSchedule,
     rejectSchedule,
-    checkOverlapStatus
+    checkOverlapStatus,
+    counterOfferBooking,
+    acceptCounterOffer,
+    rejectCounterOffer,
 };

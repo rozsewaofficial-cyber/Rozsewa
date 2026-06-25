@@ -134,6 +134,8 @@ const ProviderRegister = () => {
   const [emailOtp, setEmailOtp] = useState("");
   const [showEmailOtpField, setShowEmailOtpField] = useState(false);
   const [verifying, setVerifying] = useState({ aadhaar: false, pan: false, gst: false, bank: false, email: false });
+  const [aadhaarSessionId, setAadhaarSessionId] = useState("");
+  const [aadhaarOtp, setAadhaarOtp] = useState("");
 
   const formDataRef = useRef(formData);
   const coordsRef = useRef(coords);
@@ -499,58 +501,58 @@ const ProviderRegister = () => {
     }
   };
 
-  const handleInitiateDigilocker = async () => {
+  const handleInitiateOKYC = async () => {
     if (!formData.kycAadhaar || formData.kycAadhaar.length !== 12) {
       return toast({ title: "Invalid Aadhaar", description: "Please enter your 12-digit Aadhaar number first.", variant: "destructive" });
     }
     
     setVerifying(prev => ({ ...prev, aadhaar: true }));
     try {
-      const { data } = await API.post("/digilocker/initiate", { 
-        mobileNumber: formData.mobile,
-        aadhaarNumber: formData.kycAadhaar,
-        redirectUrl: `${window.location.origin}/digilocker/callback`
+      const { data } = await API.post("/verify/okyc/initiate", { 
+        aadhaarNumber: formData.kycAadhaar
       });
-      console.log("DigiLocker API Response:", data); // Log to see the exact structure
-
-      // Try different common property names for the URL
-      const authUrl = data?.data?.authUrl || data?.authUrl || data?.url || data?.data?.url;
-
-      if ((data.success !== false) && authUrl) {
-        const popup = window.open(authUrl, 'DigiLocker Auth', 'width=500,height=600');
-        
-        // Listen for messages from the DigilockerCallback window
-        const messageHandler = (event) => {
-          if (event.origin !== window.location.origin) return;
-          if (event.data?.type === 'DIGILOCKER_SUCCESS') {
-            setVerificationStatus(prev => ({ ...prev, aadhaar: true }));
-            toast({ title: "Aadhaar Verified", description: "DigiLocker consent recorded successfully." });
-            window.removeEventListener('message', messageHandler);
-          } else if (event.data?.type === 'DIGILOCKER_ERROR') {
-            toast({ title: "Verification Failed", description: "DigiLocker consent failed or was cancelled.", variant: "destructive" });
-            window.removeEventListener('message', messageHandler);
-          }
-        };
-
-        window.addEventListener('message', messageHandler);
-
-        // Fallback to clear listener if popup is closed manually
-        const checkPopup = setInterval(() => {
-          if (popup && popup.closed) {
-            clearInterval(checkPopup);
-            window.removeEventListener('message', messageHandler);
-          }
-        }, 1000);
-      } else if (data.success === true || data.status === "VERIFIED") {
-        // Fallback if success but no URL (maybe already verified?)
-        setVerificationStatus(prev => ({ ...prev, aadhaar: true }));
-        toast({ title: "Aadhaar Verified", description: "DigiLocker consent recorded successfully." });
+      
+      if (data.success || data.status === "OTP_SENT") {
+        const sid = data.data?.sessionId || data.sessionId;
+        if (sid) {
+           setAadhaarSessionId(sid);
+           toast({ title: "OTP Sent", description: data.data?.message || "Aadhaar OTP sent successfully." });
+        } else {
+           toast({ title: "Error", description: "Session ID not received from provider.", variant: "destructive" });
+        }
       } else {
-        console.error("Failed to parse DigiLocker response:", data);
-        toast({ title: "DigiLocker Failed", description: "Could not find Auth URL in response.", variant: "destructive" });
+        toast({ title: "Failed", description: data.message || "Failed to initiate Aadhaar OKYC.", variant: "destructive" });
       }
     } catch (err) {
-      toast({ title: "DigiLocker Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, aadhaar: false }));
+    }
+  };
+
+  const handleVerifyOKYC = async () => {
+    if (!aadhaarOtp || aadhaarOtp.length < 6) {
+      return toast({ title: "Invalid OTP", description: "Please enter a valid OTP.", variant: "destructive" });
+    }
+    
+    setVerifying(prev => ({ ...prev, aadhaar: true }));
+    try {
+      const { data } = await API.post("/verify/okyc/verify", { 
+        sessionId: aadhaarSessionId,
+        otp: aadhaarOtp,
+        aadhaarNumber: formData.kycAadhaar
+      });
+      
+      if (data.success || data.status === "VERIFIED") {
+        setVerificationStatus(prev => ({ ...prev, aadhaar: true }));
+        setAadhaarSessionId("");
+        setAadhaarOtp("");
+        toast({ title: "Aadhaar Verified", description: "Aadhaar verified successfully." });
+      } else {
+        toast({ title: "Failed", description: data.message || "Failed to verify Aadhaar OTP.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
     } finally {
       setVerifying(prev => ({ ...prev, aadhaar: false }));
     }
@@ -1076,15 +1078,37 @@ const ProviderRegister = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between ml-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Aadhaar / DigiLocker</label>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Aadhaar</label>
                         {!verificationStatus.aadhaar && (
-                          <button type="button" onClick={handleInitiateDigilocker} disabled={verifying.aadhaar} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm">
-                            {verifying.aadhaar ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify DigiLocker"}
+                          <button type="button" onClick={handleInitiateOKYC} disabled={verifying.aadhaar || aadhaarSessionId !== ""} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                            {verifying.aadhaar ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send Aadhaar OTP"}
                           </button>
                         )}
                         {verificationStatus.aadhaar && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input maxLength="12" disabled={verificationStatus.aadhaar} value={formData.kycAadhaar} onChange={e => setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="12-Digit Aadhaar No" />
+                      <input maxLength="12" disabled={verificationStatus.aadhaar || !!aadhaarSessionId} value={formData.kycAadhaar} onChange={e => {
+                        setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') });
+                      }} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="12-Digit Aadhaar No" />
+                      
+                      {aadhaarSessionId && !verificationStatus.aadhaar && (
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-500">Aadhaar locked for verification.</span>
+                            <button type="button" onClick={() => {
+                              setAadhaarSessionId("");
+                              setAadhaarOtp("");
+                            }} className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors">
+                              Edit Aadhaar Number
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="text" maxLength="6" value={aadhaarOtp} onChange={e => setAadhaarOtp(e.target.value.replace(/\D/g, ''))} className="w-full rounded-lg border border-slate-200 bg-emerald-50/30 p-2.5 font-bold text-sm text-center tracking-widest text-emerald-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="OTP" />
+                            <button type="button" onClick={handleVerifyOKYC} disabled={verifying.aadhaar || aadhaarOtp.length < 6} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                              Submit
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between ml-1">
