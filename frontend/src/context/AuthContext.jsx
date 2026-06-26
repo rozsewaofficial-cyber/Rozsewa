@@ -44,10 +44,22 @@ export const AuthProvider = ({ children }) => {
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        (pos) => {
+        async (pos) => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setUserLocation(loc);
           localStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
+          
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}`);
+            const data = await res.json();
+            const detectedCity = data.address?.city || data.address?.town || data.address?.village || "";
+            if (detectedCity) {
+              localStorage.setItem("rozsewa_user_city", detectedCity);
+            }
+          } catch (e) {
+            console.error("Reverse geocoding failed on startup:", e);
+          }
+          
           resolve(loc);
         },
         (err) => reject(err),

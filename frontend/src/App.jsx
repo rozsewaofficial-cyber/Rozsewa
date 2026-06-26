@@ -38,6 +38,7 @@ import Terms from "./modules/user/pages/Terms";
 import Privacy from "./modules/user/pages/Privacy";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GlobalAlarm from "./components/GlobalAlarm";
+import LocationGate from "./components/LocationGate";
 
 // Provider Pages
 import ProviderDashboard from "./modules/provider/pages/ProviderDashboard";
@@ -127,30 +128,34 @@ const App = () => (
                     {/* User Panel as Default */}
                     <Route path="/" element={<Navigate to="/home" replace />} />
                     <Route path="/login" element={<CustomerLogin />} />
-                    <Route path="/home" element={<Index />} />
-                    <Route path="/shops" element={<ShopListing />} />
-                    <Route path="/shop/:id" element={<ShopDetail />} />
-                    <Route path="/sewak-services" element={<SewakServices />} />
-                    <Route path="/category" element={<SubcategoryPage />} />
 
-                    {/* Protected Customer Routes */}
-                    <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Checkout /></ProtectedRoute>} />
-                    <Route path="/tracking" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><LiveTracking /></ProtectedRoute>} />
-                    <Route path="/booking-waiting" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BookingWaiting /></ProtectedRoute>} />
-                    <Route path="/my-bookings" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><ServiceHistory /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Profile /></ProtectedRoute>} />
-                    <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Favorites /></ProtectedRoute>} />
-                    <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
-                    <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
+                    {/* Location Gated Customer Routes */}
+                    <Route element={<LocationGate />}>
+                      <Route path="/home" element={<Index />} />
+                      <Route path="/shops" element={<ShopListing />} />
+                      <Route path="/shop/:id" element={<ShopDetail />} />
+                      <Route path="/sewak-services" element={<SewakServices />} />
+                      <Route path="/category" element={<SubcategoryPage />} />
 
-                    {/* Public Info Routes */}
-                    <Route path="/post-service" element={<PostService />} />
-                    <Route path="/help-support" element={<HelpSupport />} />
-                    <Route path="/complaint" element={<ComplaintForm />} />
-                    <Route path="/support-tickets" element={<SupportTickets />} />
-                    <Route path="/offers" element={<Offers />} />
-                    <Route path="/terms" element={<Terms />} />
-                    <Route path="/privacy" element={<Privacy />} />
+                      {/* Protected Customer Routes */}
+                      <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Checkout /></ProtectedRoute>} />
+                      <Route path="/tracking" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><LiveTracking /></ProtectedRoute>} />
+                      <Route path="/booking-waiting" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BookingWaiting /></ProtectedRoute>} />
+                      <Route path="/my-bookings" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><ServiceHistory /></ProtectedRoute>} />
+                      <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Profile /></ProtectedRoute>} />
+                      <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Favorites /></ProtectedRoute>} />
+                      <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
+                      <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
+
+                      {/* Public Info Routes */}
+                      <Route path="/post-service" element={<PostService />} />
+                      <Route path="/help-support" element={<HelpSupport />} />
+                      <Route path="/complaint" element={<ComplaintForm />} />
+                      <Route path="/support-tickets" element={<SupportTickets />} />
+                      <Route path="/offers" element={<Offers />} />
+                      <Route path="/terms" element={<Terms />} />
+                      <Route path="/privacy" element={<Privacy />} />
+                    </Route>
 
                     {/* Provider Routes */}
                     <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />
