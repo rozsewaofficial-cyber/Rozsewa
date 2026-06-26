@@ -7,8 +7,8 @@ const originalError = toast.error;
 const originalInfo = toast.info;
 const originalWarning = toast.warning;
 
-toast.success = (message, options) => originalSuccess(message, { duration: 4000, ...options });
-toast.info = (message, options) => originalInfo(message, { duration: 4000, ...options });
+toast.success = (message, options) => originalSuccess(message, { duration: 2000, ...options });
+toast.info = (message, options) => originalInfo(message, { duration: 2000, ...options });
 toast.warning = (message, options) => originalWarning(message, { duration: 6000, ...options });
 toast.error = (message, options) => originalError(message, { duration: 9000, ...options });
 
@@ -20,7 +20,7 @@ const Toaster = ({ ...props }) => {
       theme={theme}
       className="toaster group"
       closeButton={true}
-      duration={4000}
+      duration={2000}
       toastOptions={{
         classNames: {
           toast:

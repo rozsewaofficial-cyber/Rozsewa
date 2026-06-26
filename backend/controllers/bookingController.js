@@ -1324,6 +1324,33 @@ const verifyEndOTP = async (req, res) => {
                 provider.walletBalance = wallet.balance;
                 await provider.save();
 
+                // Decoupled Booking Completed Notifications
+                try {
+                    const { notifyUser } = require('../config/notificationService');
+                    
+                    // Notify Provider
+                    await notifyUser({
+                        userId: booking.providerId,
+                        userRole: 'provider',
+                        title: 'Booking Completed ✓',
+                        message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been successfully completed.`,
+                        type: 'booking',
+                        bookingId: booking._id
+                    });
+
+                    // Notify Customer
+                    await notifyUser({
+                        userId: booking.userId,
+                        userRole: 'user',
+                        title: 'Booking Completed ✓',
+                        message: `Your service #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been completed.`,
+                        type: 'booking',
+                        bookingId: booking._id
+                    });
+                } catch (notiErr) {
+                    console.error('[Notification Trigger Error] Failed to send booking completion notification:', notiErr);
+                }
+
                 // Push Notification for Provider
                 try {
                     const { sendNotificationToUser } = require('../config/notificationService');

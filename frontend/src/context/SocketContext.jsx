@@ -52,6 +52,11 @@ export const SocketProvider = ({ children }) => {
             window.dispatchEvent(new CustomEvent('BOOKING_REJECTED', { detail: data }));
         });
 
+        newSocket.on("SCHEDULE_PROPOSED", (data) => {
+            console.log("Global Socket: Schedule Proposed", data);
+            window.dispatchEvent(new CustomEvent('SCHEDULE_PROPOSED', { detail: data }));
+        });
+
         newSocket.on("SCHEDULE_ACCEPTED", (data) => {
             console.log("Global Socket: Schedule Accepted", data);
             setScheduleAcceptedData(data);

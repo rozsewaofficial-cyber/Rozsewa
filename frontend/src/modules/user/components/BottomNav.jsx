@@ -45,9 +45,6 @@ const BottomNav = ({ mode = "partner" }) => {
 
   return (
     <motion.nav
-      initial={{ y: 100 }}
-      animate={{ y: 0 }}
-      transition={{ delay: 0.3, type: "spring", stiffness: 300, damping: 30 }}
       className="fixed bottom-6 left-4 right-4 z-50 md:hidden"
     >
       <div className="flex items-center justify-between rounded-full bg-white dark:bg-slate-900 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-100 dark:border-slate-800 px-6 py-4 backdrop-blur-xl">

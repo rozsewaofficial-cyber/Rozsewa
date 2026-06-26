@@ -32,4 +32,33 @@ const sendSMSOTP = async (mobile, otp) => {
     }
 };
 
-module.exports = { sendSMSOTP };
+/**
+ * Send a custom SMS message via SMSINDIAHUB
+ * @param {string} mobile - Mobile number with country code (e.g., 91xxxxxxxxxx)
+ * @param {string} message - The message content to send
+ */
+const sendSMSMessage = async (mobile, message) => {
+    try {
+        const apiKey = process.env.SMSINDIAHUB_API_KEY;
+        const senderId = process.env.SMSINDIAHUB_SENDER_ID;
+
+        // Sanitize mobile number (remove + or any spaces)
+        const cleanMobile = mobile.replace(/\D/g, '');
+
+        // Ensure strictly 10 digits or 12 digits (if 91 is included)
+        const targetNumber = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
+
+        // API Endpoint for SMSINDIAHUB (Standard Push SMS)
+        const url = `http://cloud.smsindiahub.in/vendorsms/pushsms.aspx?apikey=${apiKey}&msisdn=${targetNumber}&sid=${senderId}&msg=${encodeURIComponent(message)}&fl=0&gwid=2`;
+
+        const response = await axios.get(url);
+
+        console.log(`SMS Message Sent to ${targetNumber}. Response:`, response.data);
+        return { success: true, data: response.data };
+    } catch (error) {
+        console.error('Error sending SMS message:', error.message);
+        return { success: false, error: error.message };
+    }
+};
+
+module.exports = { sendSMSOTP, sendSMSMessage };
