@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Plus, Edit3, Trash2, Eye, EyeOff, X, Save, IndianRupee, Loader2, Gift, Camera, Zap } from "lucide-react";
@@ -16,13 +17,26 @@ const ProviderServices = () => {
   const [categoryServices, setCategoryServices] = useState([]);
   const [categoryName, setCategoryName] = useState("");
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("services"); // "services" or "combos"
-  const [showForm, setShowForm] = useState(false);
-  const [showComboForm, setShowComboForm] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] });
+  const draft = JSON.parse(sessionStorage.getItem("provider-services-draft") || "{}");
+  const [activeTab, setActiveTab] = useState(draft.activeTab || "services"); // "services" or "combos"
+  const [showForm, setShowForm] = useState(draft.showForm || false);
+  const [showComboForm, setShowComboForm] = useState(draft.showComboForm || false);
+  const [editId, setEditId] = useState(draft.editId || null);
+  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] });
   const [viewService, setViewService] = useState(null);
-  const [comboForm, setComboForm] = useState({ name: "", description: "", services: [], price: "", image: "" });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useScrollLock(showForm || showComboForm || !!viewService);
+
+  const [comboForm, setComboForm] = useState(draft.comboForm || { name: "", description: "", services: [], price: "", image: "" });
+
+  useEffect(() => {
+    sessionStorage.setItem("provider-services-draft", JSON.stringify({
+      activeTab, showForm, showComboForm, editId, form, comboForm
+    }));
+  }, [activeTab, showForm, showComboForm, editId, form, comboForm]);
+
+  const clearDraft = () => sessionStorage.removeItem("provider-services-draft");
   const [uploading, setUploading] = useState(false);
   const [serviceSubTab, setServiceSubTab] = useState("active"); // "active" or "hidden"
   const [saving, setSaving] = useState(false);
@@ -102,7 +116,7 @@ const ProviderServices = () => {
         await API.post("/services", payload);
         toast({ title: "Service Added" });
         fetchProviderInfoAndServices(false);
-        resetForm();
+        clearDraft();
       }
     } catch (err) {
       toast({ title: "Save failed", variant: "destructive" });
@@ -130,7 +144,7 @@ const ProviderServices = () => {
         await API.post("/services/combos", comboForm);
         toast({ title: "Combo Created" });
         fetchProviderInfoAndServices(false);
-        resetComboForm();
+        clearDraft();
       }
     } catch (err) {
       toast({ title: "Action failed", variant: "destructive" });
@@ -178,8 +192,8 @@ const ProviderServices = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); };
-  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); };
+  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); };
+  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); clearDraft(); };
 
   const handleEdit = (s) => {
     const isCustom = !categoryServices.some(cat => cat.name === s.name);
@@ -246,7 +260,7 @@ const ProviderServices = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
-      {!showForm && !showComboForm && <ProviderTopNav title="Service Hub" showBack={true} />}
+      {!showForm && !showComboForm && <ProviderTopNav title="Service Hub" />}
       <main className="container max-w-3xl px-4 py-6 space-y-6">
         <div className="flex flex-col gap-6">
           <div className="flex p-1 bg-muted rounded-xl">
@@ -317,14 +331,14 @@ const ProviderServices = () => {
 
             {activeTab === "services" && (
               <div className="flex items-center justify-end gap-4 px-2 -mt-2 mb-2">
-                <button 
-                  onClick={() => setServiceSubTab("active")} 
+                <button
+                  onClick={() => setServiceSubTab("active")}
                   className={`text-[10px] font-black uppercase tracking-widest transition-colors ${serviceSubTab === "active" ? "text-emerald-600 dark:text-emerald-500" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Active
                 </button>
-                <button 
-                  onClick={() => setServiceSubTab("hidden")} 
+                <button
+                  onClick={() => setServiceSubTab("hidden")}
                   className={`text-[10px] font-black uppercase tracking-widest transition-colors ${serviceSubTab === "hidden" ? "text-slate-600 dark:text-slate-300" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   Combo-Only
@@ -431,14 +445,14 @@ const ProviderServices = () => {
       <AnimatePresence>
         {showForm && (
           <motion.div key="service-form-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] bg-card text-left overflow-y-auto">
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "tween", duration: 0.3 }}
-              className="w-full min-h-screen bg-card sm:max-w-md sm:mx-auto sm:min-h-0 sm:rounded-[32px] sm:border sm:border-border sm:shadow-2xl">
-              <div className="flex items-center justify-between border-b border-border px-5 py-3 sticky top-0 bg-card z-10 text-foreground">
+            className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} transition={{ type: "tween", duration: 0.3 }}
+              className="w-full bg-card max-w-md mx-auto rounded-[32px] border border-border shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3 bg-card shrink-0">
                 <h3 className="text-lg font-black uppercase tracking-tighter">{editId ? "Edit Service" : "Add Service"}</h3>
                 <button type="button" onClick={resetForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
               </div>
-              <form onSubmit={handleSave} className="p-6 pb-32 space-y-5">
+              <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto flex-1">
                 <div className="text-left">
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Work Photo</label>
                   <div className="group relative h-48 w-full overflow-hidden rounded-[24px] bg-muted/50 border-2 border-dashed border-border hover:border-primary/50 transition-all">
@@ -481,6 +495,8 @@ const ProviderServices = () => {
                           name: val,
                           customName: "",
                           price: isSewak ? (selected?.basePrice) : "",
+                          amenities: selected?.amenities || [],
+                          serviceDetails: selected?.serviceDetails || []
                         });
                       }}
                       className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none"
@@ -640,14 +656,14 @@ const ProviderServices = () => {
         )}
         {showComboForm && (
           <motion.div key="combo-form-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[999] bg-card text-left overflow-y-auto">
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "tween", duration: 0.3 }}
-              className="w-full min-h-screen bg-card sm:max-w-md sm:mx-auto sm:min-h-0 sm:rounded-[32px] sm:border sm:border-border sm:shadow-2xl">
-              <div className="flex items-center justify-between border-b border-border px-5 py-3 sticky top-0 bg-card z-10 text-foreground">
+            className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} transition={{ type: "tween", duration: 0.3 }}
+              className="w-full bg-card max-w-md mx-auto rounded-[32px] border border-border shadow-2xl flex flex-col max-h-[90vh]">
+              <div className="flex items-center justify-between border-b border-border px-5 py-3 bg-card shrink-0 text-foreground">
                 <h3 className="text-lg font-black uppercase tracking-tighter">{editId ? "Edit Combo" : "Create Combo"}</h3>
                 <button type="button" onClick={resetComboForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
               </div>
-              <form onSubmit={handleComboSave} className="p-6 pb-32 space-y-5">
+              <form onSubmit={handleComboSave} className="p-6 space-y-5 overflow-y-auto flex-1">
                 <div className="text-left">
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Banner Image</label>
                   <div className="group relative h-40 w-full overflow-hidden rounded-[24px] bg-emerald-50 dark:bg-emerald-950/20 border-2 border-dashed border-emerald-200 dark:border-emerald-800/50">
@@ -755,7 +771,7 @@ const ProviderServices = () => {
                           className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all flex items-center gap-1.5 ${isSelected
                             ? "bg-emerald-600 text-white border-emerald-700 shadow-lg shadow-emerald-600/20"
                             : "bg-white dark:bg-emerald-900/40 text-emerald-600 border-emerald-100 dark:border-emerald-800"
-                          }`}
+                            }`}
                         >
                           {customSvc.name} (Custom)
                           {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse ml-1" />}
@@ -802,9 +818,9 @@ const ProviderServices = () => {
                     </div>
                     {!viewService.visible && <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-md text-[9px] uppercase font-bold">Combo Only</span>}
                   </div>
-                  
+
                   <p className="text-xs text-muted-foreground font-medium mb-6 leading-relaxed">{viewService.description}</p>
-                  
+
                   <div className="space-y-4">
                     <div className="bg-muted/50 rounded-2xl p-4 border border-border/50">
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3">Pricing Tiers</p>
@@ -827,7 +843,7 @@ const ProviderServices = () => {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-muted/50 rounded-2xl p-4 border border-border/50">
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Duration</p>

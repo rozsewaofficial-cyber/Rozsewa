@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { HelpCircle, FileText, Plus, BookOpen, MessageSquare, ExternalLink, PlayCircle, Trash2, X } from "lucide-react";
 import API from "@/lib/api";
@@ -10,6 +11,8 @@ const AdminHelpTraining = () => {
     const [faqs, setFaqs] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ question: "", answer: "", category: "General" });
+
+    useScrollLock(showModal);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {

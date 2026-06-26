@@ -5,16 +5,19 @@ import API from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { useSocket } from '@/context/SocketContext';
 import { useAuth } from '@/context/AuthContext';
+import { useScrollLock } from '@/lib/scrollLock';
 
 import alertSound from '@/assets/alert.mp3';
 
 const IncomingRequestModal = ({ request, onAction }) => {
+    useScrollLock(true);
     const { toast } = useToast();
+
     const { socket } = useSocket();
     const { user } = useAuth();
     const [timeLeft, setTimeLeft] = useState(120); // 2 mins countdown
     const [audioStarted, setAudioStarted] = useState(false);
-    
+
     const [isScheduling, setIsScheduling] = useState(false);
     const [scheduleDate, setScheduleDate] = useState('');
     const [scheduleTime, setScheduleTime] = useState('');
@@ -100,9 +103,13 @@ const IncomingRequestModal = ({ request, onAction }) => {
         };
     }, [request, audioStarted]);
 
-    const handleAccept = async () => {
+    const handleAccept = async (decision = null) => {
         try {
-            await API.patch(`/bookings/${request.bookingId}/status`, { status: 'confirmed' });
+            const payload = { status: 'confirmed' };
+            if (decision && typeof decision === 'string') {
+                payload.offerDecision = decision;
+            }
+            await API.patch(`/bookings/${request.bookingId}/status`, payload);
             toast({ title: "Booking Accepted!", variant: "default" });
             if (audioRef.current) {
                 audioRef.current.pause();
@@ -110,10 +117,10 @@ const IncomingRequestModal = ({ request, onAction }) => {
             }
             onAction('accepted');
         } catch (err) {
-            toast({ 
-                title: err.response?.status === 409 ? "Booking Taken" : "Failed to accept booking", 
-                description: err.response?.data?.message || "Something went wrong.", 
-                variant: err.response?.status === 409 ? "default" : "destructive" 
+            toast({
+                title: err.response?.status === 409 ? "Booking Taken" : "Failed to accept booking",
+                description: err.response?.data?.message || "Something went wrong.",
+                variant: err.response?.status === 409 ? "default" : "destructive"
             });
             if (err.response?.status === 409 || err.response?.status === 401) {
                 if (audioRef.current) {
@@ -126,6 +133,55 @@ const IncomingRequestModal = ({ request, onAction }) => {
         }
     };
 
+    const handleCounterSubmit = async () => {
+        const amt = Number(counterAmount);
+        if (!amt || isNaN(amt) || amt <= 0) {
+            toast({ title: "Validation Error", description: "Please enter a valid positive amount.", variant: "destructive" });
+            return;
+        }
+        if (amt <= request.amount) {
+            toast({ title: "Validation Error", description: `Counter offer must be greater than customer's offer of ₹${request.amount}.`, variant: "destructive" });
+            return;
+        }
+        if (amt > request.originalFixedPrice) {
+            toast({ title: "Validation Error", description: `Counter offer cannot exceed original fixed price of ₹${request.originalFixedPrice}.`, variant: "destructive" });
+            return;
+        }
+
+        setIsSubmittingCounter(true);
+        try {
+            await API.patch(`/bookings/${request.bookingId}/status`, {
+                status: 'pending',
+                offerDecision: 'counter',
+                counterAmount: amt
+            });
+            toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
+
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+            sessionStorage.removeItem('activeRequest');
+            onAction('countered');
+        } catch (err) {
+            toast({
+                title: err.response?.status === 409 ? "Booking Taken" : "Failed to send counter-offer",
+                description: err.response?.data?.message || "Something went wrong.",
+                variant: err.response?.status === 409 ? "default" : "destructive"
+            });
+            if (err.response?.status === 409 || err.response?.status === 401) {
+                if (audioRef.current) {
+                    audioRef.current.pause();
+                    audioRef.current.currentTime = 0;
+                }
+                sessionStorage.removeItem('activeRequest');
+                onAction('taken');
+            }
+        } finally {
+            setIsSubmittingCounter(false);
+        }
+    };
+
     const handleScheduleSubmit = async () => {
         if (!scheduleDate || !scheduleTime) {
             toast({ title: "Validation Error", description: "Date and Time are required.", variant: "destructive" });
@@ -134,13 +190,13 @@ const IncomingRequestModal = ({ request, onAction }) => {
 
         setIsSubmittingSchedule(true);
         try {
-            await API.patch(`/bookings/${request.bookingId}/propose-schedule`, { 
-                date: scheduleDate, 
-                time: scheduleTime, 
-                message: scheduleMessage 
+            await API.patch(`/bookings/${request.bookingId}/propose-schedule`, {
+                date: scheduleDate,
+                time: scheduleTime,
+                message: scheduleMessage
             });
             toast({ title: "Schedule Proposed", description: "Waiting for customer approval.", variant: "default" });
-            
+
             if (audioRef.current) {
                 audioRef.current.pause();
                 audioRef.current.currentTime = 0;
@@ -151,36 +207,6 @@ const IncomingRequestModal = ({ request, onAction }) => {
             toast({ title: "Failed to propose schedule", description: err.response?.data?.message || err.message, variant: "destructive" });
         } finally {
             setIsSubmittingSchedule(false);
-        }
-    };
-
-    const handleCounterSubmit = async () => {
-        if (!counterAmount || counterAmount <= 0) {
-            toast({ title: "Validation Error", description: "Please enter a valid amount.", variant: "destructive" });
-            return;
-        }
-
-        setIsSubmittingCounter(true);
-        try {
-            await API.patch(`/bookings/${request.bookingId}/counter-offer`, { 
-                amount: Number(counterAmount)
-            });
-            toast({ title: "Counter Offer Sent", description: "Waiting for customer approval.", variant: "default" });
-            
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
-            sessionStorage.removeItem('activeRequest');
-            onAction('countered');
-        } catch (err) {
-            toast({ title: "Failed to send counter offer", description: err.response?.data?.message || err.message, variant: "destructive" });
-            if (err.response?.status === 409 || err.response?.status === 400) {
-                sessionStorage.removeItem('activeRequest');
-                onAction('taken');
-            }
-        } finally {
-            setIsSubmittingCounter(false);
         }
     };
 
@@ -257,11 +283,11 @@ const IncomingRequestModal = ({ request, onAction }) => {
                         {isScheduling ? (
                             <div className="w-full bg-muted/50 rounded-3xl p-5 space-y-4 text-left border border-border">
                                 <h3 className="text-sm font-black text-foreground uppercase tracking-widest text-center">Propose New Time</h3>
-                                
+
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Date</label>
-                                    <input 
-                                        type="date" 
+                                    <input
+                                        type="date"
                                         value={scheduleDate}
                                         onChange={(e) => setScheduleDate(e.target.value)}
                                         className="w-full bg-background border border-border rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -270,8 +296,8 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Time</label>
-                                    <input 
-                                        type="time" 
+                                    <input
+                                        type="time"
                                         value={scheduleTime}
                                         onChange={(e) => setScheduleTime(e.target.value)}
                                         className="w-full bg-background border border-border rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -279,7 +305,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Message for Customer</label>
-                                    <textarea 
+                                    <textarea
                                         placeholder="e.g. Can we do it at this time? I'm currently busy."
                                         value={scheduleMessage}
                                         onChange={(e) => setScheduleMessage(e.target.value)}
@@ -300,6 +326,40 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                         className="h-12 rounded-xl bg-amber-500 text-white shadow-lg shadow-amber-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
                                     >
                                         {isSubmittingSchedule ? 'Sending...' : 'Send Proposal'}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : isCountering ? (
+                            <div className="w-full bg-muted/50 rounded-3xl p-5 space-y-4 text-left border border-border">
+                                <h3 className="text-sm font-black text-foreground uppercase tracking-widest text-center">Propose Counter Offer</h3>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Counter Amount (₹)</label>
+                                    <input
+                                        type="number"
+                                        placeholder={`Between ₹${request.amount + 1} and ₹${request.originalFixedPrice}`}
+                                        value={counterAmount}
+                                        onChange={(e) => setCounterAmount(e.target.value)}
+                                        className="w-full bg-background border border-border rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                                    />
+                                    <p className="text-[9px] text-muted-foreground">
+                                        Must be greater than customer's offer (₹{request.amount}) and less than or equal to fixed price (₹{request.originalFixedPrice}).
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <button
+                                        onClick={() => setIsCountering(false)}
+                                        className="h-12 rounded-xl border-2 border-border bg-background hover:bg-muted flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-muted-foreground"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleCounterSubmit}
+                                        disabled={isSubmittingCounter}
+                                        className="h-12 rounded-xl bg-purple-600 text-white shadow-lg shadow-purple-500/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
+                                    >
+                                        {isSubmittingCounter ? 'Sending...' : 'Send Counter'}
                                     </button>
                                 </div>
                             </div>
@@ -325,7 +385,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                     <div className="flex items-center justify-between pt-2 border-t border-border">
                                         <div>
                                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
-                                            
+
                                             {request.userProposedAmount ? (
                                                 <>
                                                     <div className="flex items-center text-sm font-black text-emerald-600 italic line-through opacity-70">
@@ -361,32 +421,34 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                     </div>
                                 </div>
 
-                                {isCountering ? (
-                                    <div className="w-full bg-blue-50 dark:bg-blue-900/20 rounded-3xl p-5 space-y-4 text-left border border-blue-200 dark:border-blue-800">
-                                        <h3 className="text-sm font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest text-center">Counter Offer</h3>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-blue-500 uppercase tracking-wider">Your Price</label>
-                                            <input 
-                                                type="number" 
-                                                value={counterAmount}
-                                                onChange={(e) => setCounterAmount(e.target.value)}
-                                                placeholder={`e.g. ${request.amount}`}
-                                                className="w-full bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-700 rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-3 pt-2">
+                                {request.bargainDiscount > 0 ? (
+                                    <div className="flex flex-col gap-2 w-full pt-2">
+                                        <div className="grid grid-cols-2 gap-2">
                                             <button
-                                                onClick={() => setIsCountering(false)}
-                                                className="h-12 rounded-xl border-2 border-blue-200 dark:border-blue-800 bg-white dark:bg-slate-900 hover:bg-slate-50 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-slate-500"
+                                                onClick={handleReject}
+                                                className="h-12 rounded-2xl border-2 border-rose-500/10 bg-background hover:bg-rose-50 flex items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-rose-600 group"
                                             >
-                                                Cancel
+                                                <X className="h-4 w-4" /> Reject
                                             </button>
                                             <button
-                                                onClick={handleCounterSubmit}
-                                                disabled={isSubmittingCounter}
-                                                className="h-12 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:scale-[1.02] active:scale-95 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest disabled:opacity-50"
+                                                onClick={() => handleAccept('accept')}
+                                                className="h-12 rounded-2xl bg-emerald-600 text-white shadow-lg hover:bg-emerald-700 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest group"
                                             >
-                                                {isSubmittingCounter ? 'Sending...' : 'Send'}
+                                                <Check className="h-4 w-4" /> Accept Offer
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={() => setIsCountering(true)}
+                                                className="h-12 rounded-2xl border-2 border-purple-500/20 bg-purple-50 hover:bg-purple-100 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-purple-700 group"
+                                            >
+                                                Counter Offer
+                                            </button>
+                                            <button
+                                                onClick={() => handleAccept('fixed_price')}
+                                                className="h-12 rounded-2xl border-2 border-blue-500/20 bg-blue-50 hover:bg-blue-100 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-blue-700 group text-center leading-tight px-1"
+                                            >
+                                                Accept Fixed<br/>(₹{request.originalFixedPrice})
                                             </button>
                                         </div>
                                     </div>
@@ -402,10 +464,10 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                             onClick={() => setIsScheduling(true)}
                                             className="h-14 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-100 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest text-amber-700 group"
                                         >
-                                            <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Time
+                                            <Clock className="h-4 w-4 group-hover:scale-110 transition-transform" /> Schedule
                                         </button>
                                         <button
-                                            onClick={handleAccept}
+                                            onClick={() => handleAccept()}
                                             className="h-14 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-95 flex flex-col items-center justify-center gap-1 transition-all font-black uppercase text-[10px] tracking-widest group"
                                         >
                                             <Check className="h-4 w-4 group-hover:scale-110 transition-transform" /> Accept

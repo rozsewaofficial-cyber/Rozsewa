@@ -1,17 +1,26 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, Navigate } from "react-router-dom";
+import { useScrollLock } from "@/lib/scrollLock";
+import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 import API from "@/lib/api";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const ProviderLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state?.from?.pathname || "/provider") + (location.state?.from?.search || "");
   const [isLoading, setIsLoading] = useState(false);
   const [showEnquiryModal, setShowEnquiryModal] = useState(false);
   const [enquiryForm, setEnquiryForm] = useState({ name: '', phone: '', email: '' });
+  const [enquiry, setEnquiry] = useState({ name: "", phone: "", service: "", message: "" });
+
+  useScrollLock(showEnquiryModal);
   const [isSubmittingEnquiry, setIsSubmittingEnquiry] = useState(false);
 
   // Initialize state from sessionStorage if available
@@ -45,6 +54,11 @@ const ProviderLogin = () => {
       toast({ title: "Error", description: "Mobile number is required", variant: "destructive" });
       return;
     }
+    const phoneValidation = validatePhone(mobile);
+    if (!phoneValidation.isValid) {
+      toast({ title: "Validation Error", description: phoneValidation.message, variant: "destructive" });
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -66,12 +80,12 @@ const ProviderLogin = () => {
                 headers: { Authorization: `Bearer ${result.data.token}` }
               });
             } catch (err) { console.error("Location sync failed", err); }
-            navigate("/provider", { replace: true });
+            navigate(from, { replace: true });
           }, () => {
-            navigate("/provider", { replace: true });
+            navigate(from, { replace: true });
           });
         } else {
-          navigate("/provider", { replace: true });
+          navigate(from, { replace: true });
         }
       } else {
         throw new Error(result.error || "Login failed");
@@ -93,10 +107,27 @@ const ProviderLogin = () => {
       toast({ title: "Validation Error", description: "All fields are required", variant: "destructive" });
       return;
     }
+    const sanitizedName = sanitizeName(enquiryForm.name);
+    const nameValidation = validateName(sanitizedName);
+    if (!nameValidation.isValid) {
+      toast({ title: "Validation Error", description: nameValidation.message, variant: "destructive" });
+      return;
+    }
+    const sanitizedForm = { ...enquiryForm, name: sanitizedName };
+
+    if (!validateEmail(sanitizedForm.email)) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+      return;
+    }
+    const phoneValidation = validatePhone(sanitizedForm.phone);
+    if (!phoneValidation.isValid) {
+      toast({ title: "Validation Error", description: phoneValidation.message, variant: "destructive" });
+      return;
+    }
 
     setIsSubmittingEnquiry(true);
     try {
-      const { data } = await API.post("/public/sewak-enquiry", enquiryForm);
+      const { data } = await API.post("/public/sewak-enquiry", sanitizedForm);
       if (data.success) {
         toast({
           title: "Enquiry Submitted",
@@ -181,7 +212,8 @@ const ProviderLogin = () => {
                     <input
                       type="tel"
                       value={mobile}
-                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      onChange={(e) => setMobile(sanitizePhone(e.target.value))}
+                      maxLength="10"
                       required
                       className={`block w-full rounded-2xl border border-slate-200 bg-slate-50/30 py-4 pl-12 pr-4 text-sm font-bold text-slate-900 transition-all outline-none focus:ring-4 ${loginType === 'sewak' ? 'focus:border-blue-500 focus:ring-blue-500/10' : 'focus:border-emerald-500 focus:ring-emerald-500/10'}`}
                       placeholder="Enter 10-digit number"
@@ -317,7 +349,7 @@ const ProviderLogin = () => {
                       type="text"
                       required
                       value={enquiryForm.name}
-                      onChange={(e) => setEnquiryForm({ ...enquiryForm, name: e.target.value })}
+                      onChange={(e) => setEnquiryForm({ ...enquiryForm, name: sanitizeNameOnChange(e.target.value) })}
                       className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                       placeholder="John Doe"
                     />
@@ -328,7 +360,8 @@ const ProviderLogin = () => {
                       type="tel"
                       required
                       value={enquiryForm.phone}
-                      onChange={(e) => setEnquiryForm({ ...enquiryForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      onChange={(e) => setEnquiryForm({ ...enquiryForm, phone: sanitizePhone(e.target.value) })}
+                      maxLength="10"
                       className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                       placeholder="99999 00000"
                     />
@@ -339,7 +372,7 @@ const ProviderLogin = () => {
                       type="email"
                       required
                       value={enquiryForm.email}
-                      onChange={(e) => setEnquiryForm({ ...enquiryForm, email: e.target.value })}
+                      onChange={(e) => setEnquiryForm({ ...enquiryForm, email: sanitizeEmail(e.target.value) })}
                       className="block w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                       placeholder="john@example.com"
                     />

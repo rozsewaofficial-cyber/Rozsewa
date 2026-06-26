@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, ShieldCheck, Mail, Lock, Loader2, LayoutDashboard } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = (location.state?.from?.pathname || "/admin") + (location.state?.from?.search || "");
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,14 +23,18 @@ const AdminLogin = () => {
     // Redirect if already logged in via context
     const auth = JSON.parse(localStorage.getItem("rozsewa_auth_admin"));
     if (auth?.token && isAdminRole(auth?.role)) {
-      navigate("/admin");
+      navigate(from);
     }
-  }, [navigate]);
+  }, [navigate, from]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       toast({ title: "Required", description: "Please enter email and password.", variant: "destructive" });
+      return;
+    }
+    if (!validateEmail(email)) {
+      toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
       return;
     }
 
@@ -39,7 +46,7 @@ const AdminLogin = () => {
           toast({ title: "Access Denied", description: "This account is not an admin.", variant: "destructive" });
         } else {
           toast({ title: "Welcome back", description: "Successfully logged in to Admin Panel." });
-          navigate("/admin");
+          navigate(from);
         }
       } else {
         toast({ title: "Invalid Credentials", description: res.error, variant: "destructive" });
@@ -105,7 +112,7 @@ const AdminLogin = () => {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
                   className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 transition-all font-medium"
                   placeholder="admin@rozsewa.com"
                 />

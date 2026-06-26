@@ -9,10 +9,56 @@ const startBookingReminderCron = () => {
             const io = getIO();
             if (!io) return;
 
+            const now = new Date();
+
+            // Check for expired counter-offers
+            const expiredBookings = await Booking.find({
+                status: 'pending',
+                offerStatus: 'countered',
+                counterOfferExpiresAt: { $lte: now }
+            });
+
+            for (const b of expiredBookings) {
+                b.offerStatus = 'counter_expired';
+                b.status = 'cancelled';
+                await b.save();
+
+                console.log(`Counter-offer expired for booking: ${b._id}`);
+                
+                // Notify user
+                try {
+                    const { notifyUser } = require('../config/notificationService');
+                    await notifyUser({
+                        userId: b.userId,
+                        userRole: 'user',
+                        title: 'Counter-Offer Expired',
+                        message: `The counter-offer for ${b.serviceName} has expired and the booking has been cancelled.`,
+                        type: 'booking',
+                        bookingId: b._id
+                    });
+                } catch (err) {}
+
+                // Notify provider
+                if (b.providerId) {
+                    try {
+                        const { notifyUser } = require('../config/notificationService');
+                        await notifyUser({
+                            userId: b.providerId,
+                            userRole: 'provider',
+                            title: 'Counter-Offer Expired',
+                            message: `Your counter-offer for ${b.serviceName} has expired as the customer did not respond in time.`,
+                            type: 'booking',
+                            bookingId: b._id
+                        });
+                    } catch (err) {}
+                    
+                    io.to(`provider_${b.providerId}`).emit('COUNTER_OFFER_EXPIRED', { bookingId: b._id.toString() });
+                }
+                io.to(`user_${b.userId}`).emit('COUNTER_OFFER_EXPIRED', { bookingId: b._id.toString() });
+            }
+
             // Find all confirmed bookings
             const bookings = await Booking.find({ status: 'confirmed' });
-
-            const now = new Date();
 
             for (const booking of bookings) {
                 if (!booking.bookingDate || !booking.bookingTime || !booking.providerId) continue;

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useScrollLock } from '@/lib/scrollLock';
 import { 
     Zap, Search, Filter, Calendar, User, 
     CheckCircle2, IndianRupee, TrendingUp, 
@@ -21,6 +22,9 @@ const AdminSewakIncentives = () => {
     const [search, setSearch] = useState('');
     const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
     const [selectedProvider, setSelectedProvider] = useState(null);
+    const [submitting, setSubmitting] = useState(false);
+
+    useScrollLock(!!selectedProvider);
 
     const fetchIncentiveData = async () => {
         setLoading(true);

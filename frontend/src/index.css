@@ -210,3 +210,38 @@
     transform: scale(1.02);
   }
 }
+
+/* Keyboard Avoidance Styles */
+@media (pointer: coarse) {
+  /* Prevent inputs from scrolling underneath sticky headers (typically 70-80px tall) */
+  input, textarea, select, [contenteditable="true"] {
+    scroll-margin-top: 90px;
+    scroll-margin-bottom: 90px;
+  }
+
+  /* Increase padding-bottom of scroll containers so content can scroll past keyboard and floating footer */
+  body.keyboard-open main,
+  body.keyboard-open form,
+  body.keyboard-open .scroll-container {
+    padding-bottom: calc(var(--keyboard-height, 0px) + 80px) !important;
+  }
+
+  /* Target fixed fullscreen overlays (e.g. edit profile modal and billing modals) */
+  body.keyboard-open .fixed.inset-0.z-50 {
+    z-index: 100 !important;
+    height: var(--visual-viewport-height, 100vh) !important;
+    top: 0 !important;
+    bottom: 0 !important;
+  }
+
+  body.keyboard-open .fixed.inset-0.z-\[9999\] {
+    height: var(--visual-viewport-height, 100vh) !important;
+    top: 0 !important;
+    bottom: 0 !important;
+  }
+}
+
+/* Centralized Toast Customization: Hide close buttons for success, info, default toasts */
+[data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]) [data-close-button="true"] {
+  display: none !important;
+}

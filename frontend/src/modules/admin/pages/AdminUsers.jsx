@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
+import { useScrollLock } from "@/lib/scrollLock";
 import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail, X, MapPin, ChevronLeft, ChevronRight, Users, Activity, AlertOctagon, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
@@ -12,6 +13,7 @@ const AdminUsers = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedUser, setSelectedUser] = useState(null);
+    useScrollLock(!!selectedUser);
     const activeSelectedUser = selectedUser ? users.find(u => u._id === selectedUser._id) : null;
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;

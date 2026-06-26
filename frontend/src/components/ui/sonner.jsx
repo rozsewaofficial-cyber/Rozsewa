@@ -1,6 +1,17 @@
 import { useTheme } from "@/context/ThemeContext";
 import { Toaster as Sonner, toast } from "sonner";
 
+// Override toast methods to set custom defaults
+const originalSuccess = toast.success;
+const originalError = toast.error;
+const originalInfo = toast.info;
+const originalWarning = toast.warning;
+
+toast.success = (message, options) => originalSuccess(message, { duration: 4000, ...options });
+toast.info = (message, options) => originalInfo(message, { duration: 4000, ...options });
+toast.warning = (message, options) => originalWarning(message, { duration: 6000, ...options });
+toast.error = (message, options) => originalError(message, { duration: 9000, ...options });
+
 const Toaster = ({ ...props }) => {
   const { theme = "light" } = useTheme();
 
@@ -8,6 +19,8 @@ const Toaster = ({ ...props }) => {
     <Sonner
       theme={theme}
       className="toaster group"
+      closeButton={true}
+      duration={4000}
       toastOptions={{
         classNames: {
           toast:

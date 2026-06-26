@@ -164,6 +164,7 @@ const ShopDetail = () => {
     });
     localStorage.setItem("rozsewa_checkout_data", JSON.stringify({
       providerId: provider?.id,
+      serviceId: items[0]?.id || "DEMO-ID",
       shopName: provider?.name,
       category: provider?.category,
       requiredProviderCategory: provider?.providerCategory,

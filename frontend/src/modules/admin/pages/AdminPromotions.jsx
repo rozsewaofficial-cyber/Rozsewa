@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { Database, Terminal, ShieldAlert, Cpu, HardDrive, RefreshCcw, Tag, Megaphone, Trash2, Plus, XCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,6 +15,8 @@ const AdminPromotions = () => {
     const [showModal, setShowModal] = useState(false);
     const [newPromo, setNewPromo] = useState({ title: "", promoCode: "", description: "" });
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useScrollLock(showModal);
 
     useEffect(() => {
         setTitle("Global Promotions");

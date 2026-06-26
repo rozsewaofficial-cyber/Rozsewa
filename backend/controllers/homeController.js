@@ -248,7 +248,7 @@ const Setting = require('../models/Setting');
 const getPublicConfig = async (req, res) => {
     try {
         const settings = await Setting.find({
-            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber'] }
+            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber', 'max_bargain_discount_limit'] }
         });
 
         const config = {};
@@ -258,7 +258,8 @@ const getPublicConfig = async (req, res) => {
             registrationEnabled: config.vendorCardEnabled !== undefined ? config.vendorCardEnabled : true,
             registrationPrice: config.vendorCardPrice || 99,
             currency: "INR",
-            supportNumber: config.supportNumber || "91XXXXXXXXXX"
+            supportNumber: config.supportNumber || "91XXXXXXXXXX",
+            maxBargainLimit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

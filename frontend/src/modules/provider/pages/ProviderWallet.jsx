@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion } from "framer-motion";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
@@ -57,6 +58,8 @@ const ProviderWallet = () => {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
+
+  useScrollLock(isWithdrawing || isAddingBank);
 
   const handleWithdraw = async () => {
     if (availableBalance <= 0) {

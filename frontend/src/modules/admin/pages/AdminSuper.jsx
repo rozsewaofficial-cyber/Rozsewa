@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useScrollLock } from '@/lib/scrollLock';
 import {
     Users, Plus, Shield, Lock, Trash2, CheckCircle2, XCircle,
     ChevronRight, Save, UserPlus, Fingerprint, CreditCard, Percent, Zap,
@@ -7,6 +8,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from "sonner";
 import API from "@/lib/api";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 import { adminSidebarLinks } from "../components/AdminSidebar";
 
 const InputField = ({ label, children }) => (
@@ -24,16 +28,19 @@ const AdminSuper = () => {
     const [loading, setLoading] = useState(true);
     const [newPin, setNewPin] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
-    const [showSewakForm, setShowSewakForm] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
+    const [showDrawer, setShowDrawer] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useScrollLock(showCreateForm || showDrawer);
     const [editingAdminId, setEditingAdminId] = useState(null);
     const [newAdmin, setNewAdmin] = useState({
         name: '', email: '', mobile: '', password: '',
         permissions: [], kycAccess: false, kycLimit: 50, kycBonusPerVerification: 10
     });
+    const [showSewakForm, setShowSewakForm] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
     const [kycPerformance, setKycPerformance] = useState([]);
     const [selectedAdmin, setSelectedAdmin] = useState(null);
-    const [showDrawer, setShowDrawer] = useState(false);
     const [editingSewakId, setEditingSewakId] = useState(null);
 
     const [newSewak, setNewSewak] = useState({
@@ -115,12 +122,28 @@ const AdminSuper = () => {
 
     const handleCreateOrUpdateAdmin = async (e) => {
         e.preventDefault();
+        const sanitizedName = sanitizeName(newAdmin.name);
+        const nameValidation = validateName(sanitizedName);
+        if (!nameValidation.isValid) {
+            toast.error(nameValidation.message);
+            return;
+        }
+        if (newAdmin.email && !validateEmail(newAdmin.email)) {
+            toast.error("Please enter a valid email address.");
+            return;
+        }
+        const phoneValidation = validatePhone(newAdmin.mobile);
+        if (!phoneValidation.isValid) {
+            toast.error(phoneValidation.message);
+            return;
+        }
+        const sanitizedAdmin = { ...newAdmin, name: sanitizedName };
         try {
             if (isEditing) {
-                await API.put(`/admin/admins/${editingAdminId}`, newAdmin);
+                await API.put(`/admin/admins/${editingAdminId}`, sanitizedAdmin);
                 toast.success("Admin updated successfully");
             } else {
-                await API.post('/admin/admins', newAdmin);
+                await API.post('/admin/admins', sanitizedAdmin);
                 toast.success("Admin created successfully");
             }
             setShowCreateForm(false);
@@ -136,12 +159,24 @@ const AdminSuper = () => {
 
     const handleCreateSewak = async (e) => {
         e.preventDefault();
+        const sanitizedOwnerName = sanitizeName(newSewak.ownerName);
+        const nameValidation = validateName(sanitizedOwnerName);
+        if (!nameValidation.isValid) {
+            toast.error(nameValidation.message);
+            return;
+        }
+        const phoneValidation = validatePhone(newSewak.mobile);
+        if (!phoneValidation.isValid) {
+            toast.error(phoneValidation.message);
+            return;
+        }
+        const sanitizedSewak = { ...newSewak, ownerName: sanitizedOwnerName };
         try {
             if (editingSewakId) {
-                await API.put(`/admin/sewaks/${editingSewakId}`, newSewak);
+                await API.put(`/admin/sewaks/${editingSewakId}`, sanitizedSewak);
                 toast.success("Sewak updated successfully");
             } else {
-                await API.post('/admin/sewaks', newSewak);
+                await API.post('/admin/sewaks', sanitizedSewak);
                 toast.success("Sewak created successfully");
             }
             setShowSewakForm(false);
@@ -467,8 +502,8 @@ const AdminSuper = () => {
                     <div className="p-6 bg-orange-50/30 border-b border-gray-100">
                         <form onSubmit={handleCreateSewak} className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <InputField label="Full Name"><input required value={newSewak.ownerName} onChange={e => setNewSewak({ ...newSewak, ownerName: e.target.value })} className={inputCls} /></InputField>
-                                <InputField label="Mobile"><input required value={newSewak.mobile} onChange={e => setNewSewak({ ...newSewak, mobile: e.target.value })} className={inputCls} /></InputField>
+                                <InputField label="Full Name"><input required value={newSewak.ownerName} onChange={e => setNewSewak({ ...newSewak, ownerName: sanitizeNameOnChange(e.target.value) })} className={inputCls} /></InputField>
+                                <InputField label="Mobile"><input required value={newSewak.mobile} onChange={e => setNewSewak({ ...newSewak, mobile: sanitizePhone(e.target.value) })} maxLength="10" className={inputCls} /></InputField>
                                 <InputField label="Password"><input required type="password" value={newSewak.password} onChange={e => setNewSewak({ ...newSewak, password: e.target.value })} className={inputCls} /></InputField>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -582,9 +617,9 @@ const AdminSuper = () => {
                                     <div className="space-y-4">
                                         <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">Basic Information</h4>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <InputField label="Full Name"><input required value={newAdmin.name} onChange={e => setNewAdmin({ ...newAdmin, name: e.target.value })} className={inputCls} /></InputField>
-                                            <InputField label="Email Address"><input required type="email" value={newAdmin.email} onChange={e => setNewAdmin({ ...newAdmin, email: e.target.value })} className={inputCls} /></InputField>
-                                            <InputField label="Mobile Number"><input required value={newAdmin.mobile} onChange={e => setNewAdmin({ ...newAdmin, mobile: e.target.value })} className={inputCls} /></InputField>
+                                            <InputField label="Full Name"><input required value={newAdmin.name} onChange={e => setNewAdmin({ ...newAdmin, name: sanitizeNameOnChange(e.target.value) })} className={inputCls} /></InputField>
+                                            <InputField label="Email Address"><input required type="email" value={newAdmin.email} onChange={e => setNewAdmin({ ...newAdmin, email: sanitizeEmail(e.target.value) })} className={inputCls} /></InputField>
+                                            <InputField label="Mobile Number"><input required value={newAdmin.mobile} onChange={e => setNewAdmin({ ...newAdmin, mobile: sanitizePhone(e.target.value) })} maxLength="10" className={inputCls} /></InputField>
                                             <InputField label={isEditing ? "Password (optional)" : "Password"}><input required={!isEditing} type="password" placeholder={isEditing ? "Leave blank to keep current" : ""} value={newAdmin.password} onChange={e => setNewAdmin({ ...newAdmin, password: e.target.value })} className={inputCls} /></InputField>
                                         </div>
                                     </div>

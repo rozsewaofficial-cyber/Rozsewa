@@ -42,7 +42,6 @@ const LiveTracking = () => {
   const { user } = useAuth();
   const [isPaying, setIsPaying] = useState(false);
   const [proposedSchedule, setProposedSchedule] = useState(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -66,8 +65,9 @@ const LiveTracking = () => {
     }
 
     try {
+      const finalAmount = (bookingDetails.totalAmount || 0) + (bookingDetails.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
       const { data: order } = await API.post("/payment/order", {
-        amount: bookingDetails.totalAmount,
+        amount: finalAmount,
         currency: "INR"
       });
 
@@ -115,8 +115,8 @@ const LiveTracking = () => {
     try {
       const { data } = await API.get('/bookings');
       // Find the most recent active booking (only include completed if not reviewed)
-      const active = data.find(b => 
-        ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status) || 
+      const active = data.find(b =>
+        ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status) ||
         (b.status === 'completed' && (!b.rating || b.rating === 0))
       );
       if (active) {
@@ -124,9 +124,9 @@ const LiveTracking = () => {
         setBookingDetails(active);
 
         if (active.proposedSchedule && active.proposedSchedule.status === 'pending') {
-            setProposedSchedule(active.proposedSchedule);
+          setProposedSchedule(active.proposedSchedule);
         } else {
-            setProposedSchedule(null);
+          setProposedSchedule(null);
         }
 
         // Map status to currentStep
@@ -149,6 +149,16 @@ const LiveTracking = () => {
           setCancelTimer(remaining > 0 ? remaining : 0);
         } else {
           setCancelTimer(0);
+        }
+
+        // Calculate counter-offer timer
+        if (active.offerStatus === 'countered' && active.counterOfferExpiresAt) {
+          const expiryTime = new Date(active.counterOfferExpiresAt).getTime();
+          const nowTime = new Date().getTime();
+          const remaining = Math.max(0, Math.floor((expiryTime - nowTime) / 1000));
+          setCounterTimer(remaining);
+        } else {
+          setCounterTimer(0);
         }
 
       }
@@ -214,9 +224,45 @@ const LiveTracking = () => {
   }, [cancelTimer]);
 
   useEffect(() => {
+    if (counterTimer <= 0) return;
+    const timer = setInterval(() => {
+      setCounterTimer(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [counterTimer]);
+
+  const handleCounterDecision = async (decision) => {
+    if (!bookingDetails) return;
+    try {
+      await API.put(`/bookings/${bookingDetails._id}`, { counterDecision: decision });
+      toast({
+        title: decision === 'accept' ? "Counter-Offer Accepted!" : "Counter-Offer Rejected",
+        description: decision === 'accept' ? "Your booking is now confirmed." : "Your booking has been cancelled.",
+        variant: "default"
+      });
+      fetchBookingStatus();
+    } catch (err) {
+      if (err.response?.status === 410) {
+        toast({
+          title: "Offer Expired",
+          description: "This counter-offer has expired.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: err.response?.data?.message || err.message,
+          variant: "destructive"
+        });
+      }
+      fetchBookingStatus();
+    }
+  };
+
+  useEffect(() => {
     const handleRejected = (e) => {
-      toast({ 
-        title: "Request Rejected", 
+      toast({
+        title: "Request Rejected",
         description: "The provider has rejected your request.",
         variant: "destructive"
       });
@@ -359,22 +405,22 @@ const LiveTracking = () => {
                 <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Provider requested a change</p>
               </div>
             </div>
-            
+
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-4">
               <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
-                 <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Date</p>
-                    <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.date}</p>
-                 </div>
-                 <div className="text-right">
-                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Time</p>
-                    <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.time}</p>
-                 </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Date</p>
+                  <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.date}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Time</p>
+                  <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.time}</p>
+                </div>
               </div>
               {proposedSchedule.message && (
                 <div>
-                   <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Message</p>
-                   <p className="text-[13px] font-medium italic text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl mt-1.5 border border-slate-100 dark:border-slate-700">"{proposedSchedule.message}"</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Message</p>
+                  <p className="text-[13px] font-medium italic text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl mt-1.5 border border-slate-100 dark:border-slate-700">"{proposedSchedule.message}"</p>
                 </div>
               )}
             </div>
@@ -396,173 +442,234 @@ const LiveTracking = () => {
           </motion.div>
         )}
 
+        {/* Counter-Offer Proposal UI */}
+        {bookingDetails?.status === 'pending' && bookingDetails?.offerStatus === 'countered' && (
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="rounded-[24px] border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
+          >
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 shadow-inner">
+                <CreditCard className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black text-purple-700 dark:text-purple-500">Counter-Offer Received</h3>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                  Partner proposed a new price
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Original Price</p>
+                  <p className="font-bold text-[13px] text-slate-500 line-through mt-0.5">₹{bookingDetails.originalFixedPrice}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Your Offer</p>
+                  <p className="font-bold text-[13px] text-slate-500 mt-0.5">₹{bookingDetails.customerOffer}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-purple-600 uppercase font-black tracking-wider">Partner Counter</p>
+                  <p className="font-black text-lg text-purple-700 dark:text-purple-400 mt-0.5">₹{bookingDetails.partnerCounterOffer}</p>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-500">Expires in:</span>
+                <span className="font-black text-purple-600 animate-pulse">
+                  {formatTime(counterTimer)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <button
+                onClick={() => handleCounterDecision('reject')}
+                className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
+              >
+                <X className="h-4 w-4" /> Reject & Cancel
+              </button>
+              <button
+                onClick={() => handleCounterDecision('accept')}
+                disabled={counterTimer <= 0}
+                className="h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px] disabled:opacity-50"
+              >
+                <Check className="h-4 w-4" /> Accept Counter
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Payment section removed as per requirement: provider will collect payment */}
 
         {bookingDetails?.status !== 'cancelled' && (
-        <>
-        {/* Technician Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
-        >
-          {bookingDetails?.providerId ? (
-            <div className="flex items-center gap-4">
-              <div className="relative h-16 w-16 shrink-0">
-                <motion.div
-                  className="absolute inset-0 rounded-[20px] border-[3px] border-blue-500"
-                  animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
-                  transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                />
-                <div className="h-full w-full overflow-hidden rounded-[20px] bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 relative z-10">
-                  {providerInfo.profileImage ? (
-                    <img src={providerInfo.profileImage} alt={providerInfo.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xl font-black text-blue-600 dark:text-blue-500 bg-blue-50/50">
-                      {providerInfo.name.substring(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{providerInfo.name}</h3>
-                  <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                  <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">{providerInfo.rating}</span>
-                  <span className="text-[11px] font-bold text-slate-400">({providerInfo.jobs} jobs)</span>
-                </div>
-                <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{providerInfo.tags || "Expert Professional"}</p>
-              </div>
-              <div className="flex flex-col gap-2 shrink-0">
-                <button onClick={() => { if(providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>
-                <button onClick={() => setIsChatOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4 py-2">
-              <div className="h-16 w-16 shrink-0 rounded-[20px] bg-slate-50 dark:bg-slate-800 flex items-center justify-center relative overflow-hidden border border-slate-100 dark:border-slate-700">
-                <motion.div 
-                  className="absolute inset-0 border-[3px] border-transparent rounded-[20px] border-t-emerald-500 border-l-emerald-500 opacity-70" 
-                  animate={{ rotate: 360 }} 
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                />
-                <User className="h-6 w-6 text-slate-300 dark:text-slate-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Finding a Sewak...</h3>
-                <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">Please wait while we assign the best professional near you.</p>
-              </div>
-            </div>
-          )}
-          {/* Cancel Button */}
-          {bookingDetails?.status === 'pending' && (
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handleCancelBooking}
-              className="mt-5 w-full rounded-xl py-3.5 text-[13px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-colors flex items-center justify-center gap-2"
+          <>
+            {/* Technician Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
             >
-              <X className="h-4 w-4" />
-              Cancel Booking
-            </motion.button>
-          )}
-        </motion.div>
+              {bookingDetails?.providerId ? (
+                <div className="flex items-center gap-4">
+                  <div className="relative h-16 w-16 shrink-0">
+                    <motion.div
+                      className="absolute inset-0 rounded-[20px] border-[3px] border-blue-500"
+                      animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
+                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                    />
+                    <div className="h-full w-full overflow-hidden rounded-[20px] bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 relative z-10">
+                      {providerInfo.profileImage ? (
+                        <img src={providerInfo.profileImage} alt={providerInfo.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xl font-black text-blue-600 dark:text-blue-500 bg-blue-50/50">
+                          {providerInfo.name.substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{providerInfo.name}</h3>
+                      <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                      <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">{providerInfo.rating}</span>
+                      <span className="text-[11px] font-bold text-slate-400">({providerInfo.jobs} jobs)</span>
+                    </div>
+                    <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{providerInfo.tags || "Expert Professional"}</p>
+                  </div>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <button onClick={() => { if (providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>
+                    <button onClick={() => setIsChatOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4 py-2">
+                  <div className="h-16 w-16 shrink-0 rounded-[20px] bg-slate-50 dark:bg-slate-800 flex items-center justify-center relative overflow-hidden border border-slate-100 dark:border-slate-700">
+                    <motion.div
+                      className="absolute inset-0 border-[3px] border-transparent rounded-[20px] border-t-emerald-500 border-l-emerald-500 opacity-70"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                    />
+                    <User className="h-6 w-6 text-slate-300 dark:text-slate-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Finding a Sewak...</h3>
+                    <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">Please wait while we assign the best professional near you.</p>
+                  </div>
+                </div>
+              )}
+              {/* Cancel Button */}
+              {bookingDetails?.status === 'pending' && (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleCancelBooking}
+                  className="mt-5 w-full rounded-xl py-3.5 text-[13px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-colors flex items-center justify-center gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Cancel Booking
+                </motion.button>
+              )}
+            </motion.div>
 
-        {/* Timeline */}
-        <section className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-          <h3 className="mb-5 text-sm font-bold text-card-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Order Status</h3>
-          <div className="space-y-0">
-            {dynamicSteps.map((step, i) => (
-              <div key={step.label} className="flex gap-4">
-                {/* Line + Dot */}
-                <div className="flex flex-col items-center">
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: i * 0.15, type: "spring", stiffness: 300 }}
-                    className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${i < currentStep
-                        ? "bg-primary text-primary-foreground"
-                        : i === currentStep
-                          ? "bg-primary text-primary-foreground ring-4 ring-primary/30"
-                          : "border-2 border-border bg-background text-muted-foreground"
-                      }`}
-                  >
-                    {i === currentStep && (
-                      <motion.div
-                        className="absolute inset-0 rounded-full border-[3px] border-primary"
-                        animate={{ scale: [1, 1.6, 1], opacity: [0.8, 0, 0.8] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                      />
-                    )}
-                    {i <= currentStep ? (
+            {/* Timeline */}
+            <section className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+              <h3 className="mb-5 text-sm font-bold text-card-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Order Status</h3>
+              <div className="space-y-0">
+                {dynamicSteps.map((step, i) => (
+                  <div key={step.label} className="flex gap-4">
+                    {/* Line + Dot */}
+                    <div className="flex flex-col items-center">
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        transition={{ delay: i * 0.15 + 0.1, type: "spring", stiffness: 500 }}
+                        transition={{ delay: i * 0.15, type: "spring", stiffness: 300 }}
+                        className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${i < currentStep
+                          ? "bg-primary text-primary-foreground"
+                          : i === currentStep
+                            ? "bg-primary text-primary-foreground ring-4 ring-primary/30"
+                            : "border-2 border-border bg-background text-muted-foreground"
+                          }`}
                       >
-                        <Check className="h-4 w-4" />
+                        {i === currentStep && (
+                          <motion.div
+                            className="absolute inset-0 rounded-full border-[3px] border-primary"
+                            animate={{ scale: [1, 1.6, 1], opacity: [0.8, 0, 0.8] }}
+                            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                          />
+                        )}
+                        {i <= currentStep ? (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: i * 0.15 + 0.1, type: "spring", stiffness: 500 }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </motion.div>
+                        ) : (
+                          <span className="text-xs font-bold">{i + 1}</span>
+                        )}
                       </motion.div>
-                    ) : (
-                      <span className="text-xs font-bold">{i + 1}</span>
-                    )}
-                  </motion.div>
-                  {i < dynamicSteps.length - 1 && (
-                    <div className="relative h-10 w-0.5 bg-border">
-                      <motion.div
-                        initial={{ height: 0 }}
-                        animate={{ height: i < currentStep ? "100%" : "0%" }}
-                        transition={{ delay: i * 0.2, duration: 0.5 }}
-                        className="absolute left-0 top-0 w-full bg-primary"
-                      />
+                      {i < dynamicSteps.length - 1 && (
+                        <div className="relative h-10 w-0.5 bg-border">
+                          <motion.div
+                            initial={{ height: 0 }}
+                            animate={{ height: i < currentStep ? "100%" : "0%" }}
+                            transition={{ delay: i * 0.2, duration: 0.5 }}
+                            className="absolute left-0 top-0 w-full bg-primary"
+                          />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                {/* Label */}
-                <div className="pb-8">
-                  <p className={`text-sm font-semibold ${i <= currentStep ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
-                  {step.time && <p className="text-xs text-muted-foreground">{step.time}</p>}
-                  {/* Start OTP Display */}
-                  {i === currentStep && i === 2 && (
-                    <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-100 w-fit">
-                      <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Share this OTP to Start Service</p>
-                      <p className="text-2xl font-black tracking-[0.5em] text-blue-700">{bookingDetails?.startOTP || "----"}</p>
-                    </div>
-                  )}
+                    {/* Label */}
+                    <div className="pb-8">
+                      <p className={`text-sm font-semibold ${i <= currentStep ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
+                      {step.time && <p className="text-xs text-muted-foreground">{step.time}</p>}
+                      {/* Start OTP Display */}
+                      {i === currentStep && i === 2 && (
+                        <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-100 w-fit">
+                          <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Share this OTP to Start Service</p>
+                          <p className="text-2xl font-black tracking-[0.5em] text-blue-700">{bookingDetails?.startOTP || "----"}</p>
+                        </div>
+                      )}
 
-                  {/* Completion OTP Display */}
-                  {i === currentStep && i === 3 && bookingDetails?.endOTP && (
-                    <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 w-fit">
-                      <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Share this OTP to Complete Service</p>
-                      <p className="text-2xl font-black tracking-[0.5em] text-emerald-700">{bookingDetails?.endOTP || "----"}</p>
+                      {/* Completion OTP Display */}
+                      {i === currentStep && i === 3 && bookingDetails?.endOTP && (
+                        <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 w-fit">
+                          <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Share this OTP to Complete Service</p>
+                          <p className="text-2xl font-black tracking-[0.5em] text-emerald-700">{bookingDetails?.endOTP || "----"}</p>
+                        </div>
+                      )}
+                      {i === currentStep && i === 4 && (
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => navigate("/post-service")}
+                          className="mt-2 rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground"
+                        >
+                          View Bill & Review →
+                        </motion.button>
+                      )}
                     </div>
-                  )}
-                  {i === currentStep && i === 4 && (
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => navigate("/post-service")}
-                      className="mt-2 rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground"
-                    >
-                      View Bill & Review →
-                    </motion.button>
-                  )}
-                </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
-        </>
+            </section>
+          </>
         )}
 
       </main>
       <BottomNav />
 
-      <ChatModal 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
-        bookingId={bookingDetails?._id || bookingDetails?.id} 
-        userType="User" 
+      <ChatModal
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        bookingId={bookingDetails?._id || bookingDetails?.id}
+        userType="User"
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +31,8 @@ const Checkout = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [serviceNotes, setServiceNotes] = useState("");
   const [appliedCouponData, setAppliedCouponData] = useState(null);
+  const [maxBargainLimit, setMaxBargainLimit] = useState(20);
+  const [customerOffer, setCustomerOffer] = useState("");
   const [providerHours, setProviderHours] = useState({ openingTime: "09:00 AM", closingTime: "06:00 PM", availability: [] });
   const [userProposedAmount, setUserProposedAmount] = useState("");
 
@@ -74,10 +77,10 @@ const Checkout = () => {
       const dateObj = new Date(selectedDate);
       const dayName = dateObj.toLocaleDateString("en", { weekday: "long" });
       const dayAvail = providerHours.availability.find(d => d.day.toLowerCase() === dayName.toLowerCase());
-      
+
       if (dayAvail) {
         if (!dayAvail.isActive) {
-           return []; // Closed on this day
+          return []; // Closed on this day
         }
         if (dayAvail.startTime) startStr = dayAvail.startTime;
         if (dayAvail.endTime) endStr = dayAvail.endTime;
@@ -99,7 +102,7 @@ const Checkout = () => {
       }
       return 9;
     };
-    
+
     const start = parseTime(startStr);
     const end = parseTime(endStr);
     const slots = [];
@@ -120,9 +123,9 @@ const Checkout = () => {
       const parts = timeStr.split(' ');
       let [h, m] = parts[0].split(':').map(Number);
       if (parts[1]) {
-         const modifier = parts[1].toLowerCase();
-         if (modifier === 'pm' && h < 12) h += 12;
-         if (modifier === 'am' && h === 12) h = 0;
+        const modifier = parts[1].toLowerCase();
+        if (modifier === 'pm' && h < 12) h += 12;
+        if (modifier === 'am' && h === 12) h = 0;
       }
       return h * 60 + (m || 0);
     };
@@ -139,14 +142,14 @@ const Checkout = () => {
 
     // 2. Filter out already booked slots considering their duration
     if (providerHours.bookedSlots && providerHours.bookedSlots.length > 0) {
-       const isBooked = providerHours.bookedSlots.some(b => {
-         if (b.date !== selectedDate) return false;
-         const bookedStart = toMinutes(b.time);
-         const bookedEnd = bookedStart + (b.duration || 30);
-         // The slot is unavailable if it falls within an existing booking's duration
-         return slotStartMins >= bookedStart && slotStartMins < bookedEnd;
-       });
-       if (isBooked) return false;
+      const isBooked = providerHours.bookedSlots.some(b => {
+        if (b.date !== selectedDate) return false;
+        const bookedStart = toMinutes(b.time);
+        const bookedEnd = bookedStart + (b.duration || 30);
+        // The slot is unavailable if it falls within an existing booking's duration
+        return slotStartMins >= bookedStart && slotStartMins < bookedEnd;
+      });
+      if (isBooked) return false;
     }
 
     return true;
@@ -166,6 +169,8 @@ const Checkout = () => {
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [newAddress, setNewAddress] = useState({ label: "", address: "" });
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+
+  useScrollLock(showAddressModal);
 
   // Booking Confirmed
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
@@ -189,6 +194,18 @@ const Checkout = () => {
       setCoupon(lastCopied);
       localStorage.removeItem("rozsewa_last_copied_coupon");
     }
+
+    const fetchConfig = async () => {
+      try {
+        const { data } = await API.get("/public/config");
+        if (data && data.maxBargainLimit !== undefined) {
+          setMaxBargainLimit(data.maxBargainLimit);
+        }
+      } catch (err) {
+        console.error("Failed to fetch public config:", err);
+      }
+    };
+    fetchConfig();
   }, []);
 
   useEffect(() => {
@@ -211,7 +228,7 @@ const Checkout = () => {
               clearInterval(interval);
             }
           }
-        } catch (err) {}
+        } catch (err) { }
       }, 3000);
 
       return () => {
@@ -245,17 +262,40 @@ const Checkout = () => {
 
 
 
-  let discount = 0;
+  let couponDiscount = 0;
   if (couponApplied && appliedCouponData) {
     if (appliedCouponData.discount.includes("%")) {
       const percent = parseInt(appliedCouponData.discount);
-      discount = Math.round(subtotal * (percent / 100));
+      couponDiscount = Math.round(subtotal * (percent / 100));
     } else {
-      discount = parseInt(appliedCouponData.discount.replace(/[^0-9]/g, "")) || 0;
+      couponDiscount = parseInt(appliedCouponData.discount.replace(/[^0-9]/g, "")) || 0;
     }
   }
 
-  const total = subtotal - discount + (isExpress ? EXPRESS_FEE : 0);
+  // Cap couponDiscount to subtotal
+  couponDiscount = Math.min(couponDiscount, subtotal);
+
+  // Maximum allowed discount calculation
+  const maxAllowedDiscount = Math.round(subtotal * (maxBargainLimit / 100));
+  const minAllowedOffer = Math.max(0, subtotal - maxAllowedDiscount);
+
+  // Parse bargaining customerOffer
+  const hasCustomOffer = customerOffer !== "" && !isNaN(Number(customerOffer));
+  const parsedCustomerOffer = hasCustomOffer ? Number(customerOffer) : (subtotal - couponDiscount);
+
+  // Calculate bargain discount
+  const bargainDiscount = Math.max(0, subtotal - couponDiscount - parsedCustomerOffer);
+  const totalDiscount = couponDiscount + bargainDiscount;
+
+  // Final subtotal price to pay after discounts (before express fees)
+  const payableSubtotal = parsedCustomerOffer;
+  const total = payableSubtotal + (isExpress ? EXPRESS_FEE : 0);
+
+  // Validation flags for custom offer
+  const isOfferTooLow = hasCustomOffer && (payableSubtotal < minAllowedOffer);
+  const isOfferTooHigh = hasCustomOffer && (payableSubtotal > subtotal - couponDiscount);
+  const isOfferNegative = hasCustomOffer && (payableSubtotal < 0);
+  const isOfferInvalid = isOfferTooLow || isOfferTooHigh || isOfferNegative;
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -270,7 +310,7 @@ const Checkout = () => {
           if (window.google && window.google.maps) {
             const geocoder = new window.google.maps.Geocoder();
             const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            
+
             geocoder.geocode({ location: latlng }, (results, status) => {
               if (status === "OK" && results[0]) {
                 setNewAddress(prev => ({
@@ -355,7 +395,7 @@ const Checkout = () => {
     setIsProcessing(true);
     try {
       const bookingData = {
-        serviceId: checkoutData.serviceId || "DEMO-ID",
+        serviceId: checkoutData.serviceId || (checkoutData.items?.[0]?.id) || "DEMO-ID",
         serviceName: serviceNames,
         providerId: checkoutData.providerId || null,
         requiredProviderCategory: checkoutData.requiredProviderCategory || 'partner',
@@ -366,7 +406,9 @@ const Checkout = () => {
         location: selectedAddress.location,
         paymentMode: paymentMode,
         couponCode: appliedCouponData?.code || "",
-        discountAmount: discount || 0,
+        discountAmount: totalDiscount,
+        customerOffer: hasCustomOffer ? payableSubtotal : null,
+        items: checkoutData.items || [],
         userProposedAmount: userProposedAmount ? Number(userProposedAmount) : undefined
       };
 
@@ -393,6 +435,10 @@ const Checkout = () => {
     }
     if (!selectedAddress) {
       toast({ title: "Select Address", description: "Please select a delivery address.", variant: "destructive" });
+      return;
+    }
+    if (isOfferInvalid) {
+      toast({ title: "Invalid Offer", description: "Your customer offer does not meet bargaining rules.", variant: "destructive" });
       return;
     }
 
@@ -452,17 +498,17 @@ const Checkout = () => {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans flex items-center justify-center px-4">
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md text-center space-y-6">
-          
+
           {currentBookingStatus === 'pending' ? (
             <div className="mx-auto flex h-48 w-48 items-center justify-center relative mb-8 mt-4">
               {/* Faint distance rings */}
               <div className="absolute inset-0 rounded-full border border-emerald-500/10" />
               <div className="absolute inset-8 rounded-full border border-emerald-500/10" />
               <div className="absolute inset-16 rounded-full border border-emerald-500/10" />
-              
+
               {/* Radar Sweep */}
-              <motion.div 
-                animate={{ rotate: 360 }} 
+              <motion.div
+                animate={{ rotate: 360 }}
                 transition={{ repeat: Infinity, duration: 2.5, ease: "linear" }}
                 className="absolute inset-0 rounded-full"
                 style={{ background: 'conic-gradient(from 0deg, transparent 70%, rgba(16, 185, 129, 0.4) 100%)' }}
@@ -470,9 +516,9 @@ const Checkout = () => {
 
               {/* Multiple overlapping ripples */}
               {[0, 1, 2].map((i) => (
-                <motion.div 
+                <motion.div
                   key={i}
-                  animate={{ scale: [0.5, 3], opacity: [0.6, 0] }} 
+                  animate={{ scale: [0.5, 3], opacity: [0.6, 0] }}
                   transition={{ repeat: Infinity, duration: 3, ease: "easeOut", delay: i * 1 }}
                   className="absolute inset-0 m-auto h-16 w-16 bg-emerald-500 rounded-full"
                 />
@@ -485,45 +531,45 @@ const Checkout = () => {
             </div>
           ) : (
             <div className="mx-auto flex h-48 w-48 items-center justify-center relative mb-8 mt-4">
-               {/* Expanding Outer Ring */}
-               <motion.div 
-                 initial={{ scale: 0.8, opacity: 1, borderWidth: "12px" }} 
-                 animate={{ scale: 1.6, opacity: 0, borderWidth: "0px" }} 
-                 transition={{ duration: 1, ease: "easeOut" }}
-                 className="absolute inset-0 rounded-full border-emerald-500 m-auto h-28 w-28"
-               />
-               
-               {/* Main Success Circle */}
-               <motion.div 
-                 initial={{ scale: 0, rotate: -45 }} 
-                 animate={{ scale: [0, 1.2, 1], rotate: 0 }} 
-                 transition={{ type: "spring", damping: 12, stiffness: 150, delay: 0.1 }}
-                 className="relative z-10 flex h-28 w-28 items-center justify-center rounded-full bg-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.7)] border-4 border-emerald-100 dark:border-emerald-900"
-               >
-                 <motion.div
-                   initial={{ scale: 0 }}
-                   animate={{ scale: 1 }}
-                   transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
-                 >
-                    <Check className="h-14 w-14 text-white stroke-[4]" />
-                 </motion.div>
-               </motion.div>
-               
-               {/* Starburst Particles */}
-               {[...Array(6)].map((_, i) => (
-                  <motion.div
-                    key={`starburst-${i}`}
-                    initial={{ scale: 0, x: 0, y: 0 }}
-                    animate={{ 
-                      scale: [0, 1.5, 0], 
-                      x: Math.cos((i * 60 - 30) * (Math.PI / 180)) * 90, 
-                      y: Math.sin((i * 60 - 30) * (Math.PI / 180)) * 90 
-                    }}
-                    transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-                    className="absolute m-auto h-3 w-3 bg-emerald-400 rounded-full"
-                    style={{ left: '50%', top: '50%', marginLeft: '-6px', marginTop: '-6px' }}
-                  />
-               ))}
+              {/* Expanding Outer Ring */}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 1, borderWidth: "12px" }}
+                animate={{ scale: 1.6, opacity: 0, borderWidth: "0px" }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="absolute inset-0 rounded-full border-emerald-500 m-auto h-28 w-28"
+              />
+
+              {/* Main Success Circle */}
+              <motion.div
+                initial={{ scale: 0, rotate: -45 }}
+                animate={{ scale: [0, 1.2, 1], rotate: 0 }}
+                transition={{ type: "spring", damping: 12, stiffness: 150, delay: 0.1 }}
+                className="relative z-10 flex h-28 w-28 items-center justify-center rounded-full bg-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.7)] border-4 border-emerald-100 dark:border-emerald-900"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                >
+                  <Check className="h-14 w-14 text-white stroke-[4]" />
+                </motion.div>
+              </motion.div>
+
+              {/* Starburst Particles */}
+              {[...Array(6)].map((_, i) => (
+                <motion.div
+                  key={`starburst-${i}`}
+                  initial={{ scale: 0, x: 0, y: 0 }}
+                  animate={{
+                    scale: [0, 1.5, 0],
+                    x: Math.cos((i * 60 - 30) * (Math.PI / 180)) * 90,
+                    y: Math.sin((i * 60 - 30) * (Math.PI / 180)) * 90
+                  }}
+                  transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+                  className="absolute m-auto h-3 w-3 bg-emerald-400 rounded-full"
+                  style={{ left: '50%', top: '50%', marginLeft: '-6px', marginTop: '-6px' }}
+                />
+              ))}
             </div>
           )}
 
@@ -532,8 +578,8 @@ const Checkout = () => {
               {currentBookingStatus === 'pending' ? "Finding Nearby Sewak..." : "Sewak Assigned! 🎉"}
             </h1>
             <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-              {currentBookingStatus === 'pending' 
-                ? "Broadcasting your request to all available sewaks in your area. Please wait..." 
+              {currentBookingStatus === 'pending'
+                ? "Broadcasting your request to all available sewaks in your area. Please wait..."
                 : (paymentMode === "now" ? "A sewak has accepted your request! Please check your alerts for a 'Pay Now' notification." : "A sewak has accepted your request and is assigned to you.")}
             </p>
           </div>
@@ -546,7 +592,7 @@ const Checkout = () => {
                 {bookingId} <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
-            
+
             <div className="flex items-start justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0 mr-4">Service</span>
               <span className="text-sm font-bold text-slate-900 dark:text-white text-right line-clamp-2">
@@ -578,14 +624,13 @@ const Checkout = () => {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <motion.button 
-              whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }} 
+            <motion.button
+              whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }}
               onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking", { replace: true })}
-              className={`flex-1 rounded-[20px] py-4 text-sm font-black transition-all ${
-                currentBookingStatus !== 'pending' 
-                ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl" 
-                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
-              }`}>
+              className={`flex-1 rounded-[20px] py-4 text-sm font-black transition-all ${currentBookingStatus !== 'pending'
+                  ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                }`}>
               {currentBookingStatus !== 'pending' ? "Track Booking" : "Waiting for Provider..."}
             </motion.button>
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/my-bookings", { replace: true })}
@@ -676,18 +721,17 @@ const Checkout = () => {
               ) : (
                 <div className="grid grid-cols-3 gap-2">
                   {availableSlots.map((t) => (
-                    <motion.button 
-                      key={t} 
+                    <motion.button
+                      key={t}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => {
                         setSelectedTime(t);
                         setIsExpress(false);
                       }}
-                      className={`rounded-[14px] py-3 px-2 text-[12px] font-bold transition-all border ${
-                        selectedTime === t 
-                          ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20" 
+                      className={`rounded-[14px] py-3 px-2 text-[12px] font-bold transition-all border ${selectedTime === t
+                          ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20"
                           : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-300"
-                      }`}
+                        }`}
                     >
                       {t}
                     </motion.button>
@@ -750,38 +794,62 @@ const Checkout = () => {
             </div>
           </section>
 
-          {/* Propose a Price */}
-          {(checkoutData?.requiredProviderCategory === "partner" || !checkoutData?.requiredProviderCategory) && (
-            <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500">
-                  <Wallet className="h-3.5 w-3.5 text-blue-500" /> Propose a Price
-                </h3>
+          {/* Bargain & Save */}
+          <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500"><Tag className="h-3.5 w-3.5 text-blue-500" /> Bargain & Save</h3>
+              <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded uppercase tracking-wider">Max {maxBargainLimit}% Off</span>
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal">
+              Have a budget in mind? Make a custom Customer Offer for this service (minimum offer of ₹{minAllowedOffer} allowed).
+            </p>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute inset-y-0 left-4 flex items-center text-slate-500 font-bold text-sm">₹</span>
+                <input
+                  type="number"
+                  value={customerOffer}
+                  onChange={(e) => setCustomerOffer(e.target.value)}
+                  placeholder={`Original Price: ₹${subtotal}`}
+                  className="w-full rounded-[14px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-8 pr-4 py-3 text-[13px] font-bold focus:border-blue-500 focus:outline-none transition-all"
+                />
               </div>
-              <p className="text-[11px] text-slate-500 mb-3">You can suggest a budget. The provider will either accept or send a counter-offer.</p>
-              <div className="flex gap-2 relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                <input type="number" value={userProposedAmount} onChange={(e) => {
-                  const val = e.target.value;
-                  if (!val || Number(val) < total) {
-                    setUserProposedAmount(val);
-                  }
-                }} placeholder="e.g. 500"
-                  onKeyDown={(e) => {
-                    if (['e', 'E', '+', '-', '.'].includes(e.key)) {
-                      e.preventDefault();
-                    }
-                  }}
-                  className="w-full rounded-[14px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-8 pr-4 py-3 text-[13px] font-black tracking-wider placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all" />
+              {hasCustomOffer && (
+                <button
+                  onClick={() => setCustomerOffer("")}
+                  className="rounded-[14px] bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-white px-4 py-3 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            {hasCustomOffer && (
+              <div className="text-[11px] font-bold">
+                {isOfferTooLow && (
+                  <p className="text-red-500">Customer Offer is too low! Minimum allowed offer: ₹{minAllowedOffer}.</p>
+                )}
+                {isOfferTooHigh && (
+                  <p className="text-red-500">Offer cannot exceed ₹{subtotal - couponDiscount} (subtotal after coupon).</p>
+                )}
+                {isOfferNegative && (
+                  <p className="text-red-500">Offer cannot be negative.</p>
+                )}
+                {!isOfferInvalid && (
+                  <p className="text-emerald-500">
+                    Offer within rules! You save a custom bargain discount of ₹{bargainDiscount} (Total savings: ₹{totalDiscount}).
+                  </p>
+                )}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* Price Summary */}
           <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3">
             <div className="flex justify-between text-sm"><span className="font-semibold text-slate-500 dark:text-slate-400">Subtotal</span><span className="font-black text-slate-900 dark:text-white">₹{subtotal}</span></div>
             {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-slate-900 dark:text-white">₹{EXPRESS_FEE}</span></div>}
-            {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Discount Applied</span><span className="font-black">-₹{discount}</span></div>}
+            {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Coupon Discount</span><span className="font-black">-₹{couponDiscount}</span></div>}
+            {bargainDiscount > 0 && <div className="flex justify-between text-sm text-blue-500"><span className="font-bold">Bargain Discount</span><span className="font-black">-₹{bargainDiscount}</span></div>}
+            {totalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 font-bold"><span className="font-bold">Total Savings</span><span className="font-black">-₹{totalDiscount}</span></div>}
             <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
               <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
               <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{userProposedAmount || total}</span>

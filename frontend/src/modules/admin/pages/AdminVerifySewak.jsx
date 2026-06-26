@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
+import { useScrollLock } from "@/lib/scrollLock";
 import { CheckCircle, XCircle, Search, FileText, Loader2, MapPin, Phone, Eye } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ const AdminVerifySewak = () => {
     const [sewaks, setSewaks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedDoc, setSelectedDoc] = useState(null);
+
+    useScrollLock(!!selectedDoc);
 
     useEffect(() => {
         setTitle("Verify Sewak KYC");

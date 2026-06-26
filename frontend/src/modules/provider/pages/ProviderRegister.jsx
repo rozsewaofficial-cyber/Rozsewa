@@ -11,6 +11,9 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const businessModels = [
   { id: 'shop', label: 'Retail & Shops', icon: Store, description: 'Traditional brick & mortar outlets' },
@@ -335,8 +338,9 @@ const ProviderRegister = () => {
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!formData.mobile || !/^[6-9]\d{9}$/.test(formData.mobile)) {
-      toast({ title: "Invalid Number", description: "Please enter a valid 10-digit Indian mobile number.", variant: "destructive" });
+    const phoneValidation = validatePhone(formData.mobile);
+    if (!phoneValidation.isValid) {
+      toast({ title: "Invalid Number", description: phoneValidation.message, variant: "destructive" });
       return;
     }
     setIsLoading(true);
@@ -394,7 +398,7 @@ const ProviderRegister = () => {
   };
 
   const handleSendEmailOtp = async () => {
-    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    if (!formData.email || !validateEmail(formData.email)) {
       return toast({ title: "Invalid Email", description: "Please enter a valid email.", variant: "destructive" });
     }
     setVerifying(prev => ({ ...prev, email: true }));
@@ -454,15 +458,16 @@ const ProviderRegister = () => {
   };
 
   const handleVerifyGST = async () => {
-    if (!formData.gst || formData.gst.length !== 15) {
-      return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!formData.gst || !gstRegex.test(formData.gst)) {
+      return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number (e.g., 22AAAAA0000A1Z5).", variant: "destructive" });
     }
     setVerifying(prev => ({ ...prev, gst: true }));
     try {
       const { data } = await API.post("/verify/gst", { gstNumber: formData.gst });
-      if (data.status === "VERIFIED" || data.success) {
+      if (data?.status === "VERIFIED" || data?.success) {
         setVerificationStatus(prev => ({ ...prev, gst: true }));
-        if (data.data && data.data.businessName && !formData.shopName) {
+        if (data?.data?.businessName && !formData.shopName) {
            setFormData(prev => ({ ...prev, shopName: data.data.businessName }));
         }
         toast({ title: "GST Verified", description: "GST details fetched successfully." });
@@ -481,12 +486,22 @@ const ProviderRegister = () => {
     if (!accountNumber || !ifscCode || !accountHolderName) {
       return toast({ title: "Incomplete Details", description: "Please enter Account Number, IFSC, and Holder Name.", variant: "destructive" });
     }
+    const sanitizedHolderName = sanitizeName(accountHolderName);
+    const nameValidation = validateName(sanitizedHolderName);
+    if (!nameValidation.isValid) {
+      return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+    }
+    setFormData(prev => ({
+      ...prev,
+      bankDetails: { ...prev.bankDetails, accountHolderName: sanitizedHolderName }
+    }));
+
     setVerifying(prev => ({ ...prev, bank: true }));
     try {
       const { data } = await API.post("/verify/bank", { 
         accountNumber, 
         ifscCode, 
-        beneficiaryName: accountHolderName 
+        beneficiaryName: sanitizedHolderName 
       });
       if (data.status === "VERIFIED" || data.success) {
         setVerificationStatus(prev => ({ ...prev, bank: true }));
@@ -616,7 +631,15 @@ const ProviderRegister = () => {
   const handleBankSubmit = async (e) => {
     e.preventDefault();
     const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
-    if (accountHolderName.trim().length < 3) return toast({ title: "Invalid Name", description: "Account holder name must be at least 3 characters.", variant: "destructive" });
+    const sanitizedHolderName = sanitizeName(accountHolderName);
+    const nameValidation = validateName(sanitizedHolderName);
+    if (!nameValidation.isValid) return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+    if (sanitizedHolderName.length < 3) return toast({ title: "Invalid Name", description: "Account holder name must be at least 3 characters.", variant: "destructive" });
+    setFormData(prev => ({
+      ...prev,
+      bankDetails: { ...prev.bankDetails, accountHolderName: sanitizedHolderName }
+    }));
+
     if (!/^\d{11,17}$/.test(accountNumber)) return toast({ title: "Invalid Account Number", description: "Account number must be between 11 and 17 digits.", variant: "destructive" });
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return toast({ title: "Invalid IFSC", description: "Please enter a valid 11-character IFSC code.", variant: "destructive" });
 
@@ -737,7 +760,7 @@ const ProviderRegister = () => {
                         type="tel"
                         required
                         value={formData.mobile}
-                        onChange={e => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '') })}
+                        onChange={e => setFormData({ ...formData, mobile: sanitizePhone(e.target.value) })}
                         maxLength="10"
                         className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 font-semibold text-base tracking-widest text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none placeholder:text-slate-300"
                         placeholder="00000 00000"
@@ -1013,8 +1036,13 @@ const ProviderRegister = () => {
                 exit={{ opacity: 0, x: -20 }}
                 onSubmit={e => {
                   e.preventDefault();
-                  if (formData.ownerName.trim().length < 3) return toast({ title: "Invalid Name", description: "Owner name must be at least 3 characters long.", variant: "destructive" });
-                  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                  const sanitizedOwnerName = sanitizeName(formData.ownerName);
+                  const nameValidation = validateName(sanitizedOwnerName);
+                  if (!nameValidation.isValid) return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+                  if (sanitizedOwnerName.length < 3) return toast({ title: "Invalid Name", description: "Owner name must be at least 3 characters long.", variant: "destructive" });
+                  setFormData(prev => ({ ...prev, ownerName: sanitizedOwnerName }));
+
+                  if (!validateEmail(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
                   if (formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
                   if (!/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
                   if (formData.kycAadhaar && !/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
@@ -1047,7 +1075,7 @@ const ProviderRegister = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Owner Full Name</label>
-                      <input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: e.target.value.replace(/[^a-zA-Z\s]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. John Doe" />
+                      <input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: sanitizeNameOnChange(e.target.value) })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. John Doe" />
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between ml-1">
@@ -1059,7 +1087,7 @@ const ProviderRegister = () => {
                         )}
                         {verificationStatus.email && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input type="email" required disabled={verificationStatus.email} value={formData.email} onChange={e => { setFormData({ ...formData, email: e.target.value }); if (showEmailOtpField) setShowEmailOtpField(false); }} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="e.g. name@example.com" />
+                      <input type="email" required disabled={verificationStatus.email} value={formData.email} onChange={e => { setFormData({ ...formData, email: sanitizeEmail(e.target.value) }); if (showEmailOtpField) setShowEmailOtpField(false); }} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="e.g. name@example.com" />
                       
                       {showEmailOtpField && !verificationStatus.email && (
                         <div className="flex items-center gap-2 mt-2">
@@ -1468,7 +1496,7 @@ const ProviderRegister = () => {
                 <form onSubmit={handleBankSubmit} className="space-y-5">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
-                    <input required disabled={verificationStatus.bank} value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="As per bank records" />
+                    <input required disabled={verificationStatus.bank} value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: sanitizeNameOnChange(e.target.value) } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="As per bank records" />
                   </div>
 
                   <div className="space-y-1.5">

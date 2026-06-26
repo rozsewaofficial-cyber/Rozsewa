@@ -17,7 +17,7 @@ const AdminLayout = () => {
     
     if (!loading) {
       if (!user || !isAdmin) {
-        navigate("/admin/login");
+        navigate("/admin/login", { state: { from: location } });
         return;
       }
     }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { Tag, Plus, CheckCircle, Clock, Search, Percent, Loader2 } from "lucide-react";
@@ -12,6 +13,8 @@ const ProviderOffers = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newOffer, setNewOffer] = useState({ title: "", type: "Flat Discount", value: "", expiry: "" });
+
+  useScrollLock(isModalOpen);
 
   const fetchOffers = async () => {
     try {

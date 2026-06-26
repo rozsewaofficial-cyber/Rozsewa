@@ -6,13 +6,15 @@ import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Load
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const ProviderProfile = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { toast } = useToast();
-  const [isEditing, setIsEditing] = useState(false);
-  const [profileData, setProfileData] = useState({
+  const draft = JSON.parse(sessionStorage.getItem("provider-profile-draft") || "{}");
+  const [isEditing, setIsEditing] = useState(draft.isEditing || false);
+  const [profileData, setProfileData] = useState(draft.profileData || {
     ownerName: "",
     shopName: "",
     category: "",
@@ -23,7 +25,7 @@ const ProviderProfile = () => {
   });
 
   useEffect(() => {
-    if (user) {
+    if (user && !draft.isEditing) {
       setProfileData({
         ownerName: user.ownerName || "",
         shopName: user.shopName || "",
@@ -39,22 +41,56 @@ const ProviderProfile = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    sessionStorage.setItem("provider-profile-draft", JSON.stringify({ isEditing, profileData }));
+  }, [isEditing, profileData]);
+
+  const clearDraft = () => sessionStorage.removeItem("provider-profile-draft");
+
   const fileInputRef = useRef(null);
 
   const toggleEdit = async () => {
     if (isEditing) {
+      const sanitizedOwnerName = sanitizeName(profileData.ownerName);
+      const ownerNameValidation = validateName(sanitizedOwnerName);
+      if (!ownerNameValidation.isValid) {
+        toast({ title: "Invalid Name", description: `Owner Name: ${ownerNameValidation.message}`, variant: "destructive" });
+        return;
+      }
+
+      let sanitizedHolderName = "";
+      if (profileData.bankDetails && profileData.bankDetails.accountHolderName) {
+        sanitizedHolderName = sanitizeName(profileData.bankDetails.accountHolderName);
+        const holderNameValidation = validateName(sanitizedHolderName);
+        if (!holderNameValidation.isValid) {
+          toast({ title: "Invalid Name", description: `Account Holder Name: ${holderNameValidation.message}`, variant: "destructive" });
+          return;
+        }
+      }
+
+      const updatedProfile = {
+        ...profileData,
+        ownerName: sanitizedOwnerName,
+        bankDetails: profileData.bankDetails
+          ? { ...profileData.bankDetails, accountHolderName: sanitizedHolderName }
+          : undefined
+      };
+
       try {
-        const isShopNameChanged = profileData.shopName !== user.shopName;
+        const isShopNameChanged = updatedProfile.shopName !== user.shopName;
         if (isShopNameChanged && !window.confirm("Changing shop name will reset your verification status to PENDING. Admin will need to re-verify your business. Continue?")) {
           return;
         }
-        await API.put("/provider/profile", profileData);
+        await API.put("/provider/profile", updatedProfile);
+        setProfileData(updatedProfile);
         toast({ title: "Profile Updated", description: "Your business details have been saved." });
+        clearDraft();
         if (isShopNameChanged) {
           window.location.reload();
         }
       } catch (err) {
         toast({ title: "Update Failed", variant: "destructive" });
+        return;
       }
     }
     setIsEditing(!isEditing);
@@ -124,7 +160,7 @@ const ProviderProfile = () => {
                     <div className="space-y-1">
                       {item.type === "textarea"
                         ? <textarea rows={2} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => setProfileData({ ...profileData, [item.field]: e.target.value })} />
-                        : <input type={item.type} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => setProfileData({ ...profileData, [item.field]: e.target.value })} />
+                        : <input type={item.type} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => { const val = item.field === "ownerName" ? sanitizeNameOnChange(e.target.value) : e.target.value; setProfileData({ ...profileData, [item.field]: val }); }} />
                       }
                       {item.warning && <p className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">{item.warning}</p>}
                     </div>
@@ -140,7 +176,7 @@ const ProviderProfile = () => {
                   <input placeholder="Account Number" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountNumber} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountNumber: e.target.value } })} />
                   <input placeholder="IFSC Code" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.ifscCode} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, ifscCode: e.target.value } })} />
                   <input placeholder="Bank Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.bankName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, bankName: e.target.value } })} />
-                  <input placeholder="Holder Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountHolderName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountHolderName: e.target.value } })} />
+                  <input placeholder="Holder Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountHolderName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountHolderName: sanitizeNameOnChange(e.target.value) } })} />
                 </div>
               </div>
             )}

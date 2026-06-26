@@ -2,6 +2,7 @@ import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { UserPlus, Trash2, X, RefreshCcw, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -28,6 +29,8 @@ const ProviderStaff = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStaff, setNewStaff] = useState({ name: "", role: "" });
+
+  useScrollLock(isModalOpen);
 
   const handleAddStaff = async (e) => {
     e.preventDefault();

@@ -87,6 +87,48 @@ const bookingSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    customerOffer: {
+        type: Number,
+        default: null
+    },
+    originalFixedPrice: {
+        type: Number,
+        default: null
+    },
+    offerStatus: {
+        type: String,
+        enum: ['pending', 'accepted', 'rejected_fixed_price', 'countered', 'counter_accepted', 'counter_rejected', 'counter_expired'],
+        default: 'pending'
+    },
+    partnerCounterOffer: {
+        type: Number,
+        default: null
+    },
+    acceptedPrice: {
+        type: Number,
+        default: null
+    },
+    counterOfferExpiresAt: {
+        type: Date,
+        default: null
+    },
+    pricingDecision: {
+        type: String,
+        enum: ['fixed_price', 'customer_offer', 'partner_counter_offer'],
+        default: null
+    },
+    bargainDiscount: {
+        type: Number,
+        default: 0
+    },
+    couponDiscount: {
+        type: Number,
+        default: 0
+    },
+    totalDiscount: {
+        type: Number,
+        default: 0
+    },
     paymentMode: {
         type: String,
         enum: ['now', 'after'],

@@ -4,6 +4,7 @@ import { MapPin, Plus, Move, X, Save, Trash2, Loader2, Navigation } from "lucide
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { GoogleMap, useJsApiLoader, MarkerF } from "@react-google-maps/api";
+import { useScrollLock } from "@/lib/scrollLock";
 import API from "@/lib/api";
 
 const containerStyle = { width: '100%', height: '100%' };
@@ -17,6 +18,8 @@ const AdminZones = () => {
     const [zones, setZones] = useState([]);
     const [newZone, setNewZone] = useState({ name: "", type: "Tier 1 Metro", location: center });
     const [map, setMap] = useState(null);
+
+    useScrollLock(showModal);
 
     const { isLoaded } = useJsApiLoader({
         id: 'google-map-script',

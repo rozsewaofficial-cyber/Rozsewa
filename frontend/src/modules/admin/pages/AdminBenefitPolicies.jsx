@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { Plus, Edit, Trash2, ShieldCheck, Zap, TrendingUp, Users, Headphones, Star, Save, X, GripVertical, FileText, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import API from "@/lib/api";
@@ -19,6 +20,8 @@ const AdminBenefitPolicies = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingPolicy, setEditingPolicy] = useState(null);
+
+    useScrollLock(showModal);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState("all");
 

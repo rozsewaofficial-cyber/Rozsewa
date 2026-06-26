@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useScrollLock } from '@/lib/scrollLock';
 import API from '@/lib/api';
 import { Save, Loader2, Plus, Trash2, ShieldCheck, DollarSign, Gift, Calendar, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CreditCard, CheckCircle2, XCircle, Edit } from 'lucide-react';
+import { normalizeNonNegativeNumber, validateNonNegativeNumber } from '@/lib/numberValidation';
 
 export default function PartnerProgramConfig() {
   const { toast } = useToast();
@@ -21,6 +23,9 @@ export default function PartnerProgramConfig() {
 
   const [plans, setPlans] = useState([]);
   const [showModal, setShowModal] = useState(false);
+  const [editingConfig, setEditingConfig] = useState(null);
+
+  useScrollLock(showModal);
   const [editingPlan, setEditingPlan] = useState(null);
   const [newPlan, setNewPlan] = useState({
     name: "",
@@ -75,6 +80,28 @@ export default function PartnerProgramConfig() {
   };
 
   const handleSave = async () => {
+    const validations = [
+      ...config.commissionSlabs.flatMap((slab, i) => [
+        validateNonNegativeNumber(slab.min, { fieldName: `Slab ${i+1} Min` }),
+        validateNonNegativeNumber(slab.max, { fieldName: `Slab ${i+1} Max` }),
+        validateNonNegativeNumber(slab.rate, { fieldName: `Slab ${i+1} Rate` })
+      ]),
+      validateNonNegativeNumber(config.performanceBonuses.silverStarRate, { fieldName: "Silver Star Rate" }),
+      validateNonNegativeNumber(config.performanceBonuses.goldStarRate, { fieldName: "Gold Star Rate" }),
+      validateNonNegativeNumber(config.performanceBonuses.loyaltyBonusAmount, { fieldName: "Loyalty Bonus Amount" }),
+      validateNonNegativeNumber(config.performanceBonuses.loyaltyBonusBookings, { fieldName: "Loyalty Target" }),
+      validateNonNegativeNumber(config.referral.commissionRate, { fieldName: "Referral Commission" }),
+      validateNonNegativeNumber(config.penalties.cancellationCharge, { fieldName: "Cancellation Charge" }),
+      validateNonNegativeNumber(config.attendance.discountRate, { fieldName: "Attendance Discount" }),
+      validateNonNegativeNumber(config.attendance.requiredDays, { fieldName: "Active Days Required" })
+    ];
+
+    const firstError = validations.find(v => !v.isValid);
+    if (firstError) {
+      toast({ title: "Invalid Input", description: firstError.error, variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
     try {
       await API.put(`/admin/partner-program-config?categoryId=${selectedCategoryId}`, config);
@@ -88,7 +115,7 @@ export default function PartnerProgramConfig() {
 
   const updateSlab = (index, field, value) => {
     const newSlabs = [...config.commissionSlabs];
-    newSlabs[index][field] = field === 'categoryId' ? value : Number(value);
+    newSlabs[index][field] = field === 'categoryId' ? value : Number(normalizeNonNegativeNumber(value));
     setConfig({ ...config, commissionSlabs: newSlabs });
   };
 
@@ -130,6 +157,18 @@ export default function PartnerProgramConfig() {
     e.preventDefault();
     if (!newPlan.name || !newPlan.price) {
       toast({ title: "Validation Error", description: "Name and Price are required", variant: "destructive" });
+      return;
+    }
+
+    const priceValidation = validateNonNegativeNumber(newPlan.price, { fieldName: "Price", min: 0 });
+    if (!priceValidation.isValid) {
+      toast({ title: "Invalid Input", description: priceValidation.error, variant: "destructive" });
+      return;
+    }
+
+    const commissionValidation = validateNonNegativeNumber(newPlan.offeredCommissionRate, { fieldName: "Commission Rate", min: 0 });
+    if (!commissionValidation.isValid) {
+      toast({ title: "Invalid Input", description: commissionValidation.error, variant: "destructive" });
       return;
     }
 
@@ -281,19 +320,19 @@ export default function PartnerProgramConfig() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-500">Silver Star Bonus (%)</label>
-              <input type="number" value={config.performanceBonuses.silverStarRate} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, silverStarRate: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
+              <input type="number" min="0" value={config.performanceBonuses.silverStarRate} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, silverStarRate: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500">Gold Star Bonus (%)</label>
-              <input type="number" value={config.performanceBonuses.goldStarRate} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, goldStarRate: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
+              <input type="number" min="0" value={config.performanceBonuses.goldStarRate} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, goldStarRate: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500">Loyalty Bonus Amount (₹)</label>
-              <input type="number" value={config.performanceBonuses.loyaltyBonusAmount} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, loyaltyBonusAmount: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
+              <input type="number" min="0" value={config.performanceBonuses.loyaltyBonusAmount} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, loyaltyBonusAmount: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500">Loyalty Target (Bookings)</label>
-              <input type="number" value={config.performanceBonuses.loyaltyBonusBookings} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, loyaltyBonusBookings: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
+              <input type="number" min="0" value={config.performanceBonuses.loyaltyBonusBookings} onChange={e => setConfig({...config, performanceBonuses: {...config.performanceBonuses, loyaltyBonusBookings: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-amber-500" />
             </div>
           </div>
         </div>
@@ -304,19 +343,19 @@ export default function PartnerProgramConfig() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-500">Referral Commission (%)</label>
-              <input type="number" value={config.referral.commissionRate} onChange={e => setConfig({...config, referral: {...config.referral, commissionRate: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-rose-500" />
+              <input type="number" min="0" value={config.referral.commissionRate} onChange={e => setConfig({...config, referral: {...config.referral, commissionRate: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-rose-500" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500">Cancellation Charge (₹)</label>
-              <input type="number" value={config.penalties.cancellationCharge} onChange={e => setConfig({...config, penalties: {...config.penalties, cancellationCharge: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-rose-500" />
+              <input type="number" min="0" value={config.penalties.cancellationCharge} onChange={e => setConfig({...config, penalties: {...config.penalties, cancellationCharge: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-rose-500" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500">Attendance Discount (%)</label>
-              <input type="number" value={config.attendance.discountRate} onChange={e => setConfig({...config, attendance: {...config.attendance, discountRate: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-emerald-500" />
+              <input type="number" min="0" value={config.attendance.discountRate} onChange={e => setConfig({...config, attendance: {...config.attendance, discountRate: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-emerald-500" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500">Active Days Required</label>
-              <input type="number" value={config.attendance.requiredDays} onChange={e => setConfig({...config, attendance: {...config.attendance, requiredDays: Number(e.target.value)}})} className="w-full border p-2 rounded mt-1 outline-emerald-500" />
+              <input type="number" min="0" value={config.attendance.requiredDays} onChange={e => setConfig({...config, attendance: {...config.attendance, requiredDays: Number(normalizeNonNegativeNumber(e.target.value))}})} className="w-full border p-2 rounded mt-1 outline-emerald-500" />
             </div>
           </div>
         </div>
@@ -386,7 +425,7 @@ export default function PartnerProgramConfig() {
                         type="number"
                         required
                         value={newPlan.price}
-                        onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
+                        onChange={(e) => setNewPlan({ ...newPlan, price: normalizeNonNegativeNumber(e.target.value) })}
                         className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none"
                         placeholder="e.g. 999"
                       />
@@ -414,7 +453,7 @@ export default function PartnerProgramConfig() {
                         type="number"
                         required
                         value={newPlan.offeredCommissionRate}
-                        onChange={(e) => setNewPlan({ ...newPlan, offeredCommissionRate: e.target.value })}
+                        onChange={(e) => setNewPlan({ ...newPlan, offeredCommissionRate: normalizeNonNegativeNumber(e.target.value) })}
                         className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none"
                         placeholder="e.g. 5"
                       />

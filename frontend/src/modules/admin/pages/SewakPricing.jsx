@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import {
     IndianRupee, Save, Loader2, Search, Briefcase,
@@ -29,7 +30,9 @@ const SewakPricing = () => {
     const [savingId, setSavingId] = useState(null);
     const [expandedCatId, setExpandedCatId] = useState(null);
     const [showDrawer, setShowDrawer] = useState(false);
-    
+    const [editingConfig, setEditingConfig] = useState(null);
+
+    useScrollLock(showDrawer);
     const [selectedService, setSelectedService] = useState(null);
     const [selectedCatIdx, setSelectedCatIdx] = useState(null);
     const [selectedSvcIdx, setSelectedSvcIdx] = useState(null);

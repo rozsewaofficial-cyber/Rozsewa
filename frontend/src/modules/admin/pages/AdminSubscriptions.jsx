@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { Plus, Search, Edit, Trash2, Loader2, CreditCard, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,6 +15,8 @@ const AdminSubscriptions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
+
+  useScrollLock(showModal);
 
   const [newPlan, setNewPlan] = useState({
     name: "",
