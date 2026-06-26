@@ -1,0 +1,28 @@
+1. Provider approved krne ke 2 options aa rha hai usko ek hi jgah rkhna hai documents wise  --- comp
+2. ⁠vender add services me drop down dena hai jo company prefer kr rhi hai services wo services hi list hoga extra services hai to wo vender add kr skta hai but approval milne ke baad live hoga 
+3. ⁠customer adress autofetch sahi krna hai 
+4. ⁠same number se customer and provider dono create ho rhe hai 
+5. ⁠partner ko request krne pe finding near by sewak likh rha hai and customer panel pe kisi service ko book krne ke baad koi v partner accept kr le ya option nhi hai waha partner wise and near by dono option dena hai 
+6. ⁠filter ko sahi se design krne like flipkar swiggy…… 
+* rating wise 
+* ⁠price wise low to high 
+* ⁠services wise
+* ⁠area wise 
+* ⁠special offer / combo 
+* ⁠home visit
+* ⁠24 / 7 services
+1. Provider ke phone number and mail pe koi booking nahi aa rha hai and app pe bhee notification and sound nahi aa rha hai 
+2. ⁠live map track nahi ho rha hai error aa rha hai ya customer and provider dono ek dushre ko live dekh paye like swiggy zomato
+3. ⁠spare parts options multiple krna hai amd remove options nahi hai 
+4. ⁠booking complete ke time payment options nahi aa rha hai 
+5. ⁠24/7 service off krne ke baad bhee show ho rha hai 
+6. ⁠sewak pe bina booking complete ke complete likh rha hai 
+7. ⁠system me provider se sewak me convert krne pe bhe sewak ki services provide nahi ho rhi hai 
+8. ⁠sewak pe services near by me bhe notifications soumd nahi ho rha hai 
+9. ⁠mark enquire and mark resolve ke baad bhee koi mail ya message nahi aa rha hai 
+10. ⁠sewak 9 digit number pe bhe create ho ja rha hai 
+11. ⁠sewak documet wise verifyed option nahi hai and auto adhar pan verification bank account police verfication live photo and live video jisme sewak ko ek script bolna hai wo nahi hai 
+12. ⁠cancel booking pe 404 error user app 
+13. ⁠partner and sewak me services add ka option nahi hai
+14. ⁠agar koi ac repair krne gaya but usko chimy bhe repair krna hai to add services ka option nahi hai
+15. ⁠partner ke sath amount ka barganing system user ke pass nahi and nahi partner ke pass hai

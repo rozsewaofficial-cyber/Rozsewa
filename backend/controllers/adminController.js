@@ -6,6 +6,7 @@ const SubscriptionPlan = require('../models/SubscriptionPlan');
 const Category = require('../models/Category');
 const AuditLog = require('../models/AuditLog');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
+const axios = require('axios');
 // Trigger restart
 
 // @desc    Get all providers for admin
@@ -1175,6 +1176,22 @@ const createSewak = async (req, res) => {
     try {
         const { ownerName, mobile, password, email, address, city, state, businessType, latitude, longitude, bankDetails } = req.body;
 
+        if (!mobile || !/^\d{10}$/.test(mobile)) {
+            return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+        }
+
+        if (bankDetails && bankDetails.ifscCode) {
+            try {
+                const response = await axios.get(`https://ifsc.razorpay.com/${bankDetails.ifscCode}`);
+                if (!response.data || !response.data.BANK) {
+                    return res.status(400).json({ message: 'Invalid IFSC Code' });
+                }
+                bankDetails.bankName = response.data.BANK;
+            } catch (error) {
+                return res.status(400).json({ message: 'Invalid IFSC Code or unable to verify' });
+            }
+        }
+
         const providerExists = await Provider.findOne({ mobile });
         if (providerExists) {
             return res.status(400).json({ message: 'Mobile number already registered as a provider' });
@@ -1264,6 +1281,9 @@ const updateSewak = async (req, res) => {
         if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
 
         if (mobile && mobile !== sewak.mobile) {
+            if (!/^\d{10}$/.test(mobile)) {
+                return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+            }
             const providerExists = await Provider.findOne({ mobile });
             if (providerExists) return res.status(400).json({ message: 'Mobile number already registered as a provider' });
             sewak.mobile = mobile;
@@ -1282,7 +1302,20 @@ const updateSewak = async (req, res) => {
             const category = await Category.findOne({ name: businessType });
             if (category) sewak.vendorType = category._id;
         }
-        if (bankDetails) sewak.bankDetails = bankDetails;
+        if (bankDetails) {
+            if (bankDetails.ifscCode) {
+                try {
+                    const response = await axios.get(`https://ifsc.razorpay.com/${bankDetails.ifscCode}`);
+                    if (!response.data || !response.data.BANK) {
+                        return res.status(400).json({ message: 'Invalid IFSC Code' });
+                    }
+                    bankDetails.bankName = response.data.BANK;
+                } catch (error) {
+                    return res.status(400).json({ message: 'Invalid IFSC Code or unable to verify' });
+                }
+            }
+            sewak.bankDetails = bankDetails;
+        }
         
         // Only update password if provided
         if (password) {

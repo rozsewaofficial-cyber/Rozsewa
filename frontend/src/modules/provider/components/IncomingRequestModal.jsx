@@ -99,7 +99,9 @@ const IncomingRequestModal = ({ request, onAction }) => {
         return () => {
             clearInterval(timer);
             clearInterval(ensurePlay);
-            if (notificationRef.current) notificationRef.current.close();
+            if (notificationRef.current && typeof notificationRef.current.close === 'function') {
+                notificationRef.current.close();
+            }
         };
     }, [request, audioStarted]);
 

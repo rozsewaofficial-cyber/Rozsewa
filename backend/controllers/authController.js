@@ -11,7 +11,7 @@ const { sendEmail } = require('../utils/emailService');
 // @access  Public
 const sendOTP = async (req, res) => {
     const { mobile } = req.body;
-    if (!mobile) return res.status(400).json({ message: 'Mobile number is required' });
+    if (!mobile || !/^\d{10}$/.test(mobile)) return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
 
     try {
         // Handle test number bypass
@@ -52,7 +52,7 @@ const sendOTP = async (req, res) => {
 // @access  Public
 const verifyOTP = async (req, res) => {
     const { mobile, otp } = req.body;
-    if (!mobile || !otp) return res.status(400).json({ message: 'Mobile and OTP required' });
+    if (!mobile || !/^\d{10}$/.test(mobile) || !otp) return res.status(400).json({ message: 'Valid 10-digit mobile and OTP required' });
 
     try {
         const otpDoc = await OTP.findOne({ mobile, otp });
@@ -74,6 +74,10 @@ const verifyOTP = async (req, res) => {
 // @access  Public
 const registerUser = async (req, res) => {
     const { name, email, mobile, password, role, address, city, state } = req.body;
+
+    if (!mobile || !/^\d{10}$/.test(mobile)) {
+        return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+    }
 
     try {
         const userExists = await User.findOne({ $or: [{ email }, { mobile }] });
@@ -128,7 +132,7 @@ const registerUser = async (req, res) => {
 // @access  Public
 const loginWithOTP = async (req, res) => {
     const { mobile, otp } = req.body;
-    if (!mobile || !otp) return res.status(400).json({ message: 'Mobile and OTP required' });
+    if (!mobile || !/^\d{10}$/.test(mobile) || !otp) return res.status(400).json({ message: 'Valid 10-digit mobile and OTP required' });
 
     try {
         // Handle test number bypass

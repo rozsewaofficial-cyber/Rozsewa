@@ -348,34 +348,7 @@ const AdminSuper = () => {
                     </div>
                 </div>
 
-                {/* Tiered Commissions */}
-                <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-5 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                            <Percent className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-black text-gray-900">Commission Tiers</h3>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Deduction rates per plan</p>
-                        </div>
-                    </div>
-                    <div className="p-6 space-y-4 flex-1">
-                        {[
-                            { key: 'commission_basic', label: 'Basic Plan', color: 'text-gray-600' },
-                            { key: 'commission_standard', label: 'Standard Plan', color: 'text-blue-600' },
-                            { key: 'commission_premium', label: 'Premium Plan', color: 'text-emerald-600' }
-                        ].map((tier) => (
-                            <div key={tier.key} className="flex items-center gap-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                <label className={`w-28 text-[10px] font-black uppercase tracking-widest ${tier.color}`}>{tier.label}</label>
-                                <div className="flex gap-2 flex-1 relative">
-                                    <input type="number" className={`${inputCls} !py-2 !px-3 !h-9 text-xs`} value={settings[tier.key]} onChange={(e) => setSettings(prev => ({ ...prev, [tier.key]: e.target.value }))} />
-                                    <span className="absolute right-20 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400">%</span>
-                                    <button onClick={() => updateAdminSetting(tier.key, Number(settings[tier.key]))} className="h-9 px-3 rounded-lg bg-gray-200 text-[9px] font-black uppercase tracking-widest text-gray-700 hover:bg-gray-300 transition-all">Save</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+
             </div>
 
             {/* Admin Management Table */}
