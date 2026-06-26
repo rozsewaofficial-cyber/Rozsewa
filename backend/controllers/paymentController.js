@@ -57,6 +57,21 @@ const verifyPayment = async (req, res) => {
                     type: 'payment',
                     bookingId: booking._id
                 });
+
+                if (booking.providerId) {
+                    try {
+                        await notifyUser({
+                            userId: booking.providerId,
+                            userRole: 'provider',
+                            title: 'Payment Received',
+                            message: `Payment of ₹${booking.totalAmount} for ${booking.serviceName} has been received.`,
+                            type: 'payment',
+                            bookingId: booking._id
+                        });
+                    } catch (notiErr) {
+                        console.error('[Notification Trigger Error] Failed to send payment received notification to provider:', notiErr);
+                    }
+                }
             }
         }
         res.json({ message: "Payment verified successfully", success: true });

@@ -177,7 +177,7 @@ const LiveTracking = () => {
     try {
       await API.put(`/bookings/${bookingDetails._id}`, { status: 'cancelled' });
       toast({ title: "Booking Cancelled", description: "Your booking has been cancelled successfully." });
-      navigate("/bookings");
+      navigate("/my-bookings");
     } catch (err) {
       toast({ title: "Failed to cancel booking", variant: "destructive" });
     }
