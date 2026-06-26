@@ -9,11 +9,11 @@ export function Toaster() {
       {toasts.map(function ({ id, title, description, action, ...props }) {
         const isDestructive = props.variant === "destructive";
         const isWarning = props.variant === "warning";
-        const duration = isDestructive ? 9000 : (isWarning ? 6000 : (props.duration || 4000));
+        const duration = isDestructive ? 9000 : (isWarning ? 6000 : (props.duration || 2000));
         const showClose = isDestructive || isWarning;
 
         return (
-          <Toast key={id} duration={duration} {...props}>
+          <Toast key={id} {...props} duration={duration}>
             <div className="grid gap-1">
               {title && <ToastTitle>{title}</ToastTitle>}
               {description && <ToastDescription>{description}</ToastDescription>}

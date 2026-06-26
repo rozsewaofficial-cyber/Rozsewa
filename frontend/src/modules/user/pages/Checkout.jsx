@@ -22,7 +22,10 @@ const dates = Array.from({ length: 7 }, (_, i) => {
 const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, serviceMode } = useAuth();
+  const providerLabel = serviceMode === "sewak" ? "Sewak" : "Partner";
+  const providerLabelLower = serviceMode === "sewak" ? "sewak" : "partner";
+  const providerLabelPlural = serviceMode === "sewak" ? "sewaks" : "partners";
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [paymentMode, setPaymentMode] = useState("now");
@@ -177,6 +180,7 @@ const Checkout = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingId, setBookingId] = useState("");
   const [currentBookingStatus, setCurrentBookingStatus] = useState("pending");
+  const [createdBooking, setCreatedBooking] = useState(null);
 
   useEffect(() => {
     if (user?.addresses) {
@@ -218,12 +222,46 @@ const Checkout = () => {
       };
       window.addEventListener("popstate", handlePopState);
 
+      const handleRejected = (e) => {
+        const { bookingId: rejectedId } = e.detail;
+        if (rejectedId === bookingId) {
+          setCurrentBookingStatus('cancelled');
+          toast({
+            title: "Request Rejected",
+            description: "The provider has rejected your request.",
+            variant: "destructive"
+          });
+        }
+      };
+      window.addEventListener('BOOKING_REJECTED', handleRejected);
+
+      const handleScheduleProposed = (e) => {
+        const { bookingId: proposedId } = e.detail;
+        if (proposedId === bookingId) {
+          toast({
+            title: "Schedule Proposed",
+            description: "The provider proposed a new time for your booking.",
+          });
+          navigate("/tracking", { replace: true });
+        }
+      };
+      window.addEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
+
       interval = setInterval(async () => {
         try {
           const { data } = await API.get('/bookings');
           const myBooking = data.find(b => b._id === bookingId);
           if (myBooking) {
             setCurrentBookingStatus(myBooking.status);
+            setCreatedBooking(myBooking);
+
+            // Redirect to tracking page if a reschedule has been proposed
+            if (myBooking.proposedSchedule && myBooking.proposedSchedule.status === 'pending') {
+              clearInterval(interval);
+              navigate("/tracking", { replace: true });
+              return;
+            }
+
             if (myBooking.status !== 'pending') {
               clearInterval(interval);
             }
@@ -234,6 +272,8 @@ const Checkout = () => {
       return () => {
         clearInterval(interval);
         window.removeEventListener("popstate", handlePopState);
+        window.removeEventListener('BOOKING_REJECTED', handleRejected);
+        window.removeEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
       };
     }
   }, [bookingConfirmed, bookingId, navigate]);
@@ -415,6 +455,7 @@ const Checkout = () => {
       const { data } = await API.post("/bookings", bookingData);
 
       setBookingId(data.booking._id);
+      setCreatedBooking(data.booking);
       setBookingConfirmed(true);
 
       // Clear checkout data
@@ -529,6 +570,32 @@ const Checkout = () => {
                 <MapPin className="h-7 w-7 text-white animate-bounce" />
               </div>
             </div>
+          ) : currentBookingStatus === 'cancelled' ? (
+            <div className="mx-auto flex h-48 w-48 items-center justify-center relative mb-8 mt-4">
+              {/* Expanding Outer Ring */}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 1, borderWidth: "12px" }}
+                animate={{ scale: 1.6, opacity: 0, borderWidth: "0px" }}
+                transition={{ duration: 1, ease: "easeOut" }}
+                className="absolute inset-0 rounded-full border-rose-500 m-auto h-28 w-28"
+              />
+
+              {/* Main Cancel Circle */}
+              <motion.div
+                initial={{ scale: 0, rotate: -45 }}
+                animate={{ scale: [0, 1.2, 1], rotate: 0 }}
+                transition={{ type: "spring", damping: 12, stiffness: 150, delay: 0.1 }}
+                className="relative z-10 flex h-28 w-28 items-center justify-center rounded-full bg-rose-500 shadow-[0_0_50px_rgba(244,63,94,0.7)] border-4 border-rose-100 dark:border-rose-900"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.4, type: "spring", stiffness: 200 }}
+                >
+                  <X className="h-14 w-14 text-white stroke-[4]" />
+                </motion.div>
+              </motion.div>
+            </div>
           ) : (
             <div className="mx-auto flex h-48 w-48 items-center justify-center relative mb-8 mt-4">
               {/* Expanding Outer Ring */}
@@ -575,12 +642,20 @@ const Checkout = () => {
 
           <div>
             <h1 className="text-2xl font-black text-slate-900 dark:text-white">
-              {currentBookingStatus === 'pending' ? "Finding Nearby Sewak..." : "Sewak Assigned! 🎉"}
+              {currentBookingStatus === 'pending'
+                ? `Finding Nearby ${providerLabel}...`
+                : currentBookingStatus === 'cancelled'
+                ? "Booking Cancelled ❌"
+                : `${providerLabel} Assigned! 🎉`}
             </h1>
             <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
               {currentBookingStatus === 'pending'
-                ? "Broadcasting your request to all available sewaks in your area. Please wait..."
-                : (paymentMode === "now" ? "A sewak has accepted your request! Please check your alerts for a 'Pay Now' notification." : "A sewak has accepted your request and is assigned to you.")}
+                ? `Broadcasting your request to all available ${providerLabelPlural} in your area. Please wait...`
+                : currentBookingStatus === 'cancelled'
+                ? "This booking request was cancelled by the provider or has expired."
+                : paymentMode === "now"
+                ? `A ${providerLabelLower} has accepted your request! Please check your alerts for a 'Pay Now' notification.`
+                : `A ${providerLabelLower} has accepted your request and is assigned to you.`}
             </p>
           </div>
 
@@ -596,43 +671,59 @@ const Checkout = () => {
             <div className="flex items-start justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0 mr-4">Service</span>
               <span className="text-sm font-bold text-slate-900 dark:text-white text-right line-clamp-2">
-                {serviceNames}
+                {createdBooking?.serviceName || serviceNames}
               </span>
             </div>
 
             <div className="flex items-start justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0 mr-4">Location</span>
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-right line-clamp-2 max-w-[200px]">
-                {selectedAddress?.address || "Address unavailable"}
+                {createdBooking?.address || selectedAddress?.address || "Address unavailable"}
               </span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Date & Time</span>
               <span className="text-sm font-black text-slate-900 dark:text-white">
-                {isExpress ? "ASAP (Within 45m)" : `${selectedDate} • ${selectedTime}`}
+                {createdBooking
+                  ? (createdBooking.bookingDate === 'ASAP' ? "ASAP (Within 45m)" : `${createdBooking.bookingDate} • ${createdBooking.bookingTime}`)
+                  : (isExpress ? "ASAP (Within 45m)" : `${selectedDate} • ${selectedTime}`)}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Amount</span>
-              <span className="text-sm font-black text-blue-600 dark:text-blue-400">₹{total}</span>
+              <span className="text-sm font-black text-blue-600 dark:text-blue-400">₹{createdBooking?.totalAmount || total}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Payment</span>
-              <span className="text-sm font-black text-slate-900 dark:text-white">{paymentMode === "now" ? "Online (Wait for Acceptance)" : "Pay After Service"}</span>
+              <span className="text-sm font-black text-slate-900 dark:text-white">
+                {createdBooking
+                  ? (createdBooking.paymentMode === "now" ? "Online (Wait for Acceptance)" : "Pay After Service")
+                  : (paymentMode === "now" ? "Online (Wait for Acceptance)" : "Pay After Service")}
+              </span>
             </div>
           </div>
 
           <div className="flex gap-3 pt-2">
-            <motion.button
-              whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }}
-              onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking", { replace: true })}
-              className={`flex-1 rounded-[20px] py-4 text-sm font-black transition-all ${currentBookingStatus !== 'pending'
-                  ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
-                }`}>
-              {currentBookingStatus !== 'pending' ? "Track Booking" : "Waiting for Provider..."}
-            </motion.button>
+            {currentBookingStatus === 'cancelled' ? (
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate("/home", { replace: true })}
+                className="flex-1 rounded-[20px] bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl py-4 text-sm font-black transition-all"
+              >
+                Go to Home
+              </motion.button>
+            ) : (
+              <motion.button
+                whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }}
+                onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking", { replace: true })}
+                className={`flex-1 rounded-[20px] py-4 text-sm font-black transition-all ${currentBookingStatus !== 'pending'
+                    ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                  }`}>
+                {currentBookingStatus !== 'pending' ? "Track Booking" : "Waiting for Provider..."}
+              </motion.button>
+            )}
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/my-bookings", { replace: true })}
               className="flex-1 rounded-[20px] border-2 border-slate-200 dark:border-slate-700 py-4 text-sm font-extrabold text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">
               My Bookings

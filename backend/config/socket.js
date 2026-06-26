@@ -44,6 +44,9 @@ const initSocket = (server) => {
                 const Booking = require('../models/Booking');
                 const booking = await Booking.findById(bookingId);
                 if (booking) {
+                    booking.status = 'cancelled';
+                    await booking.save();
+                    console.log(`Booking ${bookingId} status set to cancelled because provider ${providerId} rejected it`);
                     console.log(`Notifying user ${booking.userId} about rejection`);
                     io.to(`user_${booking.userId}`).emit('BOOKING_REJECTED', { bookingId, providerId });
                 }
