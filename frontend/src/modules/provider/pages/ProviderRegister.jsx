@@ -1139,6 +1139,23 @@ const ProviderRegister = () => {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
+                      <input type="checkbox" checked={formData.isHomeVisitAvailable || false} onChange={e => setFormData({ ...formData, isHomeVisitAvailable: e.target.checked })} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-800">Home Visit Available</span>
+                        <span className="text-[9px] font-medium text-slate-500">I can visit customer's location</span>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
+                      <input type="checkbox" checked={formData.is24x7 || false} onChange={e => setFormData({ ...formData, is24x7: e.target.checked })} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-800">24/7 Services</span>
+                        <span className="text-[9px] font-medium text-slate-500">I am available round the clock</span>
+                      </div>
+                    </label>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5 group">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Create Password</label>

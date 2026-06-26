@@ -144,7 +144,7 @@ const getFeaturedProviders = async (req, res) => {
 // @access  Public
 const getPublicProviders = async (req, res) => {
     try {
-        const { category, search, lat, lng, city, radius = 15, mode } = req.query;
+        const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo } = req.query;
         let query = { status: 'verified', isOnline: true };
         
         if (mode === 'sewak') {
@@ -152,8 +152,17 @@ const getPublicProviders = async (req, res) => {
         } else if (mode === 'partner') {
             query.providerCategory = 'partner';
         } else {
-            // Default to partner if mode is not specified to maintain legacy behavior
             query.providerCategory = 'partner';
+        }
+
+        if (minRating) {
+            query.rating = { $gte: parseFloat(minRating) };
+        }
+        if (homeVisit === 'true') {
+            query.isHomeVisitAvailable = true;
+        }
+        if (is24x7 === 'true') {
+            query.is24x7 = true;
         }
 
         // Geolocation filtering
@@ -177,7 +186,6 @@ const getPublicProviders = async (req, res) => {
         }
 
         if (search) {
-            // Find services that match the search first
             const matchingServices = await Service.find({
                 $or: [
                     { name: { $regex: search, $options: 'i' } },
@@ -195,15 +203,38 @@ const getPublicProviders = async (req, res) => {
         }
 
         let providers = Provider.find(query)
-            .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location')
+            .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled')
             .populate('vendorType', 'name icon');
 
         if (!lat || !lng) {
             providers = providers.sort({ rating: -1 });
         }
 
-        const results = await providers;
-        res.json(results);
+        const providerDocs = await providers;
+        
+        // Fetch starting price and combo info for each provider
+        const enrichedProviders = [];
+        for (const p of providerDocs) {
+            const providerObj = p.toObject();
+            
+            const services = await Service.find({ providerId: p._id, visible: true }).select('price');
+            if (services.length > 0) {
+                providerObj.startingPrice = Math.min(...services.map(s => s.price));
+            } else {
+                providerObj.startingPrice = 199; // Default fallback
+            }
+
+            const combos = await Combo.find({ providerId: p._id, isActive: true }).select('_id');
+            providerObj.hasCombo = combos.length > 0;
+
+            if (hasCombo === 'true' && !providerObj.hasCombo) {
+                continue; // Skip if filter requires combo and provider has none
+            }
+
+            enrichedProviders.push(providerObj);
+        }
+
+        res.json(enrichedProviders);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

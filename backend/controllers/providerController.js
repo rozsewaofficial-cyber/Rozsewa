@@ -9,7 +9,7 @@ const registerProvider = async (req, res) => {
     const {
         mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
         gst, kycAadhaar, kycAadhaarPhoto, kycAadhaarBackPhoto, kycPanNumber, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy,
-        bankDetails
+        bankDetails, isHomeVisitAvailable, is24x7
     } = req.body;
 
     try {
@@ -31,6 +31,18 @@ const registerProvider = async (req, res) => {
                 if (kycPanNumber && providerExists.kycPanNumber === kycPanNumber) return res.status(400).json({ message: 'PAN number is already registered' });
                 if (gst && providerExists.gst === gst) return res.status(400).json({ message: 'GST number is already registered' });
                 if (bankDetails && providerExists.bankDetails && providerExists.bankDetails.accountNumber === bankDetails.accountNumber) return res.status(400).json({ message: 'Bank account number is already registered' });
+            }
+
+            const User = require('../models/User');
+            const userExistsChecks = [];
+            if (mobile) userExistsChecks.push({ mobile });
+            if (req.body.email) userExistsChecks.push({ email: req.body.email });
+            if (userExistsChecks.length > 0) {
+                const userExists = await User.findOne({ $or: userExistsChecks });
+                if (userExists) {
+                    if (userExists.mobile === mobile) return res.status(400).json({ message: 'Mobile number is already registered as a Customer' });
+                    if (req.body.email && userExists.email === req.body.email) return res.status(400).json({ message: 'Email is already registered as a Customer' });
+                }
             }
         }
 
@@ -102,6 +114,8 @@ const registerProvider = async (req, res) => {
             freeServicesLeft,
             documents: initialDocs,
             location: req.body.location,
+            isHomeVisitAvailable: isHomeVisitAvailable || false,
+            is24x7: is24x7 || false,
             status: 'pending' // Verification required by admin
         });
 

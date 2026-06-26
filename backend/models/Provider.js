@@ -57,6 +57,8 @@ const providerSchema = mongoose.Schema({
     status: { type: String, enum: ['pending', 'verified', 'suspended', 'rejected'], default: 'pending' },
     isOnline: { type: Boolean, default: true },
     isEmergencyEnabled: { type: Boolean, default: false },
+    isHomeVisitAvailable: { type: Boolean, default: false },
+    is24x7: { type: Boolean, default: false },
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     walletBalance: { type: Number, default: 0 },

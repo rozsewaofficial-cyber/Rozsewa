@@ -474,19 +474,14 @@ const ProviderServices = () => {
                       value={form.name}
                       onChange={e => {
                         const val = e.target.value;
-                        if (val === "custom") {
-                          setForm({ ...form, name: "custom" });
-                        } else {
-                          const selected = categoryServices.find(s => s.name === val);
-                          const isSewak = user?.providerCategory === 'sewak';
-                          setForm({
-                            ...form,
-                            name: val,
-                            customName: "",
-                            price: isSewak ? (selected?.basePrice) : "",
-
-                          });
-                        }
+                        const selected = categoryServices.find(s => s.name === val);
+                        const isSewak = user?.providerCategory === 'sewak';
+                        setForm({
+                          ...form,
+                          name: val,
+                          customName: "",
+                          price: isSewak ? (selected?.basePrice) : "",
+                        });
                       }}
                       className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none"
                     >
@@ -494,17 +489,7 @@ const ProviderServices = () => {
                       {categoryServices.map(s => (
                         <option key={s._id} value={s.name}>{s.name}</option>
                       ))}
-                      <option value="custom">Other (Customised Service)</option>
                     </select>
-                    {form.name === "custom" && (
-                      <input
-                        type="text"
-                        value={form.customName}
-                        onChange={(e) => setForm({ ...form, customName: e.target.value })}
-                        className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none"
-                        placeholder="Enter customised service name..."
-                      />
-                    )}
                   </div>
                 </div>
 
@@ -780,42 +765,6 @@ const ProviderServices = () => {
                     {categoryServices.length === 0 && services.length === 0 && (
                       <p className="text-[10px] font-bold text-slate-400 text-center w-full py-4">Loading catalog...</p>
                     )}
-                    <div className="w-full flex items-center gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                      <input 
-                        type="text" 
-                        placeholder="Type custom service name to add..." 
-                        value={newCustomService}
-                        onChange={(e) => setNewCustomService(e.target.value)}
-                        className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-[10px] font-bold focus:outline-none focus:border-emerald-500"
-                      />
-                      <button 
-                        type="button"
-                        onClick={async () => {
-                          if (!newCustomService.trim()) return;
-                          const payload = {
-                            name: newCustomService.trim(),
-                            description: `Custom ${newCustomService.trim()} service`,
-                            duration: "1 hour",
-                            visible: false,
-                            amenities: [],
-                            serviceDetails: [],
-                            category: categoryName,
-                            price: 299
-                          };
-                          try {
-                            const { data } = await API.post("/services", payload);
-                            setServices(prev => [...prev, data]);
-                            setComboForm(prev => ({ ...prev, services: [...prev.services, data._id] }));
-                            setNewCustomService("");
-                          } catch (err) {
-                            toast({ title: "Failed to add custom service", variant: "destructive" });
-                          }
-                        }}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors"
-                      >
-                        Add
-                      </button>
-                    </div>
                   </div>
                 </div>
 

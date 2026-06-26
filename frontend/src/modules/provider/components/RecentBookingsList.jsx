@@ -611,7 +611,7 @@ const RecentBookingsList = () => {
 
               <div className="flex gap-3">
                 <button onClick={() => setOtpBooking(null)} className="flex-1 py-3 text-xs font-bold text-muted-foreground">Cancel</button>
-                <button onClick={handleOtpVerify} disabled={isVerifyingOtp || (otpType === 'start' && !beforeWorkPhoto)} className={`flex-1 py-3 rounded-xl text-xs font-black text-white shadow-lg transition-all ${((otpType === 'start' && !beforeWorkPhoto) || isVerifyingOtp) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary hover:bg-primary/90'}`}>
+                <button onClick={handleOtpVerify} disabled={isVerifyingOtp || (otpType === 'start' && !beforeWorkPhoto)} className={`flex-1 py-3 rounded-xl text-xs font-black shadow-lg transition-all ${((otpType === 'start' && !beforeWorkPhoto) || isVerifyingOtp) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90'}`}>
                   {(otpType === 'start' && !beforeWorkPhoto) ? "Upload Photo to Start" : (isVerifyingOtp ? "Verifying..." : "Verify & " + (otpType === 'start' ? 'Start' : 'Complete'))}
                 </button>
               </div>

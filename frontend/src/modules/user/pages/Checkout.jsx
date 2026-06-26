@@ -266,19 +266,26 @@ const Checkout = () => {
     if ("geolocation" in navigator) {
       setIsFetchingLocation(true);
       navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
-            const data = await res.json();
-            if (data?.display_name) {
-              setNewAddress(prev => ({
-                ...prev,
-                address: data.display_name,
-                location: { type: "Point", coordinates: [pos.coords.longitude, pos.coords.latitude] }
-              }));
-            }
-          } catch { }
-          setIsFetchingLocation(false);
+        (pos) => {
+          if (window.google && window.google.maps) {
+            const geocoder = new window.google.maps.Geocoder();
+            const latlng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            
+            geocoder.geocode({ location: latlng }, (results, status) => {
+              if (status === "OK" && results[0]) {
+                setNewAddress(prev => ({
+                  ...prev,
+                  address: results[0].formatted_address,
+                  location: { type: "Point", coordinates: [pos.coords.longitude, pos.coords.latitude] }
+                }));
+              } else {
+                toast({ title: "Detection Failed", description: "Could not fetch address.", variant: "destructive" });
+              }
+              setIsFetchingLocation(false);
+            });
+          } else {
+            setIsFetchingLocation(false);
+          }
         },
         () => setIsFetchingLocation(false)
       );
@@ -293,14 +300,14 @@ const Checkout = () => {
       location: { type: "Point", coordinates: [lng, lat] }
     }));
 
-    // Reverse Geocode
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data?.display_name) {
-          setNewAddress(prev => ({ ...prev, address: data.display_name }));
+    if (window.google && window.google.maps) {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+        if (status === "OK" && results[0]) {
+          setNewAddress(prev => ({ ...prev, address: results[0].formatted_address }));
         }
       });
+    }
   }, []);
 
   const handleSaveNewAddress = async () => {

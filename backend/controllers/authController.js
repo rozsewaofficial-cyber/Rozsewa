@@ -76,10 +76,14 @@ const registerUser = async (req, res) => {
     const { name, email, mobile, password, role, address, city, state } = req.body;
 
     try {
-        const userExists = await User.findOne({ email });
-
+        const userExists = await User.findOne({ $or: [{ email }, { mobile }] });
         if (userExists) {
-            return res.status(400).json({ message: 'User already exists' });
+            return res.status(400).json({ message: userExists.mobile === mobile ? 'Mobile number is already registered' : 'Email is already registered' });
+        }
+        
+        const providerExists = await Provider.findOne({ $or: [{ email }, { mobile }] });
+        if (providerExists) {
+            return res.status(400).json({ message: providerExists.mobile === mobile ? 'Mobile number is already registered as a Provider' : 'Email is already registered as a Provider' });
         }
 
         const user = await User.create({

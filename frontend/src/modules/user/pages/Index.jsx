@@ -135,7 +135,7 @@ const Index = () => {
         </div>
 
         <div className="max-w-7xl mx-auto relative z-20">
-          <SearchBar onSearch={handleSearch} />
+          <SearchBar onSearch={handleSearch} onFilterClick={() => navigate(`/shops?mode=${serviceMode}&filterOpen=true`)} />
         </div>
       </div>
 
