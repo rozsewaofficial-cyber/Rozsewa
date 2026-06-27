@@ -288,6 +288,8 @@ const createBooking = async (req, res) => {
             extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
         });
 
+        const booking = await newBooking.save();
+
         if (booking) {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
 

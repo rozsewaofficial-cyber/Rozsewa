@@ -42,6 +42,8 @@ const LiveTracking = () => {
   const { user } = useAuth();
   const [isPaying, setIsPaying] = useState(false);
   const [proposedSchedule, setProposedSchedule] = useState(null);
+  const [counterTimer, setCounterTimer] = useState(0);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {

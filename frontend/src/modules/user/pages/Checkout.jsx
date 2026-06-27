@@ -462,6 +462,11 @@ const Checkout = () => {
       localStorage.removeItem("rozsewa_checkout_data");
     } catch (err) {
       setIsProcessing(false);
+      toast({
+        title: "Booking Failed",
+        description: err.response?.data?.message || "Failed to create booking request. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
