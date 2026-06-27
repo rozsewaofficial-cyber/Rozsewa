@@ -29,6 +29,22 @@ const AdminProviders = () => {
     const [categories, setCategories] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
 
+    // Manual Commission & Subscription configurations states
+    const [subPlans, setSubPlans] = useState([]);
+    const [overrideEnabled, setOverrideEnabled] = useState(false);
+    const [overrideRate, setOverrideRate] = useState("");
+    const [overrideReason, setOverrideReason] = useState("");
+    const [waiverEnabled, setWaiverEnabled] = useState(false);
+    const [waiverUntil, setWaiverUntil] = useState("");
+    const [waiverMax, setWaiverMax] = useState("");
+    const [waiverReason, setWaiverReason] = useState("");
+    const [trialAction, setTrialAction] = useState("grant");
+    const [trialAmount, setTrialAmount] = useState("1");
+    const [trialReason, setTrialReason] = useState("");
+    const [selectedPlanId, setSelectedPlanId] = useState("");
+    const [subExpiryDate, setSubExpiryDate] = useState("");
+    const [subReason, setSubReason] = useState("");
+
     useScrollLock(!!selectedProvider || showStatusModal);
 
     useEffect(() => {
@@ -36,6 +52,124 @@ const AdminProviders = () => {
         fetchProviders();
         fetchCategories();
     }, [setTitle]);
+
+    useEffect(() => {
+        if (selectedProvider) {
+            setOverrideEnabled(selectedProvider.commissionOverride?.enabled || false);
+            setOverrideRate(selectedProvider.commissionOverride?.rate || "");
+            setOverrideReason(selectedProvider.commissionOverride?.reason || "");
+
+            setWaiverEnabled(selectedProvider.commissionWaiver?.enabled || false);
+            setWaiverUntil(selectedProvider.commissionWaiver?.untilDate ? selectedProvider.commissionWaiver.untilDate.split('T')[0] : "");
+            setWaiverMax(selectedProvider.commissionWaiver?.maxBookings || "");
+            setWaiverReason(selectedProvider.commissionWaiver?.reason || "");
+            
+            if (subPlans.length === 0) {
+                API.get('/admin/subscriptions').then(res => setSubPlans(res.data || [])).catch(() => {});
+            }
+        }
+    }, [selectedProvider]);
+
+    const handleAdjustTrial = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await API.post(`/admin/providers/${selectedProvider._id}/free-trial/adjust`, {
+                action: trialAction,
+                amount: Number(trialAmount) || 1,
+                reason: trialReason
+            });
+            const updated = { ...selectedProvider, freeTrial: data.freeTrial };
+            setSelectedProvider(updated);
+            setProviders(providers.map(p => p._id === selectedProvider._id ? updated : p));
+            toast({ title: "Free Trial Updated", description: "Free trial settings updated." });
+            setTrialReason("");
+        } catch (err) {
+            toast({ title: "Action Failed", description: err.response?.data?.message || "Failed to adjust free trial", variant: "destructive" });
+        }
+    };
+
+    const handleSaveWaiver = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await API.post(`/admin/providers/${selectedProvider._id}/waiver`, {
+                enabled: waiverEnabled,
+                untilDate: waiverUntil || null,
+                maxBookings: waiverMax !== "" ? Number(waiverMax) : null,
+                reason: waiverReason
+            });
+            const updated = { ...selectedProvider, commissionWaiver: data.commissionWaiver };
+            setSelectedProvider(updated);
+            setProviders(providers.map(p => p._id === selectedProvider._id ? updated : p));
+            toast({ title: "Waiver Updated", description: "Commission waiver settings updated." });
+        } catch (err) {
+            toast({ title: "Waiver Save Failed", description: err.response?.data?.message || "Could not save waiver", variant: "destructive" });
+        }
+    };
+
+    const handleSaveOverride = async (e) => {
+        e.preventDefault();
+        try {
+            const { data } = await API.post(`/admin/providers/${selectedProvider._id}/override`, {
+                enabled: overrideEnabled,
+                rate: Number(overrideRate) || 0,
+                reason: overrideReason
+            });
+            const updated = { ...selectedProvider, commissionOverride: data.commissionOverride, commissionRate: data.commissionOverride.enabled ? data.commissionOverride.rate : 10 };
+            setSelectedProvider(updated);
+            setProviders(providers.map(p => p._id === selectedProvider._id ? updated : p));
+            toast({ title: "Override Updated", description: "Commission override settings updated." });
+        } catch (err) {
+            toast({ title: "Override Save Failed", description: err.response?.data?.message || "Could not save override", variant: "destructive" });
+        }
+    };
+
+    const handleManualActivateSub = async (e) => {
+        e.preventDefault();
+        if (!selectedPlanId) return;
+        try {
+            const { data } = await API.post(`/admin/providers/${selectedProvider._id}/subscription/manual`, {
+                planId: selectedPlanId,
+                expiryDate: subExpiryDate || null,
+                reason: subReason
+            });
+            const updated = { 
+                ...selectedProvider, 
+                isSubscribed: true,
+                subscriptionExpiry: data.subscription.endDate,
+                subscriptionPrice: data.subscription.subscription?.price || 0,
+                subscriptionRate: data.subscription.subscription?.commissionRate || 10,
+                commissionRate: data.subscription.subscription?.commissionRate || 10
+            };
+            setSelectedProvider(updated);
+            setProviders(providers.map(p => p._id === selectedProvider._id ? updated : p));
+            toast({ title: "Subscription Activated", description: "Subscription has been manually activated." });
+            setSelectedPlanId("");
+            setSubExpiryDate("");
+            setSubReason("");
+        } catch (err) {
+            toast({ title: "Activation Failed", description: err.response?.data?.message || "Could not activate subscription", variant: "destructive" });
+        }
+    };
+
+    const handleManualCancelSub = async () => {
+        if (!window.confirm("Are you sure you want to terminate this provider's active subscription?")) return;
+        try {
+            await API.post(`/admin/providers/${selectedProvider._id}/subscription/cancel`, {
+                reason: "Administrative cancellation"
+            });
+            const updated = { 
+                ...selectedProvider, 
+                isSubscribed: false,
+                subscriptionExpiry: null,
+                commissionRate: 10
+            };
+            setSelectedProvider(updated);
+            setProviders(providers.map(p => p._id === selectedProvider._id ? updated : p));
+            toast({ title: "Subscription Cancelled", description: "Provider's active subscription has been terminated." });
+        } catch (err) {
+            toast({ title: "Cancellation Failed", variant: "destructive" });
+        }
+    };
 
     const fetchCategories = async () => {
         try {
@@ -52,7 +186,11 @@ const AdminProviders = () => {
             setProviders(providers.map(p => p._id === id ? { ...p, vendorType: newVendorType } : p));
             toast({ title: "Category Updated", description: `Provider category changed.` });
         } catch (err) {
-            toast({ title: "Update Failed", variant: "destructive" });
+            toast({ 
+                title: "Update Failed", 
+                description: err.response?.data?.message || "Failed to update category.",
+                variant: "destructive" 
+            });
         }
     };
 
@@ -88,7 +226,11 @@ const AdminProviders = () => {
             setProviders(providers.map(p => p._id === id ? { ...p, providerCategory: newCategory } : p));
             toast({ title: "Category Updated", description: `Provider role changed to ${newCategory}.` });
         } catch (err) {
-            toast({ title: "Update Failed", variant: "destructive" });
+            toast({ 
+                title: "Update Failed", 
+                description: err.response?.data?.message || "Failed to update role.",
+                variant: "destructive" 
+            });
         }
     };
 
@@ -298,9 +440,14 @@ const AdminProviders = () => {
                                                     <select
                                                         value={provider.providerCategory || 'partner'}
                                                         onChange={(e) => handleUpdateCategory(provider._id, e.target.value)}
-                                                        className="w-full bg-blue-50 border border-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-widest rounded-md px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 cursor-pointer shadow-sm transition-all"
+                                                        disabled={provider.providerCategory === 'sewak'}
+                                                        className={`w-full border text-[9px] font-black uppercase tracking-widest rounded-md px-2 py-1.5 outline-none cursor-pointer shadow-sm transition-all ${
+                                                            provider.providerCategory === 'sewak'
+                                                                ? 'bg-emerald-50 border-emerald-100 text-emerald-700 opacity-80 cursor-not-allowed'
+                                                                : 'bg-blue-50 border-blue-100 text-blue-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
+                                                        }`}
                                                     >
-                                                        <option value="partner">Partner</option>
+                                                        {provider.providerCategory !== 'sewak' && <option value="partner">Partner</option>}
                                                         <option value="sewak">Sewak</option>
                                                     </select>
                                                 </div>
@@ -456,6 +603,133 @@ const AdminProviders = () => {
                                             <span className="text-[9px] block font-black uppercase text-gray-500 mb-1">Bank Name</span>
                                             <span className="text-xs font-bold text-gray-900">{selectedProvider.bankDetails?.bankName || 'N/A'}</span>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Commission & Billing Settings</h4>
+                                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-5">
+                                        
+                                        {/* Row 1: Current status display */}
+                                        <div className="grid grid-cols-2 gap-3 border-b border-gray-200/60 pb-3.5">
+                                            <div>
+                                                <span className="text-[8px] font-black uppercase text-gray-400">Active Rule</span>
+                                                <p className="text-xs font-black text-slate-800 uppercase mt-0.5">
+                                                    {selectedProvider.commissionOverride?.enabled ? 'Override' : 
+                                                     (selectedProvider.commissionWaiver?.enabled ? 'Waiver' : 
+                                                      (selectedProvider.isSubscribed ? 'Subscription' : 'Category Slabs'))}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-[8px] font-black uppercase text-gray-400">Effective Rate</span>
+                                                <p className="text-xs font-black text-emerald-600 mt-0.5">
+                                                    {selectedProvider.commissionWaiver?.enabled ? '0%' : `${selectedProvider.commissionRate || 10}%`}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Section: Free Trial Adjustments */}
+                                        <div className="space-y-2 border-b border-gray-200/60 pb-3.5">
+                                            <span className="text-[9px] font-black uppercase text-gray-600 block">Free Trial Control</span>
+                                            <p className="text-[10px] text-gray-400 font-bold">
+                                                Used Services: {selectedProvider.freeTrial?.usedServices || 0} | Extra Free: {selectedProvider.freeTrial?.extraFreeServices || 0}
+                                            </p>
+                                            <form onSubmit={handleAdjustTrial} className="grid grid-cols-3 gap-2 mt-2">
+                                                <select value={trialAction} onChange={e => setTrialAction(e.target.value)} className="border p-1.5 rounded-lg text-xs bg-white text-slate-600">
+                                                    <option value="grant">Grant</option>
+                                                    <option value="remove">Remove</option>
+                                                    <option value="reset">Reset</option>
+                                                </select>
+                                                <input type="number" min="1" max="100" value={trialAmount} onChange={e => setTrialAmount(e.target.value)} className="border p-1.5 rounded-lg text-xs text-slate-600 text-center" />
+                                                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase rounded-lg p-1.5 transition">Apply</button>
+                                            </form>
+                                        </div>
+
+                                        {/* Section: Override Control */}
+                                        <div className="space-y-2 border-b border-gray-200/60 pb-3.5">
+                                            <span className="text-[9px] font-black uppercase text-gray-600 block">Override Settings</span>
+                                            <form onSubmit={handleSaveOverride} className="space-y-2 mt-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[10px] font-bold text-slate-500">Enable Override</label>
+                                                    <input type="checkbox" checked={overrideEnabled} onChange={e => setOverrideEnabled(e.target.checked)} className="rounded text-emerald-600" />
+                                                </div>
+                                                {overrideEnabled && (
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div>
+                                                            <label className="text-[8px] font-bold text-slate-400">Rate (%)</label>
+                                                            <input type="number" min="0" max="100" value={overrideRate} onChange={e => setOverrideRate(e.target.value)} className="w-full border p-1.5 rounded-lg text-xs" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[8px] font-bold text-slate-400">Reason</label>
+                                                            <input type="text" value={overrideReason} onChange={e => setOverrideReason(e.target.value)} className="w-full border p-1.5 rounded-lg text-xs" placeholder="e.g. VIP client" />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase rounded-lg py-1.5 transition">Save Override</button>
+                                            </form>
+                                        </div>
+
+                                        {/* Section: Waiver Control */}
+                                        <div className="space-y-2 border-b border-gray-200/60 pb-3.5">
+                                            <span className="text-[9px] font-black uppercase text-gray-600 block">Waiver Settings</span>
+                                            <form onSubmit={handleSaveWaiver} className="space-y-2 mt-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[10px] font-bold text-slate-500">Enable Waiver</label>
+                                                    <input type="checkbox" checked={waiverEnabled} onChange={e => setWaiverEnabled(e.target.checked)} className="rounded text-emerald-600" />
+                                                </div>
+                                                {waiverEnabled && (
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <div>
+                                                            <label className="text-[8px] font-bold text-slate-400">Max Bookings</label>
+                                                            <input type="number" value={waiverMax} onChange={e => setWaiverMax(e.target.value)} className="w-full border p-1.5 rounded-lg text-xs" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[8px] font-bold text-slate-400">Until Date</label>
+                                                            <input type="date" value={waiverUntil} onChange={e => setWaiverUntil(e.target.value)} className="w-full border p-1.5 rounded-lg text-xs" />
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[8px] font-bold text-slate-400">Reason</label>
+                                                            <input type="text" value={waiverReason} onChange={e => setWaiverReason(e.target.value)} className="w-full border p-1.5 rounded-lg text-xs" />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <button type="submit" className="w-full bg-slate-600 hover:bg-slate-700 text-white font-bold text-[10px] uppercase rounded-lg py-1.5 transition">Save Waiver</button>
+                                            </form>
+                                        </div>
+
+                                        {/* Section: Subscription Controls */}
+                                        <div className="space-y-2">
+                                            <span className="text-[9px] font-black uppercase text-gray-600 block">Subscription Control</span>
+                                            {selectedProvider.isSubscribed ? (
+                                                <div className="p-3 bg-purple-50 border border-purple-100 rounded-lg space-y-2">
+                                                    <div className="flex justify-between items-center text-xs">
+                                                        <span className="font-bold text-purple-700">Subscribed Active</span>
+                                                        <button type="button" onClick={handleManualCancelSub} className="text-red-600 hover:text-red-800 font-black uppercase text-[9px]">Terminate Plan</button>
+                                                    </div>
+                                                    <p className="text-[10px] text-purple-600 font-bold leading-none mt-1">
+                                                        Expiry: {new Date(selectedProvider.subscriptionExpiry).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <form onSubmit={handleManualActivateSub} className="space-y-2.5">
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div>
+                                                            <label className="text-[8px] font-bold text-slate-400">Select Plan</label>
+                                                            <select value={selectedPlanId} onChange={e => setSelectedPlanId(e.target.value)} className="w-full border p-1.5 rounded-lg text-xs bg-white">
+                                                                <option value="">Choose plan</option>
+                                                                {subPlans.map(p => <option key={p._id} value={p._id}>{p.name} (₹{p.price})</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="text-[8px] font-bold text-slate-400">Custom Expiry</label>
+                                                            <input type="date" value={subExpiryDate} onChange={e => setSubExpiryDate(e.target.value)} className="w-full border p-1.5 rounded-lg text-xs" />
+                                                        </div>
+                                                    </div>
+                                                    <button type="submit" disabled={!selectedPlanId} className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-[10px] uppercase rounded-lg py-1.5 transition disabled:opacity-50">Manually Activate</button>
+                                                </form>
+                                            )}
+                                        </div>
+
                                     </div>
                                 </div>
 

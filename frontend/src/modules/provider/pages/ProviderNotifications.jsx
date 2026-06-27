@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { Bell, CheckCircle, Info, AlertTriangle, Loader2 } from "lucide-react";
@@ -6,6 +7,7 @@ import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
 const ProviderNotifications = () => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +42,28 @@ const ProviderNotifications = () => {
       toast({ title: "All notifications marked as read" });
     } catch (err) {
       toast({ title: "Failed to mark notifications", variant: "destructive" });
+    }
+  };
+
+  const handleNotificationClick = async (notif) => {
+    if (!notif.isRead) {
+      try {
+        await API.patch(`/notifications/${notif._id || notif.id}/read`);
+        setNotifications(prev => prev.map(n => (n._id === notif._id || n.id === notif.id) ? { ...n, isRead: true } : n));
+      } catch (err) {
+        console.error("Failed to mark notification as read", err);
+      }
+    }
+
+    let targetLink = "";
+    if (notif.type === "booking" || notif.bookingId) {
+      targetLink = `/provider/bookings`;
+    } else if (notif.type === "payment") {
+      targetLink = `/provider/wallet`;
+    }
+
+    if (targetLink) {
+      navigate(targetLink);
     }
   };
 
@@ -81,7 +105,10 @@ const ProviderNotifications = () => {
         ) : (
           <div className="bg-card sm:rounded-2xl border-y sm:border-x border-border shadow-sm divide-y divide-border">
             {notifications.map(n => (
-              <div key={n._id || n.id} className={`p-4 md:p-6 flex gap-4 hover:bg-muted/20 transition-colors ${!n.isRead ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : ''}`}>
+              <div key={n._id || n.id} 
+                onClick={() => handleNotificationClick(n)}
+                className={`p-4 md:p-6 flex gap-4 hover:bg-muted/20 transition-colors cursor-pointer ${!n.isRead ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : ''}`}
+              >
                 <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${n.type === 'success' ? 'bg-emerald-50' : n.type === 'warning' ? 'bg-amber-50' : 'bg-blue-50'}`}>
                   {getIcon(n.type)}
                 </div>

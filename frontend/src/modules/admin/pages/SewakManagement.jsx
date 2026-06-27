@@ -12,6 +12,7 @@ import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 import axios from 'axios';
+import { Link, useOutletContext } from 'react-router-dom';
 
 const InputField = ({ label, children }) => (
     <div className="space-y-1.5">
@@ -23,12 +24,14 @@ const InputField = ({ label, children }) => (
 const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
 const SewakManagement = () => {
+    const { setTitle } = useOutletContext();
     const [sewaks, setSewaks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [previewImage, setPreviewImage] = useState(null);
 
-    useScrollLock(showCreateForm);
+    useScrollLock(showCreateForm || !!previewImage);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
@@ -119,8 +122,8 @@ const SewakManagement = () => {
     }, []);
 
     useEffect(() => {
-        fetchSewaks();
-    }, []);
+        setTitle("Sewak Management");
+    }, [setTitle]);
 
     const fetchCategories = async () => {
         try {
@@ -386,8 +389,27 @@ const SewakManagement = () => {
                                             {/* Sewak Details */}
                                             <td className="py-3.5 px-5">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center text-sm font-black border bg-blue-50 text-blue-700 border-blue-200">
-                                                        {(sewak.ownerName || "?").charAt(0).toUpperCase()}
+                                                    <div 
+                                                        onClick={() => sewak.profileImage && setPreviewImage({ url: sewak.profileImage, name: sewak.ownerName })}
+                                                        className={`h-9 w-9 shrink-0 rounded-xl overflow-hidden flex items-center justify-center text-sm font-black border bg-blue-50 text-blue-700 border-blue-200 ${sewak.profileImage ? 'cursor-pointer hover:ring-2 hover:ring-blue-500/30 hover:scale-105 active:scale-95 transition-all' : ''}`}
+                                                    >
+                                                        {sewak.profileImage ? (
+                                                            <img 
+                                                                src={sewak.profileImage} 
+                                                                alt={sewak.ownerName} 
+                                                                className="h-full w-full object-cover"
+                                                                onError={(e) => {
+                                                                    e.target.style.display = 'none';
+                                                                    e.target.nextSibling.style.display = 'flex';
+                                                                }}
+                                                            />
+                                                        ) : null}
+                                                        <span
+                                                            className="h-full w-full items-center justify-center"
+                                                            style={{ display: sewak.profileImage ? 'none' : 'flex' }}
+                                                        >
+                                                            {(sewak.ownerName || "?").charAt(0).toUpperCase()}
+                                                        </span>
                                                     </div>
                                                     <div>
                                                         <p className="text-sm font-bold text-gray-900">{sewak.ownerName}</p>
@@ -432,9 +454,14 @@ const SewakManagement = () => {
                                                 {sewak.documents?.length > 0 ? (
                                                     <div className="flex justify-center gap-1">
                                                         {sewak.documents.map(doc => (
-                                                            <a key={doc.id} href={doc.url} target="_blank" rel="noreferrer" title={doc.id} className="h-7 w-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 hover:bg-blue-100 transition-colors">
+                                                            <Link 
+                                                                key={doc.id} 
+                                                                to={`/admin/verify-sewaks?sewakId=${sewak._id}&docId=${doc.id}`} 
+                                                                title={`Review ${doc.id.toUpperCase().replace('_', ' ')}`} 
+                                                                className="h-7 w-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 hover:bg-blue-100 transition-colors"
+                                                            >
                                                                 <FileCheck className="h-3.5 w-3.5" />
-                                                            </a>
+                                                            </Link>
                                                         ))}
                                                     </div>
                                                 ) : (
@@ -608,6 +635,50 @@ const SewakManagement = () => {
                                     </button>
                                 </div>
                             </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {/* Image Preview Modal */}
+            <AnimatePresence>
+                {previewImage && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" 
+                            onClick={() => setPreviewImage(null)} 
+                        />
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden z-[101] flex flex-col max-h-[90vh]"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white">
+                                <div className="text-left">
+                                    <h3 className="text-sm font-bold text-gray-900">{previewImage.name}</h3>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Profile Image Preview</p>
+                                </div>
+                                <button 
+                                    onClick={() => setPreviewImage(null)} 
+                                    className="h-8 w-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            {/* Image */}
+                            <div className="flex-1 bg-gray-950 flex items-center justify-center p-6 overflow-auto">
+                                <img 
+                                    src={previewImage.url} 
+                                    alt={previewImage.name} 
+                                    className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-lg"
+                                />
+                            </div>
                         </motion.div>
                     </div>
                 )}

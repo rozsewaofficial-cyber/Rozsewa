@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
+import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Users, Plus, Search, Mail, Phone, Trash2,
@@ -36,6 +37,7 @@ const InputField = ({ label, children }) => (
 const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all";
 
 const AdminHRM = ({ view }) => {
+    const { setTitle } = useOutletContext();
     const [allEmployees, setAllEmployees] = useState([]);
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -65,6 +67,11 @@ const AdminHRM = ({ view }) => {
     const [uploading, setUploading] = useState(false);
 
     useEffect(() => { setFormData(prev => ({ ...prev, role: getDefaultRole() })); }, [view, user]);
+    useEffect(() => {
+        if (view === 'supervisor') setTitle("Supervisors");
+        else if (view === 'employee') setTitle("Staff / Employees");
+        else setTitle("HRM Portal");
+    }, [view, setTitle]);
     useEffect(() => { fetchEmployees(); }, []);
 
 

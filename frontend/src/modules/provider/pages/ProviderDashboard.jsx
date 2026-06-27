@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
-  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle
+  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle,
+  Percent, ArrowRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -44,18 +45,51 @@ const ProviderDashboard = () => {
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? true);
   const [isEmergencyActive, setIsEmergencyActive] = useState(user?.isEmergencyEnabled ?? false);
   const [showEmergencyMenu, setShowEmergencyMenu] = useState(false);
+  const emergencyMenuRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   const [supportNum, setSupportNum] = useState("91XXXXXXXXXX");
   const [dynamicChartData, setDynamicChartData] = useState(chartDataFallback);
   const [plans, setPlans] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const isSubscribed = user?.isSubscribed || false;
+  const [commissionPreview, setCommissionPreview] = useState(null);
+  const [estimateAmount, setEstimateAmount] = useState("1000");
+  const [estimation, setEstimation] = useState(null);
+
+  const fetchCommissionPreview = async () => {
+    try {
+      const { data } = await API.get("/provider/commission-preview?bookingAmount=1000");
+      setCommissionPreview(data);
+      setEstimation(data);
+    } catch (err) {}
+  };
+
+  const handleEstimate = async (val) => {
+    setEstimateAmount(val);
+    if (!val || isNaN(val)) return;
+    try {
+      const { data } = await API.get(`/provider/commission-preview?bookingAmount=${val}`);
+      setEstimation(data);
+    } catch (err) {}
+  };
+
   const { theme } = useTheme();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Close emergency menu when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (emergencyMenuRef.current && !emergencyMenuRef.current.contains(e.target)) {
+        setShowEmergencyMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
   
   const tickColor = theme === 'dark' ? '#cbd5e1' : '#64748b'; // slate-300 : slate-500
@@ -102,76 +136,11 @@ const ProviderDashboard = () => {
     fetchPlans();
     fetchMenu();
     loadRazorpay();
+    fetchCommissionPreview();
   }, []);
 
-  const handleUpgrade = async () => {
-    console.log("Upgrade button clicked. Current plans:", plans);
-    if (plans.length === 0) {
-      toast({ 
-        title: "No plans found", 
-        description: "Checking for available registration plans... please wait or refresh.", 
-        variant: "destructive" 
-      });
-      fetchPlans(); // Retry fetching plans
-      return;
-    }
-    
-    const plan = plans[0];
-    console.log("Selected plan for upgrade:", plan);
-    if (!plan) return;
-
-    if (!window.Razorpay) {
-      toast({ 
-        title: "Payment system not ready", 
-        description: "Razorpay script is still loading. Please wait 2 seconds and try again.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { data: order } = await API.post("/payment/order", { amount: plan.price });
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: "RozSewa Elite",
-        description: plan.name,
-        order_id: order.id,
-        handler: async (response) => {
-          try {
-            const { data } = await API.post("/payment/verify-subscription", {
-              ...response,
-              planId: plan._id
-            });
-            if (data.success) {
-              toast({ title: "Welcome to Elite!", description: "Registration activated successfully." });
-              // Force clear cache and reload to get new profile status
-              setTimeout(() => {
-                window.location.reload();
-              }, 1500);
-            }
-          } catch (err) {
-            toast({ title: "Activation Failed", variant: "destructive" });
-          } finally {
-            setIsLoading(false);
-          }
-        },
-        prefill: { 
-          name: user?.ownerName,
-          contact: user?.mobile 
-        },
-        theme: { color: "#059669" },
-        modal: { ondismiss: () => setIsLoading(false) }
-      };
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      console.error("Razorpay Error:", err);
-      toast({ title: "Payment Initialization Failed", description: err.response?.data?.message || "Check your internet or contact support.", variant: "destructive" });
-      setIsLoading(false);
-    }
+  const handleUpgrade = () => {
+    window.location.href = "/provider/subscriptions";
   };
 
   useEffect(() => {
@@ -267,58 +236,142 @@ const ProviderDashboard = () => {
       setShowEmergencyMenu(false);
     }
   };
-  // KYC Check for Sewaks
-  if (user?.providerCategory === 'sewak' && !user?.kycVerified) {
-    const hasUploaded = user?.documents && user.documents.length > 0;
+  const getChecklistItem = (label, docId, isRequired = false) => {
+    const doc = user?.documents?.find(d => d.id === docId);
+    
+    let icon = "⏳";
+    let iconCls = "text-amber-500 bg-amber-50 dark:bg-amber-950/20";
+    let statusText = "Pending Review";
+    let actionBtn = null;
+    
+    if (!doc) {
+      icon = "⚪";
+      iconCls = "text-slate-400 bg-slate-50 dark:bg-slate-900/20";
+      statusText = isRequired ? "Required" : "Optional";
+      if (!user?.kycSubmitted || user?.kycStatus === 'draft' || user?.kycStatus === 'rejected') {
+        actionBtn = (
+          <Link to="/provider/documents" className="text-xs font-black text-emerald-600 hover:underline uppercase tracking-wider shrink-0">
+            {docId === 'live_video' ? 'Record' : 'Upload'}
+          </Link>
+        );
+      }
+    } else if (doc.status === 'draft') {
+      icon = "⏳";
+      iconCls = "text-blue-500 bg-blue-50 dark:bg-blue-950/20";
+      statusText = "Uploaded (Draft)";
+      if (!user?.kycSubmitted || user?.kycStatus === 'draft' || user?.kycStatus === 'rejected') {
+        actionBtn = (
+          <Link to="/provider/documents" className="text-xs font-black text-emerald-600 hover:underline uppercase tracking-wider shrink-0">
+            Edit
+          </Link>
+        );
+      }
+    } else if (doc.status === 'verified') {
+      icon = "✓";
+      iconCls = "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20";
+      statusText = "Approved";
+    } else if (doc.status === 'rejected') {
+      icon = "✖";
+      iconCls = "text-rose-500 bg-rose-50 dark:bg-rose-950/20";
+      statusText = "Rejected";
+      if (!user?.kycSubmitted || user?.kycStatus === 'draft' || user?.kycStatus === 'rejected') {
+        actionBtn = (
+          <Link to="/provider/documents" className="text-xs font-black text-rose-600 hover:underline uppercase tracking-wider shrink-0">
+            {docId === 'live_video' ? 'Re-record' : 'Re-upload'}
+          </Link>
+        );
+      }
+    }
 
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="max-w-md w-full bg-white rounded-[40px] p-10 shadow-2xl shadow-slate-200 border border-slate-100">
-          <div className="h-24 w-24 bg-amber-50 rounded-[32px] flex items-center justify-center mb-8 mx-auto border-2 border-amber-100/50">
-            {hasUploaded ? (
-              <Clock className="h-12 w-12 text-amber-500 animate-pulse" />
+      <div key={docId} className="flex flex-col space-y-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-3">
+            <div className={`h-8 w-8 rounded-full flex items-center justify-center font-black ${iconCls}`}>
+              {icon}
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-800 dark:text-slate-200">{label}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{statusText}</p>
+            </div>
+          </div>
+          {actionBtn}
+        </div>
+        {doc?.status === 'rejected' && doc.rejectionReason && (
+          <p className="text-[10px] font-bold text-rose-600 bg-rose-100/40 p-2 rounded-lg text-left leading-relaxed">
+            Reason: {doc.rejectionReason}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  // KYC Check for Sewaks
+  if (user?.providerCategory === 'sewak' && !user?.kycVerified) {
+    const kycStatus = user?.kycStatus || 'draft';
+
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl shadow-slate-200 dark:shadow-none border border-slate-100 dark:border-slate-800">
+          <div className="h-20 w-20 bg-amber-50 dark:bg-amber-950/20 rounded-[28px] flex items-center justify-center mb-6 mx-auto border-2 border-amber-100/50 dark:border-amber-900/30">
+            {kycStatus === 'submitted' || kycStatus === 'under_review' ? (
+              <Clock className="h-10 w-10 text-amber-500 animate-pulse" />
+            ) : kycStatus === 'rejected' ? (
+              <XCircle className="h-10 w-10 text-rose-500" />
             ) : (
-              <ShieldAlert className="h-12 w-12 text-amber-500" />
+              <ShieldAlert className="h-10 w-10 text-amber-500" />
             )}
           </div>
 
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-4">
-            {hasUploaded ? "Verification Pending" : "Identity KYC Required"}
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-2 uppercase">
+            {kycStatus === 'submitted' ? "KYC Submitted" :
+             kycStatus === 'under_review' ? "KYC Under Review" :
+             kycStatus === 'partially_approved' ? "Partially Approved" :
+             kycStatus === 'rejected' ? "KYC Rejected" : "Identity KYC Required"}
           </h1>
 
-          <p className="text-slate-500 font-medium leading-relaxed mb-10">
-            {hasUploaded
-              ? "Your documents have been submitted and are being reviewed by the admin panel. Access will be granted after verification."
-              : "To start receiving service requests, you must first complete your identity verification by uploading required documents."}
+          <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed mb-6">
+            {kycStatus === 'submitted' || kycStatus === 'under_review' || kycStatus === 'partially_approved'
+              ? "Your KYC documents are currently in review by the admin panel. Please check your verification checklist below."
+              : kycStatus === 'rejected'
+              ? "One or more of your required verification documents were rejected. Please review and update them."
+              : "To start receiving customer bookings, you must complete your identity verification by recording a live video and uploading required documents."}
           </p>
 
-          {hasUploaded ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                  <CheckCircle className="h-4 w-4 text-white" />
-                </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Documents Submitted Successfully</p>
-              </div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-amber-50 text-amber-600 py-3 rounded-xl border border-amber-100/50">
-                ETA: 24-48 Business Hours
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="w-full py-4 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                Refresh Status
-              </button>
-            </div>
-          ) : (
+          {/* Checklist */}
+          <div className="space-y-2 mb-6">
+            <h3 className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider text-left mb-1">Verification Checklist</h3>
+            {getChecklistItem("Aadhaar Card", "aadhaar", true)}
+            {getChecklistItem("PAN Card", "pan", true)}
+            {getChecklistItem("Live Video Verification", "live_video", true)}
+            {/* Optional ones if uploaded */}
+            {user?.documents?.some(d => d.id === 'gst') && getChecklistItem("GST Certificate", "gst")}
+            {user?.documents?.some(d => d.id === 'license') && getChecklistItem("Business License", "license")}
+            {user?.documents?.some(d => d.id === 'certification') && getChecklistItem("Skill Certification", "certification")}
+            {user?.documents?.some(d => d.id === 'police') && getChecklistItem("Police Verification", "police")}
+          </div>
+
+          {/* Submit/Action Button */}
+          {(!user?.kycSubmitted || kycStatus === 'draft' || kycStatus === 'rejected') ? (
             <Link
               to="/provider/documents"
-              className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-16 rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-4"
+              className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-14 rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-2 text-sm uppercase tracking-wider animate-in fade-in"
             >
-              <Upload className="h-5 w-5" />
-              <span>START KYC PROCESS</span>
+              <Upload className="h-4.5 w-4.5" />
+              <span>Go to Verification Vault</span>
             </Link>
+          ) : (
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full h-14 bg-slate-900 text-white hover:bg-slate-800 font-black rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-2 text-sm uppercase tracking-wider"
+            >
+              <span>Refresh Status</span>
+            </button>
           )}
+
+          <p className="text-[10px] font-bold text-muted-foreground mt-4">
+            Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link>
+          </p>
         </div>
       </div>
     );
@@ -396,7 +449,7 @@ const ProviderDashboard = () => {
           ) : (
             <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
           )}
-          <p className="text-[10px] font-bold text-muted-foreground">Need help? <Link to="/support" className="text-emerald-600 underline">Contact RozSewa Support</Link></p>
+          <p className="text-[10px] font-bold text-muted-foreground">Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link></p>
         </main>
       </div>
     );
@@ -437,7 +490,7 @@ const ProviderDashboard = () => {
               {isOnline ? "Online" : "Offline"}
             </button>
 
-            <div className="relative">
+            <div className="relative" ref={emergencyMenuRef}>
               <button onClick={() => setShowEmergencyMenu(!showEmergencyMenu)}
                 className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-500 relative overflow-hidden ${isEmergencyActive
                   ? "bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]"
@@ -504,6 +557,153 @@ const ProviderDashboard = () => {
         <section className="animate-in slide-in-from-bottom-5 duration-700 delay-150">
           <EarningsWidget />
         </section>
+
+        {/* Commission Status / Partner Program Card */}
+        {user?.providerCategory !== 'sewak' && commissionPreview && (
+          <section className="animate-in fade-in duration-700 mt-6 text-left">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[1.5rem] shadow-sm space-y-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-100 dark:border-emerald-900/40 text-[9px] font-bold uppercase tracking-wider">
+                    Partner Program Active
+                  </div>
+                  <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1.5">
+                    Your Commission Overview
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-0.5">
+                    Current active strategy: <span className="text-emerald-500 font-bold">{commissionPreview.currentRule}</span>
+                  </p>
+                </div>
+                <div className="h-11 w-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40 shrink-0">
+                  <Percent className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 border-t border-slate-100 dark:border-slate-800/60 pt-4">
+                {/* State 1: Free Trial */}
+                {commissionPreview.appliedSource === 'FREE_TRIAL' && (
+                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100/50 dark:border-emerald-900/30 rounded-2xl text-left">
+                    <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 rounded-full">Free Trial Active</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Current Commission</span>
+                        <span className="text-base font-black text-emerald-600">0%</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Free Jobs Left</span>
+                        <span className="text-base font-black text-slate-800 dark:text-slate-100">{commissionPreview.remainingFreeServices} / 3</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Next Strategy</span>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-350">Category Default</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1">
+                          Upgrade early <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* State 2: Active Subscription */}
+                {commissionPreview.appliedSource === 'SUBSCRIPTION' && commissionPreview.activeSubscription && (
+                  <div className="p-4 bg-purple-50/50 dark:bg-purple-950/10 border border-purple-100/50 dark:border-purple-900/30 rounded-2xl text-left">
+                    <div className="flex justify-between items-start">
+                      <span className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 tracking-widest px-2.5 py-1 bg-purple-100 dark:bg-purple-900/40 rounded-full">Active Member: {commissionPreview.activeSubscription.planName}</span>
+                      <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 hover:text-purple-800 tracking-wider">Manage</Link>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Commission Rate</span>
+                        <span className="text-base font-black text-purple-600">{commissionPreview.currentCommissionPercentage}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Days Left</span>
+                        <span className="text-base font-black text-slate-800 dark:text-slate-100">{commissionPreview.activeSubscription.daysRemaining} Days</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Benefits</span>
+                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block mt-1 truncate">
+                          {commissionPreview.activeSubscription.benefits?.join(', ') || 'Featured badge, priority client listings'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* State 3: Category Slab / Global fallback / Override / Waiver */}
+                {commissionPreview.appliedSource !== 'FREE_TRIAL' && commissionPreview.appliedSource !== 'SUBSCRIPTION' && (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/40 rounded-2xl text-left">
+                    <div className="flex justify-between items-start">
+                      <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
+                        {commissionPreview.appliedSource === 'PROVIDER_OVERRIDE' ? 'Override Applied' : 
+                         (commissionPreview.appliedSource === 'WAIVER' ? 'Waiver Active' : 'Category Defaults')}
+                      </span>
+                      <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase text-blue-600 dark:text-blue-400 hover:text-blue-850 tracking-widest flex items-center gap-1">
+                        Get Discount <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Current Category</span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase block truncate">{commissionPreview.categoryCommission.categoryName}</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Commission Rate</span>
+                        <span className="text-base font-black text-emerald-600">{commissionPreview.currentCommissionPercentage}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Active Slab Range</span>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-350">{commissionPreview.categoryCommission.activeSlabRange}</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Slab Rule Description</span>
+                        <span className="text-[10px] text-slate-400 font-medium block">Commission rate scales dynamically based on booking price.</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Real-time Earnings Estimator */}
+              <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">
+                      Earnings Estimator
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      Preview platform commission and payout shares
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border rounded-lg px-2 py-1 shadow-sm shrink-0">
+                    <span className="text-xs text-slate-400 font-bold">₹</span>
+                    <input 
+                      type="number" 
+                      value={estimateAmount} 
+                      onChange={e => handleEstimate(e.target.value)} 
+                      className="w-16 bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 outline-none border-none p-0 focus:ring-0"
+                    />
+                  </div>
+                </div>
+
+                {estimation && (
+                  <div className="grid grid-cols-2 gap-4 border-t border-slate-200/50 dark:border-slate-800/40 pt-3">
+                    <div className="text-left">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">Platform Cut ({estimation.currentCommissionPercentage}%)</span>
+                      <p className="text-sm font-black text-rose-500">₹{estimation.estimatedCommission.toFixed(2)}</p>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">Your Share (Earnings)</span>
+                      <p className="text-sm font-black text-emerald-500">₹{estimation.estimatedEarnings.toFixed(2)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Registration Status / Elite Banner */}
         {user?.providerCategory !== 'sewak' && !isSubscribed && (

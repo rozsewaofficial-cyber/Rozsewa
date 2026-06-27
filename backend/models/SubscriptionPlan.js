@@ -11,10 +11,19 @@ const subscriptionPlanSchema = mongoose.Schema({
     category: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Category',
-        required: true 
+        required: false 
     },
     offeredCommissionRate: { type: Number, required: true },
     offeredCommissionType: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
+    commissionRate: { type: Number }, // alias/new field
+    duration: { type: Number, default: 365 }, // duration in days
+    status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    benefits: [
+        {
+            key: { type: String, required: true },
+            value: { type: mongoose.Schema.Types.Mixed, required: true }
+        }
+    ],
     description: { type: String },
     features: [{ type: String }],
     isActive: { type: Boolean, default: true }

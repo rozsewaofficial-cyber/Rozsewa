@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useScrollLock } from '@/lib/scrollLock';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, CheckCircle, Ban, AlertTriangle, User, UserCog, Calendar, IndianRupee } from 'lucide-react';
@@ -6,6 +7,7 @@ import API from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 
 const ProviderReports = () => {
+  const { setTitle } = useOutletContext();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeReport, setActiveReport] = useState(null);
@@ -27,6 +29,10 @@ const ProviderReports = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setTitle("Provider Reports");
+  }, [setTitle]);
 
   useEffect(() => {
     fetchReports();

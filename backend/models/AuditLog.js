@@ -8,7 +8,7 @@ const auditLogSchema = new mongoose.Schema({
     },
     entityType: {
         type: String,
-        enum: ["USER", "SEWAK", "VENDOR", "KYC", "ADMIN", "COMBO", "BOOKING"],
+        enum: ["USER", "SEWAK", "VENDOR", "KYC", "ADMIN", "COMBO", "BOOKING", "PARTNER_PROGRAM", "COMMISSION_SLAB", "PROVIDER", "SUBSCRIPTION_PLAN"],
         required: true
     },
     entityId: {
@@ -30,6 +30,14 @@ const auditLogSchema = new mongoose.Schema({
     bonusEarned: {
         type: Number,
         default: 0
+    },
+    ipAddress: {
+        type: String,
+        default: ""
+    },
+    reason: {
+        type: String,
+        default: ""
     },
     timestamp: {
         type: Date,

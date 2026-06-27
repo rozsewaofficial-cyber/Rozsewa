@@ -86,11 +86,18 @@ app.use('/api/verify', verifyRoutes);
 app.use('/mock', mockRoutes);
 app.use('/api/chat', chatRoutes);
 
+// V2 Versioned Commission APIs
+const { adminV2Router, providerV2Router } = require('./routes/v2Routes');
+app.use('/api/v2/admin', adminV2Router);
+app.use('/api/v2/provider', providerV2Router);
+
 // Start Cron Jobs
 const { startCronJobs } = require('./cron/payouts');
 const startBookingReminderCron = require('./cron/bookingReminders');
+const { startSubscriptionCheckCron } = require('./cron/subscriptionCheck');
 startCronJobs();
 startBookingReminderCron();
+startSubscriptionCheckCron();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });

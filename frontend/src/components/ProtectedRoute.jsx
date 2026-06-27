@@ -33,13 +33,13 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
   const isSewak = user?.role === 'sewak' || user?.providerCategory === 'sewak';
   const isPartner = user?.role === 'provider' && user?.providerCategory !== 'sewak';
 
-  // Mandatory check for Sewaks: Must be kycVerified to access features other than the base dashboard and documents
-  if (isSewak && !user?.kycVerified && location.pathname !== '/provider' && location.pathname !== '/provider/documents') {
+  // Mandatory check for Sewaks: Must be kycVerified to access features other than the base dashboard, documents, and support
+  if (isSewak && !user?.kycVerified && location.pathname !== '/provider' && location.pathname !== '/provider/documents' && location.pathname !== '/provider/support') {
     return <Navigate to="/provider" replace />;
   }
 
-  // Mandatory check for other providers: Must be verified to access features other than the base dashboard and documents
-  if (isPartner && user?.status !== 'verified' && location.pathname !== '/provider' && location.pathname !== '/provider/documents') {
+  // Mandatory check for other providers: Must be verified to access features other than the base dashboard, documents, and support
+  if (isPartner && user?.status !== 'verified' && location.pathname !== '/provider' && location.pathname !== '/provider/documents' && location.pathname !== '/provider/support') {
     return <Navigate to="/provider" replace />;
   }
 

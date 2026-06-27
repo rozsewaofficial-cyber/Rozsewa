@@ -5,7 +5,7 @@ import PinModal from "./PinModal";
 import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
-  Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert,
+  Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
   HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon
 } from "lucide-react";
 
@@ -43,6 +43,7 @@ export const adminSidebarLinks = [
   { path: "/admin/banners", label: "App Banners", icon: Image },
   { path: "/admin/help-training", label: "Help & Training", icon: HelpCircle },
   { path: "/admin/activity-log", label: "System Logs", icon: Terminal },
+  { path: "/admin/commission-analytics", label: "Commission Analytics", icon: TrendingUp },
   { path: "/admin/partner-program", label: "Partner Program", icon: ShieldCheck },
   { path: "/admin/settings", label: "Global Settings", icon: Settings },
   { path: "/admin/settings/cash-limits", label: "Cash Limits", icon: CreditCard },
@@ -177,9 +178,25 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
 
       <div className="px-6 mt-auto pt-4 border-t border-slate-800">
         <div className="flex items-center gap-3">
-          <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${user?.role === 'superadmin' ? 'bg-amber-500/20 text-amber-500' : 'bg-blue-500/20 text-blue-400'
+          <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm overflow-hidden shrink-0 ${user?.role === 'superadmin' ? 'bg-amber-500/20 text-amber-500' : 'bg-blue-500/20 text-blue-400'
             }`}>
-            {user?.name?.charAt(0) || 'AD'}
+            {user?.avatar || user?.profileImage ? (
+              <img
+                src={user.avatar || user.profileImage}
+                alt="Profile"
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <span
+              className="h-full w-full items-center justify-center font-bold text-sm"
+              style={{ display: user?.avatar || user?.profileImage ? 'none' : 'flex' }}
+            >
+              {user?.name?.charAt(0) || 'AD'}
+            </span>
           </div>
           <div>
             <p className="text-xs font-black text-white">{user?.name || 'Admin'}</p>

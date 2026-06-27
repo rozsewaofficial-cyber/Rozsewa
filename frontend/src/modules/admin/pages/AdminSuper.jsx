@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useScrollLock } from '@/lib/scrollLock';
 import {
     Users, Plus, Shield, Lock, Trash2, CheckCircle2, XCircle,
@@ -23,6 +24,7 @@ const InputField = ({ label, children }) => (
 const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
 const AdminSuper = () => {
+    const { setTitle } = useOutletContext();
     const [admins, setAdmins] = useState([]);
     const [sewaks, setSewaks] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -59,6 +61,10 @@ const AdminSuper = () => {
         subscription_commission_rate: 5,
         subscription_enabled: true
     });
+
+    useEffect(() => {
+        setTitle("Super Admin Panel");
+    }, [setTitle]);
 
     useEffect(() => {
         const loadAllData = async () => {

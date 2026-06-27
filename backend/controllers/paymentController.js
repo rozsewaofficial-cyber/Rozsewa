@@ -102,27 +102,40 @@ const verifySubscriptionPayment = async (req, res) => {
         const provider = await Provider.findById(req.user._id);
         if (!provider) return res.status(404).json({ message: "Provider not found" });
 
-        // Update provider subscription status
-        provider.isSubscribed = true;
+        const ProviderSubscription = require('../models/ProviderSubscription');
 
-        // Calculate expiry based on planType
-        const expiryDate = new Date();
+        // Deactivate existing active subscriptions
+        await ProviderSubscription.updateMany(
+            { provider: provider._id, status: 'active' },
+            { status: 'expired' }
+        );
+
+        // Calculate expiry based on duration in days
         const purchaseDate = new Date();
-        if (plan.planType === 'monthly') {
-            expiryDate.setDate(expiryDate.getDate() + 30);
-        } else {
-            expiryDate.setDate(expiryDate.getDate() + 365);
-        }
+        const expiryDate = new Date();
+        const durationDays = plan.duration || (plan.planType === 'monthly' ? 30 : 365);
+        expiryDate.setDate(expiryDate.getDate() + durationDays);
 
+        // Create new provider subscription record
+        await ProviderSubscription.create({
+            provider: provider._id,
+            subscription: plan._id,
+            startDate: purchaseDate,
+            endDate: expiryDate,
+            status: 'active'
+        });
+
+        // Update provider subscription status (for legacy compatibility)
+        provider.isSubscribed = true;
         provider.subscriptionPurchaseDate = purchaseDate;
         provider.subscriptionExpiry = expiryDate;
         provider.subscriptionPrice = plan.price;
-        provider.subscriptionRate = plan.offeredCommissionRate;
-        provider.subscriptionType = plan.offeredCommissionType;
+        provider.subscriptionRate = plan.commissionRate !== undefined ? plan.commissionRate : plan.offeredCommissionRate;
+        provider.subscriptionType = plan.offeredCommissionType || 'percentage';
         provider.planType = plan.name.toLowerCase().includes('elite') ? 'Elite' : 'Pro';
 
-        // Crucial: Update the actual commission rate used for bookings
-        provider.commissionRate = plan.offeredCommissionRate;
+        // Update the actual commission rate used for bookings (legacy)
+        provider.commissionRate = plan.commissionRate !== undefined ? plan.commissionRate : plan.offeredCommissionRate;
 
         await provider.save();
 

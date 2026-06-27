@@ -276,7 +276,6 @@ const createBooking = async (req, res) => {
             totalAmount: finalTotalAmount,
             address,
             location: req.body.location,
-            requiredProviderCategory: requiredProviderCategory || 'partner',
             couponCode,
             discountAmount: totalDiscount,
             customerOffer: customerOffer !== undefined && customerOffer !== null ? payableAmount : null,
@@ -1136,327 +1135,313 @@ const verifyEndOTP = async (req, res) => {
             if (!isAuthorized) return res.status(401).json({ message: 'Not authorized' });
 
             if (booking.endOTP === otp) {
-                // Update Provider stats and Commission logic
-                const provider = await Provider.findById(booking.providerId).populate('vendorType');
-
-                let adminCommission = 0;
-                let providerPayout = booking.totalAmount;
-                let commissionStatus = 'free';
-
-                // Fetch Partner Program Config
-                const Setting = require('../models/Setting');
-                let config;
+                const session = await mongoose.startSession();
+                session.startTransaction();
                 try {
-                    const configData = await Setting.findOne({ key: 'partner_program_config' });
-                    if (configData) {
-                        config = JSON.parse(configData.value);
+                    // Refetch booking and provider with session
+                    const bookingSession = await Booking.findById(booking._id).session(session);
+                    // Check idempotency:
+                    if (bookingSession.status === 'completed') {
+                        await session.commitTransaction();
+                        session.endSession();
+                        return res.json({
+                            message: 'Service completed successfully (idempotent)',
+                            status: 'completed',
+                            payout: bookingSession.providerPayout,
+                            commission: bookingSession.adminCommission
+                        });
                     }
-                } catch (err) {
-                    console.log('Error fetching partner config, using defaults');
-                }
 
-                // Default Fallbacks
-                config = config || {
-                    commissionSlabs: [
-                        { min: 50, max: 100, rate: 15 },
-                        { min: 101, max: 300, rate: 14 },
-                        { min: 301, max: 700, rate: 12 },
-                        { min: 701, max: 999999, rate: 10 }
-                    ],
-                    subscriptionPlans: { elite: { commissionRate: 0 }, pro: { commissionRate: 5 }, basic: { commissionRate: 8 } },
-                    performanceBonuses: { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
-                    penalties: { cancellationCharge: 50 },
-                    referral: { commissionRate: 1, durationMonths: 12 },
-                    attendance: { requiredDays: 30, discountRate: 2 }
-                };
+                    const provider = await Provider.findById(booking.providerId).populate('vendorType').session(session);
 
-                if (provider.providerCategory === 'sewak') {
-                    adminCommission = booking.totalAmount;
-                    providerPayout = 0;
-                    commissionStatus = 'sewak_revenue';
-                } else if (provider.freeServicesLeft > 0) {
-                    provider.freeServicesLeft -= 1;
-                    adminCommission = 0;
-                    providerPayout = booking.totalAmount;
-                    commissionStatus = 'free_new_joiner';
-                } else {
-                    let rate = 10;
-                    let commissionAmount = 0;
+                    const CommissionRuleEngine = require('../services/CommissionRuleEngine');
+                    const CommissionService = require('../services/CommissionService');
+                    const FinancialLedger = require('../models/FinancialLedger');
+                    const CommissionLog = require('../models/CommissionLog');
+                    const PartnerProgram = require('../models/PartnerProgram');
 
-                    if (provider.isSubscribed && provider.subscriptionRate !== null) {
-                        if (provider.subscriptionType === 'fixed') {
-                            commissionAmount = provider.subscriptionRate;
-                        } else {
-                            rate = provider.subscriptionRate;
-                            commissionAmount = (booking.totalAmount * rate) / 100;
-                        }
-                        commissionStatus = `subscription_active`;
+                    let adminCommission = 0;
+                    let providerPayout = booking.totalAmount;
+                    let commissionStatus = 'free';
+                    let calculation = null;
+                    const txnId = `TXN-${new mongoose.Types.ObjectId().toString().toUpperCase()}`;
+                    const commTxnId = `COM-${new mongoose.Types.ObjectId().toString().toUpperCase()}`;
+
+                    if (provider.providerCategory === 'sewak') {
+                        adminCommission = booking.totalAmount;
+                        providerPayout = 0;
+                        commissionStatus = 'sewak_revenue';
                     } else {
-                        // Amount Slabs by Category
-                        const amt = booking.totalAmount;
-                        const providerCategoryId = provider.vendorType?._id?.toString() || provider.vendorType?.toString();
+                        const matchedRule = await CommissionRuleEngine.selectRule(booking.totalAmount, provider, provider.vendorType);
+                        calculation = CommissionService.calculate(booking.totalAmount, matchedRule);
+                        adminCommission = calculation.platformAmount;
+                        providerPayout = calculation.providerAmount;
+                        commissionStatus = calculation.source.toLowerCase();
 
-                        let matchingSlabs = config.commissionSlabs?.filter(s => s.categoryId === providerCategoryId) || [];
-                        if (matchingSlabs.length === 0) {
-                            matchingSlabs = config.commissionSlabs?.filter(s => !s.categoryId || s.categoryId === 'default' || s.categoryId === '') || [];
-                        }
-
-                        const slab = matchingSlabs.find(s => amt >= s.min && amt <= s.max);
-                        rate = slab ? slab.rate : (matchingSlabs.length > 0 ? matchingSlabs[0].rate : 10);
-                        commissionAmount = (booking.totalAmount * rate) / 100;
-                        commissionStatus = 'slab_commission';
-                    }
-
-                    // Attendance Bonus Discount (Only applies if percentage based)
-                    if (provider.attendanceBonusActive && (!provider.isSubscribed || provider.subscriptionType !== 'fixed')) {
-                        const discount = (booking.totalAmount * (config.attendance?.discountRate || 0)) / 100;
-                        commissionAmount = Math.max(0, commissionAmount - discount);
-                    }
-
-                    adminCommission = commissionAmount;
-                    providerPayout = booking.totalAmount - adminCommission;
-                }
-
-                // --- Partner Program Bonuses ---
-                if (provider.providerCategory !== 'sewak') {
-                    provider.bookingsCount = (provider.bookingsCount || 0) + 1;
-
-                    // Loyalty Bonus
-                    if (provider.bookingsCount === config.performanceBonuses.loyaltyBonusBookings) {
-                        providerPayout += config.performanceBonuses.loyaltyBonusAmount;
-                        const { Transaction } = require('../models/Wallet');
-                        await Transaction.create({
-                            providerId: provider._id,
-                            title: 'Loyalty Bonus',
-                            amount: config.performanceBonuses.loyaltyBonusAmount,
-                            type: 'credit',
-                            status: 'completed',
-                            bookingId: booking._id,
-                            description: `Completed ${config.performanceBonuses.loyaltyBonusBookings} Bookings`
-                        });
-                    }
-
-                    // Star Bonus
-                    let starBonusPercent = 0;
-                    if (provider.badges?.includes('GoldStar')) starBonusPercent = config.performanceBonuses.goldStarRate;
-                    else if (provider.badges?.includes('SilverStar')) starBonusPercent = config.performanceBonuses.silverStarRate;
-
-                    if (starBonusPercent > 0) {
-                        const starBonus = (booking.totalAmount * starBonusPercent) / 100;
-                        providerPayout += starBonus;
-                        const { Transaction } = require('../models/Wallet');
-                        await Transaction.create({
-                            providerId: provider._id,
-                            title: 'Star Bonus',
-                            amount: starBonus,
-                            type: 'credit',
-                            status: 'completed',
-                            bookingId: booking._id,
-                            description: `Performance Bonus (${starBonusPercent}%)`
-                        });
-                    }
-
-                    // Referral Commission
-                    if (provider.referredBy) {
-                        const durationAgo = new Date();
-                        durationAgo.setMonth(durationAgo.getMonth() - config.referral.durationMonths);
-                        if (provider.joinedDate > durationAgo) {
-                            const refComm = (booking.totalAmount * config.referral.commissionRate) / 100;
-
-                            // Admin pays for referral commission
-                            adminCommission = Math.max(0, adminCommission - refComm);
-
-                            const { Wallet, Transaction } = require('../models/Wallet');
-                            let refWallet = await Wallet.findOne({ providerId: provider.referredBy });
-                            if (refWallet) {
-                                refWallet.balance += refComm;
-                                await refWallet.save();
-                                await Transaction.create({
-                                    providerId: provider.referredBy,
-                                    title: 'Referral Commission',
-                                    amount: refComm,
-                                    type: 'credit',
-                                    status: 'completed',
-                                    bookingId: booking._id,
-                                    description: `${config.referral.commissionRate}% commission from referred provider`
-                                });
+                        // Increment trial usedServices
+                        if (calculation.source === 'FREE_TRIAL') {
+                            provider.freeTrial.usedServices += 1;
+                            const program = await PartnerProgram.findOne().session(session);
+                            const totalTrial = program ? program.freeServiceCount : 3;
+                            if (provider.freeTrial.usedServices >= (totalTrial + provider.freeTrial.extraFreeServices)) {
+                                provider.freeTrial.trialCompletedAt = Date.now();
                             }
                         }
-                    }
-                }
-
-                // Update booking with commission details
-                booking.status = 'completed';
-                booking.completedAt = Date.now();
-                if (afterImage) {
-                    booking.afterImage = afterImage;
-                }
-                booking.adminCommission = adminCommission;
-                booking.providerPayout = providerPayout;
-                booking.commissionStatus = commissionStatus;
-
-                // Update provider wallet and record transaction
-                const { Wallet, Transaction } = require('../models/Wallet');
-                let wallet = await Wallet.findOne({ providerId: provider._id });
-                if (!wallet) {
-                    wallet = await Wallet.create({ providerId: provider._id, balance: 0 });
-                }
-                // Cash Collection Logic (Provider keeps full amount, owes admin commission)
-                let transactionAmount = 0;
-                let transactionType = 'credit';
-                let transactionTitle = '';
-
-                if (booking.paymentMode !== 'now') {
-                    // Provider collected cash, deduct commission from balance (dues)
-                    wallet.balance -= adminCommission;
-                    transactionAmount = adminCommission;
-                    transactionType = 'debit';
-                    transactionTitle = `Commission Deducted: ${booking.serviceName}`;
-                } else {
-                    // Online payment to admin, credit provider payout to availableBalance (withdrawable)
-                    wallet.availableBalance += providerPayout;
-                    transactionAmount = providerPayout;
-                    transactionType = 'credit';
-                    transactionTitle = `Service Earnings: ${booking.serviceName}`;
-                }
-
-                wallet.updatedAt = Date.now();
-                await wallet.save();
-
-                const transaction = await Transaction.create({
-                    providerId: provider._id,
-                    title: transactionTitle,
-                    amount: transactionAmount,
-                    type: transactionType,
-                    status: 'completed',
-                    bookingId: booking._id,
-                    description: `Booking ID #${booking._id.toString().slice(-6)}`
-                });
-
-                provider.walletBalance = wallet.balance;
-                await provider.save();
-
-                // Decoupled Booking Completed Notifications
-                try {
-                    const { notifyUser } = require('../config/notificationService');
-                    
-                    // Notify Provider
-                    await notifyUser({
-                        userId: booking.providerId,
-                        userRole: 'provider',
-                        title: 'Booking Completed ✓',
-                        message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been successfully completed.`,
-                        type: 'booking',
-                        bookingId: booking._id
-                    });
-
-                    // Notify Customer
-                    await notifyUser({
-                        userId: booking.userId,
-                        userRole: 'user',
-                        title: 'Booking Completed ✓',
-                        message: `Your service #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been completed.`,
-                        type: 'booking',
-                        bookingId: booking._id
-                    });
-                } catch (notiErr) {
-                    console.error('[Notification Trigger Error] Failed to send booking completion notification:', notiErr);
-                }
-
-                // Push Notification for Provider
-                try {
-                    const { sendNotificationToUser } = require('../config/notificationService');
-
-                    // 1. Wallet Update Notification
-                    if (transactionAmount > 0) {
-                        const actionWord = transactionType === 'credit' ? 'credited to' : 'deducted from';
-                        await sendNotificationToUser(booking.providerId, 'provider', {
-                            title: `Wallet ${transactionType === 'credit' ? 'Credited' : 'Deducted'}`,
-                            body: `₹${transactionAmount} ${actionWord} your wallet for booking #${booking._id.toString().slice(-6)}.`,
-                            data: {
-                                type: 'wallet',
-                                id: booking._id.toString(),
-                                link: '/provider/wallet'
-                            }
-                        });
+                        // Increment waiver counts
+                        if (calculation.source === 'WAIVER') {
+                            provider.commissionWaiver.bookingsWaivedCount += 1;
+                        }
                     }
 
-                    // 2. Sewak Completed Task (Notify Partner if staff was assigned)
-                    if (booking.staffId) {
-                        await sendNotificationToUser(booking.providerId, 'provider', {
-                            title: 'Task Completed by Sewak',
-                            body: `Your assigned task #${booking._id.toString().slice(-6)} has been completed.`,
-                            data: {
-                                type: 'booking',
-                                id: booking._id.toString(),
-                                link: '/provider/bookings'
-                            }
-                        });
+                    // Increment bookingsCount
+                    if (provider.providerCategory !== 'sewak') {
+                        provider.bookingsCount = (provider.bookingsCount || 0) + 1;
                     }
-                } catch (err) {
-                    console.log('Push notification failed (skipping):', err.message);
-                }
 
-                // --- Sewak Daily Incentive Logic ---
-                if (provider.providerCategory === 'sewak') {
+                    // Save snapshot on booking
+                    bookingSession.status = 'completed';
+                    bookingSession.completedAt = Date.now();
+                    if (afterImage) {
+                        bookingSession.afterImage = afterImage;
+                    }
+                    bookingSession.adminCommission = adminCommission;
+                    bookingSession.providerPayout = providerPayout;
+                    bookingSession.commissionStatus = commissionStatus;
+                    bookingSession.transactionId = txnId;
+                    bookingSession.commissionTransactionId = commTxnId;
+
+                    if (calculation) {
+                        const program = await PartnerProgram.findOne().session(session);
+                        bookingSession.commissionSnapshot = {
+                            partnerProgramVersion: program ? program.ruleVersion : 1,
+                            commissionRuleId: calculation.source,
+                            commissionRuleName: calculation.ruleApplied,
+                            commissionSource: calculation.source,
+                            providerOverrideUsed: calculation.source === 'PROVIDER_OVERRIDE',
+                            waiverApplied: calculation.source === 'WAIVER',
+                            bookingCategorySnapshot: {
+                                id: provider.vendorType ? provider.vendorType._id : null,
+                                name: provider.vendorType ? provider.vendorType.name : 'Global Default',
+                                nightChargePercent: provider.vendorType ? provider.vendorType.nightChargePercent : 0
+                            },
+                            providerSnapshot: {
+                                id: provider._id,
+                                ownerName: provider.ownerName,
+                                shopName: provider.shopName
+                            },
+                            subscriptionSnapshot: calculation.subscriptionSnapshot || null,
+                            commissionPercentage: calculation.commissionRate,
+                            commissionAmount: calculation.commissionAmount,
+                            providerEarnings: calculation.providerAmount,
+                            platformEarnings: calculation.platformAmount,
+                            calculatedAt: Date.now()
+                        };
+                    }
+
+                    // Update wallet and record ledger
+                    const { Wallet, Transaction } = require('../models/Wallet');
+                    let wallet = await Wallet.findOne({ providerId: provider._id }).session(session);
+                    if (!wallet) {
+                        const createdWallets = await Wallet.create([{ providerId: provider._id, balance: 0 }], { session });
+                        wallet = createdWallets[0];
+                    }
+
+                    let transactionAmount = 0;
+                    let transactionType = 'credit';
+                    let transactionTitle = '';
+
+                    const prevDuesBalance = wallet.balance;
+                    const prevAvailableBalance = wallet.availableBalance || 0;
+
+                    if (booking.paymentMode !== 'now') {
+                        wallet.balance -= adminCommission;
+                        transactionAmount = adminCommission;
+                        transactionType = 'debit';
+                        transactionTitle = `Commission Deducted: ${booking.serviceName}`;
+
+                        await FinancialLedger.create([{
+                            transactionId: txnId,
+                            commissionTransactionId: commTxnId,
+                            booking: booking._id,
+                            provider: provider._id,
+                            ledgerType: 'COMMISSION',
+                            amount: -adminCommission,
+                            previousBalance: prevDuesBalance,
+                            newBalance: wallet.balance,
+                            description: `Cash Commission dues for booking #${booking._id.toString().slice(-6)}`,
+                            metadata: { paymentMode: booking.paymentMode }
+                        }], { session });
+                    } else {
+                        wallet.availableBalance = prevAvailableBalance + providerPayout;
+                        transactionAmount = providerPayout;
+                        transactionType = 'credit';
+                        transactionTitle = `Service Earnings: ${booking.serviceName}`;
+
+                        await FinancialLedger.create([{
+                            transactionId: txnId,
+                            commissionTransactionId: commTxnId,
+                            booking: booking._id,
+                            provider: provider._id,
+                            ledgerType: 'WALLET_CREDIT',
+                            amount: providerPayout,
+                            previousBalance: prevAvailableBalance,
+                            newBalance: wallet.availableBalance,
+                            description: `Payout credit for booking #${booking._id.toString().slice(-6)}`,
+                            metadata: { paymentMode: booking.paymentMode }
+                        }], { session });
+                    }
+
+                    wallet.updatedAt = Date.now();
+                    await wallet.save({ session });
+
+                    // Create legacy transaction log
+                    await Transaction.create([{
+                        providerId: provider._id,
+                        title: transactionTitle,
+                        amount: transactionAmount,
+                        type: transactionType,
+                        status: 'completed',
+                        bookingId: booking._id,
+                        description: `Booking ID #${booking._id.toString().slice(-6)}`
+                    }], { session });
+
+                    // Create commission log
+                    if (calculation) {
+                        await CommissionLog.create([{
+                            booking: booking._id,
+                            provider: provider._id,
+                            appliedRule: calculation.ruleApplied,
+                            appliedPercentage: calculation.commissionRate,
+                            platformEarnings: calculation.platformAmount,
+                            providerEarnings: calculation.providerAmount,
+                            triggerEvent: 'BOOKING_COMPLETED'
+                        }], { session });
+                    }
+
+                    provider.walletBalance = wallet.balance;
+                    await provider.save({ session });
+                    await bookingSession.save({ session });
+
+                    await session.commitTransaction();
+                    session.endSession();
+
+                    // --- Trigger Notifications & Sewak incentives after transaction commits ---
                     try {
-                        const today = new Date().toISOString().split('T')[0];
-
-                        // Fetch global incentive settings
-                        const settings = await Setting.find({ key: { $in: ['DAILY_BOOKING_THRESHOLD', 'BONUS_PER_EXTRA_BOOKING'] } });
-                        const threshold = Number(settings.find(s => s.key === 'DAILY_BOOKING_THRESHOLD')?.value || 5);
-                        const bonusAmount = Number(settings.find(s => s.key === 'BONUS_PER_EXTRA_BOOKING')?.value || 50);
-
-                        // Count bookings completed by this sewak today
-                        const startOfDay = new Date();
-                        startOfDay.setHours(0, 0, 0, 0);
-                        const endOfDay = new Date();
-                        endOfDay.setHours(23, 59, 59, 999);
-
-                        const dailyCount = await Booking.countDocuments({
-                            providerId: provider._id,
-                            status: 'completed',
-                            updatedAt: { $gte: startOfDay, $lte: endOfDay }
+                        const { notifyUser } = require('../config/notificationService');
+                        await notifyUser({
+                            userId: booking.providerId,
+                            userRole: 'provider',
+                            title: 'Booking Completed ✓',
+                            message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been successfully completed.`,
+                            type: 'booking',
+                            bookingId: booking._id
                         });
 
-                        if (dailyCount > threshold) {
-                            // Apply bonus
-                            await SewakIncentiveLog.create({
-                                sewakId: provider._id,
-                                bookingId: booking._id,
-                                date: today,
-                                dailyBookingCount: dailyCount,
-                                bonusEarned: bonusAmount
-                            });
-
-                            // Add bonus to wallet
-                            wallet.balance += bonusAmount;
-                            await Transaction.create({
-                                providerId: provider._id,
-                                title: `Daily Performance Bonus`,
-                                amount: bonusAmount,
-                                type: 'credit',
-                                status: 'completed',
-                                bookingId: booking._id,
-                                description: `Incentive for completing ${dailyCount} bookings today (Threshold: ${threshold})`
-                            });
-                            provider.walletBalance = wallet.balance;
-                        }
-                    } catch (incError) {
-                        console.error("Incentive Calculation Error:", incError);
+                        await notifyUser({
+                            userId: booking.userId,
+                            userRole: 'user',
+                            title: 'Booking Completed ✓',
+                            message: `Your service #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been completed.`,
+                            type: 'booking',
+                            bookingId: booking._id
+                        });
+                    } catch (notiErr) {
+                        console.error('[Notification Trigger Error] Failed to send completion notification:', notiErr);
                     }
+
+                    try {
+                        const { sendNotificationToUser } = require('../config/notificationService');
+                        if (transactionAmount > 0) {
+                            const actionWord = transactionType === 'credit' ? 'credited to' : 'deducted from';
+                            await sendNotificationToUser(booking.providerId, 'provider', {
+                                title: `Wallet ${transactionType === 'credit' ? 'Credited' : 'Deducted'}`,
+                                body: `₹${transactionAmount} ${actionWord} your wallet for booking #${booking._id.toString().slice(-6)}.`,
+                                data: {
+                                    type: 'wallet',
+                                    id: booking._id.toString(),
+                                    link: '/provider/wallet'
+                                }
+                            });
+                        }
+
+                        if (booking.staffId) {
+                            await sendNotificationToUser(booking.providerId, 'provider', {
+                                title: 'Task Completed by Sewak',
+                                body: `Your assigned task #${booking._id.toString().slice(-6)} has been completed.`,
+                                data: {
+                                    type: 'booking',
+                                    id: booking._id.toString(),
+                                    link: '/provider/bookings'
+                                }
+                            });
+                        }
+                    } catch (pushErr) {
+                        console.log('Push notification failed (skipping):', pushErr.message);
+                    }
+
+                    // Incentives trigger for Sewak
+                    if (provider.providerCategory === 'sewak') {
+                        try {
+                            const today = new Date().toISOString().split('T')[0];
+                            const threshold = 5;
+                            const bonusAmount = 50;
+
+                            const startOfDay = new Date();
+                            startOfDay.setHours(0, 0, 0, 0);
+                            const endOfDay = new Date();
+                            endOfDay.setHours(23, 59, 59, 999);
+
+                            const dailyCount = await Booking.countDocuments({
+                                providerId: provider._id,
+                                status: 'completed',
+                                updatedAt: { $gte: startOfDay, $lte: endOfDay }
+                            });
+
+                            if (dailyCount > threshold) {
+                                await SewakIncentiveLog.create({
+                                    sewakId: provider._id,
+                                    bookingId: booking._id,
+                                    date: today,
+                                    dailyBookingCount: dailyCount,
+                                    bonusEarned: bonusAmount
+                                });
+
+                                let wSession = await Wallet.findOne({ providerId: provider._id });
+                                if (wSession) {
+                                    wSession.balance += bonusAmount;
+                                    await wSession.save();
+                                    await Transaction.create({
+                                        providerId: provider._id,
+                                        title: `Daily Performance Bonus`,
+                                        amount: bonusAmount,
+                                        type: 'credit',
+                                        status: 'completed',
+                                        bookingId: booking._id,
+                                        description: `Incentive for completing ${dailyCount} bookings today`
+                                    });
+                                    provider.walletBalance = wSession.balance;
+                                    await provider.save();
+                                }
+                            }
+                        } catch (incError) {
+                            console.error("Incentive Calculation Error:", incError);
+                        }
+                    }
+
+                    return res.json({
+                        message: 'Service completed successfully',
+                        status: 'completed',
+                        payout: providerPayout,
+                        commission: adminCommission
+                    });
+
+                } catch (error) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    throw error;
                 }
-
-                await Promise.all([booking.save(), provider.save(), wallet.save()]);
-
-                res.json({
-                    message: 'Service completed successfully',
-                    status: 'completed',
-                    payout: providerPayout,
-                    commission: adminCommission
-                });
             } else {
-                res.status(400).json({ message: 'Invalid OTP' });
+                return res.status(400).json({ message: 'Invalid OTP' });
             }
         } else {
             res.status(404).json({ message: 'Booking not found' });

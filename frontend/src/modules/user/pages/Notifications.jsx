@@ -32,12 +32,25 @@ const Notifications = () => {
     return () => window.removeEventListener('NEW_NOTIFICATION', handleNewNotification);
   }, []);
 
-  const handleMarkAsRead = async (id) => {
-    try {
-      await API.patch(`/notifications/${id}/read`);
-      setNotifications(notifications.map(n => n._id === id ? { ...n, isRead: true } : n));
-    } catch (err) {
-      console.error("Failed to mark as read", err);
+  const handleNotificationClick = async (notif) => {
+    if (!notif.isRead) {
+      try {
+        await API.patch(`/notifications/${notif._id || notif.id}/read`);
+        setNotifications(prev => prev.map(n => (n._id === notif._id || n.id === notif.id) ? { ...n, isRead: true } : n));
+      } catch (err) {
+        console.error("Failed to mark notification as read", err);
+      }
+    }
+
+    let targetLink = "";
+    if (notif.type === "booking" || notif.bookingId) {
+      targetLink = "/my-bookings";
+    } else if (notif.type === "payment") {
+      targetLink = "/wallet";
+    }
+
+    if (targetLink) {
+      navigate(targetLink);
     }
   };
 
@@ -51,10 +64,15 @@ const Notifications = () => {
     }
   };
 
-  const handleClearAll = () => {
-    // Local clear for now
-    setNotifications([]);
-    toast({ title: "Notifications Cleared!" });
+  const handleClearAll = async () => {
+    try {
+      await API.delete("/notifications");
+      setNotifications([]);
+      toast({ title: "Notifications Cleared!" });
+    } catch (err) {
+      console.error("Failed to clear notifications", err);
+      toast({ title: "Failed to clear notifications", variant: "destructive" });
+    }
   };
 
   const deleteNotification = async (id) => {
@@ -142,7 +160,7 @@ const Notifications = () => {
                       
                       return (
                         <motion.div key={notif._id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: index * 0.05 }}
-                          onClick={() => !notif.isRead && handleMarkAsRead(notif._id)}
+                          onClick={() => handleNotificationClick(notif)}
                           className={`group relative flex items-start gap-4 rounded-[24px] border border-slate-200 dark:border-slate-700 p-4 transition-all cursor-pointer overflow-hidden ${
                             notif.isRead ? "bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800" : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg shadow-blue-500/5"
                           }`}>
@@ -165,7 +183,7 @@ const Notifications = () => {
                           </div>
 
                           <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif._id); }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all dark:bg-rose-900/30">
+                            className="absolute right-4 top-1/2 -translate-y-1/2 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all dark:bg-rose-900/30">
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </motion.div>

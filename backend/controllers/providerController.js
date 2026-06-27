@@ -626,7 +626,7 @@ const getSubscriptionPlans = async (req, res) => {
         }
 
         const plans = await SubscriptionPlan.find({ 
-            isActive: true, 
+            status: 'active', 
             $or: queryOr
         });
         res.json(plans);
@@ -662,6 +662,211 @@ const getProviderMenu = async (req, res) => {
     }
 };
 
+const uploadLiveVideo = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No video file provided' });
+        }
+
+        const { verificationScript, verificationCode, scriptVersion = 'v1' } = req.body;
+        if (!verificationScript || !verificationCode) {
+            return res.status(400).json({ message: 'Verification script and code are required' });
+        }
+
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) {
+            return res.status(404).json({ message: 'Provider not found' });
+        }
+
+        // Validate size < 20MB
+        const sizeInBytes = req.file.size;
+        if (sizeInBytes > 20 * 1024 * 1024) {
+            return res.status(400).json({ message: 'Video file size must be less than 20MB' });
+        }
+
+        const { cloudinary } = require('../config/cloudinary');
+
+        // Helper to upload buffer as a video to Cloudinary
+        const uploadFromBuffer = (fileBuffer) => {
+            return new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    {
+                        folder: 'rojsewa/kyc_videos',
+                        resource_type: 'video'
+                    },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result);
+                    }
+                );
+                stream.end(fileBuffer);
+            });
+        };
+
+        const result = await uploadFromBuffer(req.file.buffer);
+
+        // Server side validation of duration (15s to 30s)
+        const duration = result.duration;
+        if (duration < 15 || duration > 30) {
+            // Delete from Cloudinary
+            await cloudinary.uploader.destroy(result.public_id, { resource_type: 'video' });
+            return res.status(400).json({
+                message: `Video duration must be between 15 and 30 seconds. Your video was ${Math.round(duration)} seconds.`
+            });
+        }
+
+        // Generate thumbnail URL by replacing extension with .jpg
+        const secureUrl = result.secure_url;
+        const lastDotIndex = secureUrl.lastIndexOf('.');
+        const baseUrlWithoutExt = secureUrl.substring(0, lastDotIndex);
+        const thumbnailUrl = `${baseUrlWithoutExt}.jpg`;
+
+        // Find existing live_video document or create new
+        const docIndex = provider.documents.findIndex(d => d.id === 'live_video');
+
+        const liveVideoDoc = {
+            id: 'live_video',
+            url: secureUrl,
+            fileUrl: secureUrl,
+            status: 'draft',
+            fileName: req.file.originalname || 'live_video.webm',
+            uploadedAt: new Date(),
+            thumbnailUrl: thumbnailUrl,
+            duration: Math.round(duration),
+            verificationScript,
+            verificationCode,
+            scriptVersion,
+            cloudinaryPublicId: result.public_id,
+            bytes: result.bytes,
+            format: result.format,
+            width: result.width,
+            height: result.height,
+            rejectionReason: null,
+            adminNotes: null
+        };
+
+        if (docIndex > -1) {
+            provider.documents[docIndex] = liveVideoDoc;
+        } else {
+            provider.documents.push(liveVideoDoc);
+        }
+
+        await provider.save();
+
+        // Notify Provider
+        try {
+            const { sendNotificationToUser } = require('../config/notificationService');
+            await sendNotificationToUser(provider._id, 'provider', {
+                title: 'Live Video Uploaded',
+                body: 'Your live verification video has been successfully uploaded.',
+                data: { type: 'kyc', id: provider._id.toString() }
+            });
+        } catch (notificationErr) {
+            console.error('Failed to send upload notification:', notificationErr.message);
+        }
+
+        res.json({
+            success: true,
+            message: 'Live video uploaded successfully',
+            document: liveVideoDoc
+        });
+
+    } catch (error) {
+        console.error('Live video upload error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const submitKYC = async (req, res) => {
+    try {
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) {
+            return res.status(404).json({ message: 'Provider not found' });
+        }
+
+        const docs = provider.documents || [];
+        const aadhaarDoc = docs.find(d => d.id === 'aadhaar');
+        const panDoc = docs.find(d => d.id === 'pan');
+        const liveVideoDoc = docs.find(d => d.id === 'live_video');
+
+        if (!aadhaarDoc || aadhaarDoc.status === 'rejected') {
+            return res.status(400).json({ message: 'A valid Aadhaar card is required.' });
+        }
+        if (!panDoc || panDoc.status === 'rejected') {
+            return res.status(400).json({ message: 'A valid PAN card is required.' });
+        }
+        if (!liveVideoDoc || liveVideoDoc.status === 'rejected') {
+            return res.status(400).json({ message: 'A valid Live Video Verification is required.' });
+        }
+
+        const isReSubmission = provider.kycSubmitted;
+        provider.kycSubmitted = true;
+        
+        // Change status of documents and video to 'pending' if they were draft
+        provider.documents.forEach(doc => {
+            if (doc.status === 'draft') {
+                doc.status = 'pending';
+            }
+        });
+
+        // Set status based on review progress
+        if (provider.kycStatus === 'draft' || provider.kycStatus === 'rejected') {
+            provider.kycStatus = 'submitted';
+            provider.status = 'pending';
+        }
+
+        await provider.save();
+
+        const { sendNotificationToUser } = require('../config/notificationService');
+        const User = require('../models/User');
+
+        // Notify Provider
+        try {
+            await sendNotificationToUser(provider._id, 'provider', {
+                title: 'KYC Submitted',
+                body: 'Your KYC application has been successfully submitted and is under review.',
+                data: { type: 'kyc', id: provider._id.toString() }
+            });
+        } catch (err) {
+            console.error('Failed to notify provider on submit:', err.message);
+        }
+
+        // Notify Admins
+        try {
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const title = isReSubmission ? 'KYC Re-submitted' : 'New KYC Request';
+            const body = isReSubmission 
+                ? `Partner ${provider.ownerName} has re-submitted their rejected KYC items.`
+                : `New Partner ${provider.ownerName} has submitted their KYC application.`;
+
+            for (const admin of admins) {
+                await sendNotificationToUser(admin._id, 'admin', {
+                    title,
+                    body,
+                    data: {
+                        type: 'kyc',
+                        id: provider._id.toString(),
+                        link: '/admin/verify-sewaks'
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('Failed to notify admins on submit:', err.message);
+        }
+
+        res.json({
+            success: true,
+            message: 'KYC submitted successfully',
+            kycStatus: provider.kycStatus,
+            kycSubmitted: provider.kycSubmitted
+        });
+
+    } catch (error) {
+        console.error('KYC Submit Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const reapplyKYC = async (req, res) => {
     try {
         const Provider = require('../models/Provider');
@@ -675,6 +880,8 @@ const reapplyKYC = async (req, res) => {
         }
 
         provider.status = 'pending';
+        provider.kycStatus = 'submitted';
+        provider.kycSubmitted = true;
         // reset rejected documents to pending so they can be re-uploaded
         provider.documents.forEach(doc => {
             if (doc.status === 'rejected') {
@@ -702,5 +909,7 @@ module.exports = {
     verifyProviderCredentials,
     getSubscriptionPlans,
     getProviderMenu,
-    reapplyKYC
+    reapplyKYC,
+    uploadLiveVideo,
+    submitKYC
 };

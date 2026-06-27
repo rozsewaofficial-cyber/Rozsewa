@@ -13,14 +13,16 @@ const {
     verifyProviderCredentials,
     getSubscriptionPlans,
     getProviderMenu,
-    reapplyKYC
+    reapplyKYC,
+    uploadLiveVideo,
+    submitKYC
 } = require('../controllers/providerController');
 const { getProviderOffers, createProviderOffer } = require('../controllers/offerController');
 const { getStaff, createStaff, deleteStaff, toggleStaffStatus } = require('../controllers/staffController');
 const { requestWithdrawal, getProviderWithdrawals } = require('../controllers/withdrawalController');
 const { getPublicCategories } = require('../controllers/categoryController');
 const { protect } = require('../middleware/authMiddleware');
-const { upload } = require('../config/cloudinary');
+const { upload, uploadVideo } = require('../config/cloudinary');
 
 // Public routes
 router.post('/register', registerProvider);
@@ -37,6 +39,8 @@ router.patch('/status', protect, updateProviderStatus);
 router.get('/subscription-plans', protect, getSubscriptionPlans);
 router.get('/menu', protect, getProviderMenu);
 router.post('/documents', protect, upload.single('document'), uploadDocument);
+router.post('/live-video', protect, uploadVideo.single('video'), uploadLiveVideo);
+router.post('/submit-kyc', protect, submitKYC);
 router.post('/emergency-alert', protect, sendEmergencyAlert || ((req, res) => res.status(501).send("Not Implemented")));
 router.patch('/reapply-kyc', protect, reapplyKYC);
 

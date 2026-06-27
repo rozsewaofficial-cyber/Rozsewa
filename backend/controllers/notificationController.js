@@ -70,6 +70,15 @@ const deleteNotification = async (req, res) => {
     }
 };
 
+const clearAllNotifications = async (req, res) => {
+    try {
+        await Notification.deleteMany({ recipientId: req.user._id });
+        res.json({ message: 'All notifications cleared' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const saveFCMToken = async (req, res) => {
     try {
         const { token, platform } = req.body;
@@ -183,6 +192,7 @@ module.exports = {
     markAsRead,
     markAllAsRead,
     deleteNotification,
+    clearAllNotifications,
     saveFCMToken,
     removeFCMToken,
     testFCMNotification

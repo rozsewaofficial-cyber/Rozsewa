@@ -657,10 +657,10 @@ const Checkout = () => {
               {currentBookingStatus === 'pending'
                 ? `Broadcasting your request to all available ${providerLabelPlural} in your area. Please wait...`
                 : currentBookingStatus === 'cancelled'
-                  ? "This booking request was cancelled by the provider or has expired."
-                  : paymentMode === "now"
-                    ? `A ${providerLabelLower} has accepted your request! Please check your alerts for a 'Pay Now' notification.`
-                    : `A ${providerLabelLower} has accepted your request and is assigned to you.`}
+                ? "This booking request was cancelled by the provider or has expired."
+                : paymentMode === "now"
+                ? `A ${providerLabelLower} has accepted your request! Please check your alerts for a 'Pay Now' notification.`
+                : `A ${providerLabelLower} has accepted your request and is assigned to you.`}
             </p>
           </div>
 

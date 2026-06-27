@@ -232,17 +232,19 @@ const ProviderProfile = () => {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-emerald-500/20 bg-emerald-50/50 p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="text-left">
-              <h3 className="font-black uppercase text-[11px] tracking-widest text-emerald-800">{user?.planType || 'Pro'} Plan - Active</h3>
-              <p className="text-[10px] font-bold text-emerald-600/80 mt-1 uppercase tracking-widest">
-                Valid till {user?.planExpiry ? new Date(user.planExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '24 Dec 2026'}
-              </p>
+        {user?.providerCategory !== 'sewak' && (
+          <section className="rounded-2xl border border-emerald-500/20 bg-emerald-50/50 p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-left">
+                <h3 className="font-black uppercase text-[11px] tracking-widest text-emerald-800">{user?.planType || 'Pro'} Plan - Active</h3>
+                <p className="text-[10px] font-bold text-emerald-600/80 mt-1 uppercase tracking-widest">
+                  Valid till {user?.planExpiry ? new Date(user.planExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '24 Dec 2026'}
+                </p>
+              </div>
+              <button onClick={() => navigate("/provider/99card")} className="rounded-xl bg-emerald-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition">Upgrade</button>
             </div>
-            <button className="rounded-xl bg-emerald-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition">Upgrade</button>
-          </div>
-        </section>
+          </section>
+        )}
         <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 py-4 font-bold text-destructive hover:bg-destructive hover:text-white transition-all"><LogOut className="h-5 w-5" /> Sign Out</button>
       </main>
       <ProviderBottomNav />

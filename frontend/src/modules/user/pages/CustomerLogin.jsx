@@ -13,7 +13,7 @@ const CustomerLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state?.from?.pathname || "/") + (location.state?.from?.search || "");
-  const { login, signup, loginWithOTP, detectLocation } = useAuth();
+  const { login, signup, loginWithOTP, detectLocation, isAuthenticated } = useAuth();
   
   const draft = JSON.parse(sessionStorage.getItem("customer-signup-draft") || "{}");
   
@@ -35,6 +35,12 @@ const CustomerLogin = () => {
   const [otp, setOtp] = useState("");
 
   useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
+
+  useEffect(() => {
     let timer;
     if (countdown > 0) {
       timer = setInterval(() => setCountdown(c => c - 1), 1000);
@@ -50,7 +56,7 @@ const CustomerLogin = () => {
 
   const clearDraftAndNavigate = () => {
     sessionStorage.removeItem("customer-signup-draft");
-    navigate(from);
+    navigate(from, { replace: true });
   };
 
   const handleResendOtp = async () => {

@@ -42,7 +42,7 @@ const AdminLayout = () => {
   );
 
   return (
-    <div className="flex min-h-screen bg-[#f1f7fe] text-gray-900 font-sans light selection:bg-blue-200">
+    <div className="flex h-screen overflow-hidden bg-[#f1f7fe] text-gray-900 font-sans light selection:bg-blue-200">
       <AdminSidebar isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <AdminTopNav title={title} toggleMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)} />
