@@ -462,6 +462,11 @@ const Checkout = () => {
       localStorage.removeItem("rozsewa_checkout_data");
     } catch (err) {
       setIsProcessing(false);
+      toast({
+        title: "Booking Failed",
+        description: err.response?.data?.message || "Failed to create booking request. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -645,8 +650,8 @@ const Checkout = () => {
               {currentBookingStatus === 'pending'
                 ? `Finding Nearby ${providerLabel}...`
                 : currentBookingStatus === 'cancelled'
-                ? "Booking Cancelled ❌"
-                : `${providerLabel} Assigned! 🎉`}
+                  ? "Booking Cancelled ❌"
+                  : `${providerLabel} Assigned! 🎉`}
             </h1>
             <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
               {currentBookingStatus === 'pending'
@@ -656,6 +661,7 @@ const Checkout = () => {
                 : paymentMode === "now"
                 ? `A ${providerLabelLower} has accepted your request! Please check your alerts for a 'Pay Now' notification.`
                 : `A ${providerLabelLower} has accepted your request and is assigned to you.`}
+>>>>>>>>> Temporary merge branch 2
             </p>
           </div>
 
@@ -718,8 +724,8 @@ const Checkout = () => {
                 whileTap={{ scale: currentBookingStatus !== 'pending' ? 0.97 : 1 }}
                 onClick={() => currentBookingStatus !== 'pending' && navigate("/tracking", { replace: true })}
                 className={`flex-1 rounded-[20px] py-4 text-sm font-black transition-all ${currentBookingStatus !== 'pending'
-                    ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
+                  ? "bg-blue-600 text-white shadow-xl shadow-blue-600/20 hover:shadow-2xl"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed"
                   }`}>
                 {currentBookingStatus !== 'pending' ? "Track Booking" : "Waiting for Provider..."}
               </motion.button>
@@ -820,8 +826,8 @@ const Checkout = () => {
                         setIsExpress(false);
                       }}
                       className={`rounded-[14px] py-3 px-2 text-[12px] font-bold transition-all border ${selectedTime === t
-                          ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                          : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-300"
+                        ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-300"
                         }`}
                     >
                       {t}

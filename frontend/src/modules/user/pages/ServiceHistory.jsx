@@ -351,6 +351,16 @@ const ServiceHistory = () => {
                     <button onClick={handleDownloadInvoice} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-extrabold text-primary-foreground shadow-xl shadow-primary/20">
                       <Download className="h-5 w-5" /> Download Invoice
                     </button>
+                  ) : (selectedBooking.status === "pending" || selectedBooking.status === "confirmed") ? (
+                    <div className="flex gap-3">
+                      <button onClick={() => setSelectedBooking(null)} className="flex-1 rounded-2xl border border-border py-4 text-sm font-extrabold hover:bg-muted">Close</button>
+                      <button
+                        onClick={() => { setShowCancel(true); }}
+                        className="flex-1 rounded-2xl bg-rose-600 py-4 text-sm font-extrabold text-white shadow-lg shadow-rose-600/30 hover:bg-rose-700"
+                      >
+                        Cancel Booking
+                      </button>
+                    </div>
                   ) : (
                     <button onClick={() => setSelectedBooking(null)} className="w-full rounded-2xl border border-border py-4 text-sm font-extrabold hover:bg-muted">Close Details</button>
                   )}

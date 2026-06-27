@@ -13,6 +13,10 @@ const registerProvider = async (req, res) => {
     } = req.body;
 
     try {
+        if (!mobile || !/^\d{10}$/.test(mobile)) {
+            return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+        }
+
         // Check for duplicates across unique fields
         const existingChecks = [];
         if (mobile) existingChecks.push({ mobile });

@@ -42,6 +42,8 @@ const LiveTracking = () => {
   const { user } = useAuth();
   const [isPaying, setIsPaying] = useState(false);
   const [proposedSchedule, setProposedSchedule] = useState(null);
+  const [counterTimer, setCounterTimer] = useState(0);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -175,7 +177,7 @@ const LiveTracking = () => {
     if (!confirmCancel) return;
 
     try {
-      await API.patch(`/bookings/${bookingDetails._id}/status`, { status: 'cancelled' });
+      await API.put(`/bookings/${bookingDetails._id}`, { status: 'cancelled' });
       toast({ title: "Booking Cancelled", description: "Your booking has been cancelled successfully." });
       navigate("/my-bookings");
     } catch (err) {
