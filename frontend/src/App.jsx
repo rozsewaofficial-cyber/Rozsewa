@@ -153,9 +153,11 @@ const App = () => (
                       <Route path="/complaint" element={<ComplaintForm />} />
                       <Route path="/support-tickets" element={<SupportTickets />} />
                       <Route path="/offers" element={<Offers />} />
-                      <Route path="/terms" element={<Terms />} />
-                      <Route path="/privacy" element={<Privacy />} />
                     </Route>
+
+                    {/* Public Info Routes (No Location Required) */}
+                    <Route path="/terms" element={<Terms />} />
+                    <Route path="/privacy" element={<Privacy />} />
 
                     {/* Provider Routes */}
                     <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />

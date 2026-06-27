@@ -95,15 +95,14 @@ export const AuthProvider = ({ children }) => {
 
       const isMatch = isCustomerPanelMatch || isProviderPanelMatch || isAdminPanelMatch;
 
-      // If the current auth doesn't match the panel we are in, re-sync
+      // If the current auth doesn't match the panel we are in, re-sync from localStorage
       if (!isMatch && auth) {
         const key = getStorageKey(path);
         const saved = localStorage.getItem(key);
         if (saved) {
           setAuth(JSON.parse(saved));
-        } else {
-          setAuth(null);
         }
+        // Do not setAuth(null) here as it causes random logouts
       } else if (!auth) {
         const key = getStorageKey(path);
         const saved = localStorage.getItem(key);
