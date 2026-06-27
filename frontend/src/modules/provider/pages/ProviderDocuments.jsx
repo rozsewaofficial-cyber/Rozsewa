@@ -11,7 +11,7 @@ const docTypes = [
   { id: "aadhaar", label: "Aadhaar Card", required: true },
   { id: "pan", label: "PAN Card", required: true },
   { id: "gst", label: "GST Certificate", required: false },
-  { id: "license", label: "Business License", required: false },
+  { id: "license", label: "Driving License", required: false },
   { id: "certification", label: "Skill Certification", required: false },
   { id: "police", label: "Police Verification", required: false },
 ];
@@ -31,6 +31,14 @@ const ProviderDocuments = () => {
 
   const fileInputRef = useRef(null);
   const [activeDocType, setActiveDocType] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [docNumberInput, setDocNumberInput] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [aadhaarSessionId, setAadhaarSessionId] = useState("");
+  const [aadhaarOtp, setAadhaarOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [dobInput, setDobInput] = useState("");
 
   useEffect(() => {
     fetchProfile();
@@ -49,21 +57,171 @@ const ProviderDocuments = () => {
 
   const handleUploadClick = (docId) => {
     setActiveDocType(docId);
-    fileInputRef.current?.click();
+    if (docId === 'aadhaar') {
+        setDocNumberInput(provider?.kycAadhaar || "");
+        setIsVerified(provider?.kycAadhaar ? true : false);
+    } else if (docId === 'pan') {
+        setDocNumberInput(provider?.kycPanNumber || "");
+        setIsVerified(provider?.kycPanNumber ? true : false);
+    } else if (docId === 'gst') {
+        setDocNumberInput(provider?.gst || "");
+        setIsVerified(provider?.gst ? true : false);
+    } else {
+        setDocNumberInput("");
+        setIsVerified(true);
+    }
+    setOtpSent(false);
+    setAadhaarSessionId("");
+    setAadhaarOtp("");
+    setIsModalOpen(true);
   };
 
-  const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file || !activeDocType) return;
+  const handleVerifyPAN = async () => {
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(docNumberInput)) {
+      return toast({ title: "Invalid PAN", description: "Please enter a valid PAN format.", variant: "destructive" });
+    }
+    setIsVerifying(true);
+    try {
+      const { data } = await API.post("/verify/pan", { pan: docNumberInput });
+      if (data.status === "VERIFIED" || data.success) {
+        setIsVerified(true);
+        toast({ title: "PAN Verified" });
+      } else {
+        toast({ title: "Verification Failed", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleVerifyGST = async () => {
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i;
+    if (!gstRegex.test(docNumberInput)) {
+      return toast({ title: "Invalid GST", description: "Please enter a valid GST format.", variant: "destructive" });
+    }
+    setIsVerifying(true);
+    try {
+      const { data } = await API.post("/verify/gst", { gstNumber: docNumberInput });
+      if (data?.status === "VERIFIED" || data?.success) {
+        setIsVerified(true);
+        toast({ title: "GST Verified" });
+      } else {
+        toast({ title: "Verification Failed", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleVerifyCriminal = async () => {
+    if (!docNumberInput) {
+      return toast({ title: "Invalid ID", description: "Please enter your ID number.", variant: "destructive" });
+    }
+    setIsVerifying(true);
+    try {
+      const payload = {
+        idNumber: docNumberInput,
+        name: provider?.ownerName || provider?.shopName || "Unknown",
+        address: provider?.address || "Unknown"
+      };
+      const { data } = await API.post("/verify/criminal_verification", payload);
+      if (data?.status === "SUCCESS" || data?.success) {
+        setIsVerified(true);
+        toast({ title: "Criminal Record Verified", description: data.message || "Verification completed." });
+      } else {
+        toast({ title: "Verification Failed", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleVerifyDrivingLicence = async () => {
+    if (!docNumberInput || !dobInput) {
+      return toast({ title: "Invalid Input", description: "Please enter your driving license number and Date of Birth.", variant: "destructive" });
+    }
+    setIsVerifying(true);
+    try {
+      const payload = {
+        licence_number: docNumberInput,
+        dob: dobInput
+      };
+      const { data } = await API.post("/verify/driving_licence", payload);
+      if (data?.status === "SUCCESS" || data?.success) {
+        setIsVerified(true);
+        toast({ title: "Driving License Verified", description: "Verification completed successfully." });
+      } else {
+        toast({ title: "Verification Failed", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleInitiateOKYC = async () => {
+    if (!docNumberInput || docNumberInput.length !== 12) {
+      return toast({ title: "Invalid Aadhaar", description: "Must be 12 digits.", variant: "destructive" });
+    }
+    setIsVerifying(true);
+    try {
+      const { data } = await API.post("/verify/okyc/initiate", { aadhaarNumber: docNumberInput });
+      if (data.success || data.status === "OTP_SENT") {
+        const sid = data.data?.sessionId || data.sessionId;
+        if (sid) {
+           setAadhaarSessionId(sid);
+           setOtpSent(true);
+           toast({ title: "OTP Sent" });
+        }
+      } else {
+        toast({ title: "Failed", description: data.message || "Failed to initiate Aadhaar OKYC.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleVerifyOKYC = async () => {
+    if (!aadhaarOtp || aadhaarOtp.length < 6) return toast({ title: "Invalid OTP", variant: "destructive" });
+    setIsVerifying(true);
+    try {
+      const { data } = await API.post("/verify/okyc/verify", { 
+        sessionId: aadhaarSessionId,
+        otp: aadhaarOtp,
+        aadhaarNumber: docNumberInput
+      });
+      if (data.success || data.status === "VERIFIED") {
+        setIsVerified(true);
+        toast({ title: "Aadhaar Verified" });
+      } else {
+        toast({ title: "Failed", description: data.message || "Failed to verify Aadhaar OTP.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleSubmitDocument = async () => {
+    if (!activeDocType || !docNumberInput) return;
 
     setUploading(activeDocType);
-    const formData = new FormData();
-    formData.append("document", file);
-    formData.append("docId", activeDocType);
-
+    setIsModalOpen(false);
+    
     try {
-      const { data } = await API.post("/provider/documents", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
+      const { data } = await API.post("/provider/documents", {
+        docId: activeDocType,
+        docNumber: docNumberInput
       });
 
       // Update local state
@@ -76,13 +234,14 @@ const ProviderDocuments = () => {
       }
 
       setProvider({ ...provider, documents: updatedDocs });
-      toast({ title: "Upload Successful", description: `${activeDocType} sent for verification.` });
+      toast({ title: "Details Saved", description: `${docTypes.find(d => d.id === activeDocType)?.label} details verified and saved successfully.` });
     } catch (err) {
-      toast({ title: "Upload Failed", description: "Could not send document.", variant: "destructive" });
+      const errorMessage = err.response?.data?.message || "Could not save document details.";
+      toast({ title: "Save Failed", description: errorMessage, variant: "destructive" });
     } finally {
       setUploading(null);
       setActiveDocType(null);
-      e.target.value = null;
+      setDocNumberInput("");
     }
   };
 
@@ -103,14 +262,108 @@ const ProviderDocuments = () => {
     <div className="min-h-screen bg-background pb-20 md:pb-8">
       <ProviderTopNav />
 
-      {/* Hidden File Input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        className="hidden"
-        accept="image/*"
-      />
+      {/* Upload Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-black uppercase tracking-tight">Submit Document</h3>
+                <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+                  <XCircle className="h-6 w-6" />
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">Please enter your document ID number below. Real-time verification may be required.</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">
+                    {activeDocType === 'license' ? 'Driving License Number' : 'Document Number'}
+                  </label>
+                  <input
+                    type="text"
+                    value={docNumberInput}
+                    onChange={(e) => { setDocNumberInput(e.target.value); setIsVerified(false); }}
+                    placeholder="e.g. 123456789012"
+                    className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  
+                  {activeDocType === 'license' && (
+                    <div className="mt-4">
+                      <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={dobInput}
+                        onChange={(e) => { setDobInput(e.target.value); setIsVerified(false); }}
+                        className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                  )}
+
+                  {activeDocType === 'pan' && !isVerified && (
+                      <button onClick={handleVerifyPAN} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                          {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                          {isVerifying ? "Verifying..." : "Verify PAN API"}
+                      </button>
+                  )}
+                  {activeDocType === 'gst' && !isVerified && (
+                      <button onClick={handleVerifyGST} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                          {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                          {isVerifying ? "Verifying..." : "Verify GST API"}
+                      </button>
+                  )}
+                  {activeDocType === 'police' && !isVerified && (
+                      <button onClick={handleVerifyCriminal} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                          {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                          {isVerifying ? "Verifying..." : "Verify Criminal Record"}
+                      </button>
+                  )}
+                  {activeDocType === 'license' && !isVerified && (
+                      <button onClick={handleVerifyDrivingLicence} disabled={isVerifying || !docNumberInput || !dobInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                          {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                          {isVerifying ? "Verifying..." : "Verify Driving License"}
+                      </button>
+                  )}
+                  {activeDocType === 'aadhaar' && !isVerified && !otpSent && (
+                      <button onClick={handleInitiateOKYC} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                          {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                          {isVerifying ? "Sending..." : "Send Aadhaar OTP"}
+                      </button>
+                  )}
+                  {activeDocType === 'aadhaar' && !isVerified && otpSent && (
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 border-t border-border pt-4">
+                          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1 block">Aadhaar OTP</label>
+                          <input type="text" value={aadhaarOtp} onChange={(e) => setAadhaarOtp(e.target.value)} placeholder="6-digit OTP" className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium mb-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+                          <button onClick={handleVerifyOKYC} disabled={isVerifying || !aadhaarOtp} className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-50">
+                              {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                              {isVerifying ? "Verifying..." : "Verify OTP"}
+                          </button>
+                      </motion.div>
+                  )}
+                  {isVerified && (
+                      <div className="mt-3 text-[10px] bg-emerald-50 text-emerald-600 px-3 py-2 rounded-xl font-bold uppercase flex items-center justify-center gap-1.5 border border-emerald-100">
+                          <CheckCircle2 className="h-4 w-4" /> API Verification Complete
+                      </div>
+                  )}
+                </div>
+                
+                <button
+                  onClick={handleSubmitDocument}
+                  disabled={!docNumberInput || (['aadhaar', 'pan', 'gst', 'police', 'license'].includes(activeDocType) && !isVerified)}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-black uppercase tracking-widest text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ShieldCheck className="h-4 w-4" /> Save Details
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
@@ -170,7 +423,7 @@ const ProviderDocuments = () => {
                           </span>
                         </div>
                       ) : (
-                        <p className="text-[10px] text-muted-foreground font-bold opacity-60 uppercase tracking-widest leading-none">Not uploaded</p>
+                        <p className="text-[10px] text-muted-foreground font-bold opacity-60 uppercase tracking-widest leading-none">Not provided</p>
                       )}
                     </div>
                   </div>
@@ -181,7 +434,7 @@ const ProviderDocuments = () => {
                     ) : (uploaded?.status !== "verified" && uploaded?.status !== "pending") ? (
                       <motion.button whileTap={{ scale: 0.95 }} onClick={() => handleUploadClick(doc.id)}
                         className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${uploaded?.status === 'rejected' ? 'bg-rose-500 text-white hover:bg-rose-600' : 'bg-primary text-white hover:bg-emerald-700'}`}>
-                        <Upload className="h-3.5 w-3.5" /> {uploaded?.status === 'rejected' ? 'Re-upload' : 'Upload'}
+                        <ShieldCheck className="h-3.5 w-3.5" /> {uploaded?.status === 'rejected' ? 'Re-verify' : 'Verify'}
                       </motion.button>
                     ) : (uploaded?.status === "pending" || uploaded?.status === "verified") ? (
                       <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">

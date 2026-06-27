@@ -5,7 +5,9 @@ const {
     verifyPAN,
     verifyGST,
     initiateOKYC,
-    verifyOKYC
+    verifyOKYC,
+    verifyCriminal,
+    verifyDrivingLicence
 } = require('../controllers/verifyController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -15,5 +17,7 @@ router.post('/pan', verifyPAN);
 router.post('/gst', verifyGST);
 router.post('/okyc/initiate', initiateOKYC);
 router.post('/okyc/verify', verifyOKYC);
+router.post('/criminal_verification', verifyCriminal);
+router.post('/driving_licence', verifyDrivingLicence);
 
 module.exports = router;

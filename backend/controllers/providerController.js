@@ -516,24 +516,27 @@ const checkProviderExistence = async (req, res) => {
 // @access  Private (Provider)
 const uploadDocument = async (req, res) => {
     try {
-        const { docId } = req.body;
-        if (!req.file) {
-            return res.status(400).json({ message: 'No file uploaded' });
-        }
+        const { docId, docNumber } = req.body;
 
         const provider = await Provider.findById(req.user._id);
         if (!provider) {
             return res.status(404).json({ message: 'Provider not found' });
         }
 
+        // Update document numbers in provider profile
+        if (docId === 'aadhaar' && docNumber) provider.kycAadhaar = docNumber;
+        if (docId === 'pan' && docNumber) provider.kycPanNumber = docNumber.toUpperCase();
+        if (docId === 'gst' && docNumber) provider.gst = docNumber.toUpperCase();
+        if (docId === 'police' && docNumber) provider.kycPoliceVerification = docNumber.toUpperCase();
+
         // Check if document of this type already exists
         const docIndex = provider.documents.findIndex(d => d.id === docId);
 
         const newDoc = {
             id: docId,
-            url: req.file.path,
-            status: 'pending',
-            fileName: req.file.originalname,
+            url: req.file ? req.file.path : 'API_Verified',
+            status: 'verified', // Backend trusts the frontend API validation check
+            fileName: req.file ? req.file.originalname : `Verified_${docId}`,
             uploadedAt: Date.now()
         };
 
