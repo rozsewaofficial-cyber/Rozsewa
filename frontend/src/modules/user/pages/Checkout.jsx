@@ -661,7 +661,6 @@ const Checkout = () => {
                 : paymentMode === "now"
                 ? `A ${providerLabelLower} has accepted your request! Please check your alerts for a 'Pay Now' notification.`
                 : `A ${providerLabelLower} has accepted your request and is assigned to you.`}
->>>>>>>>> Temporary merge branch 2
             </p>
           </div>
 

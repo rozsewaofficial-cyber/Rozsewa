@@ -60,6 +60,7 @@ import ProviderSettings from "./modules/provider/pages/ProviderSettings";
 import ProviderSupport from "./modules/provider/pages/ProviderSupport";
 import ProviderNotifications from "./modules/provider/pages/ProviderNotifications";
 import ProviderWallet from "./modules/provider/pages/ProviderWallet";
+import ProviderSubscriptions from "./modules/provider/pages/ProviderSubscriptions";
 
 // Admin Pages
 import AdminLogin from "./modules/admin/pages/AdminLogin";
@@ -75,6 +76,7 @@ import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
 import PartnerProgramConfig from "./modules/admin/pages/PartnerProgramConfig";
+import AdminCommissionAnalytics from "./modules/admin/pages/AdminCommissionAnalytics";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
 import AdminBanners from "./modules/admin/pages/AdminBanners";
 import AdminNotifications from "./modules/admin/pages/AdminNotifications";
@@ -178,6 +180,7 @@ const App = () => (
                     <Route path="/provider/support" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSupport /></ProtectedRoute>} />
                     <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
                     <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
+                    <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
 
                     {/* Admin Routes with Persistent Layout */}
                     <Route path="/admin" element={<AdminLayout />}>
@@ -202,6 +205,7 @@ const App = () => (
                       <Route path="settings" element={<AdminSettings />} />
                       <Route path="settings/cash-limits" element={<AdminCashLimits />} />
                       <Route path="partner-program" element={<PartnerProgramConfig />} />
+                      <Route path="commission-analytics" element={<AdminCommissionAnalytics />} />
                       <Route path="benefit-policies" element={<AdminBenefitPolicies />} />
                       <Route path="disputes" element={<AdminDisputes />} />
                       <Route path="banners" element={<AdminBanners />} />

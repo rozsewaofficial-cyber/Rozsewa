@@ -5,7 +5,8 @@ import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
-  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle
+  Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle,
+  Percent, ArrowRight
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -51,6 +52,27 @@ const ProviderDashboard = () => {
   const [plans, setPlans] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const isSubscribed = user?.isSubscribed || false;
+  const [commissionPreview, setCommissionPreview] = useState(null);
+  const [estimateAmount, setEstimateAmount] = useState("1000");
+  const [estimation, setEstimation] = useState(null);
+
+  const fetchCommissionPreview = async () => {
+    try {
+      const { data } = await API.get("/provider/commission-preview?bookingAmount=1000");
+      setCommissionPreview(data);
+      setEstimation(data);
+    } catch (err) {}
+  };
+
+  const handleEstimate = async (val) => {
+    setEstimateAmount(val);
+    if (!val || isNaN(val)) return;
+    try {
+      const { data } = await API.get(`/provider/commission-preview?bookingAmount=${val}`);
+      setEstimation(data);
+    } catch (err) {}
+  };
+
   const { theme } = useTheme();
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -114,76 +136,11 @@ const ProviderDashboard = () => {
     fetchPlans();
     fetchMenu();
     loadRazorpay();
+    fetchCommissionPreview();
   }, []);
 
-  const handleUpgrade = async () => {
-    console.log("Upgrade button clicked. Current plans:", plans);
-    if (plans.length === 0) {
-      toast({ 
-        title: "No plans found", 
-        description: "Checking for available registration plans... please wait or refresh.", 
-        variant: "destructive" 
-      });
-      fetchPlans(); // Retry fetching plans
-      return;
-    }
-    
-    const plan = plans[0];
-    console.log("Selected plan for upgrade:", plan);
-    if (!plan) return;
-
-    if (!window.Razorpay) {
-      toast({ 
-        title: "Payment system not ready", 
-        description: "Razorpay script is still loading. Please wait 2 seconds and try again.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { data: order } = await API.post("/payment/order", { amount: plan.price });
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: "RozSewa Elite",
-        description: plan.name,
-        order_id: order.id,
-        handler: async (response) => {
-          try {
-            const { data } = await API.post("/payment/verify-subscription", {
-              ...response,
-              planId: plan._id
-            });
-            if (data.success) {
-              toast({ title: "Welcome to Elite!", description: "Registration activated successfully." });
-              // Force clear cache and reload to get new profile status
-              setTimeout(() => {
-                window.location.reload();
-              }, 1500);
-            }
-          } catch (err) {
-            toast({ title: "Activation Failed", variant: "destructive" });
-          } finally {
-            setIsLoading(false);
-          }
-        },
-        prefill: { 
-          name: user?.ownerName,
-          contact: user?.mobile 
-        },
-        theme: { color: "#059669" },
-        modal: { ondismiss: () => setIsLoading(false) }
-      };
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      console.error("Razorpay Error:", err);
-      toast({ title: "Payment Initialization Failed", description: err.response?.data?.message || "Check your internet or contact support.", variant: "destructive" });
-      setIsLoading(false);
-    }
+  const handleUpgrade = () => {
+    window.location.href = "/provider/subscriptions";
   };
 
   useEffect(() => {
@@ -600,6 +557,153 @@ const ProviderDashboard = () => {
         <section className="animate-in slide-in-from-bottom-5 duration-700 delay-150">
           <EarningsWidget />
         </section>
+
+        {/* Commission Status / Partner Program Card */}
+        {user?.providerCategory !== 'sewak' && commissionPreview && (
+          <section className="animate-in fade-in duration-700 mt-6 text-left">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[1.5rem] shadow-sm space-y-6">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-100 dark:border-emerald-900/40 text-[9px] font-bold uppercase tracking-wider">
+                    Partner Program Active
+                  </div>
+                  <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1.5">
+                    Your Commission Overview
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-0.5">
+                    Current active strategy: <span className="text-emerald-500 font-bold">{commissionPreview.currentRule}</span>
+                  </p>
+                </div>
+                <div className="h-11 w-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40 shrink-0">
+                  <Percent className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 border-t border-slate-100 dark:border-slate-800/60 pt-4">
+                {/* State 1: Free Trial */}
+                {commissionPreview.appliedSource === 'FREE_TRIAL' && (
+                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100/50 dark:border-emerald-900/30 rounded-2xl text-left">
+                    <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 rounded-full">Free Trial Active</span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Current Commission</span>
+                        <span className="text-base font-black text-emerald-600">0%</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Free Jobs Left</span>
+                        <span className="text-base font-black text-slate-800 dark:text-slate-100">{commissionPreview.remainingFreeServices} / 3</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Next Strategy</span>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-350">Category Default</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1">
+                          Upgrade early <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* State 2: Active Subscription */}
+                {commissionPreview.appliedSource === 'SUBSCRIPTION' && commissionPreview.activeSubscription && (
+                  <div className="p-4 bg-purple-50/50 dark:bg-purple-950/10 border border-purple-100/50 dark:border-purple-900/30 rounded-2xl text-left">
+                    <div className="flex justify-between items-start">
+                      <span className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 tracking-widest px-2.5 py-1 bg-purple-100 dark:bg-purple-900/40 rounded-full">Active Member: {commissionPreview.activeSubscription.planName}</span>
+                      <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 hover:text-purple-800 tracking-wider">Manage</Link>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Commission Rate</span>
+                        <span className="text-base font-black text-purple-600">{commissionPreview.currentCommissionPercentage}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Days Left</span>
+                        <span className="text-base font-black text-slate-800 dark:text-slate-100">{commissionPreview.activeSubscription.daysRemaining} Days</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Benefits</span>
+                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block mt-1 truncate">
+                          {commissionPreview.activeSubscription.benefits?.join(', ') || 'Featured badge, priority client listings'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* State 3: Category Slab / Global fallback / Override / Waiver */}
+                {commissionPreview.appliedSource !== 'FREE_TRIAL' && commissionPreview.appliedSource !== 'SUBSCRIPTION' && (
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/40 rounded-2xl text-left">
+                    <div className="flex justify-between items-start">
+                      <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
+                        {commissionPreview.appliedSource === 'PROVIDER_OVERRIDE' ? 'Override Applied' : 
+                         (commissionPreview.appliedSource === 'WAIVER' ? 'Waiver Active' : 'Category Defaults')}
+                      </span>
+                      <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase text-blue-600 dark:text-blue-400 hover:text-blue-850 tracking-widest flex items-center gap-1">
+                        Get Discount <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Current Category</span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase block truncate">{commissionPreview.categoryCommission.categoryName}</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Commission Rate</span>
+                        <span className="text-base font-black text-emerald-600">{commissionPreview.currentCommissionPercentage}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Active Slab Range</span>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-350">{commissionPreview.categoryCommission.activeSlabRange}</span>
+                      </div>
+                      <div>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Slab Rule Description</span>
+                        <span className="text-[10px] text-slate-400 font-medium block">Commission rate scales dynamically based on booking price.</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Real-time Earnings Estimator */}
+              <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">
+                      Earnings Estimator
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      Preview platform commission and payout shares
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border rounded-lg px-2 py-1 shadow-sm shrink-0">
+                    <span className="text-xs text-slate-400 font-bold">₹</span>
+                    <input 
+                      type="number" 
+                      value={estimateAmount} 
+                      onChange={e => handleEstimate(e.target.value)} 
+                      className="w-16 bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 outline-none border-none p-0 focus:ring-0"
+                    />
+                  </div>
+                </div>
+
+                {estimation && (
+                  <div className="grid grid-cols-2 gap-4 border-t border-slate-200/50 dark:border-slate-800/40 pt-3">
+                    <div className="text-left">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">Platform Cut ({estimation.currentCommissionPercentage}%)</span>
+                      <p className="text-sm font-black text-rose-500">₹{estimation.estimatedCommission.toFixed(2)}</p>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">Your Share (Earnings)</span>
+                      <p className="text-sm font-black text-emerald-500">₹{estimation.estimatedEarnings.toFixed(2)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Registration Status / Elite Banner */}
         {user?.providerCategory !== 'sewak' && !isSubscribed && (

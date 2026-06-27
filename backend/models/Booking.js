@@ -151,6 +151,37 @@ const bookingSchema = new mongoose.Schema({
     providerPayout: { type: Number, default: 0 },
     employeeCommission: { type: Number, default: 0 },
     commissionStatus: { type: String, default: 'free' },
+    transactionId: { type: String, unique: true, sparse: true },
+    commissionTransactionId: { type: String, unique: true, sparse: true },
+    commissionSnapshot: {
+        partnerProgramVersion: { type: Number },
+        commissionRuleId: { type: String },
+        commissionRuleName: { type: String },
+        commissionSource: { type: String },
+        providerOverrideUsed: { type: Boolean, default: false },
+        waiverApplied: { type: Boolean, default: false },
+        bookingCategorySnapshot: {
+            id: { type: mongoose.Schema.Types.ObjectId },
+            name: { type: String },
+            nightChargePercent: { type: Number }
+        },
+        providerSnapshot: {
+            id: { type: mongoose.Schema.Types.ObjectId },
+            ownerName: { type: String },
+            shopName: { type: String }
+        },
+        subscriptionSnapshot: {
+            planId: { type: mongoose.Schema.Types.ObjectId },
+            planName: { type: String },
+            planPrice: { type: Number },
+            benefits: [{ key: String, value: mongoose.Schema.Types.Mixed }]
+        },
+        commissionPercentage: { type: Number },
+        commissionAmount: { type: Number },
+        providerEarnings: { type: Number },
+        platformEarnings: { type: Number },
+        calculatedAt: { type: Date }
+    },
     adminRequest: {
         status: { type: String, enum: ['none', 'pending', 'resolved'], default: 'none' },
         reason: { type: String, default: '' },

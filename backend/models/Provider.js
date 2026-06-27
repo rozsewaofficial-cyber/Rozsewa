@@ -62,6 +62,8 @@ const providerSchema = mongoose.Schema({
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     walletBalance: { type: Number, default: 0 },
+    pendingBalance: { type: Number, default: 0 },
+    totalWithdrawn: { type: Number, default: 0 },
     referralCode: { type: String },
     employeeCode: { type: String },
     profileImage: { type: String },
@@ -109,9 +111,25 @@ const providerSchema = mongoose.Schema({
     onboardedByStaff: { type: String }, // Code of field staff who onboarded
     isWFHVerified: { type: Boolean, default: false },
     wfhVerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    freeServicesLeft: {
-        type: Number,
-        default: 3
+    freeTrial: {
+        usedServices: { type: Number, default: 0 },
+        extraFreeServices: { type: Number, default: 0 },
+        trialStartedAt: { type: Date, default: Date.now },
+        trialCompletedAt: { type: Date, default: null }
+    },
+    commissionOverride: {
+        enabled: { type: Boolean, default: false },
+        rate: { type: Number, default: 0, min: 0, max: 100 },
+        reason: { type: String, default: "" },
+        updatedAt: { type: Date }
+    },
+    commissionWaiver: {
+        enabled: { type: Boolean, default: false },
+        untilDate: { type: Date, default: null },
+        maxBookings: { type: Number, default: null },
+        bookingsWaivedCount: { type: Number, default: 0 },
+        reason: { type: String, default: "" },
+        updatedAt: { type: Date }
     },
     commissionRate: {
         type: Number,
@@ -156,7 +174,15 @@ const providerSchema = mongoose.Schema({
         default: 'partner'
     }
 }, {
-    timestamps: true
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+providerSchema.virtual('freeServicesLeft').get(function() {
+    const extra = this.freeTrial?.extraFreeServices || 0;
+    const used = this.freeTrial?.usedServices || 0;
+    return Math.max(0, 3 + extra - used);
 });
 
 // Password comparison

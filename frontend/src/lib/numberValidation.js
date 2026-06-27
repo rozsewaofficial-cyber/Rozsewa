@@ -10,10 +10,19 @@ export const normalizeNonNegativeNumber = (value) => {
     if (value === '' || value === null || value === undefined) return '';
     const numStr = String(value).replace(/[^0-9.]/g, '');
     const parts = numStr.split('.');
+    let clean = numStr;
     if (parts.length > 2) {
-        return parts[0] + '.' + parts.slice(1).join('');
+        clean = parts[0] + '.' + parts.slice(1).join('');
     }
-    return numStr;
+    if (/^0\d/.test(clean)) {
+        clean = clean.replace(/^0+/, '');
+        if (clean.startsWith('.')) {
+            clean = '0' + clean;
+        } else if (clean === '') {
+            clean = '0';
+        }
+    }
+    return clean;
 };
 
 /**

@@ -623,7 +623,7 @@ const getSubscriptionPlans = async (req, res) => {
         }
 
         const plans = await SubscriptionPlan.find({ 
-            isActive: true, 
+            status: 'active', 
             $or: queryOr
         });
         res.json(plans);

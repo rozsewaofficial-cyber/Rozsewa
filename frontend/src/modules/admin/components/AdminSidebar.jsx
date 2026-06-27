@@ -5,7 +5,7 @@ import PinModal from "./PinModal";
 import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
-  Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert,
+  Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
   HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon
 } from "lucide-react";
 
@@ -43,6 +43,7 @@ export const adminSidebarLinks = [
   { path: "/admin/banners", label: "App Banners", icon: Image },
   { path: "/admin/help-training", label: "Help & Training", icon: HelpCircle },
   { path: "/admin/activity-log", label: "System Logs", icon: Terminal },
+  { path: "/admin/commission-analytics", label: "Commission Analytics", icon: TrendingUp },
   { path: "/admin/partner-program", label: "Partner Program", icon: ShieldCheck },
   { path: "/admin/settings", label: "Global Settings", icon: Settings },
   { path: "/admin/settings/cash-limits", label: "Cash Limits", icon: CreditCard },

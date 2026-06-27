@@ -40,6 +40,9 @@ const transactionSchema = new mongoose.Schema({
     },
 });
 
+transactionSchema.index({ providerId: 1, createdAt: -1 });
+transactionSchema.index({ userId: 1, createdAt: -1 });
+
 const walletSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
