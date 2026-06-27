@@ -50,11 +50,13 @@ const {
     deleteAdmin,
     updateAdmin,
     getAllSewaks,
+    getSewakById,
     createSewak,
     updateSewak,
     getPendingSewaks,
     verifySewak,
     rejectSewak,
+    verifySewakDocument,
     updateProviderCategory,
     getAdminSubscriptionPlans,
     createSubscriptionPlan,
@@ -74,7 +76,9 @@ const {
     getCashLimitsConfig,
     updateCashLimitsConfig,
     deleteUser,
-    deleteBooking
+    deleteBooking,
+    adminGlobalSearch,
+    getAdminNotifications
 } = require('../controllers/adminController');
 
 const {
@@ -90,6 +94,10 @@ const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updat
 const { getEnquiries, updateEnquiryStatus, deleteEnquiry } = require('../controllers/sewakEnquiryController');
 
 const { protect, admin, superadmin, supervisor, employee } = require('../middleware/authMiddleware');
+
+// Global Search & Notifications
+router.get('/search', protect, employee, adminGlobalSearch);
+router.get('/notifications', protect, employee, getAdminNotifications);
 
 // HRM Management
 
@@ -192,11 +200,13 @@ router.delete('/subscriptions/:id', protect, admin, deleteSubscriptionPlan);
 
 // Sewak Management
 router.get('/sewaks', protect, admin, getAllSewaks);
+router.get('/sewaks/pending-kyc', protect, admin, getPendingSewaks);
+router.get('/sewaks/:id', protect, admin, getSewakById);
 router.post('/sewaks', protect, admin, createSewak);
 router.put('/sewaks/:id', protect, admin, updateSewak);
-router.get('/sewaks/pending-kyc', protect, admin, getPendingSewaks);
 router.put('/sewaks/:id/verify', protect, admin, verifySewak);
 router.put('/sewaks/:id/reject', protect, admin, rejectSewak);
+router.put('/sewaks/:id/documents/:docId/status', protect, admin, verifySewakDocument);
 
 // Combo Management
 router.get('/combos', protect, admin, getCombos);

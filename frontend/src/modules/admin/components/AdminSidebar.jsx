@@ -177,9 +177,25 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
 
       <div className="px-6 mt-auto pt-4 border-t border-slate-800">
         <div className="flex items-center gap-3">
-          <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm ${user?.role === 'superadmin' ? 'bg-amber-500/20 text-amber-500' : 'bg-blue-500/20 text-blue-400'
+          <div className={`flex h-9 w-9 items-center justify-center rounded-full font-bold text-sm overflow-hidden shrink-0 ${user?.role === 'superadmin' ? 'bg-amber-500/20 text-amber-500' : 'bg-blue-500/20 text-blue-400'
             }`}>
-            {user?.name?.charAt(0) || 'AD'}
+            {user?.avatar || user?.profileImage ? (
+              <img
+                src={user.avatar || user.profileImage}
+                alt="Profile"
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+                }}
+              />
+            ) : null}
+            <span
+              className="h-full w-full items-center justify-center font-bold text-sm"
+              style={{ display: user?.avatar || user?.profileImage ? 'none' : 'flex' }}
+            >
+              {user?.name?.charAt(0) || 'AD'}
+            </span>
           </div>
           <div>
             <p className="text-xs font-black text-white">{user?.name || 'Admin'}</p>

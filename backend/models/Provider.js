@@ -83,13 +83,28 @@ const providerSchema = mongoose.Schema({
     },
     documents: [
         {
-            id: { type: String }, // 'aadhaar', 'pan', etc.
+            id: { type: String }, // 'aadhaar', 'pan', 'live_video', etc.
             url: { type: String },
-            status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+            status: { type: String, enum: ['draft', 'pending', 'verified', 'rejected'], default: 'pending' },
             fileName: { type: String },
-            uploadedAt: { type: Date, default: Date.now }
+            uploadedAt: { type: Date, default: Date.now },
+            reviewedAt: { type: Date },
+            rejectionReason: { type: String },
+            adminNotes: { type: String },
+            thumbnailUrl: { type: String },
+            duration: { type: Number },
+            verificationScript: { type: String },
+            verificationCode: { type: String },
+            scriptVersion: { type: String, default: 'v1' },
+            cloudinaryPublicId: { type: String },
+            bytes: { type: Number },
+            format: { type: String },
+            width: { type: Number },
+            height: { type: Number }
         }
     ],
+    kycSubmitted: { type: Boolean, default: false },
+    kycStatus: { type: String, enum: ['draft', 'submitted', 'under_review', 'partially_approved', 'rejected', 'verified'], default: 'draft' },
     kycVerified: { type: Boolean, default: false },
     onboardedByStaff: { type: String }, // Code of field staff who onboarded
     isWFHVerified: { type: Boolean, default: false },

@@ -276,7 +276,6 @@ const createBooking = async (req, res) => {
             totalAmount: finalTotalAmount,
             address,
             location: req.body.location,
-            requiredProviderCategory: requiredProviderCategory || 'partner',
             couponCode,
             discountAmount: totalDiscount,
             customerOffer: customerOffer !== undefined && customerOffer !== null ? payableAmount : null,
@@ -287,6 +286,8 @@ const createBooking = async (req, res) => {
             paymentMode,
             extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
         });
+
+        const booking = await newBooking.save();
 
         if (booking) {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);

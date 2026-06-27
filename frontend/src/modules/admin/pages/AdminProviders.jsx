@@ -52,7 +52,11 @@ const AdminProviders = () => {
             setProviders(providers.map(p => p._id === id ? { ...p, vendorType: newVendorType } : p));
             toast({ title: "Category Updated", description: `Provider category changed.` });
         } catch (err) {
-            toast({ title: "Update Failed", variant: "destructive" });
+            toast({ 
+                title: "Update Failed", 
+                description: err.response?.data?.message || "Failed to update category.",
+                variant: "destructive" 
+            });
         }
     };
 
@@ -88,7 +92,11 @@ const AdminProviders = () => {
             setProviders(providers.map(p => p._id === id ? { ...p, providerCategory: newCategory } : p));
             toast({ title: "Category Updated", description: `Provider role changed to ${newCategory}.` });
         } catch (err) {
-            toast({ title: "Update Failed", variant: "destructive" });
+            toast({ 
+                title: "Update Failed", 
+                description: err.response?.data?.message || "Failed to update role.",
+                variant: "destructive" 
+            });
         }
     };
 
@@ -298,9 +306,14 @@ const AdminProviders = () => {
                                                     <select
                                                         value={provider.providerCategory || 'partner'}
                                                         onChange={(e) => handleUpdateCategory(provider._id, e.target.value)}
-                                                        className="w-full bg-blue-50 border border-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-widest rounded-md px-2 py-1.5 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 cursor-pointer shadow-sm transition-all"
+                                                        disabled={provider.providerCategory === 'sewak'}
+                                                        className={`w-full border text-[9px] font-black uppercase tracking-widest rounded-md px-2 py-1.5 outline-none cursor-pointer shadow-sm transition-all ${
+                                                            provider.providerCategory === 'sewak'
+                                                                ? 'bg-emerald-50 border-emerald-100 text-emerald-700 opacity-80 cursor-not-allowed'
+                                                                : 'bg-blue-50 border-blue-100 text-blue-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20'
+                                                        }`}
                                                     >
-                                                        <option value="partner">Partner</option>
+                                                        {provider.providerCategory !== 'sewak' && <option value="partner">Partner</option>}
                                                         <option value="sewak">Sewak</option>
                                                     </select>
                                                 </div>

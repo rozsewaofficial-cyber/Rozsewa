@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import API from "@/lib/api";
 
 const AuthContext = createContext(null);
@@ -18,10 +18,54 @@ const getStorageKey = (path) => {
 
 export const AuthProvider = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [auth, setAuth] = useState(() => {
-    const saved = localStorage.getItem(getStorageKey(window.location.pathname));
+    const key = getStorageKey(window.location.pathname);
+    let saved = localStorage.getItem(key);
+    if (!saved && key === "rozsewa_auth") {
+      saved = localStorage.getItem("rozsewa_auth_provider") || localStorage.getItem("rozsewa_auth_admin");
+    }
     return saved ? JSON.parse(saved) : null;
   });
+
+  const [prevPath, setPrevPath] = useState(location.pathname);
+
+  // Sync auth state synchronously during render if pathname changes
+  if (location.pathname !== prevPath) {
+    setPrevPath(location.pathname);
+
+    const path = location.pathname;
+    const isPageAdmin = path.startsWith("/admin");
+    const isPageProvider = path.startsWith("/provider");
+
+    const isCustomerPanelMatch = auth && !isPageProvider && !isPageAdmin;
+    const isProviderPanelMatch = (auth?.role === 'provider' || auth?.role === 'sewak') && isPageProvider;
+    const isAdminPanelMatch = (auth?.role === 'admin' || auth?.role === 'superadmin' || auth?.role === 'supervisor') && isPageAdmin;
+
+    const isMatch = isCustomerPanelMatch || isProviderPanelMatch || isAdminPanelMatch;
+
+    if (!isMatch && auth) {
+      const key = getStorageKey(path);
+      let saved = localStorage.getItem(key);
+      if (!saved && key === "rozsewa_auth") {
+        saved = localStorage.getItem("rozsewa_auth_provider") || localStorage.getItem("rozsewa_auth_admin");
+      }
+      if (saved) {
+        setAuth(JSON.parse(saved));
+      } else {
+        setAuth(null);
+      }
+    } else if (!auth) {
+      const key = getStorageKey(path);
+      let saved = localStorage.getItem(key);
+      if (!saved && key === "rozsewa_auth") {
+        saved = localStorage.getItem("rozsewa_auth_provider") || localStorage.getItem("rozsewa_auth_admin");
+      }
+      if (saved) {
+        setAuth(JSON.parse(saved));
+      }
+    }
+  }
 
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(() => {
@@ -56,51 +100,20 @@ export const AuthProvider = ({ children }) => {
     });
   };
 
-  // Sync auth state when path changes (switching between panels)
+  // Sync panel body classes when path changes
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const isPageProvider = location.pathname.startsWith("/provider");
+    if (isPageProvider) {
+      document.body.classList.add('provider-panel');
+    } else {
+      document.body.classList.remove('provider-panel');
+    }
+  }, [location.pathname]);
+
+  // Perform background profile check if we have a token
+  useEffect(() => {
+    const fetchProfile = async () => {
       const path = location.pathname;
-      const isPageAdmin = path.startsWith("/admin");
-      const isPageProvider = path.startsWith("/provider");
-
-      if (isPageProvider) {
-        document.body.classList.add('provider-panel');
-      } else {
-        document.body.classList.remove('provider-panel');
-      }
-
-      let expectedRole = "customer";
-      if (isPageAdmin) {
-        expectedRole = (auth?.role === 'superadmin' || auth?.role === 'supervisor') ? auth.role : "admin";
-      } else if (isPageProvider) {
-        expectedRole = "provider";
-      }
-
-      // Check if current auth role is valid for the current panel
-      const isCustomerPanelMatch = (auth?.role === 'customer' || auth?.role === 'user') && !isPageProvider && !isPageAdmin;
-      const isProviderPanelMatch = (auth?.role === 'provider' || auth?.role === 'sewak') && isPageProvider;
-      const isAdminPanelMatch = (auth?.role === 'admin' || auth?.role === 'superadmin' || auth?.role === 'supervisor') && isPageAdmin;
-
-      const isMatch = isCustomerPanelMatch || isProviderPanelMatch || isAdminPanelMatch;
-
-      // If the current auth doesn't match the panel we are in, re-sync
-      if (!isMatch && auth) {
-        const key = getStorageKey(path);
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          setAuth(JSON.parse(saved));
-        } else {
-          setAuth(null);
-        }
-      } else if (!auth) {
-        const key = getStorageKey(path);
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          setAuth(JSON.parse(saved));
-        }
-      }
-
-      // Perform background profile check if we have a token
       const currentToken = auth?.token || JSON.parse(localStorage.getItem(getStorageKey(path)))?.token;
       if (currentToken) {
         try {
@@ -128,19 +141,25 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (err) {
           console.error("Profile check failed:", err);
-          // Automatic logout removed to fix the random logout issue
-          // Users will have to manually logout if their session truly expires
         }
       }
       setLoading(false);
     };
-    checkAuthStatus();
+
+    fetchProfile();
   }, [location.pathname]);
 
   useEffect(() => {
-    const key = getStorageKey(location.pathname);
-    if (auth) localStorage.setItem(key, JSON.stringify(auth));
-    else if (auth === null) localStorage.removeItem(key);
+    if (auth) {
+      const role = auth.role;
+      let key = "rozsewa_auth";
+      if (role === 'provider' || role === 'sewak') key = "rozsewa_auth_provider";
+      else if (role === 'admin' || role === 'superadmin' || role === 'supervisor') key = "rozsewa_auth_admin";
+      localStorage.setItem(key, JSON.stringify(auth));
+    } else if (auth === null) {
+      const key = getStorageKey(location.pathname);
+      localStorage.removeItem(key);
+    }
   }, [auth]);
 
   // Foreground Notification Listener
@@ -155,10 +174,24 @@ export const AuthProvider = ({ children }) => {
           console.log('Foreground message received:', payload);
           
           if (Notification.permission === 'granted') {
-            new Notification(payload.notification.title, {
+            const notif = new Notification(payload.notification.title, {
               body: payload.notification.body,
               icon: '/logo.png',
+              data: payload.data
             });
+            
+            notif.onclick = (event) => {
+              event.preventDefault();
+              window.focus();
+              
+              const data = event.target.data;
+              if (data) {
+                const targetLink = data.link || data.url || (data.type === 'booking' ? '/provider/bookings' : '');
+                if (targetLink) {
+                  navigate(targetLink);
+                }
+              }
+            };
           }
         });
       } catch (err) {
@@ -171,7 +204,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
   const login = async (identifier, password, type = 'customer') => {
     try {

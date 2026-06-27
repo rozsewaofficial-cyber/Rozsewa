@@ -12,7 +12,7 @@ const ProviderSupport = () => {
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [isRaisingTicket, setIsRaisingTicket] = useState(false);
-  const [newTicket, setNewTicket] = useState({ subject: "", category: "General", priority: "Low", description: "" });
+  const [newTicket, setNewTicket] = useState({ subject: "", category: "payment", priority: "low", description: "" });
 
   useScrollLock(isRaisingTicket);
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +42,7 @@ const ProviderSupport = () => {
       setNewTicket({ subject: "", description: "", category: "other", priority: "low" });
       fetchTickets();
     } catch (err) {
-      toast({ title: "Error", description: "Could not create ticket. Try again later.", variant: "destructive" });
+      toast({ title: "Error", description: err.response?.data?.message || "Could not create ticket. Try again later.", variant: "destructive" });
     } finally {
       setSubmitting(false);
     }

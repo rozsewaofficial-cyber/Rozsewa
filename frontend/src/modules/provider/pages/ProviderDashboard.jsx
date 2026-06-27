@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
@@ -44,6 +44,7 @@ const ProviderDashboard = () => {
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? true);
   const [isEmergencyActive, setIsEmergencyActive] = useState(user?.isEmergencyEnabled ?? false);
   const [showEmergencyMenu, setShowEmergencyMenu] = useState(false);
+  const emergencyMenuRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   const [supportNum, setSupportNum] = useState("91XXXXXXXXXX");
   const [dynamicChartData, setDynamicChartData] = useState(chartDataFallback);
@@ -56,6 +57,17 @@ const ProviderDashboard = () => {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Close emergency menu when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (emergencyMenuRef.current && !emergencyMenuRef.current.contains(e.target)) {
+        setShowEmergencyMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
   
   const tickColor = theme === 'dark' ? '#cbd5e1' : '#64748b'; // slate-300 : slate-500
@@ -267,58 +279,142 @@ const ProviderDashboard = () => {
       setShowEmergencyMenu(false);
     }
   };
-  // KYC Check for Sewaks
-  if (user?.providerCategory === 'sewak' && !user?.kycVerified) {
-    const hasUploaded = user?.documents && user.documents.length > 0;
+  const getChecklistItem = (label, docId, isRequired = false) => {
+    const doc = user?.documents?.find(d => d.id === docId);
+    
+    let icon = "⏳";
+    let iconCls = "text-amber-500 bg-amber-50 dark:bg-amber-950/20";
+    let statusText = "Pending Review";
+    let actionBtn = null;
+    
+    if (!doc) {
+      icon = "⚪";
+      iconCls = "text-slate-400 bg-slate-50 dark:bg-slate-900/20";
+      statusText = isRequired ? "Required" : "Optional";
+      if (!user?.kycSubmitted || user?.kycStatus === 'draft' || user?.kycStatus === 'rejected') {
+        actionBtn = (
+          <Link to="/provider/documents" className="text-xs font-black text-emerald-600 hover:underline uppercase tracking-wider shrink-0">
+            {docId === 'live_video' ? 'Record' : 'Upload'}
+          </Link>
+        );
+      }
+    } else if (doc.status === 'draft') {
+      icon = "⏳";
+      iconCls = "text-blue-500 bg-blue-50 dark:bg-blue-950/20";
+      statusText = "Uploaded (Draft)";
+      if (!user?.kycSubmitted || user?.kycStatus === 'draft' || user?.kycStatus === 'rejected') {
+        actionBtn = (
+          <Link to="/provider/documents" className="text-xs font-black text-emerald-600 hover:underline uppercase tracking-wider shrink-0">
+            Edit
+          </Link>
+        );
+      }
+    } else if (doc.status === 'verified') {
+      icon = "✓";
+      iconCls = "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20";
+      statusText = "Approved";
+    } else if (doc.status === 'rejected') {
+      icon = "✖";
+      iconCls = "text-rose-500 bg-rose-50 dark:bg-rose-950/20";
+      statusText = "Rejected";
+      if (!user?.kycSubmitted || user?.kycStatus === 'draft' || user?.kycStatus === 'rejected') {
+        actionBtn = (
+          <Link to="/provider/documents" className="text-xs font-black text-rose-600 hover:underline uppercase tracking-wider shrink-0">
+            {docId === 'live_video' ? 'Re-record' : 'Re-upload'}
+          </Link>
+        );
+      }
+    }
 
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="max-w-md w-full bg-white rounded-[40px] p-10 shadow-2xl shadow-slate-200 border border-slate-100">
-          <div className="h-24 w-24 bg-amber-50 rounded-[32px] flex items-center justify-center mb-8 mx-auto border-2 border-amber-100/50">
-            {hasUploaded ? (
-              <Clock className="h-12 w-12 text-amber-500 animate-pulse" />
+      <div key={docId} className="flex flex-col space-y-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-3">
+            <div className={`h-8 w-8 rounded-full flex items-center justify-center font-black ${iconCls}`}>
+              {icon}
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-800 dark:text-slate-200">{label}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{statusText}</p>
+            </div>
+          </div>
+          {actionBtn}
+        </div>
+        {doc?.status === 'rejected' && doc.rejectionReason && (
+          <p className="text-[10px] font-bold text-rose-600 bg-rose-100/40 p-2 rounded-lg text-left leading-relaxed">
+            Reason: {doc.rejectionReason}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  // KYC Check for Sewaks
+  if (user?.providerCategory === 'sewak' && !user?.kycVerified) {
+    const kycStatus = user?.kycStatus || 'draft';
+
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl shadow-slate-200 dark:shadow-none border border-slate-100 dark:border-slate-800">
+          <div className="h-20 w-20 bg-amber-50 dark:bg-amber-950/20 rounded-[28px] flex items-center justify-center mb-6 mx-auto border-2 border-amber-100/50 dark:border-amber-900/30">
+            {kycStatus === 'submitted' || kycStatus === 'under_review' ? (
+              <Clock className="h-10 w-10 text-amber-500 animate-pulse" />
+            ) : kycStatus === 'rejected' ? (
+              <XCircle className="h-10 w-10 text-rose-500" />
             ) : (
-              <ShieldAlert className="h-12 w-12 text-amber-500" />
+              <ShieldAlert className="h-10 w-10 text-amber-500" />
             )}
           </div>
 
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-4">
-            {hasUploaded ? "Verification Pending" : "Identity KYC Required"}
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-2 uppercase">
+            {kycStatus === 'submitted' ? "KYC Submitted" :
+             kycStatus === 'under_review' ? "KYC Under Review" :
+             kycStatus === 'partially_approved' ? "Partially Approved" :
+             kycStatus === 'rejected' ? "KYC Rejected" : "Identity KYC Required"}
           </h1>
 
-          <p className="text-slate-500 font-medium leading-relaxed mb-10">
-            {hasUploaded
-              ? "Your documents have been submitted and are being reviewed by the admin panel. Access will be granted after verification."
-              : "To start receiving service requests, you must first complete your identity verification by uploading required documents."}
+          <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed mb-6">
+            {kycStatus === 'submitted' || kycStatus === 'under_review' || kycStatus === 'partially_approved'
+              ? "Your KYC documents are currently in review by the admin panel. Please check your verification checklist below."
+              : kycStatus === 'rejected'
+              ? "One or more of your required verification documents were rejected. Please review and update them."
+              : "To start receiving customer bookings, you must complete your identity verification by recording a live video and uploading required documents."}
           </p>
 
-          {hasUploaded ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                  <CheckCircle className="h-4 w-4 text-white" />
-                </div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-left">Documents Submitted Successfully</p>
-              </div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-amber-50 text-amber-600 py-3 rounded-xl border border-amber-100/50">
-                ETA: 24-48 Business Hours
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="w-full py-4 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                Refresh Status
-              </button>
-            </div>
-          ) : (
+          {/* Checklist */}
+          <div className="space-y-2 mb-6">
+            <h3 className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider text-left mb-1">Verification Checklist</h3>
+            {getChecklistItem("Aadhaar Card", "aadhaar", true)}
+            {getChecklistItem("PAN Card", "pan", true)}
+            {getChecklistItem("Live Video Verification", "live_video", true)}
+            {/* Optional ones if uploaded */}
+            {user?.documents?.some(d => d.id === 'gst') && getChecklistItem("GST Certificate", "gst")}
+            {user?.documents?.some(d => d.id === 'license') && getChecklistItem("Business License", "license")}
+            {user?.documents?.some(d => d.id === 'certification') && getChecklistItem("Skill Certification", "certification")}
+            {user?.documents?.some(d => d.id === 'police') && getChecklistItem("Police Verification", "police")}
+          </div>
+
+          {/* Submit/Action Button */}
+          {(!user?.kycSubmitted || kycStatus === 'draft' || kycStatus === 'rejected') ? (
             <Link
               to="/provider/documents"
-              className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-16 rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-4"
+              className="block w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-14 rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-2 text-sm uppercase tracking-wider animate-in fade-in"
             >
-              <Upload className="h-5 w-5" />
-              <span>START KYC PROCESS</span>
+              <Upload className="h-4.5 w-4.5" />
+              <span>Go to Verification Vault</span>
             </Link>
+          ) : (
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full h-14 bg-slate-900 text-white hover:bg-slate-800 font-black rounded-2xl shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 mb-2 text-sm uppercase tracking-wider"
+            >
+              <span>Refresh Status</span>
+            </button>
           )}
+
+          <p className="text-[10px] font-bold text-muted-foreground mt-4">
+            Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link>
+          </p>
         </div>
       </div>
     );
@@ -396,7 +492,7 @@ const ProviderDashboard = () => {
           ) : (
             <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
           )}
-          <p className="text-[10px] font-bold text-muted-foreground">Need help? <Link to="/support" className="text-emerald-600 underline">Contact RozSewa Support</Link></p>
+          <p className="text-[10px] font-bold text-muted-foreground">Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link></p>
         </main>
       </div>
     );
@@ -437,7 +533,7 @@ const ProviderDashboard = () => {
               {isOnline ? "Online" : "Offline"}
             </button>
 
-            <div className="relative">
+            <div className="relative" ref={emergencyMenuRef}>
               <button onClick={() => setShowEmergencyMenu(!showEmergencyMenu)}
                 className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-500 relative overflow-hidden ${isEmergencyActive
                   ? "bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]"

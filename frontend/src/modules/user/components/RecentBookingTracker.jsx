@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Check, ChevronRight, Shield, XCircle, PackageCheck, Bike, Wrench, Star } from 'lucide-react';
+import { Clock, Check, ChevronRight, Shield, XCircle, PackageCheck, Bike, Wrench, Star, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API from '@/lib/api';
 
@@ -27,6 +27,14 @@ const RecentBookingTracker = () => {
     const [activeBooking, setActiveBooking] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    const [dismissedList, setDismissedList] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('rozsewa_dismissed_bookings') || '[]');
+        } catch {
+            return [];
+        }
+    });
+
     const fetchActiveBookings = async () => {
         const authData = JSON.parse(localStorage.getItem('rozsewa_auth') || 'null');
         if (!authData?.token) { setLoading(false); return; }
@@ -38,11 +46,19 @@ const RecentBookingTracker = () => {
                 
                 if (!isValidStatus || !isNotRated) return false;
 
-                if (b.status === 'cancelled' && b.updatedAt) {
-                    const updatedAt = new Date(b.updatedAt);
-                    const now = new Date();
-                    const diffMinutes = (now - updatedAt) / (1000 * 60);
-                    if (diffMinutes > 3) return false;
+                if (b.status === 'cancelled') {
+                    let dl = [];
+                    try {
+                        dl = JSON.parse(localStorage.getItem('rozsewa_dismissed_bookings') || '[]');
+                    } catch (e) {}
+                    if (dl.includes(b._id)) return false;
+
+                    if (b.updatedAt) {
+                        const updatedAt = new Date(b.updatedAt);
+                        const now = new Date();
+                        const diffMinutes = (now - updatedAt) / (1000 * 60);
+                        if (diffMinutes > 1) return false;
+                    }
                 }
                 
                 return true;
@@ -55,11 +71,31 @@ const RecentBookingTracker = () => {
         }
     };
 
+    const handleDismiss = (e, bookingId) => {
+        e.stopPropagation();
+        const updatedList = [...dismissedList, bookingId];
+        setDismissedList(updatedList);
+        localStorage.setItem('rozsewa_dismissed_bookings', JSON.stringify(updatedList));
+        setActiveBooking(null);
+    };
+
     useEffect(() => {
         fetchActiveBookings();
         const interval = setInterval(fetchActiveBookings, 15000);
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (activeBooking?.status === 'cancelled') {
+            const timer = setTimeout(() => {
+                const updatedList = [...dismissedList, activeBooking._id];
+                setDismissedList(updatedList);
+                localStorage.setItem('rozsewa_dismissed_bookings', JSON.stringify(updatedList));
+                setActiveBooking(null);
+            }, 10000); // Auto-dismiss after 10 seconds
+            return () => clearTimeout(timer);
+        }
+    }, [activeBooking, dismissedList]);
 
     if (loading || !activeBooking) return null;
 
@@ -70,7 +106,7 @@ const RecentBookingTracker = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => navigate('/my-bookings')}
-                className="w-full bg-white dark:bg-slate-900 rounded-[24px] p-5 border border-rose-200 dark:border-rose-900/50 shadow-md shadow-rose-500/5 cursor-pointer"
+                className="w-full bg-white dark:bg-slate-900 rounded-[24px] p-5 border border-rose-200 dark:border-rose-900/50 shadow-md shadow-rose-500/5 cursor-pointer relative"
             >
                 <div className="flex items-center gap-3">
                     <div className="h-10 w-10 bg-rose-50 dark:bg-rose-900/20 rounded-full flex items-center justify-center border border-rose-200 dark:border-rose-800 shrink-0">
@@ -82,7 +118,13 @@ const RecentBookingTracker = () => {
                             {activeBooking.providerId?.shopName || 'Your booking'}
                         </p>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                    <button
+                        onClick={(e) => handleDismiss(e, activeBooking._id)}
+                        className="h-7 w-7 rounded-full bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 flex items-center justify-center text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-all shrink-0 ml-1"
+                        title="Close"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
                 </div>
             </motion.div>
         );

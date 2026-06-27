@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useScrollLock } from '@/lib/scrollLock';
 import { 
     Zap, Search, Filter, Calendar, User, 
@@ -15,6 +16,7 @@ import { toast } from "sonner";
 import API from "@/lib/api";
 
 const AdminSewakIncentives = () => {
+    const { setTitle } = useOutletContext();
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [config, setConfig] = useState({ threshold: 5, bonusAmount: 50 });
@@ -40,6 +42,10 @@ const AdminSewakIncentives = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        setTitle("Sewak Incentives");
+    }, [setTitle]);
 
     useEffect(() => {
         fetchIncentiveData();

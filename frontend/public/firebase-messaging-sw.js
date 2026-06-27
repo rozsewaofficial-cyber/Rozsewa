@@ -34,3 +34,37 @@ messaging.onBackgroundMessage((payload) => {
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
+
+// Handle background notification clicks
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  const data = event.notification.data;
+  let targetUrl = '/';
+  
+  if (data) {
+    if (data.link) {
+      targetUrl = data.link;
+    } else if (data.url) {
+      targetUrl = data.url;
+    } else if (data.type === 'booking' || data.bookingId) {
+      targetUrl = '/provider/bookings';
+    }
+  }
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // Check if there is already a window open with our origin
+      for (let client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          // Navigate the existing window and focus it
+          return client.navigate(targetUrl).then(c => c.focus());
+        }
+      }
+      // If no window is open, open a new one
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

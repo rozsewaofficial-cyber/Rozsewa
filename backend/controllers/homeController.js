@@ -204,7 +204,7 @@ const getPublicProviders = async (req, res) => {
 
         let providers = Provider.find(query)
             .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled')
-            .populate('vendorType', 'name icon');
+            .populate('vendorType', 'name icon services');
 
         if (!lat || !lng) {
             providers = providers.sort({ rating: -1 });
@@ -217,12 +217,20 @@ const getPublicProviders = async (req, res) => {
         for (const p of providerDocs) {
             const providerObj = p.toObject();
             
-            const services = await Service.find({ providerId: p._id, visible: true }).select('price');
-            if (services.length > 0) {
-                providerObj.startingPrice = Math.min(...services.map(s => s.price));
+            const isSewak = p.providerCategory === 'sewak';
+            let startingPrice = 199;
+            if (isSewak) {
+                const categoryServices = p.vendorType?.services || [];
+                if (categoryServices.length > 0) {
+                    startingPrice = Math.min(...categoryServices.map(s => s.basePrice || 299));
+                }
             } else {
-                providerObj.startingPrice = 199; // Default fallback
+                const services = await Service.find({ providerId: p._id, visible: true }).select('price');
+                if (services.length > 0) {
+                    startingPrice = Math.min(...services.map(s => s.price));
+                }
             }
+            providerObj.startingPrice = startingPrice;
 
             const combos = await Combo.find({ providerId: p._id, isActive: true }).select('_id');
             providerObj.hasCombo = combos.length > 0;
@@ -271,12 +279,50 @@ const getPublicConfig = async (req, res) => {
 // @access  Public
 const getPublicServiceByProvider = async (req, res) => {
     try {
-        const services = await Service.find({ providerId: req.params.providerId, visible: true });
-        const combos = await Combo.find({ 
-            providerId: req.params.providerId, 
-            isActive: true,
-            $or: [{ status: 'approved' }, { status: { $exists: false } }]
-        }).populate('services');
+        const provider = await Provider.findById(req.params.providerId).populate('vendorType');
+        if (!provider) {
+            return res.status(404).json({ message: 'Provider not found' });
+        }
+
+        const isSewak = provider.providerCategory === 'sewak';
+        let services = [];
+        let combos = [];
+
+        if (isSewak) {
+            const categoryServices = provider.vendorType?.services || [];
+            const categoryCombos = provider.vendorType?.combos || [];
+            const categoryName = provider.vendorType?.name || 'Category';
+
+            services = categoryServices.map(catSvc => ({
+                _id: catSvc._id,
+                name: catSvc.name,
+                description: catSvc.description || `Professional ${catSvc.name} service`,
+                duration: "1 hour",
+                visible: true,
+                category: categoryName,
+                price: catSvc.basePrice ?? 299
+            }));
+
+            combos = categoryCombos.map(catCombo => ({
+                _id: catCombo._id,
+                name: catCombo.name,
+                description: catCombo.description,
+                price: catCombo.sewakPrice || 0,
+                image: catCombo.image,
+                services: catCombo.services.map(svcName => {
+                    const s = services.find(s => s.name === svcName);
+                    return s || { name: svcName };
+                })
+            }));
+        } else {
+            services = await Service.find({ providerId: req.params.providerId, visible: true });
+            combos = await Combo.find({ 
+                providerId: req.params.providerId, 
+                isActive: true,
+                $or: [{ status: 'approved' }, { status: { $exists: false } }]
+            }).populate('services');
+        }
+
         res.json({ services, combos });
     } catch (error) {
         res.status(500).json({ message: error.message });

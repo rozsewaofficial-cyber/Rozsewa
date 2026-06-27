@@ -113,6 +113,11 @@ const updateProviderCategory = async (req, res) => {
             return res.status(404).json({ message: 'Provider not found' });
         }
 
+        // Enforce business rule: Sewak cannot be converted back to Partner
+        if (provider.providerCategory === 'sewak' && req.body.providerCategory === 'partner') {
+            return res.status(400).json({ message: 'Sewak providers cannot be converted back to Partner.' });
+        }
+
         if (req.body.providerCategory !== undefined) { provider.providerCategory = req.body.providerCategory; } if (req.body.vendorType !== undefined) { provider.vendorType = req.body.vendorType; }
         const updatedProvider = await provider.save();
         res.json(updatedProvider);
@@ -1170,6 +1175,16 @@ const getAllSewaks = async (req, res) => {
     }
 };
 
+const getSewakById = async (req, res) => {
+    try {
+        const sewak = await Provider.findById(req.params.id).select('-password');
+        if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
+        res.json(sewak);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 
 const createSewak = async (req, res) => {
     try {
@@ -1376,10 +1391,17 @@ const deleteProvider = async (req, res) => {
 
 const getPendingSewaks = async (req, res) => {
     try {
+        // Include sewaks that:
+        // 1. Have explicitly submitted KYC (kycSubmitted: true), OR
+        // 2. Were admin-created and are still pending/draft (no self-submission flow)
+        // In both cases, exclude already-verified sewaks.
         const sewaks = await Provider.find({
             providerCategory: 'sewak',
             kycVerified: false,
-            documents: { $exists: true, $ne: [] }
+            $or: [
+                { kycSubmitted: true },
+                { status: 'pending', kycStatus: { $in: ['draft', 'submitted', 'under_review', 'partially_approved'] } }
+            ]
         }).sort({ updatedAt: -1 });
         res.json(sewaks);
     } catch (error) {
@@ -1393,16 +1415,30 @@ const verifySewak = async (req, res) => {
         if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
 
         sewak.kycVerified = true;
+        sewak.kycStatus = 'verified';
         sewak.status = 'verified';
         sewak.isOnline = true;
         // Verify all documents
         if (sewak.documents) {
             sewak.documents.forEach(doc => {
                 doc.status = 'verified';
+                doc.reviewedAt = new Date();
             });
         }
 
         await sewak.save();
+
+        // Notify Provider
+        try {
+            const { sendNotificationToUser } = require('../config/notificationService');
+            await sendNotificationToUser(sewak._id, 'provider', {
+                title: 'KYC Approved',
+                body: 'Congratulations! Your identity verification is complete. Your account is now active to receive bookings.',
+                data: { type: 'kyc', id: sewak._id.toString() }
+            });
+        } catch (err) {
+            console.error('Failed to notify provider on verifySewak:', err.message);
+        }
 
         // Calculate Bonus if applicable
         let bonusEarned = 0;
@@ -1439,19 +1475,38 @@ const verifySewak = async (req, res) => {
 
 const rejectSewak = async (req, res) => {
     try {
+        const { rejectionReason = 'KYC documents invalid' } = req.body;
         const sewak = await Provider.findById(req.params.id);
         if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
 
         sewak.kycVerified = false;
+        sewak.kycStatus = 'rejected';
         sewak.status = 'rejected';
+        // Keep kycSubmitted as-is so the sewak remains visible in the admin panel for audit
         // Reject all documents
         if (sewak.documents) {
             sewak.documents.forEach(doc => {
-                doc.status = 'rejected';
+                if (doc.status !== 'verified') {
+                    doc.status = 'rejected';
+                    doc.rejectionReason = rejectionReason;
+                    doc.reviewedAt = new Date();
+                }
             });
         }
 
         await sewak.save();
+
+        // Notify Provider
+        try {
+            const { sendNotificationToUser } = require('../config/notificationService');
+            await sendNotificationToUser(sewak._id, 'provider', {
+                title: 'KYC Rejected',
+                body: `Your KYC application was rejected. Reason: ${rejectionReason}`,
+                data: { type: 'kyc', id: sewak._id.toString() }
+            });
+        } catch (err) {
+            console.error('Failed to notify provider on rejectSewak:', err.message);
+        }
 
         // Log Rejection Action
         await AuditLog.create({
@@ -1462,11 +1517,161 @@ const rejectSewak = async (req, res) => {
             verifiedBy: req.user._id,
             verifiedByName: req.user.name,
             verifiedByRole: req.user.role,
-            details: { status: 'rejected' }
+            details: { status: 'rejected', rejectionReason }
         });
 
         res.json({ success: true, message: 'Sewak KYC rejected' });
     } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const verifySewakDocument = async (req, res) => {
+    try {
+        const { id, docId } = req.params;
+        const { status, rejectionReason, adminNotes } = req.body;
+
+        if (!['verified', 'rejected'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status. Must be verified or rejected.' });
+        }
+
+        if (status === 'rejected' && !rejectionReason) {
+            return res.status(400).json({ message: 'Rejection reason is required.' });
+        }
+
+        const sewak = await Provider.findById(id);
+        if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
+
+        let docIndex = sewak.documents.findIndex(d => d.id === docId);
+
+        if (docIndex === -1) {
+            // Document doesn't exist yet (admin-created sewak with no uploads)
+            // Create a placeholder entry with the given status so rejection is recorded
+            sewak.documents.push({
+                id: docId,
+                status,
+                reviewedAt: new Date(),
+                rejectionReason: status === 'rejected' ? rejectionReason : null,
+                adminNotes: adminNotes || null,
+            });
+        } else {
+            // Update existing document fields
+            sewak.documents[docIndex].status = status;
+            sewak.documents[docIndex].reviewedAt = new Date();
+            if (status === 'rejected') {
+                sewak.documents[docIndex].rejectionReason = rejectionReason;
+            } else {
+                sewak.documents[docIndex].rejectionReason = null;
+            }
+            if (adminNotes !== undefined) {
+                sewak.documents[docIndex].adminNotes = adminNotes;
+            }
+        }
+
+        // Mark modified so mongoose saves nested updates
+        sewak.markModified('documents');
+
+        const { sendNotificationToUser } = require('../config/notificationService');
+
+        // Notify the Sewak about individual document status
+        try {
+            let title = '';
+            let body = '';
+            
+            if (docId === 'live_video') {
+                title = status === 'verified' ? 'Live Video Approved' : 'Live Video Rejected';
+                body = status === 'verified'
+                    ? 'Your Live Video verification has been approved.'
+                    : `Your Live Video verification was rejected. Reason: ${rejectionReason}`;
+            } else {
+                const docLabel = docId.toUpperCase().replace('_', ' ');
+                title = status === 'verified' ? `${docLabel} Approved` : `${docLabel} Rejected`;
+                body = status === 'verified'
+                    ? `Your ${docLabel} has been approved by the admin.`
+                    : `Your ${docLabel} was rejected. Reason: ${rejectionReason}`;
+            }
+
+            await sendNotificationToUser(sewak._id, 'provider', {
+                title,
+                body,
+                data: { type: 'kyc', id: sewak._id.toString() }
+            });
+        } catch (err) {
+            console.error('Failed to notify provider on doc update:', err.message);
+        }
+
+        if (status === 'rejected') {
+            sewak.kycStatus = 'rejected';
+            sewak.status = 'rejected';
+            sewak.kycVerified = false;
+            // Keep kycSubmitted as-is so the sewak remains visible in the admin panel for audit
+
+            // Notify Sewak: Overall KYC rejected
+            try {
+                await sendNotificationToUser(sewak._id, 'provider', {
+                    title: 'KYC Rejected',
+                    body: `Your KYC application was rejected. Please review and update the rejected items.`,
+                    data: { type: 'kyc', id: sewak._id.toString() }
+                });
+            } catch (err) {
+                console.error('Failed to notify provider on overall kyc reject:', err.message);
+            }
+        } else {
+            // Check if ALL required documents and live video are approved
+            const requiredDocs = ['aadhaar', 'pan', 'live_video'];
+            const allApproved = requiredDocs.every(reqId => {
+                const doc = sewak.documents.find(d => d.id === reqId);
+                return doc && doc.status === 'verified';
+            });
+
+            if (allApproved) {
+                sewak.kycStatus = 'verified';
+                sewak.status = 'verified';
+                sewak.kycVerified = true;
+                sewak.isOnline = true;
+
+                // Notify Sewak: Overall KYC approved
+                try {
+                    await sendNotificationToUser(sewak._id, 'provider', {
+                        title: 'KYC Approved',
+                        body: 'Congratulations! Your identity verification is complete. Your account is now active to receive bookings.',
+                        data: { type: 'kyc', id: sewak._id.toString() }
+                    });
+                } catch (err) {
+                    console.error('Failed to notify provider on overall kyc verify:', err.message);
+                }
+            } else {
+                sewak.kycStatus = 'partially_approved';
+            }
+        }
+
+        await sewak.save();
+
+        // Audit Logging
+        try {
+            await AuditLog.create({
+                actionType: status === 'verified' ? "APPROVE_DOCUMENT" : "REJECT_DOCUMENT",
+                entityType: "SEWAK",
+                entityId: sewak._id,
+                entityName: sewak.ownerName,
+                verifiedBy: req.user._id,
+                verifiedByName: req.user.name,
+                verifiedByRole: req.user.role,
+                details: { docId, status }
+            });
+        } catch (auditErr) {
+            console.error('Audit log failed:', auditErr.message);
+        }
+
+        res.json({
+            success: true,
+            message: `Document ${docId} status updated to ${status}`,
+            kycStatus: sewak.kycStatus,
+            providerStatus: sewak.status
+        });
+
+    } catch (error) {
+        console.error('Verify Sewak Document Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -1906,6 +2111,117 @@ const updateCashLimitsConfig = async (req, res) => {
     }
 };
 
+// @desc    Global search across users, providers, sewaks, bookings
+// @route   GET /api/admin/search?q=...
+// @access  Private/Admin
+const adminGlobalSearch = async (req, res) => {
+    const { q } = req.query;
+    if (!q || q.trim().length < 2) {
+        return res.json({ users: [], providers: [], sewaks: [], bookings: [] });
+    }
+
+    const regex = { $regex: q.trim(), $options: 'i' };
+    try {
+        const [users, providers, sewaks, bookings] = await Promise.all([
+            User.find({ $or: [{ name: regex }, { email: regex }, { mobile: regex }] })
+                .select('name email mobile').limit(5).lean(),
+
+            Provider.find({
+                providerCategory: { $ne: 'sewak' },
+                $or: [{ shopName: regex }, { ownerName: regex }, { mobile: regex }, { vendorCode: regex }]
+            }).select('shopName ownerName mobile vendorCode status').limit(5).lean(),
+
+            Provider.find({
+                providerCategory: 'sewak',
+                $or: [{ ownerName: regex }, { mobile: regex }, { vendorCode: regex }]
+            }).select('ownerName mobile vendorCode kycStatus status').limit(5).lean(),
+
+            Booking.find({ $or: [{ bookingId: regex }, { serviceName: regex }] })
+                .select('bookingId serviceName status amount createdAt').limit(5).lean(),
+        ]);
+
+        res.json({ users, providers, sewaks, bookings });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get admin notifications (recent actions + pending items)
+// @route   GET /api/admin/notifications
+// @access  Private/Admin
+const getAdminNotifications = async (req, res) => {
+    try {
+        const [
+            recentLogs,
+            pendingKyc,
+            pendingSewaks,
+            pendingEmployees,
+            pendingBookings,
+        ] = await Promise.all([
+            AuditLog.find().sort({ timestamp: -1 }).limit(5).lean(),
+            Provider.countDocuments({ providerCategory: { $ne: 'sewak' }, kycVerified: false, kycSubmitted: true }),
+            Provider.countDocuments({ providerCategory: 'sewak', kycVerified: false, $or: [{ kycSubmitted: true }, { status: 'pending' }] }),
+            // employees pending verification – use Provider model employees
+            Provider.countDocuments({ providerCategory: { $ne: 'sewak' }, status: 'pending' }),
+            Booking.countDocuments({ status: 'pending' }),
+        ]);
+
+        const notifications = [];
+
+        if (pendingKyc > 0) {
+            notifications.push({
+                id: 'kyc-pending',
+                type: 'kyc',
+                title: `${pendingKyc} Provider KYC Pending`,
+                message: 'Provider KYC applications awaiting review.',
+                link: '/admin/kyc',
+                time: new Date(),
+            });
+        }
+
+        if (pendingSewaks > 0) {
+            notifications.push({
+                id: 'sewak-kyc-pending',
+                type: 'kyc',
+                title: `${pendingSewaks} Sewak KYC Pending`,
+                message: 'Sewak verification applications awaiting review.',
+                link: '/admin/verify-sewaks',
+                time: new Date(),
+            });
+        }
+
+        if (pendingBookings > 0) {
+            notifications.push({
+                id: 'bookings-pending',
+                type: 'booking',
+                title: `${pendingBookings} Pending Bookings`,
+                message: 'Bookings awaiting provider assignment.',
+                link: '/admin/bookings',
+                time: new Date(),
+            });
+        }
+
+        // Add recent audit activity
+        recentLogs.forEach(log => {
+            notifications.push({
+                id: log._id.toString(),
+                type: 'activity',
+                title: `${log.actionType}: ${log.entityType}`,
+                message: `${log.verifiedByName || 'Admin'} performed ${log.actionType} on ${log.entityName || log.entityType}`,
+                link: '/admin/audit-logs',
+                time: log.timestamp,
+            });
+        });
+
+        // Sort newest first
+        notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+        res.json({ notifications: notifications.slice(0, 15), counts: { pendingKyc, pendingSewaks, pendingBookings } });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     getProviderReports,
@@ -1922,8 +2238,8 @@ module.exports = {
     toggleUserStatus,
     getBanners,
     addBanner,
-    deleteBanner,
     updateBanner,
+    deleteBanner,
     toggleBannerStatus,
     getEmergencyData,
     broadcastEmergency,
@@ -1954,11 +2270,13 @@ module.exports = {
     deleteAdmin,
     updateAdmin,
     getAllSewaks,
+    getSewakById,
     createSewak,
     updateSewak,
     getPendingSewaks,
     verifySewak,
     rejectSewak,
+    verifySewakDocument,
     deleteProvider,
     getAdminSubscriptionPlans,
     createSubscriptionPlan,
@@ -1979,5 +2297,8 @@ module.exports = {
     getCashLimitsConfig,
     updateCashLimitsConfig,
     deleteUser,
-    deleteBooking
+    deleteBooking,
+    adminGlobalSearch,
+    getAdminNotifications,
 };
+

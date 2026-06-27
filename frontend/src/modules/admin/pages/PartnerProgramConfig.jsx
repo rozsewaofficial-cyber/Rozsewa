@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { useScrollLock } from '@/lib/scrollLock';
 import API from '@/lib/api';
 import { Save, Loader2, Plus, Trash2, ShieldCheck, DollarSign, Gift, Calendar, AlertTriangle } from 'lucide-react';
@@ -8,6 +9,7 @@ import { CreditCard, CheckCircle2, XCircle, Edit } from 'lucide-react';
 import { normalizeNonNegativeNumber, validateNonNegativeNumber } from '@/lib/numberValidation';
 
 export default function PartnerProgramConfig() {
+  const { setTitle } = useOutletContext();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +39,10 @@ export default function PartnerProgramConfig() {
     features: [""],
     isActive: true
   });
+
+  useEffect(() => {
+    setTitle("Partner Program");
+  }, [setTitle]);
 
   useEffect(() => {
     fetchCategories();
