@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useAuth } from "@/context/AuthContext";
+import { useSocket } from "@/context/SocketContext";
 
 const tags = ["On Time", "Clean Work", "Polite", "Professional", "Affordable", "Expert"];
 
@@ -14,6 +15,7 @@ const PostService = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { socket } = useSocket();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +47,24 @@ const PostService = () => {
   };
 
   useEffect(() => { fetchBooking(); }, []);
+
+  useEffect(() => {
+    if (socket) {
+      const handleExtraPending = (data) => {
+        if (booking && data.bookingId === booking._id) {
+            fetchBooking();
+        } else if (!booking) {
+            fetchBooking();
+        }
+      };
+      
+      socket.on("EXTRA_CHARGES_PENDING", handleExtraPending);
+      
+      return () => {
+        socket.off("EXTRA_CHARGES_PENDING", handleExtraPending);
+      };
+    }
+  }, [socket, booking]);
 
   const loadRazorpay = () => new Promise((resolve) => {
     const script = document.createElement("script");

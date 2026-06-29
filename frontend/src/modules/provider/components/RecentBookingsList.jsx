@@ -6,6 +6,8 @@ import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import ChatModal from "@/components/ChatModal";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { useSocket } from "@/context/SocketContext";
+import { useAuth } from "@/context/AuthContext";
 
 const RecentBookingsList = () => {
   const [requests, setRequests] = useState([]);
@@ -15,6 +17,8 @@ const RecentBookingsList = () => {
   const [activeTracking, setActiveTracking] = useState(null);
   const [activeChatBookingId, setActiveChatBookingId] = useState(null);
   const { toast } = useToast();
+  const { socket } = useSocket();
+  const { user } = useAuth();
 
   const [counteringBookingId, setCounteringBookingId] = useState(null);
   const [counterAmount, setCounterAmount] = useState('');
@@ -95,6 +99,30 @@ const RecentBookingsList = () => {
     fetchBookings();
   }, []);
 
+  useEffect(() => {
+    if (user && user._id) {
+      API.get(`/public/services/${user._id}`)
+        .then(res => {
+          setProviderServices(res.data?.services || []);
+        })
+        .catch(err => console.error("Failed to load provider services", err));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (socket) {
+      const handleExtraUpdate = () => {
+        fetchBookings();
+      };
+      
+      socket.on("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
+      
+      return () => {
+        socket.off("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
+      };
+    }
+  }, [socket]);
+
   const handleAction = async (id, action, extraData = {}) => {
     let newStatus = 'pending';
     if (action === 'accept') newStatus = 'confirmed';
@@ -151,6 +179,9 @@ const RecentBookingsList = () => {
 
   const [showExtraModal, setShowExtraModal] = useState(false);
   const [newExtraCharges, setNewExtraCharges] = useState([{ item: '', amount: '' }]);
+  const [extraMode, setExtraMode] = useState('parts');
+  const [providerServices, setProviderServices] = useState([]);
+  const [showAdminRequestModal, setShowAdminRequestModal] = useState(false);
   const [activeBookingForExtra, setActiveBookingForExtra] = useState(null);
 
   const [reportBookingId, setReportBookingId] = useState(null);
@@ -188,7 +219,9 @@ const RecentBookingsList = () => {
 
   const submitExtraCharges = async () => {
     try {
-      const filtered = newExtraCharges.filter(c => c.item && c.amount > 0);
+      const filtered = newExtraCharges
+        .map(c => ({ item: c.item, amount: Number(c.amount) }))
+        .filter(c => c.item && !isNaN(c.amount) && c.amount > 0);
       if (filtered.length === 0) return;
 
       await API.patch(`/bookings/${activeBookingForExtra}/status`, {
@@ -283,7 +316,7 @@ const RecentBookingsList = () => {
                     {/* Total collected from customer */}
                     {req.negotiation && req.negotiation.userProposedAmount ? (
                       <div className="flex flex-col">
-                        <div className="text-sm font-black text-emerald-600/60 dark:text-emerald-400/60 italic line-through">₹{req.totalAmount}</div>
+                        <div className="text-sm font-black text-emerald-600/60 dark:text-emerald-400/60 italic line-through">₹{req.originalFixedPrice}</div>
                         <div className="flex items-center gap-2">
                           <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.negotiation.userProposedAmount}</div>
                           <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded">Proposed</span>
@@ -417,18 +450,12 @@ const RecentBookingsList = () => {
                             Accept Offer
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-2 w-full">
                           <button
                             onClick={() => setCounteringBookingId(req._id)}
-                            className="rounded-xl border-2 border-purple-500/20 bg-purple-50 dark:bg-purple-900/10 py-2.5 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/20"
+                            className="w-full rounded-xl border-2 border-purple-500/20 bg-purple-50 dark:bg-purple-900/10 py-2.5 text-xs font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/20"
                           >
                             Counter Offer
-                          </button>
-                          <button
-                            onClick={() => handleAction(req._id, 'accept', { offerDecision: 'fixed_price' })}
-                            className="rounded-xl border-2 border-blue-500/20 bg-blue-50 dark:bg-blue-900/10 py-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20"
-                          >
-                            Accept Fixed Price (₹{req.originalFixedPrice})
                           </button>
                         </div>
                       </div>
@@ -558,16 +585,30 @@ const RecentBookingsList = () => {
 
                     {/* Extra Charges Section */}
                     {(!req.extraStatus || req.extraStatus === 'none') && (
-                      <button
-                        onClick={() => {
-                          setActiveBookingForExtra(req._id);
-                          setShowExtraModal(true);
-                          setNewExtraCharges([{ item: '', amount: '' }]);
-                        }}
-                        className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-primary bg-primary/5 py-2 text-[10px] font-black uppercase text-primary tracking-widest hover:bg-primary/10 transition-all"
-                      >
-                        <Plus className="h-3 w-3" /> Add Extra Charges (Spare Parts)
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setExtraMode('parts');
+                            setActiveBookingForExtra(req._id);
+                            setShowExtraModal(true);
+                            setNewExtraCharges([{ item: '', amount: '' }]);
+                          }}
+                          className="w-full flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-primary bg-primary/5 py-3 text-[10px] font-black uppercase text-primary tracking-widest hover:bg-primary/10 transition-all"
+                        >
+                          <Plus className="h-4 w-4" /> Add Spare Parts
+                        </button>
+                        <button
+                          onClick={() => {
+                            setExtraMode('services');
+                            setActiveBookingForExtra(req._id);
+                            setShowExtraModal(true);
+                            setNewExtraCharges([{ item: '', amount: '' }]);
+                          }}
+                          className="w-full flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-indigo-500 bg-indigo-50 py-3 text-[10px] font-black uppercase text-indigo-600 tracking-widest hover:bg-indigo-100 transition-all"
+                        >
+                          <Plus className="h-4 w-4" /> Add Extra Service
+                        </button>
+                      </div>
                     )}
 
                     {req.extraStatus === 'pending' && (
@@ -629,18 +670,18 @@ const RecentBookingsList = () => {
                     <div className="rounded-xl border border-border p-4 bg-emerald-50/50 dark:bg-emerald-900/10">
                       <h4 className="text-sm font-black text-foreground mb-3 uppercase tracking-wider text-center">Payment Collection</h4>
                       <div className="flex justify-between text-xs font-bold text-muted-foreground mb-2">
-                        <span>Booking Amount</span>
-                        <span>₹{req.totalAmount || 0}</span>
+                        <span>Base Price</span>
+                        <span>₹{(req.totalAmount || 0) - (req.extraCharges?.filter(c => c.item.includes('Travel Charge') || c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
                       {req.extraCharges && req.extraCharges.length > 0 && (
                         <div className="flex justify-between text-xs font-bold text-muted-foreground mb-2">
-                          <span>Extra Charges</span>
+                          <span>Extra Charges (Travel, Parts, etc.)</span>
                           <span>₹{req.extraCharges.reduce((sum, c) => sum + (c.amount || 0), 0)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm font-black text-emerald-700 dark:text-emerald-400 mt-3 pt-3 border-t border-emerald-100 dark:border-emerald-900">
                         <span>Total Bill</span>
-                        <span>₹{(req.totalAmount || 0) + (req.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                        <span>₹{(req.totalAmount || 0) + (req.extraCharges?.filter(c => !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
                     </div>
 
@@ -744,30 +785,56 @@ const RecentBookingsList = () => {
         {showExtraModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-6 border border-border shadow-2xl my-auto">
-              <h3 className="text-lg font-black text-center mb-1">Add Extra Charges</h3>
+              <h3 className="text-lg font-black text-center mb-1">{extraMode === 'services' ? 'Add Extra Services' : 'Add Extra Charges'}</h3>
               <p className="text-[10px] text-muted-foreground text-center mb-5 font-bold uppercase tracking-widest">Customer will approve before payment</p>
 
               <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                 {newExtraCharges.map((charge, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
-                    <input
-                      placeholder="Part Name"
-                      value={charge.item}
-                      onChange={(e) => {
-                        const updated = [...newExtraCharges];
-                        updated[idx].item = e.target.value;
-                        setNewExtraCharges(updated);
-                      }}
-                      className="flex-1 h-11 rounded-xl bg-muted border-none px-4 text-xs font-bold"
-                    />
+                    {extraMode === 'services' ? (
+                      <select
+                        value={charge.item}
+                        onChange={(e) => {
+                          const updated = [...newExtraCharges];
+                          const selectedName = e.target.value;
+                          const svc = providerServices.find(s => s.name === selectedName);
+                          updated[idx].item = selectedName;
+                          if (svc && (svc.price !== undefined && svc.price !== null)) {
+                            updated[idx].amount = svc.price;
+                          }
+                          setNewExtraCharges(updated);
+                        }}
+                        className="flex-1 h-11 rounded-xl bg-muted border-none px-4 text-xs font-bold appearance-none"
+                      >
+                        <option value="" disabled>Select Service</option>
+                        {providerServices.map((s, i) => (
+                          <option key={i} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        placeholder="Part Name"
+                        value={charge.item}
+                        onChange={(e) => {
+                          const updated = [...newExtraCharges];
+                          updated[idx].item = e.target.value;
+                          setNewExtraCharges(updated);
+                        }}
+                        className="flex-1 h-11 rounded-xl bg-muted border-none px-4 text-xs font-bold"
+                      />
+                    )}
                     <input
                       placeholder="Amount"
                       type="number"
+                      min="0"
                       value={charge.amount}
                       onChange={(e) => {
                         const updated = [...newExtraCharges];
-                        updated[idx].amount = Number(e.target.value);
-                        setNewExtraCharges(updated);
+                        const val = e.target.value;
+                        if (val === '' || Number(val) >= 0) {
+                          updated[idx].amount = val;
+                          setNewExtraCharges(updated);
+                        }
                       }}
                       className="w-20 h-11 rounded-xl bg-muted border-none px-3 text-xs font-bold"
                     />

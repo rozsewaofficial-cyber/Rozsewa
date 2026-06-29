@@ -160,8 +160,17 @@ class DistanceChargeService {
                 });
             }
 
-            // Update Total Amount
+            // Update Total Amounts
             booking.totalAmount = (booking.totalAmount || 0) + chargeDifference;
+            if (booking.originalFixedPrice) {
+                booking.originalFixedPrice += chargeDifference;
+            }
+            if (booking.customerOffer) {
+                booking.customerOffer += chargeDifference;
+            }
+            if (booking.negotiation && booking.negotiation.userProposedAmount) {
+                booking.negotiation.userProposedAmount += chargeDifference;
+            }
 
             await booking.save();
             return { booking, travelChargeObj, chargeDifference };

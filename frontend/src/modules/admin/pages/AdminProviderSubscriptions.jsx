@@ -78,12 +78,19 @@ const AdminProviderSubscriptions = () => {
     });
 
     const handleRevokeSubscription = async (id) => {
-        if (!window.confirm("Are you sure you want to revoke this provider's subscription?")) return;
+        const reason = window.prompt("Are you sure? Enter a reason for revoking the subscription (optional):");
+        if (reason === null) return;
+        
         try {
-            // Placeholder for real endpoint
-            toast({ title: "Feature Coming Soon", description: "Revoke subscription endpoint needed." });
+            await API.post(`/v2/admin/providers/${id}/subscription/cancel`, { reason });
+            toast({ title: "Subscription Revoked", description: "Provider's subscription has been cancelled." });
+            fetchProviders();
         } catch (err) {
-            toast({ title: "Update Failed", variant: "destructive" });
+            toast({ 
+                title: "Update Failed", 
+                description: err.response?.data?.message || "Failed to revoke subscription",
+                variant: "destructive" 
+            });
         }
     };
 

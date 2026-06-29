@@ -58,7 +58,7 @@ const ProviderDashboard = () => {
 
   const fetchCommissionPreview = async () => {
     try {
-      const { data } = await API.get("/provider/commission-preview?bookingAmount=1000");
+      const { data } = await API.get("/v2/provider/commission-preview?bookingAmount=1000");
       setCommissionPreview(data);
       setEstimation(data);
     } catch (err) {}
@@ -68,7 +68,7 @@ const ProviderDashboard = () => {
     setEstimateAmount(val);
     if (!val || isNaN(val)) return;
     try {
-      const { data } = await API.get(`/provider/commission-preview?bookingAmount=${val}`);
+      const { data } = await API.get(`/v2/provider/commission-preview?bookingAmount=${val}`);
       setEstimation(data);
     } catch (err) {}
   };
@@ -667,41 +667,6 @@ const ProviderDashboard = () => {
                 )}
               </div>
 
-              {/* Real-time Earnings Estimator */}
-              <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/40 space-y-3">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div>
-                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200">
-                      Earnings Estimator
-                    </h4>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                      Preview platform commission and payout shares
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border rounded-lg px-2 py-1 shadow-sm shrink-0">
-                    <span className="text-xs text-slate-400 font-bold">₹</span>
-                    <input 
-                      type="number" 
-                      value={estimateAmount} 
-                      onChange={e => handleEstimate(e.target.value)} 
-                      className="w-16 bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 outline-none border-none p-0 focus:ring-0"
-                    />
-                  </div>
-                </div>
-
-                {estimation && (
-                  <div className="grid grid-cols-2 gap-4 border-t border-slate-200/50 dark:border-slate-800/40 pt-3">
-                    <div className="text-left">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">Platform Cut ({estimation.currentCommissionPercentage}%)</span>
-                      <p className="text-sm font-black text-rose-500">₹{estimation.estimatedCommission.toFixed(2)}</p>
-                    </div>
-                    <div className="text-left">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase">Your Share (Earnings)</span>
-                      <p className="text-sm font-black text-emerald-500">₹{estimation.estimatedEarnings.toFixed(2)}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           </section>
         )}

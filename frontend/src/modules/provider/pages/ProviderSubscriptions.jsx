@@ -3,7 +3,8 @@ import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { 
   CreditCard, ShieldCheck, Crown, Calendar, Sparkles, Check, 
-  History, Loader2, ArrowRight, RefreshCw, AlertCircle 
+  History, Loader2, ArrowRight, RefreshCw, AlertCircle, X,
+  Wallet, Link as LinkIcon
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,12 +29,12 @@ const ProviderSubscriptions = () => {
     try {
       const [plansRes, previewRes, historyRes, walletRes] = await Promise.all([
         API.get("/provider/subscription-plans"),
-        API.get("/provider/commission-preview"),
-        API.get("/provider/subscription/history"),
-        API.get("/provider/wallet")
+        API.get("/v2/provider/commission-preview"),
+        API.get("/v2/provider/subscription/history"),
+        API.get("/wallet")
       ]);
       setPlans(plansRes.data || []);
-      setHistory(historyRes.data?.history || []);
+      setHistory(Array.isArray(historyRes.data) ? historyRes.data : []);
       setWallet(walletRes.data || null);
 
       if (previewRes.data?.activeSubscription) {
@@ -48,24 +49,29 @@ const ProviderSubscriptions = () => {
     }
   };
 
-  const handlePurchase = async (plan) => {
+  const [paymentModalPlan, setPaymentModalPlan] = useState(null);
+  const [isProcessingOnline, setIsProcessingOnline] = useState(false);
+
+  const handlePurchaseClick = (plan) => {
+    setPaymentModalPlan(plan);
+  };
+
+  const handleWalletPurchase = async () => {
+    const plan = paymentModalPlan;
     if (!wallet || wallet.availableBalance < plan.price) {
       toast({ 
         title: "Insufficient Available Balance", 
-        description: `Your wallet available balance is ₹${wallet?.availableBalance || 0}. Please recharge your wallet with at least ₹${plan.price} first.`, 
+        description: `Your wallet available balance is ₹${wallet?.availableBalance || 0}. Please recharge your wallet with at least ₹${plan.price} first or use online payment.`, 
         variant: "destructive" 
       });
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to purchase the "${plan.name}" plan for ₹${plan.price} using your wallet balance?`)) {
-      return;
-    }
-
     setPurchasing(true);
     try {
-      await API.post("/provider/subscription/purchase", { planId: plan._id });
+      await API.post("/v2/provider/subscription/purchase", { planId: plan._id });
       toast({ title: "Subscription Active!", description: `Successfully purchased ${plan.name} plan.` });
+      setPaymentModalPlan(null);
       await fetchData();
       setActiveTab("active");
     } catch (err) {
@@ -79,35 +85,76 @@ const ProviderSubscriptions = () => {
     }
   };
 
+  const loadRazorpay = () => {
+    return new Promise((resolve) => {
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleOnlinePurchase = async () => {
+    const plan = paymentModalPlan;
+    setIsProcessingOnline(true);
+    
+    const res = await loadRazorpay();
+    if (!res) {
+      toast({ title: "Razorpay SDK failed to load. Are you online?", variant: "destructive" });
+      setIsProcessingOnline(false);
+      return;
+    }
+
+    try {
+      const { data: order } = await API.post("/payment/order", { amount: plan.price, currency: "INR" });
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa Subscription",
+        description: `Purchase ${plan.name} Plan`,
+        order_id: order.id,
+        handler: async function (response) {
+          try {
+            await API.post("/payment/verify-subscription", {
+              ...response,
+              planId: plan._id
+            });
+            toast({ title: "Subscription Active!", description: `Successfully purchased ${plan.name} plan.` });
+            setPaymentModalPlan(null);
+            await fetchData();
+            setActiveTab("active");
+          } catch (error) {
+            toast({ title: "Payment verification failed", description: error.response?.data?.message || "Please contact support.", variant: "destructive" });
+          }
+        },
+        theme: { color: "#059669" },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.on('payment.failed', function (response) {
+        toast({ title: "Payment Failed", description: response.error.description, variant: "destructive" });
+      });
+      paymentObject.open();
+    } catch (error) {
+      toast({ title: "Failed to initialize payment", description: error.response?.data?.message || "Server error", variant: "destructive" });
+    } finally {
+      setIsProcessingOnline(false);
+    }
+  };
+
   const handleRenew = async () => {
     if (!activePlan) return;
     const plan = plans.find(p => p.offeredCommissionRate === activePlan.rate) || plans[0];
     if (!plan) return;
 
-    if (!wallet || wallet.availableBalance < plan.price) {
-      toast({ 
-        title: "Insufficient Balance", 
-        description: `Cannot renew. Subscription costs ₹${plan.price}. Your available balance is ₹${wallet?.availableBalance || 0}.`, 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    if (!window.confirm(`Renew your active plan for ₹${plan.price}? It will extend your active expiry date.`)) {
-      return;
-    }
-
-    setPurchasing(true);
-    try {
-      await API.post("/provider/subscription/renew", { planId: plan._id });
-      toast({ title: "Subscription Renewed", description: "Your subscription expiration has been extended." });
-      await fetchData();
-      setActiveTab("active");
-    } catch (err) {
-      toast({ title: "Renewal Failed", variant: "destructive" });
-    } finally {
-      setPurchasing(false);
-    }
+    setPaymentModalPlan(plan); // Let user choose payment method for renewal too
   };
 
   if (loading) {
@@ -223,7 +270,7 @@ const ProviderSubscriptions = () => {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handlePurchase(plan)}
+                            onClick={() => handlePurchaseClick(plan)}
                             disabled={purchasing}
                             className="w-full h-12 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-50"
                           >
@@ -345,7 +392,7 @@ const ProviderSubscriptions = () => {
                           {item.subscription?.name || "Premium Plan"}
                         </td>
                         <td className="px-4 py-3.5 font-bold text-slate-950 dark:text-white">
-                          ₹{item.pricePaid}
+                          ₹{item.pricePaid ?? item.subscription?.price ?? 0}
                         </td>
                         <td className="px-4 py-3.5 font-medium text-slate-500">
                           {new Date(item.startDate).toLocaleDateString()}
@@ -370,6 +417,66 @@ const ProviderSubscriptions = () => {
             </div>
           </div>
         )}
+        {/* Payment Method Selection Modal */}
+        {paymentModalPlan && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-[40px] bg-card p-8 border border-border shadow-2xl relative animate-in zoom-in-95 duration-200">
+              <button 
+                onClick={() => setPaymentModalPlan(null)} 
+                className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <h2 className="text-2xl font-black tracking-tighter mb-1 uppercase">Choose Payment Method</h2>
+              <p className="text-sm text-muted-foreground mb-8">How would you like to pay for the <strong>{paymentModalPlan.name}</strong> plan (₹{paymentModalPlan.price})?</p>
+              
+              <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={handleWalletPurchase}
+                  disabled={purchasing || isProcessingOnline}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 transition-all hover:bg-emerald-100 dark:hover:bg-emerald-900/40 active:scale-95 disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-emerald-200 dark:bg-emerald-800 flex items-center justify-center">
+                      <Wallet className="h-6 w-6 text-emerald-700 dark:text-emerald-300" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-black uppercase text-sm">Pay via Wallet</div>
+                      <div className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Available: ₹{wallet?.availableBalance || 0}</div>
+                    </div>
+                  </div>
+                  {purchasing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                </button>
+
+                <div className="flex items-center gap-4 py-2">
+                  <div className="flex-1 h-px bg-border"></div>
+                  <div className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">OR</div>
+                  <div className="flex-1 h-px bg-border"></div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOnlinePurchase}
+                  disabled={purchasing || isProcessingOnline}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                      <LinkIcon className="h-6 w-6 text-slate-700 dark:text-slate-300" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-black uppercase text-sm">Pay Online</div>
+                      <div className="text-[10px] font-bold opacity-80 uppercase tracking-widest">UPI, Cards, Netbanking</div>
+                    </div>
+                  </div>
+                  {isProcessingOnline ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
       <ProviderBottomNav />
     </div>

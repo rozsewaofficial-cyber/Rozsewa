@@ -411,6 +411,7 @@ exports.purchaseSubscription = async (req, res) => {
             subscription: plan._id,
             startDate: purchaseDate,
             endDate: expiryDate,
+            pricePaid: plan.price,
             status: 'active'
         }], { session });
 
@@ -527,6 +528,7 @@ exports.renewSubscription = async (req, res) => {
                     subscription: plan._id,
                     startDate: new Date(),
                     endDate: expiryDate,
+                    pricePaid: plan.price,
                     status: 'active'
                 }], { session });
             }
@@ -536,6 +538,7 @@ exports.renewSubscription = async (req, res) => {
                 subscription: plan._id,
                 startDate: new Date(),
                 endDate: expiryDate,
+                pricePaid: plan.price,
                 status: 'active'
             }], { session });
         }
@@ -628,6 +631,7 @@ exports.manualActivateSubscription = async (req, res) => {
             subscription: plan._id,
             startDate: purchaseDate,
             endDate: expiry,
+            pricePaid: plan.price,
             status: 'active'
         });
 
