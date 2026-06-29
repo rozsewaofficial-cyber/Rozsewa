@@ -66,6 +66,81 @@ const AdminHRM = ({ view }) => {
     const [aadharPhotoFile, setAadharPhotoFile] = useState(null);
     const [uploading, setUploading] = useState(false);
 
+    // Verification States
+    const [panVerified, setPanVerified] = useState(false);
+    const [aadhaarVerified, setAadhaarVerified] = useState(false);
+    const [isVerifyingPan, setIsVerifyingPan] = useState(false);
+    const [aadhaarSessionId, setAadhaarSessionId] = useState("");
+    const [aadhaarOTP, setAadhaarOTP] = useState("");
+    const [showAadhaarOTP, setShowAadhaarOTP] = useState(false);
+    const [isVerifyingAadhaar, setIsVerifyingAadhaar] = useState(false);
+
+    const verifyPan = async () => {
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.panCard)) {
+            return toast({ title: "Invalid PAN", description: "Format: ABCDE1234F", variant: "destructive" });
+        }
+        setIsVerifyingPan(true);
+        try {
+            const { data } = await API.post('/verify/pan', { pan: formData.panCard });
+            if (data.status === "VALID" || data.success) {
+                setPanVerified(true);
+                toast({ title: "PAN Verified", description: `Name: ${data.data?.full_name || "Success"}` });
+            } else {
+                toast({ title: "Verification Failed", description: "Invalid PAN", variant: "destructive" });
+            }
+        } catch (error) {
+            toast({ title: "Verification Failed", description: error.response?.data?.message || "Could not verify PAN", variant: "destructive" });
+        } finally {
+            setIsVerifyingPan(false);
+        }
+    };
+
+    const initiateAadhaar = async () => {
+        if (!/^\d{12}$/.test(formData.aadharCard)) {
+            return toast({ title: "Invalid Aadhaar", description: "Must be 12 digits.", variant: "destructive" });
+        }
+        setIsVerifyingAadhaar(true);
+        try {
+            const { data } = await API.post('/verify/okyc/initiate', { aadhaarNumber: formData.aadharCard });
+            if (data.success && data.data?.session_id) {
+                setAadhaarSessionId(data.data.session_id);
+                setShowAadhaarOTP(true);
+                toast({ title: "OTP Sent", description: "OTP sent to Aadhaar linked mobile" });
+            } else {
+                toast({ title: "Initiation Failed", description: "Could not send OTP", variant: "destructive" });
+            }
+        } catch (error) {
+            toast({ title: "Initiation Failed", description: error.response?.data?.message || "Could not initiate Aadhaar OKYC", variant: "destructive" });
+        } finally {
+            setIsVerifyingAadhaar(false);
+        }
+    };
+
+    const verifyAadhaarOtpSubmit = async () => {
+        if (!aadhaarOTP || aadhaarOTP.length !== 6) {
+            return toast({ title: "Invalid OTP", description: "Please enter 6 digit OTP", variant: "destructive" });
+        }
+        setIsVerifyingAadhaar(true);
+        try {
+            const { data } = await API.post('/verify/okyc/verify', { 
+                sessionId: aadhaarSessionId, 
+                otp: aadhaarOTP, 
+                aadhaarNumber: formData.aadharCard 
+            });
+            if (data.success && data.data?.status === "VALID") {
+                setAadhaarVerified(true);
+                setShowAadhaarOTP(false);
+                toast({ title: "Aadhaar Verified", description: `Name: ${data.data?.full_name || "Success"}` });
+            } else {
+                toast({ title: "Verification Failed", description: "Invalid OTP", variant: "destructive" });
+            }
+        } catch (error) {
+            toast({ title: "Verification Failed", description: error.response?.data?.message || "Could not verify OTP", variant: "destructive" });
+        } finally {
+            setIsVerifyingAadhaar(false);
+        }
+    };
+
     useEffect(() => { setFormData(prev => ({ ...prev, role: getDefaultRole() })); }, [view, user]);
     useEffect(() => {
         if (view === 'supervisor') setTitle("Supervisors");
@@ -139,6 +214,12 @@ const AdminHRM = ({ view }) => {
             if (!finalFormData.panCard || !finalFormData.aadharCard) {
                 return toast({ title: "Documents Required", description: "Enter both PAN and Aadhaar numbers.", variant: "destructive" });
             }
+            if (!panVerified) {
+                return toast({ title: "PAN Verification Required", description: "Please verify PAN Card before submitting.", variant: "destructive" });
+            }
+            if (!aadhaarVerified) {
+                return toast({ title: "Aadhaar Verification Required", description: "Please verify Aadhaar with OTP before submitting.", variant: "destructive" });
+            }
             if (!panPhotoFile || !aadharPhotoFile) {
                 return toast({ title: "Photos Required", description: "Upload both PAN and Aadhaar photos.", variant: "destructive" });
             }
@@ -186,6 +267,11 @@ const AdminHRM = ({ view }) => {
         setEditId(null);
         setPanPhotoFile(null);
         setAadharPhotoFile(null);
+        setPanVerified(false);
+        setAadhaarVerified(false);
+        setShowAadhaarOTP(false);
+        setAadhaarOTP("");
+        setAadhaarSessionId("");
     };
 
     const openEditModal = (emp) => {
@@ -196,6 +282,10 @@ const AdminHRM = ({ view }) => {
             registrationCommission: emp.registrationCommission, panCard: emp.panCard || "", aadharCard: emp.aadharCard || ""
         });
         setEditId(emp._id);
+        // Assume existing staff are verified to bypass check on edit unless they change it
+        setPanVerified(!!emp.panCard);
+        setAadhaarVerified(!!emp.aadharCard);
+        setShowAadhaarOTP(false);
         setShowAddModal(true);
     };
 
@@ -238,7 +328,7 @@ const AdminHRM = ({ view }) => {
                     onClick={() => setShowAddModal(true)}
                     className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-sm active:scale-95"
                 >
-                    <Plus className="h-3.5 w-3.5" /> Register New Staff
+                    <Plus className="h-3.5 w-3.5" /> Add Employee
                 </button>
             </div>
 
@@ -443,7 +533,7 @@ const AdminHRM = ({ view }) => {
                             {/* Modal Header */}
                             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                                 <div>
-                                    <h3 className="text-lg font-black text-gray-900">{editId ? "Edit Staff Details" : "Register New Staff"}</h3>
+                                    <h3 className="text-lg font-black text-gray-900">{editId ? "Edit Employee Details" : "Add Employee"}</h3>
                                     <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Admin → Supervisor → Field Staff</p>
                                 </div>
                                 <button onClick={() => { setShowAddModal(false); resetForm(); }} className="h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
@@ -455,13 +545,26 @@ const AdminHRM = ({ view }) => {
                                 <div className="grid grid-cols-2 gap-4">
                                     <InputField label="Role">
                                         <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className={inputCls}>
-                                            {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="supervisor">Supervisor</option>}
-                                            {user?.role === 'supervisor' && <option value="employee">Employee</option>}
-                                            {!user && <>
-                                                <option value="supervisor">Supervisor</option>
-                                                <option value="employee">Employee</option>
-                                                <option value="field_staff">Field Staff</option>
-                                            </>}
+                                            {(user?.role === 'admin' || user?.role === 'superadmin') && (
+                                                <>
+                                                    <option value="supervisor">Supervisor</option>
+                                                    <option value="employee">Employee</option>
+                                                    <option value="field_staff">Field Staff</option>
+                                                </>
+                                            )}
+                                            {user?.role === 'supervisor' && (
+                                                <>
+                                                    <option value="employee">Employee</option>
+                                                    <option value="field_staff">Field Staff</option>
+                                                </>
+                                            )}
+                                            {!user && (
+                                                <>
+                                                    <option value="supervisor">Supervisor</option>
+                                                    <option value="employee">Employee</option>
+                                                    <option value="field_staff">Field Staff</option>
+                                                </>
+                                            )}
                                         </select>
                                     </InputField>
                                     <InputField label="Full Name">
@@ -497,20 +600,55 @@ const AdminHRM = ({ view }) => {
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <InputField label="PAN Card No">
-                                        <input type="text" value={formData.panCard}
-                                            onChange={(e) => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (v.length <= 10) setFormData({ ...formData, panCard: v }); }}
-                                            className={`${inputCls} uppercase font-mono`} placeholder="ABCDE1234F" />
+                                        <div className="relative">
+                                            <input type="text" value={formData.panCard}
+                                                onChange={(e) => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (v.length <= 10) { setFormData({ ...formData, panCard: v }); setPanVerified(false); } }}
+                                                className={`${inputCls} uppercase font-mono pr-20`} placeholder="ABCDE1234F" />
+                                            {panVerified ? (
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md text-[10px] font-bold">
+                                                    <CheckCircle2 className="h-3 w-3" /> Verified
+                                                </div>
+                                            ) : (
+                                                <button type="button" onClick={verifyPan} disabled={isVerifyingPan || formData.panCard?.length !== 10} className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors">
+                                                    {isVerifyingPan ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify"}
+                                                </button>
+                                            )}
+                                        </div>
                                         <input type="file" accept="image/*" onChange={(e) => setPanPhotoFile(e.target.files[0])}
                                             className="mt-1.5 text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-600 hover:file:bg-gray-200 w-full" />
                                     </InputField>
                                     <InputField label="Aadhaar No">
-                                        <input type="text" value={formData.aadharCard}
-                                            onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 12) setFormData({ ...formData, aadharCard: v }); }}
-                                            className={`${inputCls} font-mono`} placeholder="12-digit number" />
+                                        <div className="relative">
+                                            <input type="text" value={formData.aadharCard}
+                                                onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 12) { setFormData({ ...formData, aadharCard: v }); setAadhaarVerified(false); setShowAadhaarOTP(false); } }}
+                                                className={`${inputCls} font-mono pr-24`} placeholder="12-digit number" />
+                                            {aadhaarVerified ? (
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md text-[10px] font-bold">
+                                                    <CheckCircle2 className="h-3 w-3" /> Verified
+                                                </div>
+                                            ) : (
+                                                <button type="button" onClick={initiateAadhaar} disabled={isVerifyingAadhaar || formData.aadharCard?.length !== 12 || showAadhaarOTP} className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors">
+                                                    {isVerifyingAadhaar && !showAadhaarOTP ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send OTP"}
+                                                </button>
+                                            )}
+                                        </div>
                                         <input type="file" accept="image/*" onChange={(e) => setAadharPhotoFile(e.target.files[0])}
                                             className="mt-1.5 text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-600 hover:file:bg-gray-200 w-full" />
                                     </InputField>
                                 </div>
+                                {showAadhaarOTP && !aadhaarVerified && (
+                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                                        <InputField label="Enter Aadhaar OTP">
+                                            <div className="flex gap-2">
+                                                <input type="text" value={aadhaarOTP} onChange={(e) => setAadhaarOTP(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                                    className={`${inputCls} font-mono tracking-widest text-center`} placeholder="XXXXXX" />
+                                                <button type="button" onClick={verifyAadhaarOtpSubmit} disabled={isVerifyingAadhaar || aadhaarOTP.length !== 6} className="bg-emerald-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                                                    {isVerifyingAadhaar ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Verify OTP"}
+                                                </button>
+                                            </div>
+                                        </InputField>
+                                    </motion.div>
+                                )}
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <InputField label={editId ? "Password (Edit to Change)" : "Login Password"}>
@@ -539,7 +677,7 @@ const AdminHRM = ({ view }) => {
                                         Cancel
                                     </button>
                                     <button type="submit" disabled={uploading} className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                                        {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : (editId ? "Update Staff" : "Register Staff")}
+                                        {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : (editId ? "Update Employee" : "Add Employee")}
                                     </button>
                                 </div>
                             </form>

@@ -62,7 +62,7 @@ export default function AdminCommissionAnalytics() {
       if (selectedProvider) params.providerId = selectedProvider;
       if (selectedSubPlan) params.subscriptionId = selectedSubPlan;
 
-      const { data } = await API.get('/admin/commission/analytics', { params });
+      const { data } = await API.get('/v2/admin/commission/analytics', { params });
       setAnalytics(data);
     } catch (err) {
       toast({ title: "Failed to load analytics", variant: "destructive" });
@@ -92,6 +92,14 @@ export default function AdminCommissionAnalytics() {
       <div className="flex justify-center items-center h-96">
         <RefreshCw className="h-8 w-8 animate-spin text-emerald-500" />
       </div>
+    );
+  }
+
+  if (!loading && !analytics) {
+    return (
+        <div className="flex justify-center items-center h-96">
+            <div className="text-center text-slate-500 font-medium">Failed to load analytics data.</div>
+        </div>
     );
   }
 
@@ -211,7 +219,7 @@ export default function AdminCommissionAnalytics() {
             <Activity className="h-4 w-4 text-emerald-600" /> Revenue & GMV Trends
           </h3>
           <div className="h-80">
-            {charts.monthlyTrends?.length === 0 ? (
+            {!charts.monthlyTrends || charts.monthlyTrends.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400 font-bold">No trend data available</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -235,7 +243,7 @@ export default function AdminCommissionAnalytics() {
             <Award className="h-4 w-4 text-blue-600" /> Revenue by Commission Rule Source
           </h3>
           <div className="h-80">
-            {charts.ruleDistribution?.length === 0 ? (
+            {!charts.ruleDistribution || charts.ruleDistribution.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400 font-bold">No rule metrics available</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -258,8 +266,8 @@ export default function AdminCommissionAnalytics() {
             <FileText className="h-4 w-4 text-purple-600" /> Revenue by Category
           </h3>
           <div className="h-80 flex flex-col md:flex-row items-center justify-around gap-4">
-            {charts.categoryBreakdown?.length === 0 ? (
-              <div className="text-xs text-slate-400 font-bold">No category revenue available</div>
+            {!charts.categoryBreakdown || charts.categoryBreakdown.length === 0 ? (
+              <div className="text-xs text-slate-400 font-bold flex items-center justify-center h-full w-full">No category revenue available</div>
             ) : (
               <>
                 <div className="w-full md:w-1/2 h-full">
@@ -275,7 +283,7 @@ export default function AdminCommissionAnalytics() {
                         dataKey="value"
                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                       >
-                        {charts.categoryBreakdown.map((entry, index) => (
+                        {charts.categoryBreakdown?.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -284,7 +292,7 @@ export default function AdminCommissionAnalytics() {
                   </ResponsiveContainer>
                 </div>
                 <div className="flex flex-col gap-2">
-                  {charts.categoryBreakdown.map((item, idx) => (
+                  {charts.categoryBreakdown?.map((item, idx) => (
                     <div key={idx} className="flex items-center gap-2 text-xs font-bold text-slate-600">
                       <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
                       <span>{item.name}:</span>
@@ -303,7 +311,7 @@ export default function AdminCommissionAnalytics() {
             <AwardIcon className="h-4 w-4 text-purple-600" /> Subscription Revenue by Plan
           </h3>
           <div className="h-80">
-            {charts.subscriptionPlanBreakdown?.length === 0 ? (
+            {!charts.subscriptionPlanBreakdown || charts.subscriptionPlanBreakdown.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400 font-bold">No subscription plan data available</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">

@@ -180,6 +180,9 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
 
                                 return (
                                     <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                        <span className={`text-[10px] text-slate-500 font-bold mb-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
+                                            {isMe ? 'You' : (msg.senderId?.name || msg.senderId?.ownerName || (userType === 'Provider' ? 'Customer' : 'Provider'))}
+                                        </span>
                                         <div className={`max-w-[80%] rounded-[20px] px-4 py-3 text-[14px] ${isMe ? 'bg-blue-600 text-white rounded-br-[5px]' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-100 dark:border-slate-700 rounded-bl-[5px] shadow-sm'}`}>
                                             {msg.text}
                                         </div>
@@ -196,37 +199,7 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                     {/* Input Area */}
                     <div className="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                         
-                        <AnimatePresence>
-                            {showOfferInput && userType === 'Provider' && (
-                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                                    <div className="flex gap-2 mb-3 bg-amber-50 dark:bg-amber-900/10 p-3 rounded-[16px] border border-amber-200 dark:border-amber-900/30">
-                                        <div className="relative flex-1">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
-                                            <input 
-                                                type="number" 
-                                                value={offerAmount} 
-                                                onChange={(e) => setOfferAmount(e.target.value)} 
-                                                placeholder="Enter offer amount..."
-                                                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-8 pr-4 py-2.5 text-sm font-bold focus:border-amber-500 focus:outline-none" 
-                                            />
-                                        </div>
-                                        <button onClick={(e) => handleSendMessage(e, 'offer', offerAmount)} className="rounded-xl bg-amber-500 px-4 py-2 text-[12px] font-black text-white hover:bg-amber-600 shadow-sm">
-                                            Send
-                                        </button>
-                                        <button onClick={() => setShowOfferInput(false)} className="rounded-xl bg-slate-200 dark:bg-slate-700 px-3 text-slate-600 dark:text-slate-300 hover:bg-slate-300">
-                                            <X className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-
                         <form onSubmit={(e) => handleSendMessage(e, 'text')} className="flex items-center gap-2">
-                            {userType === 'Provider' && !showOfferInput && (
-                                <button type="button" onClick={() => setShowOfferInput(true)} className="flex h-11 shrink-0 items-center gap-1 rounded-xl bg-amber-50 dark:bg-amber-900/20 px-3 text-[11px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-500 hover:bg-amber-100 transition-colors">
-                                    Offer
-                                </button>
-                            )}
                             
                             <input 
                                 type="text" 
