@@ -12,6 +12,7 @@ const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Combo = require('../models/Combo');
 const Coupon = require('../models/Coupon');
 const DistanceChargeService = require('../services/DistanceChargeService');
+const { sendEmail } = require('../utils/emailService');
 
 // Helper to check if time is within night window
 const isNightTime = (timeStr, startStr, endStr) => {
@@ -292,7 +293,7 @@ const createBooking = async (req, res) => {
 
         if (booking) {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
-            
+
             if (providerId) {
                 // If specific provider is selected, calculate travel charge immediately
                 const travelChargeResult = await DistanceChargeService.applyTravelChargeToBooking(booking._id, providerId);
@@ -475,6 +476,28 @@ const createBooking = async (req, res) => {
                             link: `/provider/bookings`
                         }
                     });
+
+                    // Send Email Notification
+                    if (provider.email) {
+                        const emailSubject = `New Service Request: ${booking.serviceName}`;
+                        const emailHtml = `
+                            <h2>New Service Request Received</h2>
+                            <p>Hello ${provider.ownerName || 'Provider'},</p>
+                            <p>You have received a new service request for <strong>${booking.serviceName}</strong>.</p>
+                            <p><strong>Booking Date:</strong> ${new Date(booking.bookingDate).toLocaleDateString()}</p>
+                            <p><strong>Booking Time:</strong> ${booking.bookingTime}</p>
+                            <p><strong>Location:</strong> ${booking.address}</p>
+                            <br>
+                            <p>Please log in to your provider dashboard to accept the booking before it expires.</p>
+                            <br>
+                            <p>Thank you,<br>RozSewa Team</p>
+                        `;
+                        try {
+                            await sendEmail(provider.email, emailSubject, emailHtml);
+                        } catch (emailErr) {
+                            console.log('Failed to send email to provider:', emailErr.message);
+                        }
+                    }
                 } catch (err) {
                     console.log('Notification persistence failed (skipping):', err.message);
                 }
@@ -528,7 +551,16 @@ const getUserBookings = async (req, res) => {
 // @access  Private
 const updateBooking = async (req, res) => {
     try {
+        console.log(`[updateBooking] called with ID: ${req.params.id}`);
+        console.log(`[updateBooking] req.user._id: ${req.user._id}`);
+
         const booking = await Booking.findById(req.params.id);
+
+        if (!booking) {
+            console.log(`[updateBooking] Booking not found in DB for ID: ${req.params.id}`);
+        } else {
+            console.log(`[updateBooking] Booking found. booking.userId: ${booking.userId}`);
+        }
 
         if (booking && booking.userId.toString() === req.user._id.toString()) {
             if (req.body.counterDecision) {
@@ -709,7 +741,7 @@ const updateBooking = async (req, res) => {
 
             res.json(updatedBooking);
         } else {
-            res.status(404).json({ message: 'Booking not found' });
+            res.status(404).json({ message: `Booking not found or unauthorized to cancel. ID: ${req.params.id}` });
         }
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1307,7 +1339,7 @@ const verifyEndOTP = async (req, res) => {
                         }], { session });
                     } else {
                         wallet.availableBalance = prevAvailableBalance + providerPayout;
-                        
+
                         // Separate Service Earnings from Travel Charge
                         const travelChargePortion = (bookingSession.travelCharge && bookingSession.travelCharge.status === 'final') ? (bookingSession.travelCharge.amount || 0) : 0;
                         const serviceEarningsPortion = providerPayout - travelChargePortion;
@@ -1338,7 +1370,7 @@ const verifyEndOTP = async (req, res) => {
 
                     // 1. Service Earnings
                     if (transactionType === 'credit') {
-                         transactionsToCreate.push({
+                        transactionsToCreate.push({
                             providerId: provider._id,
                             title: transactionTitle,
                             amount: transactionAmount,

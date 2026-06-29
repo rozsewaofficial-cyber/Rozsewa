@@ -38,6 +38,7 @@ const providerSchema = mongoose.Schema({
     kycAadhaarBackPhoto: { type: String },
     kycPanNumber: { type: String, unique: true, sparse: true, set: v => v === "" ? undefined : v },
     kycPanPhoto: { type: String },
+    kycPoliceVerification: { type: String, unique: true, sparse: true, set: v => v === "" ? undefined : v },
     bankDetails: {
         accountNumber: { type: String, unique: true, sparse: true, set: v => v === "" ? undefined : v },
         ifscCode: { type: String },

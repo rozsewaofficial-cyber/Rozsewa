@@ -92,7 +92,7 @@ export const AuthProvider = ({ children }) => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setUserLocation(loc);
           localStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
-          
+
           try {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}`);
             const data = await res.json();
@@ -103,7 +103,7 @@ export const AuthProvider = ({ children }) => {
           } catch (e) {
             console.error("Reverse geocoding failed on startup:", e);
           }
-          
+
           resolve(loc);
         },
         (err) => reject(err),
@@ -122,24 +122,56 @@ export const AuthProvider = ({ children }) => {
     }
   }, [location.pathname]);
 
-  // Perform background profile check if we have a token
   useEffect(() => {
-    const fetchProfile = async () => {
+    const checkAuthStatus = async () => {
       const path = location.pathname;
+      const isPageAdmin = path.startsWith("/admin");
+      const isPageProvider = path.startsWith("/provider");
+
+      let expectedRole = "customer";
+      if (isPageAdmin) {
+        expectedRole = (auth?.role === 'superadmin' || auth?.role === 'supervisor') ? auth.role : "admin";
+      } else if (isPageProvider) {
+        expectedRole = "provider";
+      }
+
+      // Check if current auth role is valid for the current panel
+      const isCustomerPanelMatch = (auth?.role === 'customer' || auth?.role === 'user') && !isPageProvider && !isPageAdmin;
+      const isProviderPanelMatch = (auth?.role === 'provider' || auth?.role === 'sewak') && isPageProvider;
+      const isAdminPanelMatch = (auth?.role === 'admin' || auth?.role === 'superadmin' || auth?.role === 'supervisor') && isPageAdmin;
+
+      const isMatch = isCustomerPanelMatch || isProviderPanelMatch || isAdminPanelMatch;
+
+      // If the current auth doesn't match the panel we are in, re-sync from localStorage
+      if (!isMatch && auth) {
+        const key = getStorageKey(path);
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          setAuth(JSON.parse(saved));
+        }
+      } else if (!auth) {
+        const key = getStorageKey(path);
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          setAuth(JSON.parse(saved));
+        }
+      }
+
+      // Perform background profile check if we have a token
       const currentToken = auth?.token || JSON.parse(localStorage.getItem(getStorageKey(path)))?.token;
       if (currentToken) {
         try {
           const endpoint = path.startsWith("/provider") ? "/provider/profile" : "/auth/profile";
           const res = await API.get(endpoint);
           const userData = res.data;
-          
+
           setAuth(prev => {
             if (prev) return { ...prev, ...userData };
             const saved = JSON.parse(localStorage.getItem(getStorageKey(path)) || "{}");
             return { ...saved, ...userData, token: currentToken };
           });
 
-          // If no live GPS location, use user's saved location (only if it matches the current selected city context)
+          // If no live GPS location, use user's saved location
           const currentCity = localStorage.getItem("rozsewa_user_city");
           if (!localStorage.getItem("rozsewa_user_location") && userData.location?.coordinates) {
             const [lng, lat] = userData.location.coordinates;
@@ -158,7 +190,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     };
 
-    fetchProfile();
+    checkAuthStatus();
   }, [location.pathname]);
 
   useEffect(() => {
@@ -172,7 +204,7 @@ export const AuthProvider = ({ children }) => {
       const key = getStorageKey(location.pathname);
       localStorage.removeItem(key);
     }
-  }, [auth]);
+  }, [auth, location.pathname]);
 
   // Foreground Notification Listener
   useEffect(() => {
@@ -181,21 +213,21 @@ export const AuthProvider = ({ children }) => {
       try {
         const { onMessage } = await import("firebase/messaging");
         const { messaging } = await import("@/lib/firebase");
-        
+
         unsubscribe = onMessage(messaging, (payload) => {
           console.log('Foreground message received:', payload);
-          
+
           if (Notification.permission === 'granted') {
             const notif = new Notification(payload.notification.title, {
               body: payload.notification.body,
               icon: '/logo.png',
               data: payload.data
             });
-            
+
             notif.onclick = (event) => {
               event.preventDefault();
               window.focus();
-              
+
               const data = event.target.data;
               if (data) {
                 const targetLink = data.link || data.url || (data.type === 'booking' ? '/provider/bookings' : '');
@@ -210,9 +242,9 @@ export const AuthProvider = ({ children }) => {
         console.error("Error setting up foreground listener:", err);
       }
     };
-    
+
     setup();
-    
+
     return () => {
       if (unsubscribe) unsubscribe();
     };
@@ -225,34 +257,22 @@ export const AuthProvider = ({ children }) => {
       const loginData = isProviderOrSewak ? { mobile: identifier, password } : { identifier, password };
 
       const { data: apiResponse } = await API.post(endpoint, loginData);
-      
-      // Handle the new standardized payload format { success, message, data: { token, user } }
+
       const authData = apiResponse.data?.user || apiResponse;
-      
-      // Check if user is actually a Sewak
       const isActuallySewak = authData.providerCategory === 'sewak' || authData.vendorType === 'sewak' || (authData.vendorCode && authData.vendorCode.startsWith('RSSEW'));
-      
-      // Verify vendorType if logging into Sewak portal
-      if (type === 'sewak' && !isActuallySewak) {
-        throw new Error("This account is not registered as a Sewak.");
-      }
-      
-      // Verify vendorType if logging into Partner portal
-      if (type === 'provider' && isActuallySewak) {
-        throw new Error("Please login through the Sewak portal.");
-      }
+
+      if (type === 'sewak' && !isActuallySewak) throw new Error("This account is not registered as a Sewak.");
+      if (type === 'provider' && isActuallySewak) throw new Error("Please login through the Sewak portal.");
 
       const token = apiResponse.data?.token || apiResponse.token;
-      
       const sessionData = { ...authData, token, role: authData.role || type };
       setAuth(sessionData);
-      
-      // Fetch and save FCM Token
+
       try {
         const { requestForToken } = await import("@/lib/firebase");
         const fcmToken = await requestForToken();
         if (fcmToken) {
-          await API.post("/notifications/fcm-tokens/save", 
+          await API.post("/notifications/fcm-tokens/save",
             { token: fcmToken, platform: 'web' },
             { headers: { Authorization: `Bearer ${token}` } }
           );
@@ -270,11 +290,10 @@ export const AuthProvider = ({ children }) => {
   const loginWithOTP = async (mobile, otp, type = 'customer') => {
     try {
       const { data: apiResponse } = await API.post("/auth/login-otp", { mobile, otp, type });
-      
-      // Handle the new standardized payload format
+
       const authData = apiResponse.data?.user || apiResponse;
       const token = apiResponse.data?.token || apiResponse.token;
-      
+
       const sessionData = { ...authData, token, role: type };
       setAuth(sessionData);
       return { success: true, data: sessionData };
@@ -288,13 +307,12 @@ export const AuthProvider = ({ children }) => {
       const endpoint = type === 'provider' ? "/provider/register" : "/auth/register";
       const { data } = await API.post(endpoint, userData);
       setAuth({ ...data, role: type });
-      
-      // Fetch and save FCM Token
+
       try {
         const { requestForToken } = await import("@/lib/firebase");
         const token = await requestForToken();
         if (token) {
-          await API.post("/notifications/fcm-tokens/save", 
+          await API.post("/notifications/fcm-tokens/save",
             { token, platform: 'web' },
             { headers: { Authorization: `Bearer ${data.token}` } }
           );
@@ -317,6 +335,13 @@ export const AuthProvider = ({ children }) => {
     setAuth(null);
   };
 
+  const updateUser = (newData) => {
+    setAuth(prev => {
+      if (!prev) return null;
+      return { ...prev, ...newData };
+    });
+  };
+
   const value = {
     user: auth,
     isAuthenticated: !!auth,
@@ -328,6 +353,7 @@ export const AuthProvider = ({ children }) => {
     loginWithOTP,
     signup,
     logout,
+    updateUser,
     serviceMode,
     setServiceMode,
   };

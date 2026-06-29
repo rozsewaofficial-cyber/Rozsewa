@@ -110,13 +110,14 @@ const ProviderServices = () => {
     try {
       if (editId) {
         await API.put(`/services/${editId}`, payload);
-        toast({ title: "Service Updated" });
+        toast({ title: "Success!", description: "Service updated successfully." });
         fetchProviderInfoAndServices(false);
+        resetForm();
       } else {
         await API.post("/services", payload);
-        toast({ title: "Service Added" });
+        toast({ title: "Success!", description: "New service created successfully." });
         fetchProviderInfoAndServices(false);
-        clearDraft();
+        resetForm();
       }
     } catch (err) {
       toast({ title: "Save failed", variant: "destructive" });
@@ -138,13 +139,14 @@ const ProviderServices = () => {
     try {
       if (editId) {
         await API.put(`/services/combos/${editId}`, comboForm);
-        toast({ title: "Combo Updated" });
+        toast({ title: "Success!", description: "Combo updated successfully." });
         fetchProviderInfoAndServices(false);
+        resetComboForm();
       } else {
         await API.post("/services/combos", comboForm);
-        toast({ title: "Combo Created" });
+        toast({ title: "Success!", description: "New combo created successfully." });
         fetchProviderInfoAndServices(false);
-        clearDraft();
+        resetComboForm();
       }
     } catch (err) {
       toast({ title: "Action failed", variant: "destructive" });
@@ -173,6 +175,8 @@ const ProviderServices = () => {
       fetchProviderInfoAndServices(false);
     } catch (err) {
       toast({ title: "Failed to add", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -485,6 +489,7 @@ const ProviderServices = () => {
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Name *</label>
                   <div className="relative space-y-3">
                     <select
+                      disabled={!!editId}
                       value={form.name}
                       onChange={e => {
                         const val = e.target.value;
@@ -499,7 +504,7 @@ const ProviderServices = () => {
                           serviceDetails: selected?.serviceDetails || []
                         });
                       }}
-                      className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none"
+                      className={`w-full rounded-2xl border border-border p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
                     >
                       <option value="">Select a service...</option>
                       {categoryServices.map(s => (

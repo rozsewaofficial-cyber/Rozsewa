@@ -1,9 +1,9 @@
 1. Provider approved krne ke 2 options aa rha hai usko ek hi jgah rkhna hai documents wise  --- comp
-2. ⁠vender add services me drop down dena hai jo company prefer kr rhi hai services wo services hi list hoga extra services hai to wo vender add kr skta hai but approval milne ke baad live hoga 
-3. ⁠customer adress autofetch sahi krna hai 
-4. ⁠same number se customer and provider dono create ho rhe hai 
+2. ⁠vender add services me drop down dena hai jo company prefer kr rhi hai services wo services hi list hoga extra services hai to wo vender add kr skta hai but approval milne ke baad live hoga --- complete
+3. ⁠customer adress autofetch sahi krna hai -- partial
+4. ⁠same number se customer and provider dono create ho rhe hai --- done
 5. ⁠partner ko request krne pe finding near by sewak likh rha hai and customer panel pe kisi service ko book krne ke baad koi v partner accept kr le ya option nhi hai waha partner wise and near by dono option dena hai 
-6. ⁠filter ko sahi se design krne like flipkar swiggy…… 
+6. ⁠filter ko sahi se design krne like flipkar swiggy……  ---- done
 * rating wise 
 * ⁠price wise low to high 
 * ⁠services wise
