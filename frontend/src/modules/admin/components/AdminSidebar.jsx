@@ -13,7 +13,7 @@ export const adminSidebarLinks = [
   { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { path: "/admin/users", label: "Users", icon: Users },
   { path: "/admin/supervisors", label: "Supervisors", icon: ShieldCheck },
-  { path: "/admin/employees", label: "Staff / Employees", icon: Users },
+  { path: "/admin/employees", label: "Employees", icon: Users },
   { path: "/admin/providers", label: "Providers", icon: UserCheck },
   { path: "/admin/provider-subscriptions", label: "Provider Subscriptions", icon: CreditCard },
   { path: "/admin/sewaks", label: "Sewak Management", icon: Users },
