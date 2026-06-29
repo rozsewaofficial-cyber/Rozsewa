@@ -97,7 +97,7 @@ const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updat
 
 const { getEnquiries, updateEnquiryStatus, deleteEnquiry } = require('../controllers/sewakEnquiryController');
 
-const { protect, admin, superadmin, supervisor, employee } = require('../middleware/authMiddleware');
+const { protect, admin, superadmin, supervisor, employee, supervisorWithAllScope } = require('../middleware/authMiddleware');
 
 // Global Search & Notifications
 router.get('/search', protect, employee, adminGlobalSearch);
@@ -128,7 +128,7 @@ router.put('/night-charge/category/:id', protect, admin, updateCategoryNightChar
 router.post('/night-charge/apply-all', protect, admin, applyGlobalNightChargeToAll);
 
 // Category management
-router.get('/categories', protect, admin, getCategories);
+router.get('/categories', protect, employee, getCategories);
 router.post('/categories', protect, admin, addCategory);
 router.put('/categories/:id', protect, admin, updateCategory);
 router.delete('/categories/:id', protect, admin, deleteCategory);
@@ -174,7 +174,7 @@ router.put('/settings/cash-limits', protect, admin, updateCashLimitsConfig);
 router.post('/profile', protect, employee, updateAdminProfile);
 
 // Booking management
-router.get('/bookings', protect, admin, getBookings);
+router.get('/bookings', protect, employee, getBookings);
 router.delete('/bookings/:id', protect, admin, deleteBooking);
 
 // Promotion management
@@ -207,14 +207,14 @@ router.put('/subscriptions/:id', protect, admin, updateSubscriptionPlan);
 router.delete('/subscriptions/:id', protect, admin, deleteSubscriptionPlan);
 
 // Sewak Management
-router.get('/sewaks', protect, admin, getAllSewaks);
-router.get('/sewaks/pending-kyc', protect, admin, getPendingSewaks);
-router.get('/sewaks/:id', protect, admin, getSewakById);
-router.post('/sewaks', protect, admin, createSewak);
-router.put('/sewaks/:id', protect, admin, updateSewak);
-router.put('/sewaks/:id/verify', protect, admin, verifySewak);
-router.put('/sewaks/:id/reject', protect, admin, rejectSewak);
-router.put('/sewaks/:id/documents/:docId/status', protect, admin, verifySewakDocument);
+router.get('/sewaks', protect, supervisorWithAllScope, getAllSewaks);
+router.get('/sewaks/pending-kyc', protect, supervisorWithAllScope, getPendingSewaks);
+router.get('/sewaks/:id', protect, supervisorWithAllScope, getSewakById);
+router.post('/sewaks', protect, supervisorWithAllScope, createSewak);
+router.put('/sewaks/:id', protect, supervisorWithAllScope, updateSewak);
+router.put('/sewaks/:id/verify', protect, supervisorWithAllScope, verifySewak);
+router.put('/sewaks/:id/reject', protect, supervisorWithAllScope, rejectSewak);
+router.put('/sewaks/:id/documents/:docId/status', protect, supervisorWithAllScope, verifySewakDocument);
 
 // Combo Management
 router.get('/combos', protect, admin, getCombos);

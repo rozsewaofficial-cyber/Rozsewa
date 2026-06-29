@@ -61,11 +61,13 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
   const filteredLinks = adminSidebarLinks.filter(link => {
     if (user?.role === 'superadmin') return true;
     if (user?.role === 'admin') {
-      // If permissions array is empty, maybe allow all by default or strictly filter?
-      // Usually, it should be strictly filtered.
-      return user.permissions?.includes(link.path);
+      if (!user.permissions || user.permissions.length === 0) return true;
+      return user.permissions.includes(link.path);
     }
     if (user?.role === 'supervisor') {
+      if (link.path === "/admin/sewaks") {
+        return user?.allowedCreationScope === 'all';
+      }
       return link.path === "/admin/employees" || link.path === "/admin";
     }
     if (user?.role === 'employee') {

@@ -1023,40 +1023,100 @@ const updateBookingStatusByProvider = async (req, res) => {
             booking.status = newStatus;
             const updatedBooking = await booking.save();
 
-            // If cancelled by provider, notify Admin and deduct penalty
+            // If cancelled by provider, notify Admin, deduct penalty, credit user and admin
             if (newStatus === 'cancelled') {
                 try {
-                    const Setting = require('../models/Setting');
-                    let config;
-                    try {
-                        const configData = await Setting.findOne({ key: 'partner_program_config' });
-                        if (configData) config = JSON.parse(configData.value);
-                    } catch (err) { }
-                    const penalty = config?.penalties?.cancellationCharge ?? 50;
+                    const penalty = 100;
+                    const creditAmount = 50;
 
-                    if (penalty > 0) {
-                        const { Wallet, Transaction } = require('../models/Wallet');
-                        let wallet = await Wallet.findOne({ providerId: req.user._id });
-                        if (!wallet) {
-                            wallet = await Wallet.create({ providerId: req.user._id, balance: 0 });
+                    const { Wallet, Transaction } = require('../models/Wallet');
+                    const Provider = require('../models/Provider');
+                    const User = require('../models/User');
+
+                    // 1. Deduct 100rs from provider's wallet
+                    let wallet = await Wallet.findOne({ providerId: req.user._id });
+                    if (!wallet) {
+                        wallet = await Wallet.create({ providerId: req.user._id, balance: 0 });
+                    }
+                    wallet.balance -= penalty;
+                    wallet.updatedAt = Date.now();
+                    await wallet.save();
+
+                    // Sync provider's wallet balance
+                    const provider = await Provider.findById(req.user._id);
+                    if (provider) {
+                        provider.walletBalance = wallet.balance;
+                        await provider.save();
+                    }
+
+                    await Transaction.create({
+                        providerId: req.user._id,
+                        title: 'Cancellation Penalty',
+                        amount: penalty,
+                        type: 'debit',
+                        status: 'completed',
+                        bookingId: booking._id,
+                        description: 'Penalty for cancelling a booking'
+                    });
+
+                    // 2. Send 50 to the user (customer)
+                    let userWallet = await Wallet.findOne({ userId: booking.userId });
+                    if (!userWallet) {
+                        userWallet = await Wallet.create({ userId: booking.userId, balance: 0 });
+                    }
+                    userWallet.balance += creditAmount;
+                    userWallet.updatedAt = Date.now();
+                    await userWallet.save();
+
+                    await Transaction.create({
+                        userId: booking.userId,
+                        title: 'Cancellation Compensation',
+                        amount: creditAmount,
+                        type: 'credit',
+                        status: 'completed',
+                        bookingId: booking._id,
+                        description: 'Compensation for booking cancelled by partner'
+                    });
+
+                    // Send notification to the user about the cancellation compensation
+                    try {
+                        const { notifyUser } = require('../config/notificationService');
+                        await notifyUser({
+                            userId: booking.userId,
+                            userRole: 'user',
+                            title: 'Booking Cancelled by Partner',
+                            message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been cancelled by the partner. ₹50 has been credited to your wallet.`,
+                            type: 'booking',
+                            bookingId: booking._id
+                        });
+                    } catch (notifyErr) {
+                        console.log('User cancel notification failed (skipping):', notifyErr.message);
+                    }
+
+                    // 3. Send 50 to the admin
+                    const adminUser = await User.findOne({ role: { $in: ['superadmin', 'admin'] } });
+                    if (adminUser) {
+                        let adminWallet = await Wallet.findOne({ userId: adminUser._id });
+                        if (!adminWallet) {
+                            adminWallet = await Wallet.create({ userId: adminUser._id, balance: 0 });
                         }
-                        wallet.balance -= penalty;
-                        await wallet.save();
+                        adminWallet.balance += creditAmount;
+                        adminWallet.updatedAt = Date.now();
+                        await adminWallet.save();
 
                         await Transaction.create({
-                            providerId: req.user._id,
-                            title: 'Cancellation Penalty',
-                            amount: penalty,
-                            type: 'debit',
+                            userId: adminUser._id,
+                            title: 'Cancellation Platform Share',
+                            amount: creditAmount,
+                            type: 'credit',
                             status: 'completed',
                             bookingId: booking._id,
-                            description: 'Penalty for cancelling a booking'
+                            description: `Platform share of booking cancellation penalty from partner ${req.user.ownerName || ''}`
                         });
                     }
 
-                    const User = require('../models/User');
+                    // 4. Notify admin(s)
                     const { sendNotificationToUser } = require('../config/notificationService');
-
                     const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
 
                     for (const admin of admins) {
@@ -1071,7 +1131,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                         });
                     }
                 } catch (err) {
-                    console.log('Cancellation penalty failed:', err.message);
+                    console.log('Cancellation penalty/distribution failed:', err.message);
                 }
             }
 

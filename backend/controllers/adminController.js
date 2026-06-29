@@ -132,6 +132,83 @@ const updateProviderCategory = async (req, res) => {
 // @access  Private/Admin
 const getAdminStats = async (req, res) => {
     try {
+        if (req.user.role === 'supervisor') {
+            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+            if (!supervisorEmp) {
+                return res.json({
+                    totalProviders: 0,
+                    pendingProviders: 0,
+                    totalUsers: 0,
+                    totalBookings: 0,
+                    activeBookings: 0,
+                    revenue: 0,
+                    recentBookings: []
+                });
+            }
+
+            const employees = await Employee.find({ 
+                $or: [
+                    { managedBy: supervisorEmp._id },
+                    { supervisorCode: supervisorEmp.ownCode },
+                    { createdBy: req.user._id }
+                ]
+            });
+            const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
+            const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
+
+            const teamSewaks = await Provider.find({
+                providerCategory: 'sewak',
+                $or: [
+                    { referredBy: { $in: teamCodes } },
+                    { onboardedByStaff: { $in: teamCodes } }
+                ]
+            });
+            const sewakIds = teamSewaks.map(s => s._id);
+
+            const pendingSewaksCount = teamSewaks.filter(s => s.status === 'pending').length;
+
+            const totalBookings = await Booking.countDocuments({ providerId: { $in: sewakIds } });
+            const activeBookings = await Booking.countDocuments({ 
+                providerId: { $in: sewakIds },
+                status: { $in: ['pending', 'active'] }
+            });
+
+            const revenueData = await Booking.aggregate([
+                { $match: { providerId: { $in: sewakIds }, status: 'completed' } },
+                { $group: { _id: null, total: { $sum: "$amount" } } }
+            ]);
+            const revenue = revenueData.length > 0 ? revenueData[0].total : 0;
+
+            const recentBookingsRaw = await Booking.find({ providerId: { $in: sewakIds } })
+                .populate('userId', 'name')
+                .populate('providerId', 'shopName')
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .lean();
+
+            const recentBookings = recentBookingsRaw.map(b => ({
+                id: b.bookingId || b._id.toString().slice(-6).toUpperCase(),
+                user: b.userId?.name || 'Customer',
+                provider: b.providerId?.shopName || 'Provider',
+                service: b.serviceName || 'Service',
+                amount: b.amount,
+                status: b.status,
+                date: new Date(b.createdAt).toLocaleDateString(),
+                time: new Date(b.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            }));
+
+            return res.json({
+                totalProviders: teamSewaks.length,
+                pendingProviders: pendingSewaksCount,
+                totalUsers: employees.length,
+                totalBookings,
+                activeBookings,
+                revenue,
+                recentBookings
+            });
+        }
+
+        // Global stats for admin/superadmin
         const totalProviders = await Provider.countDocuments();
         const pendingProviders = await Provider.countDocuments({ status: 'pending' });
         const totalUsers = await User.countDocuments();
@@ -147,6 +224,8 @@ const getAdminStats = async (req, res) => {
 
         // Fetch Recent Bookings
         const recentBookingsRaw = await Booking.find()
+            .populate('userId', 'name')
+            .populate('providerId', 'shopName')
             .sort({ createdAt: -1 })
             .limit(5)
             .lean();
@@ -182,7 +261,35 @@ const getAdminStats = async (req, res) => {
 const getBookings = async (req, res) => {
     try {
         const { status } = req.query;
-        const query = status ? { status } : {};
+        let query = status ? { status } : {};
+
+        if (req.user.role === 'supervisor') {
+            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+            if (supervisorEmp) {
+                const employees = await Employee.find({ 
+                    $or: [
+                        { managedBy: supervisorEmp._id },
+                        { supervisorCode: supervisorEmp.ownCode },
+                        { createdBy: req.user._id }
+                    ]
+                });
+                const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
+                const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
+
+                const teamSewaks = await Provider.find({
+                    providerCategory: 'sewak',
+                    $or: [
+                        { referredBy: { $in: teamCodes } },
+                        { onboardedByStaff: { $in: teamCodes } }
+                    ]
+                });
+                const sewakIds = teamSewaks.map(s => s._id);
+                query.providerId = { $in: sewakIds };
+            } else {
+                return res.json([]);
+            }
+        }
+
         const bookings = await Booking.find(query)
             .populate('userId', 'name email mobile')
             .populate('providerId', 'shopName ownerName mobile')
@@ -845,11 +952,41 @@ async function getEmployees(req, res) {
         let query = status ? { status } : {};
 
         if (req.user.role === 'supervisor') {
-            query = { ...query, $or: [{ managedBy: req.user._id }, { createdBy: req.user._id }] };
+            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+            if (supervisorEmp) {
+                query = { ...query, $or: [{ managedBy: supervisorEmp._id }, { createdBy: req.user._id }] };
+            } else {
+                query = { ...query, createdBy: req.user._id };
+            }
         }
 
-        const employees = await Employee.find(query).sort({ createdAt: -1 });
-        res.json(employees);
+        const employees = await Employee.find(query)
+            .populate('userId')
+            .populate('managedBy')
+            .populate({ path: 'createdBy', select: 'name role' })
+            .sort({ createdAt: -1 });
+
+        const updatedEmployees = await Promise.all(employees.map(async (emp) => {
+            let empObj = emp.toObject();
+            
+            // Check if managedBy was set to a User ID instead of an Employee ID, or if missing and created by supervisor
+            if (!empObj.managedBy || !empObj.managedBy.ownCode) {
+                const targetUserId = empObj.managedBy || (empObj.createdBy && empObj.createdBy.role === 'supervisor' ? empObj.createdBy._id : null);
+                if (targetUserId) {
+                    const supervisor = await Employee.findOne({ userId: targetUserId });
+                    if (supervisor) {
+                        empObj.managedBy = {
+                            _id: supervisor._id,
+                            ownCode: supervisor.ownCode,
+                            name: supervisor.name
+                        };
+                    }
+                }
+            }
+            return empObj;
+        }));
+
+        res.json(updatedEmployees);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -860,17 +997,30 @@ async function getEmployees(req, res) {
 // @access  Private/Admin
 async function addEmployee(req, res) {
     try {
-        const { name, email, mobile, password, role, supervisorCode, registrationCommission, city, state, panCard, aadharCard, panCardPhoto, aadharCardPhoto } = req.body;
+        const { name, email, mobile, password, role, supervisorCode, registrationCommission, city, state, address, panCard, aadharCard, panCardPhoto, aadharCardPhoto, allowedCreationScope } = req.body;
 
         // Validation: Documents and numbers are required
         if (!panCard || !aadharCard || !panCardPhoto || !aadharCardPhoto) {
             return res.status(400).json({ message: 'PAN and Aadhaar numbers and photos are required' });
         }
 
-        // 1. Hierarchy Validation and Restriction
+        // Validation: State, City, and Address are required
+        if (!state || !city || !address) {
+            return res.status(400).json({ message: 'State, City, and Address are required' });
+        }
+
+        // 1. Hierarchy Validation and Restriction based on allowed scope
         if (req.user.role === 'supervisor') {
-            if (role !== 'employee' && role !== 'field_staff') {
-                return res.status(403).json({ message: 'Supervisors can only create Employees or Field Staff' });
+            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+            const scope = supervisorEmp ? supervisorEmp.allowedCreationScope : 'employee_only';
+            if (scope === 'all') {
+                if (role !== 'employee' && role !== 'supervisor') {
+                    return res.status(403).json({ message: 'Supervisors with "All" scope can only create Employees or Supervisors' });
+                }
+            } else {
+                if (role !== 'employee') {
+                    return res.status(403).json({ message: 'Supervisors can only create Employees' });
+                }
             }
         } else if (req.user.role === 'admin' || req.user.role === 'superadmin') {
             if (role === 'employee' || role === 'field_staff') {
@@ -887,20 +1037,24 @@ async function addEmployee(req, res) {
         // 3. Hierarchy Validation for Field Staff / Employees
         let managedBy = null;
         let supervisorId = null;
+        let finalSupervisorCode = supervisorCode;
 
         if (req.user.role === 'supervisor') {
-            managedBy = req.user._id;
+            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+            if (supervisorEmp) {
+                managedBy = supervisorEmp._id;
+                finalSupervisorCode = supervisorEmp.ownCode;
+            }
             supervisorId = req.user._id;
-        } else if (role === 'field_staff') {
-            if (!supervisorCode) {
-                return res.status(400).json({ message: 'Supervisor Code is mandatory for creating Field Staff' });
+        } else if (role === 'field_staff' || role === 'employee') {
+            if (supervisorCode) {
+                const supervisor = await Employee.findOne({ ownCode: supervisorCode, role: 'supervisor' });
+                if (supervisor) {
+                    managedBy = supervisor._id;
+                    supervisorId = supervisor.userId || supervisor._id;
+                    finalSupervisorCode = supervisor.ownCode;
+                }
             }
-            const supervisor = await Employee.findOne({ ownCode: supervisorCode, role: 'supervisor' });
-            if (!supervisor) {
-                return res.status(400).json({ message: 'Invalid Supervisor Code. No such supervisor found.' });
-            }
-            managedBy = supervisor.userId || supervisor._id;
-            supervisorId = supervisor.userId || supervisor._id;
         }
 
         // 4. Generate Unique Code based on role
@@ -917,9 +1071,11 @@ async function addEmployee(req, res) {
             email,
             mobile,
             password: password || '123456',
+            plainPassword: password || '123456',
             role: role || 'employee',
             city: city || 'Delhi',
             state: state || 'Delhi',
+            address: address || '',
             createdBy: req.user._id,
             supervisorId: supervisorId
         });
@@ -933,7 +1089,7 @@ async function addEmployee(req, res) {
             ownCode,
             userId: user._id,
             role: role || 'employee',
-            supervisorCode: role === 'field_staff' ? supervisorCode : undefined,
+            supervisorCode: finalSupervisorCode,
             managedBy,
             registrationCommission: registrationCommission || 50,
             panCard,
@@ -942,12 +1098,17 @@ async function addEmployee(req, res) {
             aadharCardPhoto,
             status: req.user.role === 'supervisor' ? 'pending' : 'verified',
             isActive: req.user.role === 'supervisor' ? false : true,
-            createdBy: req.user._id
+            allowedCreationScope: role === 'supervisor' ? (allowedCreationScope || 'employee_only') : undefined,
+            createdBy: req.user._id,
+            state: state || 'Delhi',
+            city: city || 'Delhi',
+            address: address || ''
         });
 
+        const populated = await Employee.findById(employee._id).populate('userId').populate('managedBy');
         res.status(201).json({
             message: `${role || 'Staff'} created successfully`,
-            employee,
+            employee: populated,
             credentials: {
                 email,
                 password: password || '123456'
@@ -986,7 +1147,7 @@ async function updateEmployee(req, res) {
         const employee = await Employee.findById(req.params.id);
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
-        const { name, email, mobile, registrationCommission, isActive, panCard, aadharCard, panCardPhoto, aadharCardPhoto, status } = req.body;
+        const { name, email, mobile, registrationCommission, isActive, panCard, aadharCard, panCardPhoto, aadharCardPhoto, status, state, city, address, password, allowedCreationScope } = req.body;
 
         employee.name = name || employee.name;
         employee.email = email || employee.email;
@@ -998,9 +1159,34 @@ async function updateEmployee(req, res) {
         employee.panCardPhoto = panCardPhoto || employee.panCardPhoto;
         employee.aadharCardPhoto = aadharCardPhoto || employee.aadharCardPhoto;
         employee.status = status || employee.status;
+        employee.state = state !== undefined ? state : employee.state;
+        employee.city = city !== undefined ? city : employee.city;
+        employee.address = address !== undefined ? address : employee.address;
+        if (allowedCreationScope !== undefined) {
+            employee.allowedCreationScope = allowedCreationScope;
+        }
 
         const updated = await employee.save();
-        res.json(updated);
+
+        // Also update linked User account
+        if (employee.userId) {
+            const user = await User.findById(employee.userId);
+            if (user) {
+                user.name = name || user.name;
+                user.email = email || user.email;
+                user.mobile = mobile || user.mobile;
+                user.state = state !== undefined ? state : user.state;
+                user.city = city !== undefined ? city : user.city;
+                user.address = address !== undefined ? address : user.address;
+                if (password && password !== "********") {
+                    user.password = password;
+                    user.plainPassword = password;
+                }
+                await user.save();
+            }
+        }
+        const populated = await Employee.findById(updated._id).populate('userId').populate('managedBy');
+        res.json(populated);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -1169,7 +1355,28 @@ const updateAdmin = async (req, res) => {
 
 const getAllSewaks = async (req, res) => {
     try {
-        const sewaks = await Provider.find({ providerCategory: 'sewak' }).select('-password').sort({ createdAt: -1 });
+        let query = { providerCategory: 'sewak' };
+        if (req.user.role === 'supervisor') {
+            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+            if (supervisorEmp) {
+                const employees = await Employee.find({ 
+                    $or: [
+                        { managedBy: supervisorEmp._id },
+                        { supervisorCode: supervisorEmp.ownCode },
+                        { createdBy: req.user._id }
+                    ]
+                });
+                const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
+                const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
+                query.$or = [
+                    { referredBy: { $in: teamCodes } },
+                    { onboardedByStaff: { $in: teamCodes } }
+                ];
+            } else {
+                return res.json([]);
+            }
+        }
+        const sewaks = await Provider.find(query).select('-password').sort({ createdAt: -1 });
         res.json(sewaks);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1424,18 +1631,44 @@ const deleteProvider = async (req, res) => {
 
 const getPendingSewaks = async (req, res) => {
     try {
-        // Include sewaks that:
-        // 1. Have explicitly submitted KYC (kycSubmitted: true), OR
-        // 2. Were admin-created and are still pending/draft (no self-submission flow)
-        // In both cases, exclude already-verified sewaks.
-        const sewaks = await Provider.find({
+        let query = {
             providerCategory: 'sewak',
             kycVerified: false,
             $or: [
                 { kycSubmitted: true },
                 { status: 'pending', kycStatus: { $in: ['draft', 'submitted', 'under_review', 'partially_approved'] } }
             ]
-        }).sort({ updatedAt: -1 });
+        };
+
+        if (req.user.role === 'supervisor') {
+            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+            if (supervisorEmp) {
+                const employees = await Employee.find({ 
+                    $or: [
+                        { managedBy: supervisorEmp._id },
+                        { supervisorCode: supervisorEmp.ownCode },
+                        { createdBy: req.user._id }
+                    ]
+                });
+                const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
+                const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
+                query = {
+                    ...query,
+                    $and: [
+                        {
+                            $or: [
+                                { referredBy: { $in: teamCodes } },
+                                { onboardedByStaff: { $in: teamCodes } }
+                            ]
+                        }
+                    ]
+                };
+            } else {
+                return res.json([]);
+            }
+        }
+
+        const sewaks = await Provider.find(query).sort({ updatedAt: -1 });
         res.json(sewaks);
     } catch (error) {
         res.status(500).json({ message: error.message });

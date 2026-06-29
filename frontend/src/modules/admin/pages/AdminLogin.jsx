@@ -154,15 +154,6 @@ const AdminLogin = () => {
             </div>
           </form>
 
-          <div className="pt-8">
-            <Link 
-              to="/provider/login" 
-              className="group flex items-center justify-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              Not an admin? Switch to Provider Portal
-            </Link>
-          </div>
 
         </div>
       </div>

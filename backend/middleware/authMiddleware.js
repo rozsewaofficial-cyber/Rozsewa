@@ -78,4 +78,18 @@ const employee = (req, res, next) => {
     }
 };
 
-module.exports = { protect, admin, superadmin, wfh, supervisor, employee };
+const supervisorWithAllScope = async (req, res, next) => {
+    if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
+        return next();
+    }
+    if (req.user && req.user.role === 'supervisor') {
+        const Employee = require('../models/Employee');
+        const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+        if (supervisorEmp && supervisorEmp.allowedCreationScope === 'all') {
+            return next();
+        }
+    }
+    res.status(403).json({ message: 'Access denied: Requires supervisor permissions with "All" scope' });
+};
+
+module.exports = { protect, admin, superadmin, wfh, supervisor, employee, supervisorWithAllScope };

@@ -67,6 +67,14 @@ const employeeSchema = new mongoose.Schema({
     aadharCard: { type: String, trim: true },
     panCardPhoto: { type: String, trim: true },
     aadharCardPhoto: { type: String, trim: true },
+    state: { type: String, trim: true },
+    city: { type: String, trim: true },
+    address: { type: String, trim: true },
+    allowedCreationScope: {
+        type: String,
+        enum: ['employee_only', 'all'],
+        default: 'employee_only',
+    },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',

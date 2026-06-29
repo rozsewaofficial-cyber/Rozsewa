@@ -14,6 +14,8 @@ import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 import { useAuth } from "@/context/AuthContext";
+import { INDIAN_STATES_AND_CITIES } from "@/lib/statesAndCities";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const ROLE_CONFIG = {
     supervisor:  { label: "Supervisor",   color: "bg-purple-100 text-purple-700 border-purple-200",  dot: "bg-purple-500",  badge: "bg-purple-50 text-purple-700 border border-purple-200" },
@@ -27,9 +29,11 @@ const STATUS_CONFIG = {
     rejected: { label: "Rejected",  cls: "bg-red-50 text-red-700 border border-red-200" },
 };
 
-const InputField = ({ label, children }) => (
-    <div className="space-y-1.5">
-        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</label>
+const InputField = ({ label, required, children }) => (
+    <div className="space-y-1.5 relative text-left">
+        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+            {label} {required && <span className="text-red-500 font-bold ml-0.5">*</span>}
+        </label>
         {children}
     </div>
 );
@@ -43,6 +47,8 @@ const AdminHRM = ({ view }) => {
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [showStateSuggestions, setShowStateSuggestions] = useState(false);
+    const [showCitySuggestions, setShowCitySuggestions] = useState(false);
 
     useScrollLock(showAddModal);
     const [editId, setEditId] = useState(null);
@@ -60,7 +66,10 @@ const AdminHRM = ({ view }) => {
     const [formData, setFormData] = useState({
         name: "", email: "", mobile: "", password: "",
         role: getDefaultRole(), supervisorCode: "",
-        registrationCommission: 50, panCard: "", aadharCard: ""
+        registrationCommission: 50, panCard: "", aadharCard: "",
+        state: "Delhi", city: "Delhi", address: "",
+        allowedCreationScope: "employee_only",
+        panCardPhoto: "", aadharCardPhoto: ""
     });
     const [panPhotoFile, setPanPhotoFile] = useState(null);
     const [aadharPhotoFile, setAadharPhotoFile] = useState(null);
@@ -74,6 +83,7 @@ const AdminHRM = ({ view }) => {
     const [aadhaarOTP, setAadhaarOTP] = useState("");
     const [showAadhaarOTP, setShowAadhaarOTP] = useState(false);
     const [isVerifyingAadhaar, setIsVerifyingAadhaar] = useState(false);
+    const [aadhaarCooldown, setAadhaarCooldown] = useState(0);
 
     const verifyPan = async () => {
         if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.panCard)) {
@@ -102,15 +112,21 @@ const AdminHRM = ({ view }) => {
         setIsVerifyingAadhaar(true);
         try {
             const { data } = await API.post('/verify/okyc/initiate', { aadhaarNumber: formData.aadharCard });
-            if (data.success && data.data?.session_id) {
-                setAadhaarSessionId(data.data.session_id);
+            const sid = data.data?.sessionId || data.sessionId || data.data?.session_id || data.session_id;
+            if (sid) {
+                setAadhaarSessionId(sid);
                 setShowAadhaarOTP(true);
-                toast({ title: "OTP Sent", description: "OTP sent to Aadhaar linked mobile" });
+                setAadhaarCooldown(45);
+                toast({ title: "OTP Sent", description: data.data?.message || data.message || "OTP sent to Aadhaar linked mobile" });
             } else {
-                toast({ title: "Initiation Failed", description: "Could not send OTP", variant: "destructive" });
+                toast({ title: "Initiation Failed", description: data.message || "Could not send OTP", variant: "destructive" });
             }
         } catch (error) {
-            toast({ title: "Initiation Failed", description: error.response?.data?.message || "Could not initiate Aadhaar OKYC", variant: "destructive" });
+            const msg = error.response?.data?.message || "";
+            if (msg.includes("45 seconds")) {
+                setAadhaarCooldown(45);
+            }
+            toast({ title: "Initiation Failed", description: msg || "Could not initiate Aadhaar OKYC", variant: "destructive" });
         } finally {
             setIsVerifyingAadhaar(false);
         }
@@ -127,12 +143,12 @@ const AdminHRM = ({ view }) => {
                 otp: aadhaarOTP, 
                 aadhaarNumber: formData.aadharCard 
             });
-            if (data.success && data.data?.status === "VALID") {
+            if (data.success || data.status === "VERIFIED" || data.data?.status === "VALID" || data.data?.status === "VERIFIED") {
                 setAadhaarVerified(true);
                 setShowAadhaarOTP(false);
                 toast({ title: "Aadhaar Verified", description: `Name: ${data.data?.full_name || "Success"}` });
             } else {
-                toast({ title: "Verification Failed", description: "Invalid OTP", variant: "destructive" });
+                toast({ title: "Verification Failed", description: data.message || "Invalid OTP", variant: "destructive" });
             }
         } catch (error) {
             toast({ title: "Verification Failed", description: error.response?.data?.message || "Could not verify OTP", variant: "destructive" });
@@ -149,6 +165,14 @@ const AdminHRM = ({ view }) => {
     }, [view, setTitle]);
     useEffect(() => { fetchEmployees(); }, []);
 
+    useEffect(() => {
+        if (aadhaarCooldown <= 0) return;
+        const timer = setInterval(() => {
+            setAadhaarCooldown(prev => prev - 1);
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [aadhaarCooldown]);
+
 
     const fetchEmployees = async () => {
         try {
@@ -164,7 +188,6 @@ const AdminHRM = ({ view }) => {
         let filtered = allEmployees;
         if (view === 'supervisor') filtered = allEmployees.filter(e => e.role === 'supervisor');
         else if (view === 'employee') filtered = allEmployees.filter(e => e.role !== 'supervisor');
-        if (user?.role === 'supervisor') filtered = filtered.filter(e => e.status !== 'pending');
         if (search) {
             const s = search.toLowerCase();
             filtered = filtered.filter(e =>
@@ -179,13 +202,46 @@ const AdminHRM = ({ view }) => {
     }, [allEmployees, view, search, roleFilter, user]);
 
     // Stats
-    const stats = useMemo(() => ({
-        total: allEmployees.length,
-        supervisors: allEmployees.filter(e => e.role === 'supervisor').length,
-        fieldStaff: allEmployees.filter(e => e.role === 'field_staff').length,
-        employees: allEmployees.filter(e => e.role === 'employee').length,
-        pending: allEmployees.filter(e => e.status === 'pending').length,
-    }), [allEmployees]);
+    const stats = useMemo(() => {
+        const supervisorsList = allEmployees.filter(e => e.role === 'supervisor');
+        const employeesList = allEmployees.filter(e => e.role !== 'supervisor');
+
+        if (view === 'supervisor') {
+            return {
+                total: supervisorsList.length,
+                verified: supervisorsList.filter(e => e.status === 'verified').length,
+                pending: supervisorsList.filter(e => e.status === 'pending').length,
+            };
+        } else {
+            return {
+                total: employeesList.length,
+                fieldStaff: employeesList.filter(e => e.role === 'field_staff').length,
+                employees: employeesList.filter(e => e.role === 'employee').length,
+                pending: employeesList.filter(e => e.status === 'pending').length,
+            };
+        }
+    }, [allEmployees, view]);
+
+    const filteredStates = useMemo(() => {
+        const val = (formData.state || "").trim().toLowerCase();
+        const allStates = Object.keys(INDIAN_STATES_AND_CITIES);
+        if (!val) return allStates.slice(0, 5);
+        return allStates.filter(s => s.toLowerCase().includes(val));
+    }, [formData.state]);
+
+    const filteredCities = useMemo(() => {
+        const val = (formData.city || "").trim().toLowerCase();
+        const selectedState = formData.state;
+        let citiesPool = [];
+        if (selectedState && INDIAN_STATES_AND_CITIES[selectedState]) {
+            citiesPool = INDIAN_STATES_AND_CITIES[selectedState];
+        } else {
+            citiesPool = Object.values(INDIAN_STATES_AND_CITIES).flat();
+            citiesPool = [...new Set(citiesPool)];
+        }
+        if (!val) return citiesPool.slice(0, 5);
+        return citiesPool.filter(c => c.toLowerCase().includes(val));
+    }, [formData.city, formData.state]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -263,7 +319,7 @@ const AdminHRM = ({ view }) => {
     };
 
     const resetForm = () => {
-        setFormData({ name: "", email: "", mobile: "", password: "", role: getDefaultRole(), supervisorCode: "", registrationCommission: 50, panCard: "", aadharCard: "" });
+        setFormData({ name: "", email: "", mobile: "", password: "", role: getDefaultRole(), supervisorCode: "", registrationCommission: 50, panCard: "", aadharCard: "", state: "Delhi", city: "Delhi", address: "", allowedCreationScope: "employee_only", panCardPhoto: "", aadharCardPhoto: "" });
         setEditId(null);
         setPanPhotoFile(null);
         setAadharPhotoFile(null);
@@ -279,7 +335,13 @@ const AdminHRM = ({ view }) => {
             name: emp.name, email: emp.email, mobile: emp.mobile,
             password: emp.userId?.plainPassword || emp.plainPassword || "********",
             role: emp.role || "employee", supervisorCode: emp.supervisorCode || "",
-            registrationCommission: emp.registrationCommission, panCard: emp.panCard || "", aadharCard: emp.aadharCard || ""
+            registrationCommission: emp.registrationCommission, panCard: emp.panCard || "", aadharCard: emp.aadharCard || "",
+            state: emp.state || emp.userId?.state || "Delhi",
+            city: emp.city || emp.userId?.city || "Delhi",
+            address: emp.address || emp.userId?.address || "",
+            allowedCreationScope: emp.allowedCreationScope || "employee_only",
+            panCardPhoto: emp.panCardPhoto || "",
+            aadharCardPhoto: emp.aadharCardPhoto || ""
         });
         setEditId(emp._id);
         // Assume existing staff are verified to bypass check on edit unless they change it
@@ -333,30 +395,70 @@ const AdminHRM = ({ view }) => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {[
-                    { label: "Total Staff",   value: stats.total,       icon: Users,    cls: "text-gray-700 bg-gray-50 border-gray-200" },
-                    { label: "Supervisors",   value: stats.supervisors,  icon: Shield,   cls: "text-purple-700 bg-purple-50 border-purple-200" },
-                    { label: "Field Staff",   value: stats.fieldStaff,   icon: MapPin,   cls: "text-orange-700 bg-orange-50 border-orange-200" },
-                    { label: "Employees",     value: stats.employees,    icon: Users,    cls: "text-blue-700 bg-blue-50 border-blue-200" },
-                    { label: "Pending KYC",   value: stats.pending,      icon: Clock,    cls: "text-amber-700 bg-amber-50 border-amber-200" },
-                ].map((s, i) => (
-                    <div key={i} className={`rounded-xl border p-4 ${s.cls}`}>
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                            <s.icon className="h-3.5 w-3.5 opacity-70" />
-                            <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">{s.label}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {view === 'supervisor' ? (
+                    <>
+                        <div className="rounded-xl border p-4 text-gray-700 bg-gray-50 border-gray-200">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Users className="h-3.5 w-3.5 opacity-70" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Total Supervisors</p>
+                            </div>
+                            <h3 className="text-2xl font-black">{stats.total}</h3>
                         </div>
-                        <h3 className="text-2xl font-black">{s.value}</h3>
-                    </div>
-                ))}
+                        <div className="rounded-xl border p-4 text-purple-700 bg-purple-50 border-purple-200">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Shield className="h-3.5 w-3.5 opacity-70" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Verified</p>
+                            </div>
+                            <h3 className="text-2xl font-black">{stats.verified}</h3>
+                        </div>
+                        <div className="rounded-xl border p-4 text-amber-700 bg-amber-50 border-amber-200">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Clock className="h-3.5 w-3.5 opacity-70" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider opacity-85">Pending Verification</p>
+                            </div>
+                            <h3 className="text-2xl font-black">{stats.pending}</h3>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="rounded-xl border p-4 text-gray-700 bg-gray-50 border-gray-200">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Users className="h-3.5 w-3.5 opacity-70" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Total Staff</p>
+                            </div>
+                            <h3 className="text-2xl font-black">{stats.total}</h3>
+                        </div>
+                        <div className="rounded-xl border p-4 text-orange-700 bg-orange-50 border-orange-200">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <MapPin className="h-3.5 w-3.5 opacity-70" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Field Staff</p>
+                            </div>
+                            <h3 className="text-2xl font-black">{stats.fieldStaff}</h3>
+                        </div>
+                        <div className="rounded-xl border p-4 text-blue-700 bg-blue-50 border-blue-200">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Users className="h-3.5 w-3.5 opacity-70" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Employees</p>
+                            </div>
+                            <h3 className="text-2xl font-black">{stats.employees}</h3>
+                        </div>
+                        <div className="rounded-xl border p-4 text-amber-700 bg-amber-50 border-amber-200">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <Clock className="h-3.5 w-3.5 opacity-70" />
+                                <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">Pending KYC</p>
+                            </div>
+                            <h3 className="text-2xl font-black">{stats.pending}</h3>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Filters & Search */}
             <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center">
                 <div className="flex flex-wrap gap-1.5">
-                    {[
-                        { key: "all",        label: "All", count: allEmployees.length },
-                        { key: "supervisor", label: "Supervisors", count: stats.supervisors },
+                    {view !== 'supervisor' && [
+                        { key: "all",        label: "All", count: stats.total },
                         { key: "field_staff",label: "Field Staff", count: stats.fieldStaff },
                         { key: "employee",   label: "Employees", count: stats.employees },
                     ].map(f => (
@@ -448,6 +550,13 @@ const AdminHRM = ({ view }) => {
                                                         <span className={`h-1.5 w-1.5 rounded-full ${rc.dot}`}></span>
                                                         {rc.label}
                                                     </span>
+                                                    {emp.role === 'supervisor' && (
+                                                        <p className="text-[9px] font-bold text-gray-500 mt-1">
+                                                            Scope: <span className={emp.allowedCreationScope === 'all' ? 'text-purple-600' : 'text-gray-600'}>
+                                                                {emp.allowedCreationScope === 'all' ? 'Emp + Sup' : 'Emp Only'}
+                                                            </span>
+                                                        </p>
+                                                    )}
                                                 </td>
 
                                                 {/* Contact */}
@@ -458,7 +567,17 @@ const AdminHRM = ({ view }) => {
 
                                                 {/* Hierarchy */}
                                                 <td className="py-3.5 px-5 text-center">
-                                                    {emp.role === 'field_staff' && emp.supervisorCode ? (
+                                                    {emp.managedBy ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-xs font-bold text-purple-600 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">{emp.managedBy.ownCode || emp.supervisorCode}</span>
+                                                            <span className="text-[9px] text-gray-450 mt-0.5 font-semibold">({emp.managedBy.name})</span>
+                                                        </div>
+                                                    ) : (emp.createdBy && emp.createdBy.role === 'supervisor') ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-xs font-bold text-purple-600 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">{emp.supervisorCode || "Supervisor"}</span>
+                                                            <span className="text-[9px] text-gray-450 mt-0.5 font-semibold">({emp.createdBy.name})</span>
+                                                        </div>
+                                                    ) : emp.supervisorCode ? (
                                                         <span className="text-xs font-bold text-purple-600 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">{emp.supervisorCode}</span>
                                                     ) : (
                                                         <span className="text-[10px] text-gray-300 font-bold uppercase">Direct</span>
@@ -514,7 +633,7 @@ const AdminHRM = ({ view }) => {
                 {/* Footer */}
                 {employees.length > 0 && (
                     <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex items-center justify-between">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Showing {employees.length} of {allEmployees.length} staff</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Showing {employees.length} of {stats.total} {view === 'supervisor' ? 'supervisors' : 'staff'}</p>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Commission: ₹{employees.reduce((s, e) => s + (e.registrationCommission || 0), 0).toLocaleString()}</p>
                     </div>
                 )}
@@ -543,7 +662,7 @@ const AdminHRM = ({ view }) => {
 
                             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputField label="Role">
+                                    <InputField label="Role" required>
                                         <select value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} className={inputCls}>
                                             {(user?.role === 'admin' || user?.role === 'superadmin') && (
                                                 <>
@@ -555,7 +674,9 @@ const AdminHRM = ({ view }) => {
                                             {user?.role === 'supervisor' && (
                                                 <>
                                                     <option value="employee">Employee</option>
-                                                    <option value="field_staff">Field Staff</option>
+                                                    {user?.allowedCreationScope === "all" && (
+                                                        <option value="supervisor">Supervisor</option>
+                                                    )}
                                                 </>
                                             )}
                                             {!user && (
@@ -567,26 +688,99 @@ const AdminHRM = ({ view }) => {
                                             )}
                                         </select>
                                     </InputField>
-                                    <InputField label="Full Name">
+                                    <InputField label="Full Name" required>
                                         <input required type="text" value={formData.name}
                                             onChange={(e) => setFormData({ ...formData, name: sanitizeNameOnChange(e.target.value) })}
                                             maxLength={50} className={inputCls} placeholder="Rahul Verma" />
                                     </InputField>
                                 </div>
 
+                                {formData.role === 'supervisor' && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <InputField label="Allowed Creation Scope" required>
+                                            <select value={formData.allowedCreationScope} 
+                                                    onChange={(e) => setFormData({ ...formData, allowedCreationScope: e.target.value })} 
+                                                    className={inputCls}>
+                                                <option value="employee_only">Employee Only</option>
+                                                <option value="all">Employee & Supervisor</option>
+                                            </select>
+                                        </InputField>
+                                        <div /> {/* Spacer */}
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputField label="Mobile">
+                                    <InputField label="Mobile" required>
                                         <input required type="tel" value={formData.mobile}
                                             onChange={(e) => setFormData({ ...formData, mobile: sanitizePhone(e.target.value) })}
                                             maxLength="10"
                                             className={inputCls} placeholder="9876543210" />
                                     </InputField>
-                                    <InputField label="Email">
+                                    <InputField label="Email" required>
                                         <input required type="email" value={formData.email}
                                             onChange={(e) => setFormData({ ...formData, email: sanitizeEmail(e.target.value) })}
                                             className={inputCls} placeholder="email@rozsewa.com" />
                                     </InputField>
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <InputField label="State" required>
+                                        <div className="relative">
+                                            <input required type="text" value={formData.state}
+                                                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                                onFocus={() => setShowStateSuggestions(true)}
+                                                onBlur={() => setTimeout(() => setShowStateSuggestions(false), 200)}
+                                                className={inputCls} placeholder="State (e.g. Maharashtra)" />
+                                            {showStateSuggestions && filteredStates.length > 0 && (
+                                                <ul className="absolute z-50 left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
+                                                    {filteredStates.map(st => (
+                                                        <li key={st} 
+                                                            onMouseDown={() => {
+                                                                setFormData(prev => ({ 
+                                                                    ...prev, 
+                                                                    state: st, 
+                                                                    city: INDIAN_STATES_AND_CITIES[st]?.[0] || prev.city 
+                                                                }));
+                                                            }}
+                                                            className="px-4 py-2 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer font-medium transition-colors text-left"
+                                                        >
+                                                            {st}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    </InputField>
+                                    <InputField label="City" required>
+                                        <div className="relative">
+                                            <input required type="text" value={formData.city}
+                                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                                onFocus={() => setShowCitySuggestions(true)}
+                                                onBlur={() => setTimeout(() => setShowCitySuggestions(false), 200)}
+                                                className={inputCls} placeholder="City (e.g. Mumbai)" />
+                                            {showCitySuggestions && filteredCities.length > 0 && (
+                                                <ul className="absolute z-50 left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
+                                                    {filteredCities.map(ct => (
+                                                        <li key={ct}
+                                                            onMouseDown={() => {
+                                                                setFormData(prev => ({ ...prev, city: ct }));
+                                                            }}
+                                                            className="px-4 py-2 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer font-medium transition-colors text-left"
+                                                        >
+                                                            {ct}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    </InputField>
+                                </div>
+
+                                <InputField label="Full Address" required>
+                                    <input required type="text" value={formData.address}
+                                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                        className={inputCls} placeholder="Flat, Street, Area" />
+                                </InputField>
 
                                 {formData.role === 'field_staff' && user?.role !== 'supervisor' && (
                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
@@ -599,7 +793,7 @@ const AdminHRM = ({ view }) => {
                                 )}
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputField label="PAN Card No">
+                                    <InputField label="PAN Card No" required={!editId}>
                                         <div className="relative">
                                             <input type="text" value={formData.panCard}
                                                 onChange={(e) => { const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); if (v.length <= 10) { setFormData({ ...formData, panCard: v }); setPanVerified(false); } }}
@@ -616,8 +810,13 @@ const AdminHRM = ({ view }) => {
                                         </div>
                                         <input type="file" accept="image/*" onChange={(e) => setPanPhotoFile(e.target.files[0])}
                                             className="mt-1.5 text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-600 hover:file:bg-gray-200 w-full" />
+                                        {formData.panCardPhoto && (
+                                            <a href={formData.panCardPhoto} target="_blank" rel="noreferrer" className="text-[10px] text-emerald-600 hover:underline font-bold mt-1 block">
+                                                View Current PAN Photo
+                                            </a>
+                                        )}
                                     </InputField>
-                                    <InputField label="Aadhaar No">
+                                    <InputField label="Aadhaar No" required={!editId}>
                                         <div className="relative">
                                             <input type="text" value={formData.aadharCard}
                                                 onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); if (v.length <= 12) { setFormData({ ...formData, aadharCard: v }); setAadhaarVerified(false); setShowAadhaarOTP(false); } }}
@@ -627,23 +826,39 @@ const AdminHRM = ({ view }) => {
                                                     <CheckCircle2 className="h-3 w-3" /> Verified
                                                 </div>
                                             ) : (
-                                                <button type="button" onClick={initiateAadhaar} disabled={isVerifyingAadhaar || formData.aadharCard?.length !== 12 || showAadhaarOTP} className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors">
-                                                    {isVerifyingAadhaar && !showAadhaarOTP ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send OTP"}
+                                                <button type="button" onClick={initiateAadhaar} disabled={isVerifyingAadhaar || formData.aadharCard?.length !== 12 || aadhaarCooldown > 0} className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors">
+                                                    {isVerifyingAadhaar && !showAadhaarOTP ? <Loader2 className="h-3 w-3 animate-spin" /> : (aadhaarCooldown > 0 ? `Retry in ${aadhaarCooldown}s` : (showAadhaarOTP ? "Resend" : "Send OTP"))}
                                                 </button>
                                             )}
                                         </div>
                                         <input type="file" accept="image/*" onChange={(e) => setAadharPhotoFile(e.target.files[0])}
                                             className="mt-1.5 text-[10px] text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-gray-100 file:text-gray-600 hover:file:bg-gray-200 w-full" />
+                                        {formData.aadharCardPhoto && (
+                                            <a href={formData.aadharCardPhoto} target="_blank" rel="noreferrer" className="text-[10px] text-emerald-600 hover:underline font-bold mt-1 block">
+                                                View Current Aadhaar Photo
+                                            </a>
+                                        )}
                                     </InputField>
                                 </div>
                                 {showAadhaarOTP && !aadhaarVerified && (
                                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                                        <InputField label="Enter Aadhaar OTP">
-                                            <div className="flex gap-2">
-                                                <input type="text" value={aadhaarOTP} onChange={(e) => setAadhaarOTP(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                                                    className={`${inputCls} font-mono tracking-widest text-center`} placeholder="XXXXXX" />
-                                                <button type="button" onClick={verifyAadhaarOtpSubmit} disabled={isVerifyingAadhaar || aadhaarOTP.length !== 6} className="bg-emerald-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                                                    {isVerifyingAadhaar ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Verify OTP"}
+                                        <InputField label="Enter Aadhaar OTP" required>
+                                            <div className="flex flex-col gap-3">
+                                                <div className="flex justify-center py-2">
+                                                    <InputOTP maxLength={6} value={aadhaarOTP} onChange={setAadhaarOTP}>
+                                                        <InputOTPGroup className="gap-2">
+                                                            {Array.from({ length: 6 }).map((_, i) => (
+                                                                <InputOTPSlot
+                                                                    key={i}
+                                                                    index={i}
+                                                                    className="h-12 w-10 rounded-xl border-2 border-gray-200 bg-gray-50 text-center text-xl font-black text-gray-900 first:rounded-xl first:border-2 last:rounded-xl focus-visible:border-emerald-500 focus-visible:ring-0 focus-visible:outline-none"
+                                                                />
+                                                            ))}
+                                                        </InputOTPGroup>
+                                                    </InputOTP>
+                                                </div>
+                                                <button type="button" onClick={verifyAadhaarOtpSubmit} disabled={isVerifyingAadhaar || aadhaarOTP.length !== 6} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-emerald-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                                                    {isVerifyingAadhaar ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify OTP"}
                                                 </button>
                                             </div>
                                         </InputField>
@@ -651,7 +866,7 @@ const AdminHRM = ({ view }) => {
                                 )}
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputField label={editId ? "Password (Edit to Change)" : "Login Password"}>
+                                    <InputField label={editId ? "Password (Edit to Change)" : "Login Password"} required={!editId}>
                                         <div className="relative">
                                             <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                             <input type={showPassword ? "text" : "password"} value={formData.password}
@@ -662,7 +877,7 @@ const AdminHRM = ({ view }) => {
                                             </button>
                                         </div>
                                     </InputField>
-                                    <InputField label="Registration Commission (₹)">
+                                    <InputField label="Registration Commission (₹)" required>
                                         <div className="relative">
                                             <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                             <input required type="number" min="0" value={formData.registrationCommission}

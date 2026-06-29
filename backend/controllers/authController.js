@@ -293,6 +293,7 @@ const getUserProfile = async (req, res) => {
                 permissions: user.permissions || [],
                 providerCategory: user.providerCategory || "partner",
                 employeeCode: user.role === 'supervisor' || user.role === 'employee' ? (await require('../models/Employee').findOne({ userId: user._id }))?.ownCode : "",
+                allowedCreationScope: user.role === 'supervisor' ? (await require('../models/Employee').findOne({ userId: user._id }))?.allowedCreationScope || 'employee_only' : undefined,
                 debtLimitExceeded,
                 currentDebt,
                 allowedLimit

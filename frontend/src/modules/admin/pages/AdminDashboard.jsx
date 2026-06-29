@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useOutletContext, Link } from "react-router-dom";
 import { Users, UserCheck, CalendarDays, IndianRupee, ArrowUpRight, Activity, TrendingUp, AlertTriangle, ShieldCheck } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 
 const statusColors = {
@@ -15,6 +16,7 @@ const statusColors = {
 
 const AdminDashboard = () => {
     const { setTitle } = useOutletContext();
+    const { user } = useAuth();
     const [recentBookings, setRecentBookings] = useState([]);
     const [stats, setStats] = useState({
         totalUsers: 0,
@@ -55,8 +57,12 @@ const AdminDashboard = () => {
             {/* Welcome Section */}
             <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center">
                 <div>
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">Welcome back, Admin 👋</h2>
-                    <p className="mt-1 text-sm text-gray-500 font-medium">Here's the overall activity and status on RozSewa today.</p>
+                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">Welcome back, {user?.name || "Admin"} 👋</h2>
+                    <p className="mt-1 text-sm text-gray-500 font-medium">
+                        {user?.role === 'supervisor' 
+                            ? "Here's the activity and status of the team under you today."
+                            : "Here's the overall activity and status on RozSewa today."}
+                    </p>
                 </div>
                 <div className="flex items-center gap-3 bg-white border border-gray-200 px-4 py-2.5 rounded-xl shadow-sm">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
