@@ -122,6 +122,7 @@ const verifySubscriptionPayment = async (req, res) => {
             subscription: plan._id,
             startDate: purchaseDate,
             endDate: expiryDate,
+            pricePaid: plan.price,
             status: 'active'
         });
 

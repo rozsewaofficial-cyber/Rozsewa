@@ -388,13 +388,13 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                         <div>
                                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
 
-                                            {request.userProposedAmount ? (
+                                            {request.customerOffer ? (
                                                 <>
                                                     <div className="flex items-center text-sm font-black text-emerald-600 italic line-through opacity-70">
-                                                        <IndianRupee className="h-3 w-3" /> {request.amount}
+                                                        <IndianRupee className="h-3 w-3" /> {request.originalFixedPrice}
                                                     </div>
                                                     <div className="flex items-center text-xl font-black text-emerald-600 mt-0.5">
-                                                        <IndianRupee className="h-5 w-5" /> {request.userProposedAmount}
+                                                        <IndianRupee className="h-5 w-5" /> {request.amount}
                                                         <span className="text-[9px] ml-2 text-blue-600 font-black bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full uppercase tracking-widest">Proposed</span>
                                                     </div>
                                                 </>
@@ -439,18 +439,12 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                                 <Check className="h-4 w-4" /> Accept Offer
                                             </button>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="flex flex-col gap-2 w-full">
                                             <button
                                                 onClick={() => setIsCountering(true)}
-                                                className="h-12 rounded-2xl border-2 border-purple-500/20 bg-purple-50 hover:bg-purple-100 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-purple-700 group"
+                                                className="w-full h-12 rounded-2xl border-2 border-purple-500/20 bg-purple-50 hover:bg-purple-100 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-purple-700 group"
                                             >
                                                 Counter Offer
-                                            </button>
-                                            <button
-                                                onClick={() => handleAccept('fixed_price')}
-                                                className="h-12 rounded-2xl border-2 border-blue-500/20 bg-blue-50 hover:bg-blue-100 flex items-center justify-center transition-all font-black uppercase text-[10px] tracking-widest text-blue-700 group text-center leading-tight px-1"
-                                            >
-                                                Accept Fixed<br/>(₹{request.originalFixedPrice})
                                             </button>
                                         </div>
                                     </div>

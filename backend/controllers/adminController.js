@@ -149,6 +149,8 @@ const getAdminStats = async (req, res) => {
         const recentBookingsRaw = await Booking.find()
             .sort({ createdAt: -1 })
             .limit(5)
+            .populate('userId', 'name mobile')
+            .populate('providerId', 'shopName ownerName')
             .lean();
 
         const recentBookings = recentBookingsRaw.map(b => ({

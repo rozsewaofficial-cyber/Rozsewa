@@ -48,7 +48,7 @@ const ServiceHistory = () => {
         ...b,
         id: b._id,
         service: b.serviceName,
-        total: (b.totalAmount || 0) + (b.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0),
+        total: (b.totalAmount || 0) + (b.extraCharges?.filter(c => !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0),
         date: b.bookingDate,
         time: b.bookingTime,
         status: b.status,

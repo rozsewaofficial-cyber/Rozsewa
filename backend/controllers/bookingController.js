@@ -948,7 +948,54 @@ const updateBookingStatusByProvider = async (req, res) => {
             }
 
             if (req.body.extraStatus) {
+                const previousExtraStatus = booking.extraStatus;
                 booking.extraStatus = req.body.extraStatus;
+
+                // If provider just added extra charges and status became pending
+                if (req.body.extraStatus === 'pending' && previousExtraStatus !== 'pending') {
+                    try {
+                        const io = require('../config/socket').getIO();
+                        io.to(`user_${booking.userId}`).emit('EXTRA_CHARGES_PENDING', {
+                            bookingId: booking._id.toString(),
+                            extraCharges: req.body.extraCharges
+                        });
+
+                        const { notifyUser } = require('../config/notificationService');
+                        notifyUser({
+                            userId: booking.userId,
+                            userRole: 'user',
+                            title: 'Extra Charges Added',
+                            message: `Provider has added extra charges for spare parts. Please approve them.`,
+                            type: 'booking',
+                            bookingId: booking._id
+                        }).catch(err => console.log('Extra charges notification failed:', err.message));
+                    } catch (err) {
+                        console.log('Extra charges socket/notification error:', err.message);
+                    }
+                }
+
+                // If user approved or declined extra charges
+                if (['approved', 'declined'].includes(req.body.extraStatus) && previousExtraStatus === 'pending') {
+                    try {
+                        const io = require('../config/socket').getIO();
+                        io.to(`provider_${booking.providerId}`).emit('EXTRA_CHARGES_UPDATE', {
+                            bookingId: booking._id.toString(),
+                            extraStatus: req.body.extraStatus
+                        });
+
+                        const { notifyUser } = require('../config/notificationService');
+                        notifyUser({
+                            userId: booking.providerId,
+                            userRole: 'provider',
+                            title: 'Extra Charges ' + (req.body.extraStatus === 'approved' ? 'Approved' : 'Declined'),
+                            message: `Customer has ${req.body.extraStatus} your extra charges.`,
+                            type: 'booking',
+                            bookingId: booking._id
+                        }).catch(err => console.log('Extra charges update notification failed:', err.message));
+                    } catch (err) {
+                        console.log('Extra charges update socket/notification error:', err.message);
+                    }
+                }
             }
             if (req.body.extraCharges) {
                 booking.extraCharges = req.body.extraCharges;
