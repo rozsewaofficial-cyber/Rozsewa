@@ -10,27 +10,17 @@ const defaultProviderFallback = {
   id: "default",
   name: "Rozsewa Expert",
   category: "General",
-  rating: 4.8,
-  reviews: 156,
-  verified: true,
-  address: "Lucknow, India",
-  phone: "+91 9999999999",
-  about: "Professional service provider with 5+ years of experience in delivering high-quality results.",
-  qualifications: ["Background Verified", "Trained Professional", "5+ Years Exp", "COVID Vaccinated"],
-  warranty: "30-Day Service Warranty",
+  rating: 0,
+  reviews: 0,
+  verified: false,
+  address: "Not Provided",
+  phone: "Not Provided",
+  about: "Professional service provider on Rozsewa.",
+  qualifications: ["Background Verified", "Trained Professional"],
+  warranty: "Service Warranty",
   image: "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=800&h=400&fit=crop"
 };
 
-const fakePortfolio = [
-  { id: 1, before: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&h=300&fit=crop", after: "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=400&h=300&fit=crop" },
-  { id: 2, before: "https://images.unsplash.com/photo-1563453392212-326f5e854473?w=400&h=300&fit=crop", after: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&h=300&fit=crop" },
-];
-
-const fakeReviews = [
-  { id: 1, user: "Amit K.", rating: 5, date: "2 days ago", text: "Excellent service! Very professional and on time." },
-  { id: 2, user: "Priya S.", rating: 4, date: "1 week ago", text: "Good work, but arrived 10 mins late. Overall satisfied." },
-  { id: 3, user: "Rahul M.", rating: 5, date: "2 weeks ago", text: "Saved my day! Fixed the issue in no time." },
-];
 
 import API from "@/lib/api";
 import { useEffect, useCallback } from "react";

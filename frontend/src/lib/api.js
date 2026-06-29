@@ -36,4 +36,32 @@ API.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
+// Add a response interceptor to handle token expiration/401 unauthorized errors globally
+API.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && error.response.status === 401) {
+            const path = window.location.pathname;
+            // Prevent redirect loop if already on login pages
+            if (!path.includes("/login")) {
+                localStorage.removeItem("rozsewa_auth");
+                localStorage.removeItem("rozsewa_auth_admin");
+                localStorage.removeItem("rozsewa_auth_provider");
+                localStorage.removeItem("rozsewa_auth_user");
+
+                let redirectPath = "/login";
+                if (path.startsWith("/admin")) {
+                    redirectPath = "/admin/login";
+                } else if (path.startsWith("/provider")) {
+                    redirectPath = "/provider/login";
+                }
+
+                // Force browser redirect to login
+                window.location.replace(redirectPath);
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export default API;

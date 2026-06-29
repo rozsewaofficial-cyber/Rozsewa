@@ -11,7 +11,6 @@ import API from "@/lib/api";
 import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
-import axios from 'axios';
 import { Link, useOutletContext } from 'react-router-dom';
 
 const InputField = ({ label, children }) => (
@@ -199,17 +198,11 @@ const SewakManagement = () => {
 
         setUploadingDoc("saving");
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            
             if (editId) {
-                await axios.put(`${import.meta.env.VITE_API_URL}/admin/sewaks/${editId}`, sanitizedSewak, {
-                    headers: { Authorization: `Bearer ${auth?.token}` }
-                });
+                await API.put(`/admin/sewaks/${editId}`, sanitizedSewak);
                 toast.success("Sewak updated successfully");
             } else {
-                await axios.post(`${import.meta.env.VITE_API_URL}/admin/sewaks`, sanitizedSewak, {
-                    headers: { Authorization: `Bearer ${auth?.token}` }
-                });
+                await API.post(`/admin/sewaks`, sanitizedSewak);
                 toast.success("Sewak registered successfully");
             }
             

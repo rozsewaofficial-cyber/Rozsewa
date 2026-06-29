@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
   Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
-  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon
+  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin
 } from "lucide-react";
 
 export const adminSidebarLinks = [
@@ -47,6 +47,7 @@ export const adminSidebarLinks = [
   { path: "/admin/partner-program", label: "Partner Program", icon: ShieldCheck },
   { path: "/admin/settings", label: "Global Settings", icon: Settings },
   { path: "/admin/settings/cash-limits", label: "Cash Limits", icon: CreditCard },
+  { path: "/admin/distance-charges", label: "Distance Charges", icon: MapPin },
 ];
 
 const AdminSidebar = ({ isOpen, setIsOpen }) => {

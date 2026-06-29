@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import axios from "axios";
 import API from "@/lib/api";
 import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";

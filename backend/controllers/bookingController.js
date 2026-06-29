@@ -11,6 +11,7 @@ const Setting = require('../models/Setting');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Combo = require('../models/Combo');
 const Coupon = require('../models/Coupon');
+const DistanceChargeService = require('../services/DistanceChargeService');
 
 // Helper to check if time is within night window
 const isNightTime = (timeStr, startStr, endStr) => {
@@ -287,10 +288,28 @@ const createBooking = async (req, res) => {
             extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
         });
 
-        const booking = await newBooking.save();
+        let booking = await newBooking.save();
 
         if (booking) {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
+            
+            if (providerId) {
+                // If specific provider is selected, calculate travel charge immediately
+                const travelChargeResult = await DistanceChargeService.applyTravelChargeToBooking(booking._id, providerId);
+                booking = travelChargeResult.booking;
+            } else {
+                // For broadcast, just set a fallback estimation for now
+                const config = await DistanceChargeService.getConfig();
+                if (config.enabled) {
+                    booking.travelCharge = {
+                        amount: config.fallbackCharge || 40,
+                        status: 'estimated',
+                        calculationMethod: config.calculationMethod,
+                        calculatedAt: new Date(),
+                    };
+                    await booking.save();
+                }
+            }
 
             // Radius-based dispatching (15km)
             const radiusInKm = 15;
@@ -316,12 +335,13 @@ const createBooking = async (req, res) => {
 
                 if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {
                     console.log(`FAILED: Booking has no valid coordinates. Dispatching to ALL online ${targetCategory}s as fallback...`);
-                    providersToNotify = await Provider.find({ status: 'verified', isOnline: true, providerCategory: targetCategory });
+                    providersToNotify = await Provider.find({ _id: { $ne: req.user._id }, status: 'verified', isOnline: true, providerCategory: targetCategory });
                 } else {
                     const radiusInKm = targetCategory === 'sewak' ? 10 : 15;
                     const radiusInRadians = radiusInKm / 6371;
 
                     let preliminaryProviders = await Provider.find({
+                        _id: { $ne: req.user._id },
                         status: 'verified',
                         isOnline: true,
                         providerCategory: targetCategory,
@@ -846,6 +866,14 @@ const updateBookingStatusByProvider = async (req, res) => {
                     return res.status(409).json({ message: 'This booking has already been accepted by another provider.' });
                 }
 
+                // Apply Distance Charge upon acceptance
+                const travelChargeResult = await DistanceChargeService.applyTravelChargeToBooking(claimedBooking._id, req.user._id);
+                // Assign updated fields from travelChargeResult.booking to the current booking object in memory
+                // so subsequent saves in this controller don't overwrite it
+                booking.travelCharge = travelChargeResult.booking.travelCharge;
+                booking.extraCharges = travelChargeResult.booking.extraCharges;
+                booking.totalAmount = travelChargeResult.booking.totalAmount;
+
                 booking.providerId = req.user._id;
                 booking.acceptedAt = Date.now();
                 booking.status = booking.offerStatus === 'countered' ? 'pending' : 'confirmed';
@@ -1167,15 +1195,21 @@ const verifyEndOTP = async (req, res) => {
                     const txnId = `TXN-${new mongoose.Types.ObjectId().toString().toUpperCase()}`;
                     const commTxnId = `COM-${new mongoose.Types.ObjectId().toString().toUpperCase()}`;
 
+                    let travelChargeAmount = 0;
+                    if (booking.travelCharge && booking.travelCharge.status === 'final') {
+                        travelChargeAmount = booking.travelCharge.amount || 0;
+                    }
+                    const commissionableAmount = Math.max(0, booking.totalAmount - travelChargeAmount);
+
                     if (provider.providerCategory === 'sewak') {
-                        adminCommission = booking.totalAmount;
-                        providerPayout = 0;
+                        adminCommission = commissionableAmount;
+                        providerPayout = travelChargeAmount;
                         commissionStatus = 'sewak_revenue';
                     } else {
-                        const matchedRule = await CommissionRuleEngine.selectRule(booking.totalAmount, provider, provider.vendorType);
-                        calculation = CommissionService.calculate(booking.totalAmount, matchedRule);
+                        const matchedRule = await CommissionRuleEngine.selectRule(commissionableAmount, provider, provider.vendorType);
+                        calculation = CommissionService.calculate(commissionableAmount, matchedRule);
                         adminCommission = calculation.platformAmount;
-                        providerPayout = calculation.providerAmount;
+                        providerPayout = calculation.providerAmount + travelChargeAmount;
                         commissionStatus = calculation.source.toLowerCase();
 
                         // Increment trial usedServices
@@ -1273,7 +1307,12 @@ const verifyEndOTP = async (req, res) => {
                         }], { session });
                     } else {
                         wallet.availableBalance = prevAvailableBalance + providerPayout;
-                        transactionAmount = providerPayout;
+                        
+                        // Separate Service Earnings from Travel Charge
+                        const travelChargePortion = (bookingSession.travelCharge && bookingSession.travelCharge.status === 'final') ? (bookingSession.travelCharge.amount || 0) : 0;
+                        const serviceEarningsPortion = providerPayout - travelChargePortion;
+
+                        transactionAmount = serviceEarningsPortion;
                         transactionType = 'credit';
                         transactionTitle = `Service Earnings: ${booking.serviceName}`;
 
@@ -1287,7 +1326,7 @@ const verifyEndOTP = async (req, res) => {
                             previousBalance: prevAvailableBalance,
                             newBalance: wallet.availableBalance,
                             description: `Payout credit for booking #${booking._id.toString().slice(-6)}`,
-                            metadata: { paymentMode: booking.paymentMode }
+                            metadata: { paymentMode: booking.paymentMode, travelCharge: travelChargePortion, serviceEarnings: serviceEarningsPortion }
                         }], { session });
                     }
 
@@ -1295,15 +1334,46 @@ const verifyEndOTP = async (req, res) => {
                     await wallet.save({ session });
 
                     // Create legacy transaction log
-                    await Transaction.create([{
-                        providerId: provider._id,
-                        title: transactionTitle,
-                        amount: transactionAmount,
-                        type: transactionType,
-                        status: 'completed',
-                        bookingId: booking._id,
-                        description: `Booking ID #${booking._id.toString().slice(-6)}`
-                    }], { session });
+                    const transactionsToCreate = [];
+
+                    // 1. Service Earnings
+                    if (transactionType === 'credit') {
+                         transactionsToCreate.push({
+                            providerId: provider._id,
+                            title: transactionTitle,
+                            amount: transactionAmount,
+                            type: transactionType,
+                            status: 'completed',
+                            bookingId: booking._id,
+                            description: `Booking ID #${booking._id.toString().slice(-6)}`
+                        });
+                    } else if (transactionType === 'debit') {
+                        // Commission debit
+                        transactionsToCreate.push({
+                            providerId: provider._id,
+                            title: transactionTitle,
+                            amount: transactionAmount,
+                            type: transactionType,
+                            status: 'completed',
+                            bookingId: booking._id,
+                            description: `Booking ID #${booking._id.toString().slice(-6)}`
+                        });
+                    }
+
+                    // 2. Travel Charge
+                    if (bookingSession.travelCharge && bookingSession.travelCharge.status === 'final' && bookingSession.travelCharge.amount > 0) {
+                        transactionsToCreate.push({
+                            providerId: provider._id,
+                            title: `Travel Charge: ${booking.serviceName}`,
+                            amount: bookingSession.travelCharge.amount,
+                            type: 'credit',
+                            status: 'completed',
+                            bookingId: booking._id,
+                            description: `Travel Charge for Booking ID #${booking._id.toString().slice(-6)}`
+                        });
+                    }
+
+                    await Transaction.create(transactionsToCreate, { session });
 
                     // Create commission log
                     if (calculation) {

@@ -55,7 +55,7 @@ const updateProviderStatus = async (req, res) => {
                 const message = req.body.status === 'verified'
                     ? 'Your KYC is approved! You can start working now.'
                     : 'Your KYC request was rejected. Please check your documents.';
-                
+
                 await sendNotificationToUser(provider._id, 'provider', {
                     title: `KYC ${req.body.status === 'verified' ? 'Approved' : 'Rejected'}`,
                     body: message,
@@ -244,7 +244,7 @@ const resolveProviderReport = async (req, res) => {
     try {
         const { id } = req.params;
         const { actionTaken, notes, blockUser } = req.body;
-        
+
         const booking = await Booking.findById(id).populate('userId');
         if (!booking) return res.status(404).json({ message: 'Booking not found' });
 
@@ -710,7 +710,7 @@ const getSettings = async (req, res) => {
 const updateSettings = async (req, res) => {
     try {
         const { key, value } = req.body;
-        
+
         if (key === 'max_bargain_discount_limit') {
             const numVal = Number(value);
             if (isNaN(numVal) || numVal < 0 || numVal > 90) {
@@ -843,11 +843,11 @@ async function getEmployees(req, res) {
     try {
         const { status } = req.query;
         let query = status ? { status } : {};
-        
+
         if (req.user.role === 'supervisor') {
             query = { ...query, $or: [{ managedBy: req.user._id }, { createdBy: req.user._id }] };
         }
-        
+
         const employees = await Employee.find(query).sort({ createdAt: -1 });
         res.json(employees);
     } catch (error) {
@@ -1046,7 +1046,7 @@ async function rejectEmployee(req, res) {
         if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
         employee.status = 'rejected';
-        
+
         await employee.save();
 
         // Log Action
@@ -1291,7 +1291,7 @@ const createSewak = async (req, res) => {
 const updateSewak = async (req, res) => {
     try {
         const { ownerName, mobile, password, email, address, city, state, businessType, bankDetails } = req.body;
-        
+
         const sewak = await Provider.findById(req.params.id);
         if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
 
@@ -1331,7 +1331,7 @@ const updateSewak = async (req, res) => {
             }
             sewak.bankDetails = bankDetails;
         }
-        
+
         // Only update password if provided
         if (password) {
             console.log("Updating password to:", password);
@@ -1610,7 +1610,7 @@ const verifySewakDocument = async (req, res) => {
         try {
             let title = '';
             let body = '';
-            
+
             if (docId === 'live_video') {
                 title = status === 'verified' ? 'Live Video Approved' : 'Live Video Rejected';
                 body = status === 'verified'
@@ -1903,11 +1903,11 @@ const getAdminKycPerformance = async (req, res) => {
             {
                 $group: {
                     _id: "$verifiedBy",
-                    totalSewakVerified: { 
-                        $sum: { $cond: [{ $eq: ["$entityType", "SEWAK"] }, 1, 0] } 
+                    totalSewakVerified: {
+                        $sum: { $cond: [{ $eq: ["$entityType", "SEWAK"] }, 1, 0] }
                     },
-                    totalVendorVerified: { 
-                        $sum: { $cond: [{ $eq: ["$entityType", "VENDOR"] }, 1, 0] } 
+                    totalVendorVerified: {
+                        $sum: { $cond: [{ $eq: ["$entityType", "VENDOR"] }, 1, 0] }
                     },
                     totalVerified: { $sum: 1 },
                     totalBonus: { $sum: "$bonusEarned" },
@@ -1947,7 +1947,7 @@ const getAdminKycPerformance = async (req, res) => {
 const getSewakIncentives = async (req, res) => {
     try {
         const { date, sewakId } = req.query;
-        
+
         // Get Global Settings
         const settings = await Setting.find({ key: { $in: ['DAILY_BOOKING_THRESHOLD', 'BONUS_PER_EXTRA_BOOKING'] } });
         const threshold = Number(settings.find(s => s.key === 'DAILY_BOOKING_THRESHOLD')?.value || 5);
@@ -2102,7 +2102,7 @@ const rejectCombo = async (req, res) => {
 const getCashLimitsConfig = async (req, res) => {
     try {
         let configSetting = await Setting.findOne({ key: 'cash_limits_config' });
-        
+
         let config = {
             defaultLimit: 1500,
             categoryLimits: [],
@@ -2255,6 +2255,86 @@ const getAdminNotifications = async (req, res) => {
     }
 };
 
+// @desc    Get Distance Charge Settings
+// @route   GET /api/admin/distance-charge
+// @access  Private/Admin
+const getDistanceChargeSettings = async (req, res) => {
+    try {
+        let setting = await Setting.findOne({ key: 'distance_charge_config' });
+        if (!setting) {
+            // Return default
+            return res.json({
+                enabled: true,
+                baseDistance: 3,
+                baseFee: 40,
+                extraFeePerKm: 10,
+                maximumDistance: null,
+                maximumCharge: null,
+                rounding: 'nearest',
+                calculationMethod: 'haversine',
+                fallbackCharge: 40
+            });
+        }
+        res.json(setting.value);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Update Distance Charge Settings
+// @route   PUT /api/admin/distance-charge
+// @access  Private/Admin
+const updateDistanceChargeSettings = async (req, res) => {
+    try {
+        const {
+            enabled,
+            baseDistance,
+            baseFee,
+            extraFeePerKm,
+            maximumDistance,
+            maximumCharge,
+            rounding,
+            calculationMethod,
+            fallbackCharge
+        } = req.body;
+
+        const updatedValue = {
+            enabled: enabled !== undefined ? enabled : true,
+            baseDistance: Number(baseDistance) || 3,
+            baseFee: Number(baseFee) || 40,
+            extraFeePerKm: Number(extraFeePerKm) || 10,
+            maximumDistance: maximumDistance ? Number(maximumDistance) : null,
+            maximumCharge: maximumCharge ? Number(maximumCharge) : null,
+            rounding: rounding || 'nearest',
+            calculationMethod: calculationMethod || 'haversine',
+            fallbackCharge: fallbackCharge !== undefined ? Number(fallbackCharge) : 40,
+            categoryOverrides: req.body.categoryOverrides || {}
+        };
+
+        const setting = await Setting.findOneAndUpdate(
+            { key: 'distance_charge_config' },
+            { value: updatedValue, updatedAt: Date.now() },
+            { upsert: true, new: true }
+        );
+
+        // Log Action
+        await AuditLog.create({
+            actionType: "UPDATE_SETTINGS",
+            entityType: "DISTANCE_CHARGE",
+            entityId: setting._id,
+            entityName: "Distance Charge Configuration",
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { action: 'update_distance_charge', newValue: updatedValue }
+        });
+
+        res.json(setting.value);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     getProviderReports,
@@ -2333,5 +2413,6 @@ module.exports = {
     deleteBooking,
     adminGlobalSearch,
     getAdminNotifications,
+    getDistanceChargeSettings,
+    updateDistanceChargeSettings,
 };
-

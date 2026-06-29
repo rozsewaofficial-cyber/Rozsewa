@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import { GoogleMap, useJsApiLoader, MarkerF } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, MarkerF, Autocomplete } from "@react-google-maps/api";
 import API from "@/lib/api";
 
 const mapContainerStyle = { width: '100%', height: '200px' };
@@ -19,10 +19,18 @@ const dates = Array.from({ length: 7 }, (_, i) => {
   return { day: d.toLocaleDateString("en", { weekday: "short" }), date: d.getDate(), full: d.toISOString().split("T")[0] };
 });
 
+const libraries = ['places'];
+
 const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, serviceMode } = useAuth();
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries
+  });
   const providerLabel = serviceMode === "sewak" ? "Sewak" : "Partner";
   const providerLabelLower = serviceMode === "sewak" ? "sewak" : "partner";
   const providerLabelPlural = serviceMode === "sewak" ? "sewaks" : "partners";
@@ -36,8 +44,10 @@ const Checkout = () => {
   const [appliedCouponData, setAppliedCouponData] = useState(null);
   const [maxBargainLimit, setMaxBargainLimit] = useState(20);
   const [customerOffer, setCustomerOffer] = useState("");
-  const [providerHours, setProviderHours] = useState({ openingTime: "09:00 AM", closingTime: "06:00 PM", availability: [] });
+  const [providerHours, setProviderHours] = useState({ openingTime: "09:00 AM", closingTime: "06:00 PM", availability: [], bookedSlots: [] });
+  const [providerDetails, setProviderDetails] = useState(null);
   const [userProposedAmount, setUserProposedAmount] = useState("");
+  const [drivingDistanceKm, setDrivingDistanceKm] = useState(null);
 
   const checkoutData = JSON.parse(localStorage.getItem("rozsewa_checkout_data")) || {
     shopName: "Provider",
@@ -52,11 +62,13 @@ const Checkout = () => {
         try {
           const { data } = await API.get(`/public/providers/${checkoutData.providerId}`);
           if (data) {
+            const pData = data.data || data;
+            setProviderDetails(pData);
             setProviderHours({
-              openingTime: data.openingTime || "09:00 AM",
-              closingTime: data.closingTime || "06:00 PM",
-              availability: data.availability || [],
-              bookedSlots: data.bookedSlots || []
+              openingTime: pData.openingTime || "09:00 AM",
+              closingTime: pData.closingTime || "06:00 PM",
+              availability: pData.availability || [],
+              bookedSlots: pData.bookedSlots || []
             });
           }
         } catch (error) {
@@ -66,6 +78,7 @@ const Checkout = () => {
     };
     fetchProviderHours();
   }, [checkoutData.providerId]);
+
 
   const defaultAddresses = [
     { id: 1, label: "Home", address: "123 MG Road, Lucknow, UP 226001", icon: "home", location: { type: "Point", coordinates: [80.9462, 26.8467] } },
@@ -175,6 +188,24 @@ const Checkout = () => {
 
   useScrollLock(showAddressModal);
 
+  // Auto-geocode legacy addresses that have no coordinates
+  useEffect(() => {
+    if (selectedAddress && selectedAddress.address && (!selectedAddress.location || !selectedAddress.location.coordinates || selectedAddress.location.coordinates.length < 2)) {
+      if (isLoaded && window.google && window.google.maps && window.google.maps.Geocoder) {
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ address: selectedAddress.address }, (results, status) => {
+          if (status === "OK" && results && results[0]) {
+            const newLocation = {
+              type: "Point",
+              coordinates: [results[0].geometry.location.lng(), results[0].geometry.location.lat()]
+            };
+            setSelectedAddress(prev => ({ ...prev, location: newLocation }));
+          }
+        });
+      }
+    }
+  }, [selectedAddress, isLoaded]);
+
   // Booking Confirmed
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -191,6 +222,8 @@ const Checkout = () => {
     }
   }, [user]);
 
+  const [distanceChargeConfig, setDistanceChargeConfig] = useState(null);
+
   useEffect(() => {
     // Auto-load copied coupon
     const lastCopied = localStorage.getItem("rozsewa_last_copied_coupon");
@@ -205,12 +238,62 @@ const Checkout = () => {
         if (data && data.maxBargainLimit !== undefined) {
           setMaxBargainLimit(data.maxBargainLimit);
         }
+        if (data && data.distanceCharge) {
+          setDistanceChargeConfig(data.distanceCharge);
+        }
       } catch (err) {
         console.error("Failed to fetch public config:", err);
       }
     };
     fetchConfig();
   }, []);
+
+  // Calculate true driving distance via Google Maps API
+  useEffect(() => {
+    if (!distanceChargeConfig?.enabled || !providerDetails?.location?.coordinates || !selectedAddress?.location?.coordinates) {
+      setDrivingDistanceKm(null);
+      return;
+    }
+
+    const bLon = selectedAddress.location.coordinates[0];
+    const bLat = selectedAddress.location.coordinates[1];
+    const pLon = providerDetails.location.coordinates[0];
+    const pLat = providerDetails.location.coordinates[1];
+
+    if (bLon === undefined || pLon === undefined) {
+      setDrivingDistanceKm(null);
+      return;
+    }
+
+    // Fallback: Straight-line (Haversine)
+    const toRad = (value) => (value * Math.PI) / 180;
+    const dLat = toRad(pLat - bLat);
+    const dLon = toRad(pLon - bLon);
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(bLat)) * Math.cos(toRad(pLat)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const straightDistanceKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    if (isLoaded && window.google && window.google.maps && window.google.maps.DistanceMatrixService) {
+      const service = new window.google.maps.DistanceMatrixService();
+      service.getDistanceMatrix(
+        {
+          origins: [{ lat: pLat, lng: pLon }],
+          destinations: [{ lat: bLat, lng: bLon }],
+          travelMode: window.google.maps.TravelMode.DRIVING,
+        },
+        (response, status) => {
+          if (status === "OK" && response?.rows?.[0]?.elements?.[0]?.status === "OK") {
+            const distMeters = response.rows[0].elements[0].distance.value;
+            setDrivingDistanceKm(distMeters / 1000);
+          } else {
+            console.warn("DistanceMatrixService failed, using straight-line distance:", status);
+            setDrivingDistanceKm(straightDistanceKm);
+          }
+        }
+      );
+    } else {
+      setDrivingDistanceKm(straightDistanceKm);
+    }
+  }, [selectedAddress, providerDetails, distanceChargeConfig, isLoaded]);
 
   useEffect(() => {
     let interval;
@@ -329,18 +412,52 @@ const Checkout = () => {
 
   // Final subtotal price to pay after discounts (before express fees)
   const payableSubtotal = parsedCustomerOffer;
-  const total = payableSubtotal + (isExpress ? EXPRESS_FEE : 0);
+  
+  // Calculate dynamic travel charge if provider is known
+  let estimatedTravelCharge = distanceChargeConfig?.enabled ? Number(distanceChargeConfig.fallbackCharge || 40) : 0;
+  let calculatedDistanceKm = drivingDistanceKm;
+  let appliedDistanceConfig = distanceChargeConfig;
+  
+  if (distanceChargeConfig?.enabled && providerDetails && calculatedDistanceKm !== null) {
+      let distanceKm = calculatedDistanceKm;
+      
+      const categoryId = typeof providerDetails.vendorType === 'object' ? providerDetails.vendorType?._id?.toString() : providerDetails.vendorType?.toString();
+      let cfg = distanceChargeConfig;
+              if (categoryId && cfg.categoryOverrides && cfg.categoryOverrides[categoryId]) {
+                  cfg = { ...cfg, ...cfg.categoryOverrides[categoryId] };
+              }
+              appliedDistanceConfig = cfg;
+              
+              if (cfg.maximumDistance && distanceKm > cfg.maximumDistance) {
+                  distanceKm = cfg.maximumDistance;
+              }
+              
+              let charge = 0;
+              if (distanceKm <= cfg.baseDistance) {
+                  charge = cfg.baseFee;
+              } else {
+                  charge = cfg.baseFee + ((distanceKm - cfg.baseDistance) * cfg.extraFeePerKm);
+              }
+              if (cfg.maximumCharge && charge > cfg.maximumCharge) {
+                  charge = cfg.maximumCharge;
+              }
+              switch(cfg.rounding) {
+                  case 'up': charge = Math.ceil(charge); break;
+                  case 'down': charge = Math.floor(charge); break;
+                  case 'none': break;
+                  case 'nearest':
+                  default: charge = Math.round(charge); break;
+              }
+              estimatedTravelCharge = charge;
+  }
+  
+  const total = payableSubtotal + (isExpress ? EXPRESS_FEE : 0) + estimatedTravelCharge;
 
   // Validation flags for custom offer
   const isOfferTooLow = hasCustomOffer && (payableSubtotal < minAllowedOffer);
   const isOfferTooHigh = hasCustomOffer && (payableSubtotal > subtotal - couponDiscount);
   const isOfferNegative = hasCustomOffer && (payableSubtotal < 0);
   const isOfferInvalid = isOfferTooLow || isOfferTooHigh || isOfferNegative;
-
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-  });
 
   const handleDetectLocation = () => {
     if ("geolocation" in navigator) {
@@ -390,13 +507,61 @@ const Checkout = () => {
     }
   }, []);
 
+  const [autocomplete, setAutocomplete] = useState(null);
+
+  const onLoadAutocomplete = (autocompleteObj) => {
+    setAutocomplete(autocompleteObj);
+  };
+
+  const onPlaceChanged = () => {
+    if (autocomplete !== null) {
+      const place = autocomplete.getPlace();
+      if (place.geometry) {
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        setNewAddress(prev => ({
+          ...prev,
+          address: place.formatted_address,
+          location: { type: "Point", coordinates: [lng, lat] }
+        }));
+      }
+    }
+  };
+
   const handleSaveNewAddress = async () => {
-    if (!newAddress.label || !newAddress.address) return;
+    if (!newAddress.label || !newAddress.address) {
+      toast({ title: "Validation Error", description: "Please provide both a label and an address.", variant: "destructive" });
+      return;
+    }
+
+    let locationToSave = newAddress.location;
+
+    // Fallback Geocoding if user typed an address but didn't drop a map pin
+    if (!locationToSave && isLoaded && window.google && window.google.maps && window.google.maps.Geocoder) {
+      try {
+        const geocoder = new window.google.maps.Geocoder();
+        const results = await new Promise((resolve, reject) => {
+          geocoder.geocode({ address: newAddress.address }, (res, status) => {
+            if (status === "OK") resolve(res);
+            else reject(status);
+          });
+        });
+        if (results && results[0]) {
+          locationToSave = {
+            type: "Point",
+            coordinates: [results[0].geometry.location.lng(), results[0].geometry.location.lat()]
+          };
+        }
+      } catch (err) {
+        console.warn("Geocoding failed, saving without coordinates", err);
+      }
+    }
+
     const updated = [...addresses, {
       label: newAddress.label,
       address: newAddress.address,
       icon: "home",
-      location: newAddress.location
+      location: locationToSave
     }];
 
     try {
@@ -406,8 +571,24 @@ const Checkout = () => {
       setShowNewAddressForm(false);
       setShowAddressModal(false);
       setAddresses(updated);
+      setSelectedAddress(updated[updated.length - 1]);
     } catch (err) {
       toast({ title: "Failed to save address", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteAddress = async (e, addressId) => {
+    e.stopPropagation();
+    try {
+      const updated = addresses.filter(a => a._id !== addressId);
+      await API.put("/auth/profile", { addresses: updated });
+      setAddresses(updated);
+      toast({ title: "Address deleted" });
+      if (selectedAddress?._id === addressId) {
+        setSelectedAddress(updated.length > 0 ? updated[0] : null);
+      }
+    } catch (err) {
+      toast({ title: "Failed to delete address", variant: "destructive" });
     }
   };
 
@@ -941,14 +1122,34 @@ const Checkout = () => {
 
           {/* Price Summary */}
           <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3">
-            <div className="flex justify-between text-sm"><span className="font-semibold text-slate-500 dark:text-slate-400">Subtotal</span><span className="font-black text-slate-900 dark:text-white">₹{subtotal}</span></div>
-            {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-slate-900 dark:text-white">₹{EXPRESS_FEE}</span></div>}
-            {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Coupon Discount</span><span className="font-black">-₹{couponDiscount}</span></div>}
-            {bargainDiscount > 0 && <div className="flex justify-between text-sm text-blue-500"><span className="font-bold">Bargain Discount</span><span className="font-black">-₹{bargainDiscount}</span></div>}
-            {totalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 font-bold"><span className="font-bold">Total Savings</span><span className="font-black">-₹{totalDiscount}</span></div>}
-            <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
-              <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
-              <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{userProposedAmount || total}</span>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400"><span>Subtotal ({checkoutData.items.length} items)</span><span className="font-semibold text-slate-900 dark:text-white">₹{subtotal}</span></div>
+              {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-slate-900 dark:text-white">₹{EXPRESS_FEE}</span></div>}
+              {distanceChargeConfig?.enabled && (
+                <div className="flex justify-between text-sm items-start">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      {providerDetails ? "Travel Charge" : "Estimated Travel Charge (To be finalized by provider)"}
+                    </span>
+                    {calculatedDistanceKm !== null && appliedDistanceConfig && providerDetails && (
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                        {calculatedDistanceKm.toFixed(1)} km 
+                        {calculatedDistanceKm <= appliedDistanceConfig.baseDistance 
+                          ? ` (Base fare applied)` 
+                          : ` (${appliedDistanceConfig.baseDistance}km base + ${(calculatedDistanceKm - appliedDistanceConfig.baseDistance).toFixed(1)}km @ ₹${appliedDistanceConfig.extraFeePerKm}/km)`}
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-black text-slate-900 dark:text-white mt-0.5">₹{estimatedTravelCharge}</span>
+                </div>
+              )}
+              {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Coupon Discount</span><span className="font-black">-₹{couponDiscount}</span></div>}
+              {bargainDiscount > 0 && <div className="flex justify-between text-sm text-blue-500"><span className="font-bold">Bargain Discount</span><span className="font-black">-₹{bargainDiscount}</span></div>}
+              {totalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 font-bold"><span className="font-bold">Total Savings</span><span className="font-black">-₹{totalDiscount}</span></div>}
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
+                <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
+                <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{userProposedAmount || total}</span>
+              </div>
             </div>
           </section>
         </>
@@ -981,24 +1182,29 @@ const Checkout = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/50 backdrop-blur-sm p-4">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="w-full max-w-md rounded-t-[32px] sm:rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+              className={`w-full max-w-md rounded-t-[32px] sm:rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${showNewAddressForm ? 'h-full max-h-full sm:max-h-[90vh]' : 'max-h-[85vh]'}`}>
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shrink-0">
                 <h3 className="text-base font-black text-slate-900 dark:text-white">Select Address</h3>
                 <button onClick={() => { setShowAddressModal(false); setShowNewAddressForm(false); }} className="rounded-full p-2 hover:bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white transition-colors"><X className="h-5 w-5" /></button>
               </div>
-              <div className="flex-1 min-h-0 p-5 space-y-3 overflow-y-auto">
-                {addresses.map(addr => (
+              <div className={`flex-1 min-h-0 p-5 overflow-y-auto ${showNewAddressForm ? 'flex flex-col' : 'space-y-3'}`}>
+                {!showNewAddressForm && addresses.map(addr => (
                   <button key={addr.id} onClick={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
                     className={`w-full flex items-center gap-4 rounded-[20px] border-2 p-4 text-left transition-all ${selectedAddress?.id === addr.id ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md shadow-blue-600/5" : "border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:bg-slate-800 hover:border-slate-200 dark:border-slate-700/80"
                       }`}>
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-slate-100 dark:bg-slate-800">
                       {addr.icon === "office" ? <Briefcase className="h-6 w-6 text-slate-900 dark:text-white" /> : <Home className="h-6 w-6 text-slate-900 dark:text-white" />}
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-4">
                       <p className="text-sm font-black text-slate-900 dark:text-white">{addr.label}</p>
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate leading-relaxed">{addr.address}</p>
                     </div>
-                    {selectedAddress?.id === addr.id && <div className="rounded-full bg-blue-100 dark:bg-blue-900/40 p-1"><Check className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" /></div>}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {selectedAddress?._id === addr._id && <div className="rounded-full bg-blue-100 dark:bg-blue-900/40 p-1"><Check className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" /></div>}
+                      <button onClick={(e) => handleDeleteAddress(e, addr._id)} className="p-2 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </button>
                 ))}
 
@@ -1008,11 +1214,11 @@ const Checkout = () => {
                     <Plus className="h-5 w-5" /> Add New Address
                   </button>
                 ) : (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 mt-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">New Address</h4>
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col min-h-0 space-y-3 sm:space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 sm:p-5 mt-0">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">New Address</h4>
 
                     {isLoaded && (
-                      <div className="rounded-[20px] overflow-hidden border border-slate-200 dark:border-slate-700 h-[150px] relative">
+                      <div className="rounded-[20px] overflow-hidden border border-slate-200 dark:border-slate-700 flex-1 relative min-h-[200px]">
                         <GoogleMap
                           mapContainerStyle={{ width: '100%', height: '100%' }}
                           center={newAddress.location ? { lat: newAddress.location.coordinates[1], lng: newAddress.location.coordinates[0] } : center}
@@ -1033,12 +1239,20 @@ const Checkout = () => {
                     )}
 
                     <input type="text" placeholder="Label (e.g. Home, Office)" value={newAddress.label}
-                      onChange={(e) => setNewAddress({ ...newAddress, label: e.target.value })}
+                      onChange={(e) => setNewAddress(prev => ({ ...prev, label: e.target.value }))}
                       className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3.5 text-sm font-bold focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all" />
                     <div className="relative">
-                      <textarea rows={2} placeholder={isFetchingLocation ? "Detecting location..." : "Full address"} value={newAddress.address}
-                        onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })} disabled={isFetchingLocation}
-                        className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 pr-12 text-sm font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all disabled:opacity-70" />
+                      {isLoaded ? (
+                        <Autocomplete onLoad={onLoadAutocomplete} onPlaceChanged={onPlaceChanged}>
+                          <input type="text" placeholder={isFetchingLocation ? "Detecting location..." : "Search places or type full address"} value={newAddress.address}
+                            onChange={(e) => setNewAddress(prev => ({ ...prev, address: e.target.value }))} disabled={isFetchingLocation}
+                            className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 pr-12 text-sm font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all disabled:opacity-70" />
+                        </Autocomplete>
+                      ) : (
+                        <input type="text" placeholder={isFetchingLocation ? "Detecting location..." : "Search places or type full address"} value={newAddress.address}
+                          onChange={(e) => setNewAddress(prev => ({ ...prev, address: e.target.value }))} disabled={isFetchingLocation}
+                          className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 pr-12 text-sm font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all disabled:opacity-70" />
+                      )}
                       <button type="button" onClick={handleDetectLocation}
                         className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors" title="Detect location">
                         <Navigation className={`h-4 w-4 ${isFetchingLocation ? "animate-pulse" : ""}`} />

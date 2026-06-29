@@ -142,6 +142,17 @@ const bookingSchema = new mongoose.Schema({
             amount: { type: Number }
         }
     ],
+    travelCharge: {
+        distanceKm: { type: Number },
+        billableDistanceKm: { type: Number },
+        baseDistance: { type: Number },
+        baseFee: { type: Number },
+        extraFeePerKm: { type: Number },
+        amount: { type: Number },
+        calculationMethod: { type: String, default: 'haversine' },
+        calculatedAt: { type: Date },
+        status: { type: String, enum: ['estimated', 'final', 'fallback'], default: 'estimated' }
+    },
     extraStatus: {
         type: String,
         enum: ['none', 'pending', 'approved', 'declined'],

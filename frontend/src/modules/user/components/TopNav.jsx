@@ -24,9 +24,12 @@ const TopNav = () => {
   });
   const [dynamicCities, setDynamicCities] = useState(["Lucknow", "Delhi", "Mumbai", "Bangalore", "Pune", "Hyderabad", "Kolkata", "Chennai"]);
 
+const libraries = ['places'];
+
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ""
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+    libraries
   });
   
   const [mapCenter, setMapCenter] = useState({ lat: 26.8467, lng: 80.9462 });

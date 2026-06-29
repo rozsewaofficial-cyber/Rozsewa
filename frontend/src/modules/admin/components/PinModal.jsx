@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Lock, AlertCircle } from 'lucide-react';
 import { toast } from "sonner";
-import axios from 'axios';
+import API from "@/lib/api";
 
 const PinModal = ({ isOpen, onClose, onSuccess }) => {
     const [pin, setPin] = useState('');
@@ -24,10 +24,7 @@ const PinModal = ({ isOpen, onClose, onSuccess }) => {
         setError('');
 
         try {
-            const auth = JSON.parse(localStorage.getItem('rozsewa_auth_admin'));
-            const response = await axios.post(`${import.meta.env.VITE_API_URL}/admin/verify-pin`, { pin }, {
-                headers: { Authorization: `Bearer ${auth?.token}` }
-            });
+            const response = await API.post(`/admin/verify-pin`, { pin });
 
             if (response.data.success) {
                 toast.success("PIN Verified Successfully");

@@ -78,7 +78,9 @@ const {
     deleteUser,
     deleteBooking,
     adminGlobalSearch,
-    getAdminNotifications
+    getAdminNotifications,
+    getDistanceChargeSettings,
+    updateDistanceChargeSettings
 } = require('../controllers/adminController');
 
 const {
@@ -161,6 +163,8 @@ router.get('/activity', protect, admin, getActivityLogs);
 // Platform Settings & Profile
 router.get('/settings', protect, admin, getSettings);
 router.post('/settings', protect, admin, updateSettings);
+router.get('/distance-charge', protect, admin, getDistanceChargeSettings);
+router.put('/distance-charge', protect, admin, updateDistanceChargeSettings);
 router.get('/settings/cash-limits', protect, admin, getCashLimitsConfig);
 router.put('/settings/cash-limits', protect, admin, updateCashLimitsConfig);
 router.post('/profile', protect, employee, updateAdminProfile);

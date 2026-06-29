@@ -541,7 +541,12 @@ const AdminProviders = () => {
                                     <h3 className="text-lg font-black text-gray-900">Provider Profile</h3>
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Application Details & Docs</p>
                                 </div>
-                                <button onClick={() => setSelectedProvider(null)} className="h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors"><X className="h-4 w-4" /></button>
+                                <div className="flex items-center gap-3">
+                                    <a href={`/shop/${selectedProvider._id}`} target="_blank" rel="noreferrer" className="h-8 px-3 flex items-center justify-center rounded-xl bg-blue-50 text-[9px] font-black uppercase tracking-widest text-blue-600 hover:bg-blue-100 transition-colors">
+                                        View Public Profile
+                                    </a>
+                                    <button onClick={() => setSelectedProvider(null)} className="h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors"><X className="h-4 w-4" /></button>
+                                </div>
                             </div>
                             <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                                 {/* Profile Head */}

@@ -71,7 +71,7 @@ const getPublicCategories = async (req, res) => {
 const getPublicProviderById = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id)
-            .select('name shopName ownerName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address about qualifications warranty isOnline openingTime closingTime availability')
+            .select('name shopName ownerName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability')
             .populate('vendorType', 'name icon');
 
         if (!provider) {
@@ -256,7 +256,7 @@ const Setting = require('../models/Setting');
 const getPublicConfig = async (req, res) => {
     try {
         const settings = await Setting.find({
-            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber', 'max_bargain_discount_limit'] }
+            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber', 'max_bargain_discount_limit', 'distance_charge_config'] }
         });
 
         const config = {};
@@ -267,7 +267,8 @@ const getPublicConfig = async (req, res) => {
             registrationPrice: config.vendorCardPrice || 99,
             currency: "INR",
             supportNumber: config.supportNumber || "91XXXXXXXXXX",
-            maxBargainLimit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20
+            maxBargainLimit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20,
+            distanceCharge: config.distance_charge_config || { enabled: false, fallbackCharge: 40 }
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
