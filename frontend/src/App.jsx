@@ -108,6 +108,7 @@ import AdminAuditLogs from "./modules/admin/pages/AdminAuditLogs";
 import AdminNightCharge from "./modules/admin/pages/AdminNightCharge";
 import AdminSewakIncentives from "./modules/admin/pages/AdminSewakIncentives";
 import DistanceCharges from "./modules/admin/pages/DistanceCharges";
+import AdminServiceRadius from "./modules/admin/pages/AdminServiceRadius";
 
 
 // Admin Layout
@@ -220,6 +221,7 @@ const App = () => (
                       <Route path="audit-logs" element={<AdminAuditLogs />} />
                       <Route path="night-charge" element={<AdminNightCharge />} />
                       <Route path="distance-charges" element={<DistanceCharges />} />
+                      <Route path="settings/service-radius" element={<AdminServiceRadius />} />
                       <Route path="sewak-incentives" element={<AdminSewakIncentives />} />
 
 

@@ -48,6 +48,7 @@ export const adminSidebarLinks = [
   { path: "/admin/settings", label: "Global Settings", icon: Settings },
   { path: "/admin/settings/cash-limits", label: "Cash Limits", icon: CreditCard },
   { path: "/admin/distance-charges", label: "Distance Charges", icon: MapPin },
+  { path: "/admin/settings/service-radius", label: "Service Radius", icon: MapPin },
 ];
 
 const AdminSidebar = ({ isOpen, setIsOpen }) => {

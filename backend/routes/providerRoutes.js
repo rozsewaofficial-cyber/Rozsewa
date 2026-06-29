@@ -30,6 +30,16 @@ router.post('/login', authProvider);
 router.post('/verify-credentials', verifyProviderCredentials);
 router.post('/check-existence', checkProviderExistence);
 router.get('/categories', getPublicCategories);
+router.get('/service-radius-limits', async (req, res) => {
+    try {
+        const Setting = require('../models/Setting');
+        const setting = await Setting.findOne({ key: 'provider_service_radius_limits' });
+        if (!setting) return res.json({ minimumRadius: 1, maximumRadius: 50 });
+        return res.json(setting.value);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
 
 // Protected routes
 router.get('/profile', protect, getProviderProfile);

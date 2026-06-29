@@ -80,7 +80,9 @@ const {
     adminGlobalSearch,
     getAdminNotifications,
     getDistanceChargeSettings,
-    updateDistanceChargeSettings
+    updateDistanceChargeSettings,
+    getServiceRadiusLimits,
+    updateServiceRadiusLimits
 } = require('../controllers/adminController');
 
 const {
@@ -165,6 +167,8 @@ router.get('/settings', protect, admin, getSettings);
 router.post('/settings', protect, admin, updateSettings);
 router.get('/distance-charge', protect, admin, getDistanceChargeSettings);
 router.put('/distance-charge', protect, admin, updateDistanceChargeSettings);
+router.get('/settings/service-radius', protect, admin, getServiceRadiusLimits);
+router.put('/settings/service-radius', protect, admin, updateServiceRadiusLimits);
 router.get('/settings/cash-limits', protect, admin, getCashLimitsConfig);
 router.put('/settings/cash-limits', protect, admin, updateCashLimitsConfig);
 router.post('/profile', protect, employee, updateAdminProfile);

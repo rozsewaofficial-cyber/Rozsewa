@@ -331,6 +331,28 @@ const updateProviderProfile = async (req, res) => {
                 if (emailExists) return res.status(400).json({ message: 'Email is already registered with another account' });
             }
 
+            // --- Validate serviceRadius against admin-configured limits ---
+            if (req.body.serviceRadius !== undefined && req.body.serviceRadius !== null) {
+                const Setting = require('../models/Setting');
+                const radiusLimitSetting = await Setting.findOne({ key: 'provider_service_radius_limits' });
+                const limits = (radiusLimitSetting && radiusLimitSetting.value)
+                    ? radiusLimitSetting.value
+                    : { minimumRadius: 1, maximumRadius: 50 };
+
+                const submittedRadius = Number(req.body.serviceRadius);
+                if (isNaN(submittedRadius)) {
+                    return res.status(400).json({ message: 'serviceRadius must be a valid number.' });
+                }
+                if (submittedRadius < limits.minimumRadius || submittedRadius > limits.maximumRadius) {
+                    return res.status(400).json({
+                        message: `serviceRadius must be between ${limits.minimumRadius} km and ${limits.maximumRadius} km.`,
+                        minimumRadius: limits.minimumRadius,
+                        maximumRadius: limits.maximumRadius
+                    });
+                }
+                provider.serviceRadius = submittedRadius;
+            }
+
             provider.ownerName = req.body.ownerName || provider.ownerName;
             provider.shopName = req.body.shopName || provider.shopName;
             provider.email = req.body.email || provider.email;
@@ -372,6 +394,7 @@ const updateProviderProfile = async (req, res) => {
                 vendorType: updatedProvider.vendorType,
                 address: updatedProvider.address,
                 profileImage: updatedProvider.profileImage,
+                serviceRadius: updatedProvider.serviceRadius,
                 token: generateToken(updatedProvider._id),
             });
         } else {
@@ -381,6 +404,7 @@ const updateProviderProfile = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
 
 // @desc    Get provider earnings stats
 // @route   GET /api/provider/stats

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
-import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Clock } from "lucide-react";
+import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Clock, Navigation } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -24,6 +24,11 @@ const ProviderProfile = () => {
     location: null
   });
 
+  // Service radius state
+  const [serviceRadius, setServiceRadius] = useState(15);
+  const [radiusLimits, setRadiusLimits] = useState({ minimumRadius: 1, maximumRadius: 50 });
+  const [radiusSaving, setRadiusSaving] = useState(false);
+
   useEffect(() => {
     if (user && !draft.isEditing) {
       setProfileData({
@@ -38,8 +43,37 @@ const ProviderProfile = () => {
         closingTime: user.closingTime || "09:00 PM",
         bankDetails: user.bankDetails || { accountNumber: "", ifscCode: "", bankName: "", accountHolderName: "" }
       });
+      if (typeof user.serviceRadius === 'number') {
+        setServiceRadius(user.serviceRadius);
+      }
     }
+    // Fetch admin-configured limits (always, independent of user)
+    fetchRadiusLimits();
   }, [user]);
+
+  const fetchRadiusLimits = async () => {
+    try {
+      const { data } = await API.get("/provider/service-radius-limits");
+      setRadiusLimits({ minimumRadius: data.minimumRadius || 1, maximumRadius: data.maximumRadius || 50 });
+    } catch {
+      // silently fall back to defaults
+    }
+  };
+
+  const handleSaveRadius = async () => {
+    setRadiusSaving(true);
+    try {
+      await API.put("/provider/profile", { serviceRadius });
+      toast({ title: "Service Area Updated", description: `Your service radius is now ${serviceRadius} km.` });
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to update service radius.";
+      toast({ title: "Update Failed", description: msg, variant: "destructive" });
+    } finally {
+      setRadiusSaving(false);
+    }
+  };
+
+
 
   useEffect(() => {
     sessionStorage.setItem("provider-profile-draft", JSON.stringify({ isEditing, profileData }));
@@ -200,7 +234,76 @@ const ProviderProfile = () => {
           </div>
         </section>
 
-        {/* Referral & Commission Section */}
+        {/* ── Service Area ─────────────────────────────────────────── */}
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <Navigation className="h-4 w-4 text-emerald-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-foreground">Service Area</h2>
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  Allowed range: {radiusLimits.minimumRadius} km – {radiusLimits.maximumRadius} km
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1">
+                <input
+                  id="service-radius-number"
+                  type="number"
+                  min={radiusLimits.minimumRadius}
+                  max={radiusLimits.maximumRadius}
+                  value={serviceRadius}
+                  onChange={(e) => {
+                    const v = Math.max(radiusLimits.minimumRadius, Math.min(radiusLimits.maximumRadius, Number(e.target.value)));
+                    setServiceRadius(v);
+                  }}
+                  className="w-12 bg-transparent text-center text-sm font-black text-emerald-700 outline-none"
+                />
+                <span className="text-xs font-black text-emerald-600">km</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <input
+              id="service-radius-slider"
+              type="range"
+              min={radiusLimits.minimumRadius}
+              max={radiusLimits.maximumRadius}
+              step={1}
+              value={serviceRadius}
+              onChange={(e) => setServiceRadius(Number(e.target.value))}
+              className="w-full h-2 rounded-full accent-emerald-600 cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #059669 0%, #059669 ${((serviceRadius - radiusLimits.minimumRadius) / (radiusLimits.maximumRadius - radiusLimits.minimumRadius)) * 100}%, #e5e7eb ${((serviceRadius - radiusLimits.minimumRadius) / (radiusLimits.maximumRadius - radiusLimits.minimumRadius)) * 100}%, #e5e7eb 100%)`
+              }}
+            />
+            <div className="flex justify-between text-[10px] font-bold text-muted-foreground">
+              <span>{radiusLimits.minimumRadius} km</span>
+              <span className="text-emerald-700 font-black">{serviceRadius} km selected</span>
+              <span>{radiusLimits.maximumRadius} km</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-muted-foreground">
+            You will only receive booking requests from customers within <strong className="text-emerald-700">{serviceRadius} km</strong> of your shop location.
+          </p>
+
+          <button
+            id="save-service-radius-btn"
+            onClick={handleSaveRadius}
+            disabled={radiusSaving}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-60"
+          >
+            {radiusSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
+            {radiusSaving ? "Saving…" : "Save Service Area"}
+          </button>
+        </section>
+
+        {/* ── Referral & Rewards ───────────────────────────────────────── */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-1">
             <Sparkles className="h-4 w-4 text-emerald-500" />

@@ -2334,6 +2334,66 @@ const updateDistanceChargeSettings = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+// @desc    Get Service Radius Limits (admin-configurable)
+// @route   GET /api/admin/settings/service-radius
+// @access  Private/Admin
+const getServiceRadiusLimits = async (req, res) => {
+    try {
+        const setting = await Setting.findOne({ key: 'provider_service_radius_limits' });
+        if (!setting) {
+            return res.json({ minimumRadius: 1, maximumRadius: 50 });
+        }
+        return res.json(setting.value);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Update Service Radius Limits
+// @route   PUT /api/admin/settings/service-radius
+// @access  Private/Admin
+const updateServiceRadiusLimits = async (req, res) => {
+    try {
+        const { minimumRadius, maximumRadius } = req.body;
+
+        const min = Number(minimumRadius);
+        const max = Number(maximumRadius);
+
+        if (isNaN(min) || isNaN(max)) {
+            return res.status(400).json({ message: 'minimumRadius and maximumRadius must be valid numbers.' });
+        }
+        if (min <= 0) {
+            return res.status(400).json({ message: 'minimumRadius must be greater than 0.' });
+        }
+        if (max <= min) {
+            return res.status(400).json({ message: 'maximumRadius must be greater than minimumRadius.' });
+        }
+
+        const updatedValue = { minimumRadius: min, maximumRadius: max };
+
+        const setting = await Setting.findOneAndUpdate(
+            { key: 'provider_service_radius_limits' },
+            { value: updatedValue, updatedAt: Date.now() },
+            { upsert: true, new: true }
+        );
+
+        // Audit log
+        await AuditLog.create({
+            actionType: 'UPDATE_SETTINGS',
+            entityType: 'SERVICE_RADIUS_LIMITS',
+            entityId: setting._id,
+            entityName: 'Provider Service Radius Limits',
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name,
+            verifiedByRole: req.user.role,
+            details: { action: 'update_service_radius_limits', newValue: updatedValue }
+        });
+
+        res.json(setting.value);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 module.exports = {
     getProviders,
@@ -2415,4 +2475,6 @@ module.exports = {
     getAdminNotifications,
     getDistanceChargeSettings,
     updateDistanceChargeSettings,
+    getServiceRadiusLimits,
+    updateServiceRadiusLimits,
 };

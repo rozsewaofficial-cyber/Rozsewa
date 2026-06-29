@@ -312,9 +312,11 @@ const createBooking = async (req, res) => {
                 }
             }
 
-            // Radius-based dispatching (15km)
-            const radiusInKm = 15;
-            const radiusInRadians = radiusInKm / 6371;
+            // ─── Two-Stage Radius Dispatch ───────────────────────────────────────────────
+            // Stage 1: Broad geo query using admin-configured maximumRadius as the net.
+            // Stage 2: Per-provider haversine filter against each provider's own serviceRadius.
+            // This is necessary because MongoDB $geoWithin cannot apply a different radius
+            // per document inside a single query.
 
             let providersToNotify = [];
             console.log('--- RADIUS DISPATCH DEBUG ---');
@@ -327,7 +329,6 @@ const createBooking = async (req, res) => {
                     providersToNotify = [specificProvider];
                 } else {
                     console.log(`Specific Provider ${providerId} is either not verified or offline.`);
-                    // Fallback to finding other providers if the requested one is not available
                 }
             }
 
@@ -338,69 +339,59 @@ const createBooking = async (req, res) => {
                     console.log(`FAILED: Booking has no valid coordinates. Dispatching to ALL online ${targetCategory}s as fallback...`);
                     providersToNotify = await Provider.find({ _id: { $ne: req.user._id }, status: 'verified', isOnline: true, providerCategory: targetCategory });
                 } else {
-                    const radiusInKm = targetCategory === 'sewak' ? 10 : 15;
-                    const radiusInRadians = radiusInKm / 6371;
+                    // --- Load admin-configured radius limits (Stage 1 net width) ---
+                    const radiusLimitSetting = await Setting.findOne({ key: 'provider_service_radius_limits' });
+                    const radiusLimits = (radiusLimitSetting && radiusLimitSetting.value)
+                        ? radiusLimitSetting.value
+                        : { minimumRadius: 1, maximumRadius: 50 };
 
-                    let preliminaryProviders = await Provider.find({
+                    const broadRadiusKm = radiusLimits.maximumRadius; // Cast widest possible net
+                    const broadRadiusRadians = broadRadiusKm / 6371;
+
+                    // Stage 1: Pull candidate providers within the maximum possible radius
+                    const candidateProviders = await Provider.find({
                         _id: { $ne: req.user._id },
                         status: 'verified',
                         isOnline: true,
                         providerCategory: targetCategory,
                         location: {
                             $geoWithin: {
-                                $centerSphere: [booking.location.coordinates, radiusInRadians]
+                                $centerSphere: [booking.location.coordinates, broadRadiusRadians]
                             }
                         }
                     });
 
-                    if (preliminaryProviders.length > 0 && process.env.GOOGLE_MAPS_API_KEY) {
-                        try {
-                            const axios = require('axios');
-                            const originStr = `${booking.location.coordinates[1]},${booking.location.coordinates[0]}`; // Lat,Lng
-                            const maxDestinations = 25; // GMaps Distance Matrix limit
-                            const providersToCheck = preliminaryProviders.slice(0, maxDestinations);
+                    console.log(`Stage 1: ${candidateProviders.length} candidates found within ${broadRadiusKm} km broad net`);
 
-                            const destinationsStr = providersToCheck.map(p => {
-                                if (p.location && p.location.coordinates && p.location.coordinates.length >= 2) {
-                                    return `${p.location.coordinates[1]},${p.location.coordinates[0]}`;
-                                }
-                                return '';
-                            }).filter(s => s !== '').join('|');
+                    // Stage 2: Filter each provider by their own configured serviceRadius using haversine
+                    const bLon = booking.location.coordinates[0];
+                    const bLat = booking.location.coordinates[1];
 
-                            if (destinationsStr) {
-                                const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originStr}&destinations=${destinationsStr}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
-                                const response = await axios.get(url);
+                    const filteredByRadius = candidateProviders.filter(p => {
+                        const providerRadius = (typeof p.serviceRadius === 'number' && p.serviceRadius > 0)
+                            ? p.serviceRadius
+                            : 15; // Default for existing providers without serviceRadius set
 
-                                if (response.data && response.data.status === 'OK' && response.data.rows && response.data.rows.length > 0) {
-                                    const elements = response.data.rows[0].elements;
-                                    providersToNotify = [];
-
-                                    providersToCheck.forEach((p, index) => {
-                                        const element = elements[index];
-                                        if (element && element.status === 'OK') {
-                                            const distanceInMeters = element.distance.value;
-                                            if (distanceInMeters <= radiusInKm * 1000) {
-                                                providersToNotify.push(p);
-                                            }
-                                        } else {
-                                            providersToNotify.push(p); // Fallback keep if individual calculation fails
-                                        }
-                                    });
-                                } else {
-                                    providersToNotify = preliminaryProviders; // Fallback keep all if API fails
-                                }
-                            } else {
-                                providersToNotify = preliminaryProviders;
-                            }
-                        } catch (err) {
-                            console.error('Google Maps Distance Matrix API Error:', err.message);
-                            providersToNotify = preliminaryProviders;
+                        if (!p.location || !p.location.coordinates || p.location.coordinates.length < 2) {
+                            // No coordinates — include with a warning (fallback)
+                            console.log(`Provider ${p._id} has no location, including as fallback`);
+                            return true;
                         }
-                    } else {
-                        providersToNotify = preliminaryProviders;
-                    }
+
+                        const pLon = p.location.coordinates[0];
+                        const pLat = p.location.coordinates[1];
+                        const distanceKm = DistanceChargeService.calculateDistance(bLat, bLon, pLat, pLon);
+                        const withinRadius = distanceKm <= providerRadius;
+
+                        console.log(`Provider ${p._id}: radius=${providerRadius}km, distance=${distanceKm?.toFixed(2)}km, eligible=${withinRadius}`);
+                        return withinRadius;
+                    });
+
+                    console.log(`Stage 2: ${filteredByRadius.length} providers within their own serviceRadius`);
+                    providersToNotify = filteredByRadius;
                 }
             }
+
 
             console.log(`Providers Found: ${providersToNotify.length}`);
 

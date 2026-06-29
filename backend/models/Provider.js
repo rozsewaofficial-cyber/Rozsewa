@@ -169,6 +169,10 @@ const providerSchema = mongoose.Schema({
     joinedDate: { type: Date, default: Date.now },
     fcmTokens: [String],
     fcmTokenMobile: [String],
+    serviceRadius: {
+        type: Number,
+        default: 15 // km — validated dynamically against admin-configured limits
+    },
     providerCategory: {
         type: String,
         enum: ['partner', 'sewak'],
