@@ -335,6 +335,13 @@ export const AuthProvider = ({ children }) => {
     setAuth(null);
   };
 
+  const updateUser = (newData) => {
+    setAuth(prev => {
+      if (!prev) return null;
+      return { ...prev, ...newData };
+    });
+  };
+
   const value = {
     user: auth,
     isAuthenticated: !!auth,
@@ -346,6 +353,7 @@ export const AuthProvider = ({ children }) => {
     loginWithOTP,
     signup,
     logout,
+    updateUser,
     serviceMode,
     setServiceMode,
   };

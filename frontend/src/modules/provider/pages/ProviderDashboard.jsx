@@ -40,7 +40,7 @@ import { useSocket } from "@/context/SocketContext";
 
 const ProviderDashboard = () => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { socket, incomingRequest, setIncomingRequest } = useSocket();
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? true);
   const [isEmergencyActive, setIsEmergencyActive] = useState(user?.isEmergencyEnabled ?? false);
@@ -228,6 +228,7 @@ const ProviderDashboard = () => {
     setIsEmergencyActive(newState); // Optimistic update
     try {
       await API.patch("/provider/status", { isEmergencyEnabled: newState });
+      updateUser({ isEmergencyEnabled: newState }); // Sync global auth context
       toast({ title: newState ? "Emergency Mode ON" : "Emergency Mode OFF" });
     } catch (err) {
       setIsEmergencyActive(!newState); // Revert on failure

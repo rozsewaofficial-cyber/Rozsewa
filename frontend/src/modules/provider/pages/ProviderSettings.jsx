@@ -9,7 +9,7 @@ import API from "@/lib/api";
 import { motion } from "framer-motion";
 
 const ProviderSettings = () => {
-  const { logout } = useAuth();
+  const { logout, updateUser } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -40,6 +40,7 @@ const ProviderSettings = () => {
 
       const { data } = await API.patch("/provider/status", payload);
       setProvider({ ...provider, ...data });
+      updateUser(data); // Sync global auth context
       toast({
         title: "Status Updated",
         description: `${type === 'online' ? 'Visibility' : 'Emergency service'} changed successfully.`
