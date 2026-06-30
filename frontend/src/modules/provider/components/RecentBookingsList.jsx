@@ -64,10 +64,14 @@ const RecentBookingsList = () => {
   const [isUploading, setIsUploading] = useState(false);
   const handleImageUpload = async (file) => {
     if (!file) return null;
-    const formData = new FormData();
-    formData.append("image", file);
     setIsUploading(true);
     try {
+      const { compressImage } = await import('@/lib/imageCompression');
+      const compressedFile = await compressImage(file, 800, 800, 0.7);
+      
+      const formData = new FormData();
+      formData.append("image", compressedFile);
+
       const { data } = await API.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });

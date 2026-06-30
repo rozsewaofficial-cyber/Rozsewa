@@ -88,50 +88,52 @@ const WalletPage = () => {
 
         {/* Balance Card */}
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-          className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900 p-8 shadow-2xl shadow-emerald-900/20 text-white">
-          <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-white/10 blur-3xl pointer-events-none" />
-          <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-emerald-400/20 blur-2xl pointer-events-none" />
+          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-900 p-6 shadow-xl shadow-blue-900/10 text-white border border-white/10">
+          <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-white/20 blur-3xl pointer-events-none" />
+          <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-blue-400/30 blur-2xl pointer-events-none" />
 
           <div className="relative z-10 flex justify-between items-start">
             <div>
-              <p className="text-[10px] font-black opacity-80 uppercase tracking-widest text-emerald-100 mb-1">Available Balance</p>
-              <h2 className="text-5xl font-black flex items-center gap-1 tracking-tight">₹{balance.toLocaleString()}</h2>
+              <p className="text-[9px] font-black opacity-80 uppercase tracking-widest text-blue-100 mb-0.5">Available Balance</p>
+              <h2 className="text-4xl font-black flex items-center gap-1 tracking-tight">₹{Math.max(0, balance).toLocaleString()}</h2>
             </div>
-            <div className="rounded-2xl bg-white/10 p-3 backdrop-blur-md border border-white/20 shadow-inner">
-              <Wallet className="h-8 w-8 text-emerald-100" />
+            <div className="rounded-xl bg-white/10 p-2.5 backdrop-blur-md border border-white/20 shadow-inner">
+              <Wallet className="h-6 w-6 text-blue-100" />
             </div>
           </div>
 
-          <div className="relative z-10 mt-10 grid grid-cols-2 gap-3">
+          <div className="relative z-10 mt-8 grid grid-cols-2 gap-3">
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => setShowAddMoney(true)}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-white py-3.5 text-sm font-black text-emerald-700 shadow-xl shadow-black/10 hover:bg-emerald-50 transition-colors">
-              <Plus className="h-4 w-4" /> Add Money
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-xs font-black text-blue-700 shadow-md shadow-black/5 hover:bg-blue-50 transition-all hover:scale-[1.02]">
+              <Plus className="h-3.5 w-3.5" /> Add Money
             </motion.button>
             <motion.button whileTap={{ scale: 0.97 }} onClick={() => toast({ title: "Notice", description: "Withdrawal is temporarily disabled for standard accounts." })}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-black/20 py-3.5 text-sm font-black text-white border border-white/20 backdrop-blur-md hover:bg-black/30 transition-colors">
-              Transfer <ChevronRight className="h-4 w-4" />
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2.5 text-xs font-black text-white border border-white/20 backdrop-blur-md hover:bg-white/20 transition-all hover:scale-[1.02]">
+              Transfer <ChevronRight className="h-3.5 w-3.5" />
             </motion.button>
           </div>
         </motion.div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 shadow-sm">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/30">
-              <TrendingUp className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
+          <div className="rounded-3xl border border-border bg-gradient-to-br from-card to-muted/30 p-4 md:p-5 flex flex-col items-start gap-3 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+            <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-blue-50 dark:bg-blue-900/10 blur-2xl group-hover:bg-blue-100 transition-colors" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800/50 relative z-10">
+              <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">Total Earned</p>
-              <p className="text-lg font-black text-foreground tracking-tight">₹{totalEarned.toLocaleString()}</p>
+            <div className="min-w-0 mt-1 relative z-10">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 opacity-80">Total Earned</p>
+              <p className="text-xl md:text-2xl font-black text-foreground tracking-tight truncate">₹{totalEarned.toLocaleString()}</p>
             </div>
           </div>
-          <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-3 shadow-sm">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900/30">
-              <Download className="h-5 w-5 text-blue-600 dark:text-blue-400 rotate-180" />
+          <div className="rounded-3xl border border-border bg-gradient-to-br from-card to-muted/30 p-4 md:p-5 flex flex-col items-start gap-3 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+            <div className="absolute -right-4 -top-4 h-16 w-16 rounded-full bg-rose-50 dark:bg-rose-900/10 blur-2xl group-hover:bg-rose-100 transition-colors" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-rose-50 dark:bg-rose-900/30 border border-rose-100 dark:border-rose-800/50 relative z-10">
+              <Download className="h-5 w-5 text-rose-600 dark:text-rose-400 rotate-180" />
             </div>
-            <div>
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">Total Spent</p>
-              <p className="text-lg font-black text-foreground tracking-tight">₹{totalSpent.toLocaleString()}</p>
+            <div className="min-w-0 mt-1 relative z-10">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1 opacity-80">Total Spent</p>
+              <p className="text-xl md:text-2xl font-black text-foreground tracking-tight truncate">₹{totalSpent.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -190,7 +192,7 @@ const WalletPage = () => {
                   <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground block mb-2 px-1">Enter Amount</label>
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-muted-foreground">₹</div>
-                    <input type="number" value={addAmount} onChange={e => setAddAmount(e.target.value)} disabled={isProcessing} placeholder="0" autoFocus
+                    <input type="number" min="1" onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }} value={addAmount} onChange={e => setAddAmount(e.target.value)} disabled={isProcessing} placeholder="0" autoFocus
                       className="w-full rounded-2xl border-2 border-border bg-background py-4 pl-10 pr-4 text-3xl font-black text-foreground focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-muted-foreground/30" />
                   </div>
                 </div>
@@ -205,7 +207,7 @@ const WalletPage = () => {
                 </div>
 
                 <motion.button whileTap={{ scale: 0.97 }} type="submit" disabled={isProcessing || !addAmount}
-                  className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 py-4 text-sm font-black uppercase tracking-wider text-white shadow-xl shadow-emerald-500/20 disabled:opacity-50 transition-all overflow-hidden">
+                  className="group relative flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 py-4 text-sm font-black uppercase tracking-wider text-white shadow-xl shadow-blue-600/20 disabled:opacity-50 transition-all overflow-hidden">
                   {isProcessing ? (
                     <span className="flex items-center gap-2"><div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Processing...</span>
                   ) : (

@@ -17,7 +17,7 @@ const financialLedgerSchema = new mongoose.Schema({
     metadata: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true });
 
-financialLedgerSchema.index({ transactionId: 1 });
+
 financialLedgerSchema.index({ provider: 1, ledgerType: 1, createdAt: -1 });
 financialLedgerSchema.index({ booking: 1 });
 

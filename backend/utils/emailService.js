@@ -2,9 +2,10 @@ const nodemailer = require('nodemailer');
 
 // Setup Nodemailer transporter using SMTP
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.ethereal.email',
+    service: process.env.SMTP_HOST?.includes('gmail') ? 'gmail' : undefined,
+    host: process.env.SMTP_HOST?.includes('gmail') ? undefined : (process.env.SMTP_HOST || 'smtp.ethereal.email'),
     port: process.env.SMTP_PORT || 587,
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,

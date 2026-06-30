@@ -55,10 +55,13 @@ const ProviderServices = () => {
     if (!file) return;
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append("image", file);
-
     try {
+      const { compressImage } = await import('@/lib/imageCompression');
+      const compressedFile = await compressImage(file, 800, 800, 0.7);
+      
+      const formData = new FormData();
+      formData.append("image", compressedFile);
+
       const { data } = await API.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
@@ -685,8 +688,10 @@ const ProviderServices = () => {
                           const file = e.target.files[0];
                           if (!file) return;
                           setUploading(true);
-                          const fd = new FormData(); fd.append("image", file);
                           try {
+                            const { compressImage } = await import('@/lib/imageCompression');
+                            const compressedFile = await compressImage(file, 800, 800, 0.7);
+                            const fd = new FormData(); fd.append("image", compressedFile);
                             const { data } = await API.post("/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
                             setComboForm({ ...comboForm, image: data.url });
                           } catch { toast({ title: "Upload Failed" }); }
