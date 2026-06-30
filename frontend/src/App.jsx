@@ -26,6 +26,11 @@ import Favorites from "./modules/user/pages/Favorites";
 import Addresses from "./modules/user/pages/Addresses";
 import ReferEarn from "./modules/user/pages/ReferEarn";
 import Notifications from "./modules/user/pages/Notifications";
+import Scrap from "./modules/user/pages/Scrap";
+import AddScrap from "./modules/user/pages/Scrap/AddScrap";
+import RojsewaBazaar from "./modules/user/pages/RojsewaBazaar";
+import BazaarAdDetails from "./modules/user/pages/BazaarAdDetails";
+import BazaarOfferChat from "./modules/user/pages/BazaarOfferChat";
 
 import HelpSupport from "./modules/user/pages/HelpSupport";
 import CustomerLogin from "./modules/user/pages/CustomerLogin";
@@ -86,6 +91,7 @@ import AdminKYC from "./modules/admin/pages/AdminKYC";
 import Admin99Card from "./modules/admin/pages/Admin99Card";
 import AdminCommission from "./modules/admin/pages/AdminCommission";
 import AdminWithdrawals from "./modules/admin/pages/AdminWithdrawals";
+import AdminScrap from "./modules/admin/pages/AdminScrap";
 
 import AdminZones from "./modules/admin/pages/AdminZones";
 import AdminDispatch from "./modules/admin/pages/AdminDispatch";
@@ -151,6 +157,11 @@ const App = () => (
                       <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
                       <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
                       <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
+                      <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
+                      <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
+                      <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />
+                      <Route path="/bazaar/:id" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarAdDetails /></ProtectedRoute>} />
+                      <Route path="/bazaar/:id/offer" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarOfferChat /></ProtectedRoute>} />
 
                       {/* Public Info Routes */}
                       <Route path="/post-service" element={<PostService />} />
@@ -233,7 +244,7 @@ const App = () => (
                       <Route path="quality" element={<AdminQuality />} />
                       <Route path="provider-reports" element={<ProviderReports />} />
                       <Route path="withdrawals" element={<AdminWithdrawals />} />
-
+                      <Route path="bazaar" element={<AdminScrap />} />
 
                       <Route path="help-training" element={<AdminHelpTraining />} />
                       <Route path="super" element={<AdminSuper />} />

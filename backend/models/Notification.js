@@ -5,9 +5,10 @@ const notificationSchema = mongoose.Schema({
     recipientModel: { type: String, required: true, enum: ['User', 'Provider'] },
     title: { type: String, required: true },
     message: { type: String, required: true },
-    type: { type: String, enum: ['booking', 'payment', 'system', 'offer'], default: 'system' },
+    type: { type: String, enum: ['booking', 'payment', 'system', 'offer', 'scrap', 'bazaar'], default: 'system' },
     isRead: { type: Boolean, default: false },
     bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
+    scrapId: { type: mongoose.Schema.Types.ObjectId, ref: 'Scrap' },
     createdAt: { type: Date, default: Date.now }
 }, {
     timestamps: true

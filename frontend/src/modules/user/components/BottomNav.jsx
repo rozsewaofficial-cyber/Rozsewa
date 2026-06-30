@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Home, ClipboardList, Users, MessageSquare, MoreHorizontal } from "lucide-react";
+import { Home, ClipboardList, ShoppingBag, MessageSquare, MoreHorizontal } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import API from "@/lib/api";
 
 const tabs = [
   { icon: Home, label: "Home", path: "/" },
   { icon: ClipboardList, label: "Projects", path: "/my-bookings" },
-  { icon: Users, label: "Pros", path: "/shops" },
+  { icon: ShoppingBag, label: "Bazaar", path: "/bazaar" },
   { icon: MessageSquare, label: "Inbox", path: "/notifications" },
   { icon: MoreHorizontal, label: "More", path: "/profile" },
 ];

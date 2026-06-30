@@ -23,6 +23,8 @@ const verifyRoutes = require('./routes/verifyRoutes');
 // const digilockerRoutes = require('./routes/digilockerRoutes');
 const mockRoutes = require('./routes/mockRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const scrapRoutes = require('./routes/scrapRoutes');
+const bazaarRoutes = require('./routes/bazaarRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -85,6 +87,8 @@ app.use('/api/verify', verifyRoutes);
 // app.use('/api/digilocker', digilockerRoutes);
 app.use('/mock', mockRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/scrap', scrapRoutes);
+app.use('/api/bazaar', bazaarRoutes);
 
 // V2 Versioned Commission APIs
 const { adminV2Router, providerV2Router } = require('./routes/v2Routes');
