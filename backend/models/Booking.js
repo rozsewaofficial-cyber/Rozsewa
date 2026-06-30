@@ -43,8 +43,21 @@ const bookingSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'confirmed', 'on_the_way', 'started', 'completed', 'cancelled'],
+        enum: ['pending', 'confirmed', 'on_the_way', 'started', 'completed', 'cancelled', 'bargaining_pending'],
         default: 'pending',
+    },
+    cancellationReason: {
+        type: String,
+        default: null
+    },
+    cancelledBy: {
+        type: String,
+        enum: ['customer', 'provider', 'admin', null],
+        default: null
+    },
+    cancellationTimestamp: {
+        type: Date,
+        default: null
     },
     startOTP: {
         type: String,
@@ -109,6 +122,10 @@ const bookingSchema = new mongoose.Schema({
         default: null
     },
     counterOfferExpiresAt: {
+        type: Date,
+        default: null
+    },
+    counterOfferProposedAt: {
         type: Date,
         default: null
     },

@@ -7,16 +7,14 @@ import { useSocket } from '@/context/SocketContext';
 import { useAuth } from '@/context/AuthContext';
 import { useScrollLock } from '@/lib/scrollLock';
 
-import alertSound from '@/assets/alert.mp3';
 
 const IncomingRequestModal = ({ request, onAction }) => {
     useScrollLock(true);
     const { toast } = useToast();
 
-    const { socket } = useSocket();
+    const { socket, playAlarmSound, stopAlarmSound, alarmSoundPlaying } = useSocket();
     const { user } = useAuth();
     const [timeLeft, setTimeLeft] = useState(120); // 2 mins countdown
-    const [audioStarted, setAudioStarted] = useState(false);
 
     const [isScheduling, setIsScheduling] = useState(false);
     const [scheduleDate, setScheduleDate] = useState('');
@@ -29,44 +27,18 @@ const IncomingRequestModal = ({ request, onAction }) => {
     const [counterAmount, setCounterAmount] = useState('');
     const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
-    const audioRef = useRef(null);
     const notificationRef = useRef(null);
 
-    useEffect(() => {
-        if (!audioRef.current) {
-            audioRef.current = new Audio(alertSound);
-            audioRef.current.loop = true;
-            audioRef.current.volume = 1.0;
-            audioRef.current.muted = false;
-        }
-        return () => {
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.src = "";
-                audioRef.current = null;
-            }
-        };
-    }, []);
-
     const playSound = (e) => {
-        if (audioRef.current) {
-            audioRef.current.play().then(() => {
-                setAudioStarted(true);
-            }).catch(err => {
-                console.log("Autoplay blocked:", err);
-                if (e && e.type === 'click') {
-                    toast({ title: "Audio Error", description: err.message || "Failed to play sound. Please check device volume.", variant: "destructive" });
-                }
-            });
-        }
+        playAlarmSound();
     };
 
     useEffect(() => {
-        playSound();
+        playAlarmSound();
 
         const ensurePlay = setInterval(() => {
-            if (timeLeft > 0 && audioRef.current && audioRef.current.paused && audioStarted) {
-                audioRef.current.play().catch(e => console.log(e));
+            if (timeLeft > 0 && !alarmSoundPlaying) {
+                playAlarmSound();
             }
         }, 2000);
 
@@ -103,7 +75,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                 notificationRef.current.close();
             }
         };
-    }, [request, audioStarted]);
+    }, [request, alarmSoundPlaying]);
 
     const handleAccept = async (decision = null) => {
         try {
@@ -113,10 +85,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
             }
             await API.patch(`/bookings/${request.bookingId}/status`, payload);
             toast({ title: "Booking Accepted!", variant: "default" });
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
+            stopAlarmSound();
             onAction('accepted');
         } catch (err) {
             toast({
@@ -125,10 +94,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                 variant: err.response?.status === 409 ? "default" : "destructive"
             });
             if (err.response?.status === 409 || err.response?.status === 401) {
-                if (audioRef.current) {
-                    audioRef.current.pause();
-                    audioRef.current.currentTime = 0;
-                }
+                stopAlarmSound();
                 sessionStorage.removeItem('activeRequest');
                 onAction('taken');
             }
@@ -159,10 +125,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
             });
             toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
 
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
+            stopAlarmSound();
             sessionStorage.removeItem('activeRequest');
             onAction('countered');
         } catch (err) {
@@ -172,10 +135,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                 variant: err.response?.status === 409 ? "default" : "destructive"
             });
             if (err.response?.status === 409 || err.response?.status === 401) {
-                if (audioRef.current) {
-                    audioRef.current.pause();
-                    audioRef.current.currentTime = 0;
-                }
+                stopAlarmSound();
                 sessionStorage.removeItem('activeRequest');
                 onAction('taken');
             }
@@ -199,10 +159,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
             });
             toast({ title: "Schedule Proposed", description: "Waiting for customer approval.", variant: "default" });
 
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
+            stopAlarmSound();
             sessionStorage.removeItem('activeRequest');
             onAction('scheduled');
         } catch (err) {
@@ -219,10 +176,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                 bookingId: request.bookingId
             });
         }
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-        }
+        stopAlarmSound();
         sessionStorage.removeItem('activeRequest');
         onAction();
     };
@@ -266,7 +220,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
                             <Bell className="h-10 w-10 text-emerald-600 animate-bounce" />
                         </div>
 
-                        {!audioStarted && (
+                        {!alarmSoundPlaying && (
                             <button
                                 onClick={playSound}
                                 className="px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase flex items-center gap-2 animate-pulse border border-amber-200"

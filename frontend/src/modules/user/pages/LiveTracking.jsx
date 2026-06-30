@@ -44,6 +44,10 @@ const LiveTracking = () => {
   const [proposedSchedule, setProposedSchedule] = useState(null);
   const [counterTimer, setCounterTimer] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [customReason, setCustomReason] = useState("");
+  const [showBargainModal, setShowBargainModal] = useState(false);
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -118,7 +122,7 @@ const LiveTracking = () => {
       const { data } = await API.get('/bookings');
       // Find the most recent active booking (only include completed if not reviewed)
       const active = data.find(b =>
-        ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status) ||
+        ['pending', 'bargaining_pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status) ||
         (b.status === 'completed' && (!b.rating || b.rating === 0))
       );
       if (active) {
@@ -132,7 +136,7 @@ const LiveTracking = () => {
         }
 
         // Map status to currentStep
-        if (current === 'pending') setCurrentStep(0);
+        if (current === 'pending' || current === 'bargaining_pending') setCurrentStep(0);
         else if (active.status === 'confirmed') setCurrentStep(1);
         else if (active.status === 'on_the_way') setCurrentStep(2);
         else if (active.status === 'started') setCurrentStep(3);
@@ -154,7 +158,7 @@ const LiveTracking = () => {
         }
 
         // Calculate counter-offer timer
-        if (active.offerStatus === 'countered' && active.counterOfferExpiresAt) {
+        if ((active.status === 'bargaining_pending' || active.offerStatus === 'countered') && active.counterOfferExpiresAt) {
           const expiryTime = new Date(active.counterOfferExpiresAt).getTime();
           const nowTime = new Date().getTime();
           const remaining = Math.max(0, Math.floor((expiryTime - nowTime) / 1000));
@@ -173,15 +177,24 @@ const LiveTracking = () => {
 
   const handleCancelBooking = async () => {
     if (!bookingDetails) return;
-    const confirmCancel = window.confirm("Are you sure you want to cancel this booking?");
-    if (!confirmCancel) return;
+    const finalReason = cancellationReason === 'Other' ? customReason : cancellationReason;
+    if (!finalReason) {
+      toast({ title: "Reason Required", description: "Please select or enter a cancellation reason.", variant: "destructive" });
+      return;
+    }
 
     try {
-      await API.put(`/bookings/${bookingDetails._id}`, { status: 'cancelled' });
+      await API.put(`/bookings/${bookingDetails._id}`, { 
+        status: 'cancelled',
+        cancellationReason: finalReason
+      });
       toast({ title: "Booking Cancelled", description: "Your booking has been cancelled successfully." });
+      setShowCancelModal(false);
+      setCancellationReason("");
+      setCustomReason("");
       navigate("/my-bookings");
     } catch (err) {
-      toast({ title: "Failed to cancel booking", variant: "destructive" });
+      toast({ title: "Failed to cancel booking", description: err.response?.data?.message || err.message, variant: "destructive" });
     }
   };
 
@@ -278,13 +291,37 @@ const LiveTracking = () => {
       }
     };
 
+    const handleCounterOffer = (e) => {
+      if (e.detail?.bookingId === bookingDetails?._id || e.detail?.bookingId === bookingDetails?.id) {
+        fetchBookingStatus();
+        setShowBargainModal(true);
+      }
+    };
+
+    const handleCancelled = (e) => {
+      if (e.detail?.bookingId === bookingDetails?._id || e.detail?.bookingId === bookingDetails?.id) {
+        toast({ title: "Booking Cancelled", description: "This booking has been cancelled." });
+        fetchBookingStatus();
+      }
+    };
+
     window.addEventListener('BOOKING_REJECTED', handleRejected);
     window.addEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
+    window.addEventListener('COUNTER_OFFER_RECEIVED', handleCounterOffer);
+    window.addEventListener('BOOKING_CANCELLED', handleCancelled);
     return () => {
       window.removeEventListener('BOOKING_REJECTED', handleRejected);
       window.removeEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
+      window.removeEventListener('COUNTER_OFFER_RECEIVED', handleCounterOffer);
+      window.removeEventListener('BOOKING_CANCELLED', handleCancelled);
     };
   }, [bookingDetails]);
+
+  useEffect(() => {
+    if (bookingDetails?.status === 'bargaining_pending' && bookingDetails?.offerStatus === 'countered') {
+      setShowBargainModal(true);
+    }
+  }, [bookingDetails?.status, bookingDetails?.offerStatus]);
 
   const handleAcceptSchedule = async () => {
     try {
@@ -359,7 +396,7 @@ const LiveTracking = () => {
               <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Booking #{bookingDetails?._id ? bookingDetails._id.slice(-6).toUpperCase() : "..."}</p>
             </div>
           </div>
-          {cancelTimer > 0 && currentStep < 3 && (
+          {cancelTimer > 0 && currentStep === 0 && (
             <span className="rounded-full bg-rose-50 dark:bg-rose-900/30 px-3 py-1.5 text-[11px] font-bold tracking-widest text-rose-600 dark:text-rose-400 uppercase border border-rose-200 dark:border-rose-800">
               Free Cancel — {formatTime(cancelTimer)}
             </span>
@@ -445,7 +482,7 @@ const LiveTracking = () => {
         )}
 
         {/* Counter-Offer Proposal UI */}
-        {bookingDetails?.status === 'pending' && bookingDetails?.offerStatus === 'countered' && (
+        {['pending', 'bargaining_pending'].includes(bookingDetails?.status) && bookingDetails?.offerStatus === 'countered' && (
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -534,9 +571,14 @@ const LiveTracking = () => {
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{providerInfo.name}</h3>
                       <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
+                      {bookingDetails?.status === 'bargaining_pending' && (
+                        <span className="text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 px-1.5 py-0.5 rounded animate-pulse shrink-0">
+                          Bargaining Pending
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
@@ -567,10 +609,10 @@ const LiveTracking = () => {
                 </div>
               )}
               {/* Cancel Button */}
-              {bookingDetails?.status === 'pending' && (
+              {bookingDetails?.status && ['pending', 'bargaining_pending', 'confirmed', 'on_the_way'].includes(bookingDetails.status) && (
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={handleCancelBooking}
+                  onClick={() => setShowCancelModal(true)}
                   className="mt-5 w-full rounded-xl py-3.5 text-[13px] font-bold text-rose-500 bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 transition-colors flex items-center justify-center gap-2"
                 >
                   <X className="h-4 w-4" />
@@ -666,6 +708,162 @@ const LiveTracking = () => {
 
       </main>
       <BottomNav />
+
+      {/* Cancel Reason Modal */}
+      <AnimatePresence>
+        {showCancelModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+              className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-2xl text-left border border-slate-200 dark:border-slate-800"
+            >
+              <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2">Cancel Booking?</h3>
+              <p className="text-xs text-muted-foreground mb-4">Please select a reason for cancelling this booking request.</p>
+              
+              <div className="space-y-2 mb-4">
+                {[
+                  "Change of plans",
+                  "Provider taking too long",
+                  "Incorrect service/details",
+                  "Other"
+                ].map((r) => (
+                  <label key={r} className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer transition-colors">
+                    <input
+                      type="radio"
+                      name="cancelReason"
+                      value={r}
+                      checked={cancellationReason === r}
+                      onChange={(e) => setCancellationReason(e.target.value)}
+                      className="text-rose-600 focus:ring-rose-500 h-4 w-4"
+                    />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{r}</span>
+                  </label>
+                ))}
+              </div>
+
+              {cancellationReason === 'Other' && (
+                <textarea
+                  placeholder="Describe your cancellation reason..."
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-800 bg-background rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 mb-4 h-20 resize-none font-medium"
+                />
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowCancelModal(false);
+                    setCancellationReason("");
+                    setCustomReason("");
+                  }}
+                  className="flex-1 rounded-full border-2 border-slate-200 dark:border-slate-700 py-3 text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                >
+                  Keep Booking
+                </button>
+                <button
+                  onClick={handleCancelBooking}
+                  className="flex-1 rounded-full bg-rose-600 py-3 text-xs font-bold text-white shadow-lg shadow-rose-600/30 hover:bg-rose-700"
+                >
+                  Confirm Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bargain Offer Popup Modal */}
+      <AnimatePresence>
+        {showBargainModal && bookingDetails?.status === 'bargaining_pending' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-6"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center text-purple-600">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-950 dark:text-white">Bargaining Offer</h3>
+                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">New price proposal</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBargainModal(false)}
+                  className="h-8 w-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-500 transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 space-y-4">
+                <div className="text-center py-2">
+                  <p className="text-xs text-muted-foreground uppercase font-black tracking-wider">Proposed Amount</p>
+                  <p className="text-4xl font-black text-purple-700 dark:text-purple-400 mt-1">₹{bookingDetails.partnerCounterOffer}</p>
+                  <p className="text-xs text-muted-foreground mt-2">Proposed by: <span className="font-bold text-foreground">{providerInfo.name}</span></p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-center text-xs py-2 border-t border-slate-100 dark:border-slate-800">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Original Fixed Price</p>
+                    <p className="font-bold text-slate-700 mt-0.5 line-through">₹{bookingDetails.originalFixedPrice}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider">Your Offer</p>
+                    <p className="font-bold text-slate-700 mt-0.5">₹{bookingDetails.customerOffer}</p>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-500">Expires in:</span>
+                  <span className="font-black text-purple-600 animate-pulse">
+                    {formatTime(counterTimer)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={async () => {
+                    await handleCounterDecision('reject');
+                    setShowBargainModal(false);
+                  }}
+                  className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-sm text-slate-600 dark:text-slate-300"
+                >
+                  <X className="h-4 w-4" /> Reject & Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    await handleCounterDecision('accept');
+                    setShowBargainModal(false);
+                  }}
+                  disabled={counterTimer <= 0}
+                  className="h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-sm disabled:opacity-50"
+                >
+                  <Check className="h-4 w-4" /> Accept Counter
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ChatModal
         isOpen={isChatOpen}

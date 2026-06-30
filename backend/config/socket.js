@@ -43,12 +43,14 @@ const initSocket = (server) => {
             try {
                 const Booking = require('../models/Booking');
                 const booking = await Booking.findById(bookingId);
-                if (booking) {
+                if (booking && booking.status === 'pending') {
                     booking.status = 'cancelled';
                     await booking.save();
                     console.log(`Booking ${bookingId} status set to cancelled because provider ${providerId} rejected it`);
                     console.log(`Notifying user ${booking.userId} about rejection`);
                     io.to(`user_${booking.userId}`).emit('BOOKING_REJECTED', { bookingId, providerId });
+                } else if (booking) {
+                    console.log(`Booking ${bookingId} reject ignored because status is ${booking.status}`);
                 }
             } catch (err) {
                 console.error("Error in reject_booking handler:", err);

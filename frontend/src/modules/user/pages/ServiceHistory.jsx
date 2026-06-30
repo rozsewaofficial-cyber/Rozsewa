@@ -351,7 +351,7 @@ const ServiceHistory = () => {
                     <button onClick={handleDownloadInvoice} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-extrabold text-primary-foreground shadow-xl shadow-primary/20">
                       <Download className="h-5 w-5" /> Download Invoice
                     </button>
-                  ) : (selectedBooking.status === "pending" || selectedBooking.status === "confirmed") ? (
+                  ) : selectedBooking.status === "pending" ? (
                     <div className="flex gap-3">
                       <button onClick={() => setSelectedBooking(null)} className="flex-1 rounded-2xl border border-border py-4 text-sm font-extrabold hover:bg-muted">Close</button>
                       <button

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Check, ChevronRight, Shield, XCircle, PackageCheck, Bike, Wrench, Star, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
 const steps = [
     { label: "Placed", fullLabel: "Booking Placed", status: "pending", icon: PackageCheck, color: "blue" },
@@ -24,6 +25,7 @@ const statusIndexMap = { pending: 0, confirmed: 1, on_the_way: 2, started: 3, co
 
 const RecentBookingTracker = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [activeBooking, setActiveBooking] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -36,12 +38,11 @@ const RecentBookingTracker = () => {
     });
 
     const fetchActiveBookings = async () => {
-        const authData = JSON.parse(localStorage.getItem('rozsewa_auth') || 'null');
-        if (!authData?.token) { setLoading(false); return; }
+        if (!user?.token) { setLoading(false); return; }
         try {
             const res = await API.get('/bookings');
             const active = res.data.find(b => {
-                const isValidStatus = ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status);
+                const isValidStatus = ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled', 'bargaining_pending'].includes(b.status);
                 const isNotRated = b.rating === undefined || b.rating === 0;
                 
                 if (!isValidStatus || !isNotRated) return false;
@@ -83,7 +84,7 @@ const RecentBookingTracker = () => {
         fetchActiveBookings();
         const interval = setInterval(fetchActiveBookings, 15000);
         return () => clearInterval(interval);
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         if (activeBooking?.status === 'cancelled') {

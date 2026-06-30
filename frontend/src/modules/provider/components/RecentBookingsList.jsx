@@ -115,10 +115,19 @@ const RecentBookingsList = () => {
         fetchBookings();
       };
       
+      const handleCancelled = (data) => {
+        toast({ title: "Booking Cancelled", description: "A booking has been cancelled." });
+        fetchBookings();
+      };
+      
       socket.on("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
+      socket.on("BOOKING_CANCELLED", handleCancelled);
+      socket.on("NEW_BOOKING_REQUEST", handleExtraUpdate);
       
       return () => {
         socket.off("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
+        socket.off("BOOKING_CANCELLED", handleCancelled);
+        socket.off("NEW_BOOKING_REQUEST", handleExtraUpdate);
       };
     }
   }, [socket]);
@@ -187,6 +196,9 @@ const RecentBookingsList = () => {
   const [reportBookingId, setReportBookingId] = useState(null);
   const [reportReason, setReportReason] = useState("");
   const [isReporting, setIsReporting] = useState(false);
+  const [cancelBookingId, setCancelBookingId] = useState(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const handleOtpVerify = async () => {
     const fullOtp = providerOtp;
@@ -249,9 +261,33 @@ const RecentBookingsList = () => {
       setReportReason("");
       fetchBookings();
     } catch (err) {
-      toast({ title: "Failed to send report", variant: "destructive" });
+      toast({ title: "Failed to report", variant: "destructive" });
     } finally {
       setIsReporting(false);
+    }
+  };
+
+  const handleCancelSubmit = async () => {
+    if (!cancelReason.trim()) {
+      toast({ title: "Reason Required", description: "Please enter a cancellation reason.", variant: "destructive" });
+      return;
+    }
+    try {
+      await API.patch(`/bookings/${cancelBookingId}/status`, {
+        status: 'cancelled',
+        cancellationReason: cancelReason
+      });
+      toast({ title: "Booking Cancelled", description: "The booking has been cancelled successfully." });
+      setShowCancelModal(false);
+      setCancelReason("");
+      setCancelBookingId(null);
+      fetchBookings();
+    } catch (err) {
+      toast({
+        title: "Cancellation Failed",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive"
+      });
     }
   };
 
@@ -505,18 +541,29 @@ const RecentBookingsList = () => {
                   const isReady = (bookingDateTime - now) <= 30 * 60 * 1000;
 
                   return (
-                    <div className="flex gap-2 w-full mt-5">
-                      <button
-                        onClick={() => handleAction(req._id, 'on_the_way')}
-                        disabled={!isReady}
-                        className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
-                      >
-                        {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
-                      </button>
-                      <button onClick={() => setActiveChatBookingId(req._id)} className="w-12 h-[42px] shrink-0 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
-                        <MessageCircle className="h-4 w-4" />
-                      </button>
-                    </div>
+                      <div className="flex flex-col gap-2 w-full mt-5">
+                        <div className="flex gap-2 w-full">
+                          <button
+                            onClick={() => handleAction(req._id, 'on_the_way')}
+                            disabled={!isReady}
+                            className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
+                          >
+                            {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
+                          </button>
+                          <button onClick={() => setActiveChatBookingId(req._id)} className="w-12 h-[42px] shrink-0 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                            <MessageCircle className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setCancelBookingId(req._id);
+                            setShowCancelModal(true);
+                          }}
+                          className="w-full rounded-xl border-2 border-rose-500/10 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                        >
+                          Cancel Job
+                        </button>
+                      </div>
                   );
                 })()}
 
@@ -540,6 +587,15 @@ const RecentBookingsList = () => {
                       className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest"
                     >
                       <MapIcon className="h-4 w-4" /> Open In-App Live Tracking
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCancelBookingId(req._id);
+                        setShowCancelModal(true);
+                      }}
+                      className="w-full rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                    >
+                      Cancel Job
                     </button>
                   </div>
                 )}
@@ -899,6 +955,59 @@ const RecentBookingsList = () => {
                   className="flex-1 rounded-xl bg-rose-600 py-3 text-xs font-black text-white hover:bg-rose-700 shadow-lg shadow-rose-500/20 uppercase tracking-widest"
                 >
                   {isReporting ? "Sending..." : "Submit Report"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cancellation Penalty Warning & Reason Modal */}
+      <AnimatePresence>
+        {showCancelModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm rounded-[32px] bg-card p-6 shadow-2xl border border-border"
+            >
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-950/30 text-rose-600">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-black text-foreground text-center uppercase tracking-wider">Cancel Job?</h3>
+              <p className="text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 p-3 rounded-xl text-center mt-3 mb-4 leading-relaxed">
+                WARNING: Cancelling this job after acceptance will deduct ₹100 from your wallet balance as a penalty.
+              </p>
+              
+              <div className="mb-4">
+                <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block mb-2">
+                  Mandatory Cancellation Reason
+                </label>
+                <textarea
+                  placeholder="Explain why you need to cancel this job..."
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full border border-border bg-background rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 h-24 resize-none font-semibold"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowCancelModal(false);
+                    setCancelReason("");
+                    setCancelBookingId(null);
+                  }}
+                  className="flex-1 rounded-xl bg-muted py-3 text-xs font-bold text-muted-foreground hover:bg-muted/80"
+                >
+                  Keep Job
+                </button>
+                <button
+                  onClick={handleCancelSubmit}
+                  className="flex-1 rounded-xl bg-rose-600 py-3 text-xs font-black text-white hover:bg-rose-700 shadow-lg shadow-rose-500/20 uppercase tracking-widest"
+                >
+                  Confirm Cancel
                 </button>
               </div>
             </motion.div>

@@ -330,6 +330,18 @@ const Checkout = () => {
       };
       window.addEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
 
+      const handleCounterOfferReceived = (e) => {
+        const { bookingId: counteredId } = e.detail;
+        if (counteredId === bookingId) {
+          toast({
+            title: "Counter-Offer Received",
+            description: "The provider proposed a new price for your booking.",
+          });
+          navigate("/tracking", { replace: true });
+        }
+      };
+      window.addEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
+
       interval = setInterval(async () => {
         try {
           const { data } = await API.get('/bookings');
@@ -338,8 +350,8 @@ const Checkout = () => {
             setCurrentBookingStatus(myBooking.status);
             setCreatedBooking(myBooking);
 
-            // Redirect to tracking page if a reschedule has been proposed
-            if (myBooking.proposedSchedule && myBooking.proposedSchedule.status === 'pending') {
+            // Redirect to tracking page if a reschedule or counter-offer has been proposed
+            if ((myBooking.proposedSchedule && myBooking.proposedSchedule.status === 'pending') || myBooking.offerStatus === 'countered') {
               clearInterval(interval);
               navigate("/tracking", { replace: true });
               return;
@@ -357,6 +369,7 @@ const Checkout = () => {
         window.removeEventListener("popstate", handlePopState);
         window.removeEventListener('BOOKING_REJECTED', handleRejected);
         window.removeEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
+        window.removeEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
       };
     }
   }, [bookingConfirmed, bookingId, navigate]);
