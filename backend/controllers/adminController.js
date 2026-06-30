@@ -2630,6 +2630,24 @@ const updateServiceRadiusLimits = async (req, res) => {
     }
 };
 
+// @desc    Get user wallet and history by admin
+// @route   GET /api/admin/users/:id/wallet
+// @access  Private/Admin
+const getUserWalletByAdmin = async (req, res) => {
+    try {
+        const { Wallet, Transaction } = require('../models/Wallet');
+        const wallet = await Wallet.findOne({ userId: req.params.id });
+        const transactions = await Transaction.find({ userId: req.params.id }).sort({ createdAt: -1 }).limit(50);
+        
+        res.json({
+            balance: wallet ? wallet.balance : 0,
+            transactions: transactions || []
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     getProviderReports,
@@ -2643,6 +2661,7 @@ module.exports = {
     updateCategory,
     deleteCategory,
     getUsers,
+    getUserWalletByAdmin,
     toggleUserStatus,
     getBanners,
     addBanner,

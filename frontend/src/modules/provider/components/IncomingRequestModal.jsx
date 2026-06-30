@@ -14,7 +14,6 @@ const IncomingRequestModal = ({ request, onAction }) => {
 
     const { socket, playAlarmSound, stopAlarmSound, alarmSoundPlaying } = useSocket();
     const { user } = useAuth();
-    const [timeLeft, setTimeLeft] = useState(120); // 2 mins countdown
 
     const [isScheduling, setIsScheduling] = useState(false);
     const [scheduleDate, setScheduleDate] = useState('');
@@ -27,6 +26,20 @@ const IncomingRequestModal = ({ request, onAction }) => {
     const [counterAmount, setCounterAmount] = useState('');
     const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
+    const extraChargesAmount = request.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+    const totalFixedPrice = request.originalFixedPrice || request.amount || 0;
+    const totalCustomerOffer = request.customerOffer || request.amount || 0;
+    const baseCustomerOffer = Math.max(0, totalCustomerOffer - extraChargesAmount);
+    const baseFixedPrice = Math.max(0, totalFixedPrice - extraChargesAmount);
+
+    const travelCharge = request.extraCharges?.find(c => c.item && c.item.includes('Travel Charge'));
+    const nightCharge = request.extraCharges?.find(c => c.item && c.item.includes('Night Charge'));
+    const travelChargeAmount = travelCharge ? (travelCharge.amount || 0) : 0;
+    const nightChargeAmount = nightCharge ? (nightCharge.amount || 0) : 0;
+    const basePrice = Math.max(0, (request.originalFixedPrice || request.amount || 0) - travelChargeAmount - nightChargeAmount);
+    const totalDiscount = request.discountAmount || 0;
+    const totalAmount = request.amount || 0;
+
     const notificationRef = useRef(null);
 
     const playSound = (e) => {
@@ -37,7 +50,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
         playAlarmSound();
 
         const ensurePlay = setInterval(() => {
-            if (timeLeft > 0 && !alarmSoundPlaying) {
+            if (!alarmSoundPlaying) {
                 playAlarmSound();
             }
         }, 2000);
@@ -58,18 +71,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
             }
         }
 
-        const timer = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
         return () => {
-            clearInterval(timer);
             clearInterval(ensurePlay);
             if (notificationRef.current && typeof notificationRef.current.close === 'function') {
                 notificationRef.current.close();
@@ -107,12 +109,12 @@ const IncomingRequestModal = ({ request, onAction }) => {
             toast({ title: "Validation Error", description: "Please enter a valid positive amount.", variant: "destructive" });
             return;
         }
-        if (amt <= request.amount) {
-            toast({ title: "Validation Error", description: `Counter offer must be greater than customer's offer of ₹${request.amount}.`, variant: "destructive" });
+        if (amt <= baseCustomerOffer) {
+            toast({ title: "Validation Error", description: `Counter offer must be greater than customer's offer of ₹${baseCustomerOffer}.`, variant: "destructive" });
             return;
         }
-        if (amt > request.originalFixedPrice) {
-            toast({ title: "Validation Error", description: `Counter offer cannot exceed original fixed price of ₹${request.originalFixedPrice}.`, variant: "destructive" });
+        if (amt > baseFixedPrice) {
+            toast({ title: "Validation Error", description: `Counter offer cannot exceed original fixed price of ₹${baseFixedPrice}.`, variant: "destructive" });
             return;
         }
 
@@ -121,7 +123,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
             await API.patch(`/bookings/${request.bookingId}/status`, {
                 status: 'pending',
                 offerDecision: 'counter',
-                counterAmount: amt
+                counterAmount: amt + extraChargesAmount
             });
             toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
 
@@ -169,11 +171,13 @@ const IncomingRequestModal = ({ request, onAction }) => {
         }
     };
 
-    const handleReject = () => {
+    const handleReject = (reason) => {
+        const actualReason = typeof reason === 'string' ? reason : 'reject';
         if (socket && user) {
             socket.emit("reject_booking", {
                 providerId: user._id,
-                bookingId: request.bookingId
+                bookingId: request.bookingId,
+                reason: actualReason
             });
         }
         stopAlarmSound();
@@ -181,11 +185,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
         onAction();
     };
 
-    useEffect(() => {
-        if (timeLeft === 0) {
-            handleReject();
-        }
-    }, [timeLeft]);
+
 
     return (
         <AnimatePresence>
@@ -231,9 +231,6 @@ const IncomingRequestModal = ({ request, onAction }) => {
 
                         <div className="space-y-1">
                             <h2 className="text-2xl font-black tracking-tight uppercase">New Request!</h2>
-                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center justify-center gap-2">
-                                <Clock className="h-3 w-3" /> Expires in {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-                            </p>
                         </div>
 
                         {isScheduling ? (
@@ -293,13 +290,13 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                     <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Counter Amount (₹)</label>
                                     <input
                                         type="number"
-                                        placeholder={`Between ₹${request.amount + 1} and ₹${request.originalFixedPrice}`}
+                                        placeholder={`Between ₹${baseCustomerOffer + 1} and ₹${baseFixedPrice}`}
                                         value={counterAmount}
                                         onChange={(e) => setCounterAmount(e.target.value)}
                                         className="w-full bg-background border border-border rounded-xl p-3 text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
                                     />
                                     <p className="text-[9px] text-muted-foreground">
-                                        Must be greater than customer's offer (₹{request.amount}) and less than or equal to fixed price (₹{request.originalFixedPrice}).
+                                        Must be greater than customer's offer (₹{baseCustomerOffer}) and less than or equal to fixed price (₹{baseFixedPrice}).
                                     </p>
                                 </div>
 
@@ -338,37 +335,53 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center justify-between pt-2 border-t border-border">
-                                        <div>
-                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Amount</p>
-
-                                            {request.customerOffer ? (
-                                                <>
-                                                    <div className="flex items-center text-sm font-black text-emerald-600 italic line-through opacity-70">
-                                                        <IndianRupee className="h-3 w-3" /> {request.originalFixedPrice}
-                                                    </div>
-                                                    <div className="flex items-center text-xl font-black text-emerald-600 mt-0.5">
-                                                        <IndianRupee className="h-5 w-5" /> {request.amount}
-                                                        <span className="text-[9px] ml-2 text-blue-600 font-black bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full uppercase tracking-widest">Proposed</span>
-                                                    </div>
-                                                </>
-                                            ) : request.discountAmount > 0 ? (
-                                                <>
-                                                    <div className="flex items-center text-sm font-black text-emerald-600 italic line-through opacity-70">
-                                                        <IndianRupee className="h-3 w-3" /> {request.amount + request.discountAmount}
-                                                    </div>
-                                                    <div className="flex items-center text-xl font-black text-emerald-600 mt-0.5">
-                                                        <IndianRupee className="h-5 w-5" /> {request.amount}
-                                                        <span className="text-[9px] ml-2 text-emerald-700 font-black bg-emerald-100 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full uppercase tracking-widest">Discounted</span>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <div className="flex items-center text-xl font-black text-emerald-600">
-                                                    <IndianRupee className="h-5 w-5" /> {request.amount}
+                                    {/* Detailed Bill Breakdown */}
+                                    <div className="border-t border-border pt-3 space-y-2">
+                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Payment Details</p>
+                                        
+                                        <div className="space-y-1.5 text-xs font-semibold text-muted-foreground">
+                                            <div className="flex justify-between">
+                                                <span>Base Price</span>
+                                                <span className="text-foreground">₹{basePrice}</span>
+                                            </div>
+                                            
+                                            {travelChargeAmount > 0 && (
+                                                <div className="flex justify-between text-slate-500">
+                                                    <span>Travel Charge {travelCharge.item.includes('km') ? `(${travelCharge.item.split('(')[1]?.split(')')[0]})` : ''}</span>
+                                                    <span className="text-foreground">+ ₹{travelChargeAmount}</span>
                                                 </div>
                                             )}
+                                            
+                                            {nightChargeAmount > 0 && (
+                                                <div className="flex justify-between text-slate-500">
+                                                    <span>Night Charge</span>
+                                                    <span className="text-foreground">+ ₹{nightChargeAmount}</span>
+                                                </div>
+                                            )}
+                                            
+                                            {totalDiscount > 0 && (
+                                                <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                                                    <span>Offers & Discounts</span>
+                                                    <span>- ₹{totalDiscount}</span>
+                                                </div>
+                                            )}
+                                            
+                                            <div className="flex justify-between items-center pt-2 border-t border-border text-sm font-black text-foreground">
+                                                <span className="flex items-center gap-1.5">
+                                                    Total Billed
+                                                    {request.customerOffer ? (
+                                                        <span className="text-[8px] text-blue-600 font-black bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-full uppercase tracking-widest">Proposed</span>
+                                                    ) : request.discountAmount > 0 ? (
+                                                        <span className="text-[8px] text-emerald-700 font-black bg-emerald-100 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-full uppercase tracking-widest">Discounted</span>
+                                                    ) : null}
+                                                </span>
+                                                <span className="text-emerald-600 dark:text-emerald-400 text-base">₹{totalAmount}</span>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
+                                    </div>
+
+                                    <div className="flex justify-between items-center pt-2 border-t border-border">
+                                        <div>
                                             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Payment Mode</p>
                                             <p className={`font-bold text-xs ${request.paymentMode === 'now' ? 'text-blue-600' : 'text-amber-600'}`}>
                                                 {request.paymentMode === 'now' ? 'Wait for Online Pay' : 'Pay After Job (COD)'}

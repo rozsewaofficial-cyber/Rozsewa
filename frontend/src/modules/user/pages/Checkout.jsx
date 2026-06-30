@@ -374,6 +374,20 @@ const Checkout = () => {
     }
   }, [bookingConfirmed, bookingId, navigate]);
 
+  const handleCancelBooking = async () => {
+    if (!bookingId) return;
+    const confirmCancel = window.confirm("Are you sure you want to cancel this booking request?");
+    if (!confirmCancel) return;
+
+    try {
+      await API.put(`/bookings/${bookingId}`, { status: 'cancelled' });
+      toast({ title: "Booking Cancelled", description: "Your booking request has been cancelled." });
+      setCurrentBookingStatus('cancelled');
+    } catch (err) {
+      toast({ title: "Failed to cancel booking", variant: "destructive" });
+    }
+  };
+
   const applyCoupon = async () => {
     try {
       const { data } = await API.post("/public/coupons/validate", {
@@ -928,6 +942,16 @@ const Checkout = () => {
               My Bookings
             </motion.button>
           </div>
+
+          {currentBookingStatus === 'pending' && (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleCancelBooking}
+              className="w-full mt-3 rounded-[20px] border-2 border-rose-500/20 bg-rose-50 dark:bg-rose-950/20 py-4 text-sm font-black text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
+            >
+              <X className="h-4 w-4" /> Cancel Booking request
+            </motion.button>
+          )}
         </motion.div>
       </div>
     );
@@ -1163,6 +1187,30 @@ const Checkout = () => {
                 <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
                 <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{userProposedAmount || total}</span>
               </div>
+            </div>
+          </section>
+
+          {/* Payment Mode Selection */}
+          <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-4">
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Payment Method</h3>
+            <div className="flex flex-col gap-3">
+              <label className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMode === 'now' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800'}`}>
+                <input type="radio" name="paymentMode" value="now" checked={paymentMode === 'now'} onChange={() => setPaymentMode('now')} className="hidden" />
+                <div className="flex-1">
+                  <p className="font-bold text-slate-900 dark:text-white">Pay Online</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay securely via UPI/Card after provider acceptance</p>
+                </div>
+                {paymentMode === 'now' ? <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center shadow-md"><Check className="h-3 w-3 text-white" /></div> : <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}
+              </label>
+              
+              <label className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMode === 'after' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800'}`}>
+                <input type="radio" name="paymentMode" value="after" checked={paymentMode === 'after'} onChange={() => setPaymentMode('after')} className="hidden" />
+                <div className="flex-1">
+                  <p className="font-bold text-slate-900 dark:text-white">Cash on Delivery</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay in cash when the service is completed</p>
+                </div>
+                {paymentMode === 'after' ? <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center shadow-md"><Check className="h-3 w-3 text-white" /></div> : <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}
+              </label>
             </div>
           </section>
         </>

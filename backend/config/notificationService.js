@@ -17,7 +17,7 @@ const mapEventDetails = (title, type, booking, provider) => {
     const dateStr = booking ? `${booking.bookingDate || 'N/A'} at ${booking.bookingTime || 'N/A'}` : 'N/A';
     const amountStr = booking ? `₹${booking.totalAmount || 0}` : '₹0';
     const addressStr = booking ? (booking.address || 'N/A') : 'N/A';
-    const paymentStr = booking ? (booking.paymentMode === 'after' ? 'Cash After Service' : 'Paid Online') : 'N/A';
+    const paymentStr = booking ? (booking.paymentMode === 'after' ? 'Cash on Delivery' : 'Online Payment') : 'N/A';
 
     const normalizedTitle = title ? title.toLowerCase() : '';
 
@@ -211,6 +211,19 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             notification: {
                 title: payload.title,
                 body: payload.body
+            },
+            android: {
+                notification: {
+                    sound: 'default',
+                    channelId: 'default'
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default'
+                    }
+                }
             },
             data: {
                 ...payload.data,

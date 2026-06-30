@@ -8,6 +8,7 @@ import ChatModal from "@/components/ChatModal";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
+import { ToastAction } from "@/components/ui/toast";
 
 const RecentBookingsList = () => {
   const [requests, setRequests] = useState([]);
@@ -24,18 +25,28 @@ const RecentBookingsList = () => {
   const [counterAmount, setCounterAmount] = useState('');
   const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
-  const handleCounterSubmit = async (bookingId, originalFixedPrice, customerOffer) => {
+  // Cancellation Modal States
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelBookingId, setCancelBookingId] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCounterSubmit = async (bookingId, originalFixedPrice, customerOffer, extraCharges = []) => {
+    const extraChargesAmount = extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+    const baseCustomerOffer = Math.max(0, customerOffer - extraChargesAmount);
+    const baseFixedPrice = Math.max(0, originalFixedPrice - extraChargesAmount);
+
     const amt = Number(counterAmount);
     if (!amt || isNaN(amt) || amt <= 0) {
       toast({ title: "Validation Error", description: "Please enter a valid positive amount.", variant: "destructive" });
       return;
     }
-    if (amt <= customerOffer) {
-      toast({ title: "Validation Error", description: `Counter offer must be greater than customer's offer of ₹${customerOffer}.`, variant: "destructive" });
+    if (amt <= baseCustomerOffer) {
+      toast({ title: "Validation Error", description: `Counter offer must be greater than customer's offer of ₹${baseCustomerOffer}.`, variant: "destructive" });
       return;
     }
-    if (amt > originalFixedPrice) {
-      toast({ title: "Validation Error", description: `Counter offer cannot exceed original fixed price of ₹${originalFixedPrice}.`, variant: "destructive" });
+    if (amt > baseFixedPrice) {
+      toast({ title: "Validation Error", description: `Counter offer cannot exceed original fixed price of ₹${baseFixedPrice}.`, variant: "destructive" });
       return;
     }
 
@@ -44,7 +55,7 @@ const RecentBookingsList = () => {
       await API.patch(`/bookings/${bookingId}/status`, {
         status: 'pending',
         offerDecision: 'counter',
-        counterAmount: amt
+        counterAmount: amt + extraChargesAmount
       });
       toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
       setCounteringBookingId(null);
@@ -64,14 +75,10 @@ const RecentBookingsList = () => {
   const [isUploading, setIsUploading] = useState(false);
   const handleImageUpload = async (file) => {
     if (!file) return null;
+    const formData = new FormData();
+    formData.append("image", file);
     setIsUploading(true);
     try {
-      const { compressImage } = await import('@/lib/imageCompression');
-      const compressedFile = await compressImage(file, 800, 800, 0.7);
-      
-      const formData = new FormData();
-      formData.append("image", compressedFile);
-
       const { data } = await API.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
@@ -119,27 +126,24 @@ const RecentBookingsList = () => {
         fetchBookings();
       };
       
-      const handleCancelled = (data) => {
-        toast({ title: "Booking Cancelled", description: "A booking has been cancelled." });
-        fetchBookings();
-      };
-      
       socket.on("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
-      socket.on("BOOKING_CANCELLED", handleCancelled);
-      socket.on("NEW_BOOKING_REQUEST", handleExtraUpdate);
       
       return () => {
         socket.off("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
-        socket.off("BOOKING_CANCELLED", handleCancelled);
-        socket.off("NEW_BOOKING_REQUEST", handleExtraUpdate);
       };
     }
   }, [socket]);
 
   const handleAction = async (id, action, extraData = {}) => {
+    // If action is reject or scheduled, the API calls are already handled by socket or specific endpoints.
+    // We only need to remove the request from the local state list.
+    if (action === 'reject' || action === 'scheduled') {
+      setRequests(prev => prev.filter(req => req._id !== id));
+      return;
+    }
+
     let newStatus = 'pending';
     if (action === 'accept') newStatus = 'confirmed';
-    if (action === 'reject') newStatus = 'cancelled';
     if (action === 'complete' || action === 'completed') newStatus = 'completed';
     if (action === 'on_the_way') newStatus = 'on_the_way';
 
@@ -156,6 +160,45 @@ const RecentBookingsList = () => {
         description: err.response?.data?.message || err.message,
         variant: "destructive"
       });
+    }
+  };
+
+  const handleCancelBookingByProvider = (bookingId) => {
+    setCancelBookingId(bookingId);
+    setCancelReason("");
+    setCancelModalOpen(true);
+  };
+
+  const submitCancellation = async () => {
+    const wordCount = cancelReason.trim().split(/\s+/).filter(word => word.length > 0).length;
+    if (cancelReason.trim().length < 10 || wordCount < 3) {
+      toast({
+        title: "Reason too short",
+        description: "Please provide a proper reason (minimum 10 characters and 3 words).",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      await API.patch(`/bookings/${cancelBookingId}/status`, { 
+        status: 'cancelled',
+        cancellationReason: cancelReason.trim()
+      });
+      toast({ title: "Booking Cancelled", description: "The booking has been cancelled and penalty has been applied." });
+      setCancelModalOpen(false);
+      setCancelBookingId(null);
+      setCancelReason("");
+      fetchBookings();
+    } catch (err) {
+      toast({
+        title: "Cancellation failed",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -200,9 +243,6 @@ const RecentBookingsList = () => {
   const [reportBookingId, setReportBookingId] = useState(null);
   const [reportReason, setReportReason] = useState("");
   const [isReporting, setIsReporting] = useState(false);
-  const [cancelBookingId, setCancelBookingId] = useState(null);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
 
   const handleOtpVerify = async () => {
     const fullOtp = providerOtp;
@@ -265,33 +305,9 @@ const RecentBookingsList = () => {
       setReportReason("");
       fetchBookings();
     } catch (err) {
-      toast({ title: "Failed to report", variant: "destructive" });
+      toast({ title: "Failed to send report", variant: "destructive" });
     } finally {
       setIsReporting(false);
-    }
-  };
-
-  const handleCancelSubmit = async () => {
-    if (!cancelReason.trim()) {
-      toast({ title: "Reason Required", description: "Please enter a cancellation reason.", variant: "destructive" });
-      return;
-    }
-    try {
-      await API.patch(`/bookings/${cancelBookingId}/status`, {
-        status: 'cancelled',
-        cancellationReason: cancelReason
-      });
-      toast({ title: "Booking Cancelled", description: "The booking has been cancelled successfully." });
-      setShowCancelModal(false);
-      setCancelReason("");
-      setCancelBookingId(null);
-      fetchBookings();
-    } catch (err) {
-      toast({
-        title: "Cancellation Failed",
-        description: err.response?.data?.message || err.message,
-        variant: "destructive"
-      });
     }
   };
 
@@ -354,11 +370,11 @@ const RecentBookingsList = () => {
                 <div className="mt-4 flex items-center justify-between">
                   <div>
                     {/* Total collected from customer */}
-                    {req.negotiation && req.negotiation.userProposedAmount ? (
+                    {(req.customerOffer !== undefined && req.customerOffer !== null) || (req.negotiation && req.negotiation.userProposedAmount) ? (
                       <div className="flex flex-col">
                         <div className="text-sm font-black text-emerald-600/60 dark:text-emerald-400/60 italic line-through">₹{req.originalFixedPrice}</div>
                         <div className="flex items-center gap-2">
-                          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.negotiation.userProposedAmount}</div>
+                          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.customerOffer || req.negotiation.userProposedAmount}</div>
                           <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded">Proposed</span>
                         </div>
                       </div>
@@ -445,36 +461,41 @@ const RecentBookingsList = () => {
 
                 {req.status === "pending" && req.offerStatus !== "countered" && (!req.proposedSchedule || req.proposedSchedule.status !== 'pending') && (
                   req.bargainDiscount > 0 ? (
-                    counteringBookingId === req._id ? (
-                      <div className="mt-5 bg-muted/50 rounded-xl p-3 border border-border space-y-3">
-                        <p className="text-[10px] font-black uppercase text-purple-700 tracking-wider">Propose Counter Offer</p>
-                        <input
-                          type="number"
-                          placeholder={`Enter amount between ₹${req.customerOffer + 1} and ₹${req.originalFixedPrice}`}
-                          value={counterAmount}
-                          onChange={(e) => setCounterAmount(e.target.value)}
-                          className="w-full bg-background border border-border rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-purple-500 outline-none"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            onClick={() => {
-                              setCounteringBookingId(null);
-                              setCounterAmount('');
-                            }}
-                            className="rounded-lg border border-border py-1.5 text-xs font-bold text-muted-foreground bg-background hover:bg-muted"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => handleCounterSubmit(req._id, req.originalFixedPrice, req.customerOffer)}
-                            disabled={isSubmittingCounter}
-                            className="rounded-lg bg-purple-600 py-1.5 text-xs font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-50"
-                          >
-                            {isSubmittingCounter ? 'Sending...' : 'Send'}
-                          </button>
+                    counteringBookingId === req._id ? (() => {
+                      const extraChargesAmount = req.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+                      const baseCustomerOffer = Math.max(0, req.customerOffer - extraChargesAmount);
+                      const baseFixedPrice = Math.max(0, req.originalFixedPrice - extraChargesAmount);
+                      return (
+                        <div className="mt-5 bg-muted/50 rounded-xl p-3 border border-border space-y-3">
+                          <p className="text-[10px] font-black uppercase text-purple-700 tracking-wider">Propose Counter Offer</p>
+                          <input
+                            type="number"
+                            placeholder={`Enter amount between ₹${baseCustomerOffer + 1} and ₹${baseFixedPrice}`}
+                            value={counterAmount}
+                            onChange={(e) => setCounterAmount(e.target.value)}
+                            className="w-full bg-background border border-border rounded-lg p-2 text-xs font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => {
+                                setCounteringBookingId(null);
+                                setCounterAmount('');
+                              }}
+                              className="rounded-lg border border-border py-1.5 text-xs font-bold text-muted-foreground bg-background hover:bg-muted"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleCounterSubmit(req._id, req.originalFixedPrice, req.customerOffer, req.extraCharges)}
+                              disabled={isSubmittingCounter}
+                              className="rounded-lg bg-purple-600 hover:bg-purple-700 py-1.5 text-xs font-bold text-white shadow-md disabled:opacity-50"
+                            >
+                              {isSubmittingCounter ? 'Sending...' : 'Send'}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ) : (
+                      );
+                    })() : (
                       <div className="mt-5 flex flex-col gap-2 w-full">
                         <div className="grid grid-cols-2 gap-2">
                           <button
@@ -545,29 +566,26 @@ const RecentBookingsList = () => {
                   const isReady = (bookingDateTime - now) <= 30 * 60 * 1000;
 
                   return (
-                      <div className="flex flex-col gap-2 w-full mt-5">
-                        <div className="flex gap-2 w-full">
-                          <button
-                            onClick={() => handleAction(req._id, 'on_the_way')}
-                            disabled={!isReady}
-                            className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
-                          >
-                            {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
-                          </button>
-                          <button onClick={() => setActiveChatBookingId(req._id)} className="w-12 h-[42px] shrink-0 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
-                            <MessageCircle className="h-4 w-4" />
-                          </button>
-                        </div>
+                    <div className="flex flex-col gap-2 w-full mt-5">
+                      <div className="flex gap-2 w-full">
                         <button
-                          onClick={() => {
-                            setCancelBookingId(req._id);
-                            setShowCancelModal(true);
-                          }}
-                          className="w-full rounded-xl border-2 border-rose-500/10 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                          onClick={() => handleAction(req._id, 'on_the_way')}
+                          disabled={!isReady}
+                          className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
                         >
-                          Cancel Job
+                          {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
+                        </button>
+                        <button onClick={() => setActiveChatBookingId(req._id)} className="w-12 h-[42px] shrink-0 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                          <MessageCircle className="h-4 w-4" />
                         </button>
                       </div>
+                      <button
+                        onClick={() => handleCancelBookingByProvider(req._id)}
+                        className="w-full rounded-xl py-2.5 text-xs font-bold text-rose-500 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-950/30 transition-colors border border-rose-200 dark:border-rose-900"
+                      >
+                        Cancel Booking (₹100 Penalty)
+                      </button>
+                    </div>
                   );
                 })()}
 
@@ -593,13 +611,10 @@ const RecentBookingsList = () => {
                       <MapIcon className="h-4 w-4" /> Open In-App Live Tracking
                     </button>
                     <button
-                      onClick={() => {
-                        setCancelBookingId(req._id);
-                        setShowCancelModal(true);
-                      }}
-                      className="w-full rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                      onClick={() => handleCancelBookingByProvider(req._id)}
+                      className="w-full rounded-xl py-2 px-4 text-xs font-extrabold text-rose-500 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-950/30 transition-colors border border-rose-200 dark:border-rose-900"
                     >
-                      Cancel Job
+                      Cancel Booking (₹100 Penalty)
                     </button>
                   </div>
                 )}
@@ -966,52 +981,61 @@ const RecentBookingsList = () => {
         )}
       </AnimatePresence>
 
-      {/* Cancellation Penalty Warning & Reason Modal */}
       <AnimatePresence>
-        {showCancelModal && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        {cancelModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-sm rounded-[32px] bg-card p-6 shadow-2xl border border-border"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm rounded-3xl bg-background p-6 shadow-2xl"
             >
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-950/30 text-rose-600">
-                <AlertTriangle className="h-6 w-6" />
+              <div className="mb-6 flex items-center justify-between">
+                <h3 className="text-xl font-black text-foreground">Cancel Booking</h3>
+                <button
+                  onClick={() => setCancelModalOpen(false)}
+                  className="rounded-full bg-muted p-2 hover:bg-muted/80"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <h3 className="text-base font-black text-foreground text-center uppercase tracking-wider">Cancel Job?</h3>
-              <p className="text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 p-3 rounded-xl text-center mt-3 mb-4 leading-relaxed">
-                WARNING: Cancelling this job after acceptance will deduct ₹100 from your wallet balance as a penalty.
-              </p>
-              
-              <div className="mb-4">
-                <label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground block mb-2">
-                  Mandatory Cancellation Reason
-                </label>
-                <textarea
-                  placeholder="Explain why you need to cancel this job..."
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  className="w-full border border-border bg-background rounded-xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500 h-24 resize-none font-semibold"
-                />
+
+              <div className="mb-6 space-y-4">
+                <div className="rounded-xl bg-rose-50 dark:bg-rose-900/20 p-4 border border-rose-200 dark:border-rose-800">
+                  <p className="text-sm text-rose-600 dark:text-rose-400 font-bold">
+                    Penalty Warning: ₹100 will be deducted from your wallet (₹50 to customer, ₹50 to company).
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="text-sm font-bold text-foreground">
+                    Cancellation Reason <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Provide a specific reason for cancelling (min 10 chars, 3 words)..."
+                    className="mt-1 w-full rounded-xl border border-border bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary h-24 resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Required: Min 10 characters & 3 words
+                  </p>
+                </div>
               </div>
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => {
-                    setShowCancelModal(false);
-                    setCancelReason("");
-                    setCancelBookingId(null);
-                  }}
+                  onClick={() => setCancelModalOpen(false)}
                   className="flex-1 rounded-xl bg-muted py-3 text-xs font-bold text-muted-foreground hover:bg-muted/80"
                 >
-                  Keep Job
+                  Back
                 </button>
                 <button
-                  onClick={handleCancelSubmit}
-                  className="flex-1 rounded-xl bg-rose-600 py-3 text-xs font-black text-white hover:bg-rose-700 shadow-lg shadow-rose-500/20 uppercase tracking-widest"
+                  onClick={submitCancellation}
+                  disabled={isCancelling}
+                  className="flex-1 rounded-xl bg-rose-600 py-3 text-xs font-black text-white hover:bg-rose-700 shadow-lg shadow-rose-500/20 tracking-wide"
                 >
-                  Confirm Cancel
+                  {isCancelling ? "Processing..." : "Confirm Cancel"}
                 </button>
               </div>
             </motion.div>

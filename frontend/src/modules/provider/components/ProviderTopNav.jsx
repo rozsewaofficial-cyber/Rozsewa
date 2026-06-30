@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, Bell, UserCircle, Sun, Moon, Clock } from "lucide-react";
+import { ArrowLeft, Bell, UserCircle, Sun, Moon, Clock, Wallet } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -13,6 +13,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
   const { theme, toggleTheme } = useTheme();
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [walletBalance, setWalletBalance] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -27,14 +28,24 @@ const ProviderTopNav = ({ title, showBack = false }) => {
         setUnreadCount(data?.unreadCount || 0);
       } catch {}
     };
+
+    const fetchWalletBalance = async () => {
+      try {
+        const { data } = await API.get("/wallet");
+        setWalletBalance(data?.balance ?? null);
+      } catch {}
+    };
+
     fetchUnread();
+    fetchWalletBalance();
 
     const handleNewNotif = () => setUnreadCount(prev => prev + 1);
+    const handleFocus = () => { fetchUnread(); fetchWalletBalance(); };
     window.addEventListener('NEW_NOTIFICATION', handleNewNotif);
-    window.addEventListener('focus', fetchUnread);
+    window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('NEW_NOTIFICATION', handleNewNotif);
-      window.removeEventListener('focus', fetchUnread);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [user, location.pathname]);
 
@@ -79,7 +90,21 @@ const ProviderTopNav = ({ title, showBack = false }) => {
           </motion.button>
 
           {user && (
-            <div className="flex items-center gap-2 border-l border-border pl-2">
+            <div className="flex items-center gap-2">
+              {walletBalance !== null && (
+                <Link
+                  to="/provider/wallet"
+                  className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black transition-colors ${
+                    walletBalance < 0
+                      ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                      : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                  }`}
+                >
+                  <Wallet className="h-3 w-3" />
+                  <span>{walletBalance < 0 ? `Dues: ₹${Math.abs(walletBalance).toLocaleString()}` : `₹${walletBalance.toLocaleString()}`}</span>
+                </Link>
+              )}
+
               {!((user?.role === 'sewak' || user?.providerCategory === 'sewak') ? !user?.kycVerified : user?.status !== 'verified') && (
                 <Link to="/provider/notifications" className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
                   <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />

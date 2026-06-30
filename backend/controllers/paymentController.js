@@ -194,6 +194,45 @@ const verifyWalletRecharge = async (req, res) => {
     }
 };
 
+// @desc    Verify Razorpay Payment for User Wallet Recharge
+// @route   POST /api/payment/verify-user-wallet
+// @access  Private (User)
+const verifyUserWalletRecharge = async (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount } = req.body;
+
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(sign.toString())
+        .digest("hex");
+
+    if (razorpay_signature === expectedSign) {
+        const { Wallet, Transaction } = require('../models/Wallet');
+
+        let wallet = await Wallet.findOne({ userId: req.user._id });
+        if (!wallet) {
+            wallet = await Wallet.create({ userId: req.user._id, balance: 0 });
+        }
+
+        const rechargeAmount = Number(amount);
+        wallet.balance += rechargeAmount;
+        await wallet.save();
+
+        await Transaction.create({
+            userId: req.user._id,
+            title: 'Added Money to Wallet',
+            amount: rechargeAmount,
+            type: 'credit',
+            status: 'completed',
+            description: `Recharge via Razorpay (ID: ${razorpay_payment_id})`
+        });
+
+        res.json({ message: "Money added successfully!", success: true });
+    } else {
+        res.status(400).json({ message: "Invalid payment signature", success: false });
+    }
+};
+
 // @desc    Check for expiring subscriptions and notify providers
 // This function should be called by a cron job daily!
 const checkExpiringSubscriptions = async () => {
@@ -237,5 +276,6 @@ module.exports = {
     verifyPayment,
     verifySubscriptionPayment,
     verifyWalletRecharge,
+    verifyUserWalletRecharge,
     checkExpiringSubscriptions
 };

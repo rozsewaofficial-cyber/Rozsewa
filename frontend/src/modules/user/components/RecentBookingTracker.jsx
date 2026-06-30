@@ -42,7 +42,7 @@ const RecentBookingTracker = () => {
         try {
             const res = await API.get('/bookings');
             const active = res.data.find(b => {
-                const isValidStatus = ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled', 'bargaining_pending'].includes(b.status);
+                const isValidStatus = ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status);
                 const isNotRated = b.rating === undefined || b.rating === 0;
                 
                 if (!isValidStatus || !isNotRated) return false;
@@ -54,10 +54,11 @@ const RecentBookingTracker = () => {
                     } catch (e) {}
                     if (dl.includes(b._id)) return false;
 
-                    if (b.updatedAt) {
-                        const updatedAt = new Date(b.updatedAt);
+                    const timeToCheck = b.updatedAt || b.createdAt;
+                    if (timeToCheck) {
+                        const dateObj = new Date(timeToCheck);
                         const now = new Date();
-                        const diffMinutes = (now - updatedAt) / (1000 * 60);
+                        const diffMinutes = (now - dateObj) / (1000 * 60);
                         if (diffMinutes > 1) return false;
                     }
                 }

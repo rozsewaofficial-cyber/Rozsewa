@@ -36,19 +36,30 @@ const initSocket = (server) => {
             console.log(`Client ${socket.id} joined chat room booking_${bookingId}`);
         });
 
-        socket.on("reject_booking", async ({ providerId, bookingId }) => {
-            console.log(`Provider ${providerId} rejected booking ${bookingId}`);
-            // Future: Store rejection in DB to prevent re-dispatching to this provider
+        socket.on("reject_booking", async ({ providerId, bookingId, reason }) => {
+            const actReason = reason || 'reject';
+            console.log(`Provider ${providerId} rejected booking ${bookingId} with reason: ${actReason}`);
             
             try {
                 const Booking = require('../models/Booking');
                 const booking = await Booking.findById(bookingId);
                 if (booking && booking.status === 'pending') {
-                    booking.status = 'cancelled';
-                    await booking.save();
-                    console.log(`Booking ${bookingId} status set to cancelled because provider ${providerId} rejected it`);
-                    console.log(`Notifying user ${booking.userId} about rejection`);
-                    io.to(`user_${booking.userId}`).emit('BOOKING_REJECTED', { bookingId, providerId });
+                    if (actReason === 'timeout') {
+                        console.log(`[Monitoring] Booking timeout event: Provider ${providerId} did not respond to Booking ${bookingId} within 2-minute limit.`);
+                    } else {
+                        console.log(`[Monitoring] Booking rejection event: Provider ${providerId} explicitly rejected Booking ${bookingId}.`);
+                    }
+
+                    if (!booking.rejectedProviders) {
+                        booking.rejectedProviders = [];
+                    }
+                    if (!booking.rejectedProviders.includes(providerId)) {
+                        booking.rejectedProviders.push(providerId);
+                        await booking.save();
+                    }
+
+                    // Broadcast to other sockets to refresh available request lists
+                    io.emit('NEW_BOOKING_REQUEST');
                 } else if (booking) {
                     console.log(`Booking ${bookingId} reject ignored because status is ${booking.status}`);
                 }

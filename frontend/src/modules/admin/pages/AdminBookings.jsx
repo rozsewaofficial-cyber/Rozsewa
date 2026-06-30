@@ -336,6 +336,11 @@ const AdminBookings = () => {
                             <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`}></span>
                             {sc.label}
                           </span>
+                          {booking.status === 'cancelled' && booking.cancellationReason && (
+                            <p className="mt-1.5 text-[9px] font-bold text-red-600 max-w-[120px] mx-auto truncate" title={booking.cancellationReason}>
+                              {booking.cancelledBy === 'provider' ? 'Provider:' : 'Reason:'} {booking.cancellationReason}
+                            </p>
+                          )}
                         </td>
 
                         {/* Actions */}

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { toast } from '@/hooks/use-toast';
 
 const SocketContext = createContext();
 
@@ -127,25 +128,24 @@ export const SocketProvider = ({ children }) => {
             window.dispatchEvent(new CustomEvent('BOOKING_REJECTED', { detail: data }));
         });
 
-        newSocket.on("BOOKING_CANCELLED", (data) => {
-            console.log("Global Socket: Booking cancelled", data);
-            window.dispatchEvent(new CustomEvent('BOOKING_CANCELLED', { detail: data }));
-        });
-
         newSocket.on("COUNTER_OFFER_RECEIVED", (data) => {
             console.log("Global Socket: Counter offer received", data);
-            try {
-                const audio = new Audio('/sounds/alert.mp3');
-                audio.play().catch(e => console.log("Sound play blocked by browser settings:", e.message));
-            } catch (err) {
-                console.log("Failed to play sound:", err.message);
-            }
             window.dispatchEvent(new CustomEvent('COUNTER_OFFER_RECEIVED', { detail: data }));
+            toast({
+                title: "New Counter-Offer!",
+                description: `Provider proposed a counter-offer of ₹${data.partnerCounterOffer}.`,
+                variant: "default",
+            });
         });
 
         newSocket.on("SCHEDULE_PROPOSED", (data) => {
             console.log("Global Socket: Schedule Proposed", data);
             window.dispatchEvent(new CustomEvent('SCHEDULE_PROPOSED', { detail: data }));
+            toast({
+                title: "New Schedule Proposed",
+                description: `Provider proposed a new time: ${data.date} at ${data.time}.`,
+                variant: "default",
+            });
         });
 
         newSocket.on("SCHEDULE_ACCEPTED", (data) => {

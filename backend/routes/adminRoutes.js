@@ -15,6 +15,7 @@ const {
     updateCategory,
     deleteCategory,
     getUsers,
+    getUserWalletByAdmin,
     toggleUserStatus,
     getBanners,
     addBanner,
@@ -135,6 +136,7 @@ router.delete('/categories/:id', protect, admin, deleteCategory);
 
 // User management
 router.get('/users', protect, admin, getUsers);
+router.get('/users/:id/wallet', protect, admin, getUserWalletByAdmin);
 router.put('/users/:id/toggle-status', protect, admin, toggleUserStatus);
 router.delete('/users/:id', protect, admin, deleteUser);
 
