@@ -6,11 +6,12 @@ import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
   Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
-  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin
+  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin, Recycle
 } from "lucide-react";
 
 export const adminSidebarLinks = [
   { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/admin/bazaar", label: "Bazaar Ads", icon: Recycle },
   { path: "/admin/users", label: "Users", icon: Users },
   { path: "/admin/supervisors", label: "Supervisors", icon: ShieldCheck },
   { path: "/admin/employees", label: "Employees", icon: Users },

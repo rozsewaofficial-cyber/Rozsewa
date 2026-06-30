@@ -110,6 +110,27 @@ const userSchema = new mongoose.Schema({
     },
     fcmTokens: [String],
     fcmTokenMobile: [String],
+    // Bazaar Seller Profile
+    sellerProfile: {
+        businessType: {
+            type: String,
+            enum: ['Individual', 'Business'],
+            default: 'Individual'
+        },
+        isVerifiedSeller: {
+            type: Boolean,
+            default: false
+        },
+        kycStatus: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected', 'not_submitted'],
+            default: 'not_submitted'
+        },
+        trustScore: {
+            type: Number,
+            default: 100 // Out of 100
+        }
+    },
     createdAt: {
         type: Date,
         default: Date.now,

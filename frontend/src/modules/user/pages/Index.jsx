@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell } from "lucide-react";
+import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -240,6 +240,22 @@ const Index = () => {
               <CategoryGrid showAll={showAllCategories} mode={serviceMode} />
             </section>
 
+            {/* Sell Scrap CTA */}
+            <section className="space-y-4 pt-2 pb-4">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-[24px] border border-blue-100 dark:border-blue-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
+                <div className="relative z-10 w-[70%]">
+                  <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Got scrap to sell?</h3>
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">Schedule a pickup from your home and get the best price for your scrap.</p>
+                  <Link to="/scrap/add" className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-blue-200 dark:shadow-none">
+                    Sell Scrap Now <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+                <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
+                  <Recycle className="w-28 h-28 text-blue-500" />
+                </div>
+              </div>
+            </section>
+
             {/* Featured Professionals */}
             {(loading || featured.length > 0) && (
               <section className="space-y-4 -mt-2">
@@ -260,6 +276,30 @@ const Index = () => {
               </div>
             </section>
             )}
+
+            {/* Bazaar Promo Section */}
+            <section className="space-y-4 pt-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                  <ShoppingBag className="text-teal-500 w-5 h-5" /> Rojsewa Bazaar
+                </h2>
+                <Link to="/bazaar" className="text-[13px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 transition-colors">
+                  Browse All
+                </Link>
+              </div>
+              <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 p-5 rounded-[24px] border border-teal-100 dark:border-teal-800/50 relative overflow-hidden flex items-center justify-between">
+                <div className="relative z-10">
+                  <h3 className="font-black text-slate-900 dark:text-white text-lg">Verified Second Hand Goods</h3>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mt-1 max-w-[200px]">Buy and sell scrap/items securely with other users nearby.</p>
+                  <Link to="/bazaar" className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all">
+                    Explore Bazaar <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+                <div className="absolute right-[-20px] top-1/2 -translate-y-1/2 opacity-20">
+                  <ShoppingBag className="w-32 h-32 text-teal-600" />
+                </div>
+              </div>
+            </section>
 
             {/* Why Choose Us */}
             <section className="space-y-4 pt-2">
