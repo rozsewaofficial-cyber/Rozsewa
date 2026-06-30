@@ -35,6 +35,10 @@ const addMoney = async (req, res) => {
         }
 
         const amt = parseFloat(amount);
+        if (isNaN(amt) || amt <= 0) {
+            return res.status(400).json({ message: "Amount must be greater than 0" });
+        }
+
         if (type === 'credit') {
             wallet.balance += amt;
         } else {

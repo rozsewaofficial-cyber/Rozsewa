@@ -13,6 +13,7 @@ import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const menuItems = [
+  { icon: Wallet, label: "My Wallet", desc: "Balance & transactions", path: "/wallet" },
   { icon: Clock, label: "My Bookings", desc: "View booking history", path: "/my-bookings" },
   { icon: Heart, label: "Favorites", desc: "Saved providers", path: "/favorites" },
   { icon: MapPin, label: "Saved Addresses", desc: "Home, Office & more", path: "/addresses" },
@@ -107,9 +108,12 @@ const Profile = () => {
     const file = e.target.files[0];
     if (file) {
       setIsSaving(true);
-      const formData = new FormData();
-      formData.append("image", file);
       try {
+        const { compressImage } = await import('@/lib/imageCompression');
+        const compressedFile = await compressImage(file, 800, 800, 0.7);
+        
+        const formData = new FormData();
+        formData.append("image", compressedFile);
         const { data } = await API.post("/upload", formData, {
           headers: { "Content-Type": "multipart/form-data" }
         });

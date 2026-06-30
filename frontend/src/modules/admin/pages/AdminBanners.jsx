@@ -84,11 +84,14 @@ const AdminBanners = () => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const data = new FormData();
-        data.append("image", file);
         setIsUploading(true);
 
         try {
+            const { compressImage } = await import('@/lib/imageCompression');
+            const compressedFile = await compressImage(file, 1200, 1200, 0.7);
+            const data = new FormData();
+            data.append("image", compressedFile);
+            
             const res = await API.post("/upload", data, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
