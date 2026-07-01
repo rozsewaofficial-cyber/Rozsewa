@@ -213,15 +213,20 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                 body: payload.body
             },
             android: {
+                priority: 'high',
                 notification: {
                     sound: 'default',
                     channelId: 'default'
                 }
             },
             apns: {
+                headers: {
+                    'apns-priority': '10'
+                },
                 payload: {
                     aps: {
-                        sound: 'default'
+                        sound: 'default',
+                        'content-available': 1
                     }
                 }
             },
