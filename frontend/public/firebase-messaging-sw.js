@@ -15,6 +15,15 @@ const messaging = firebase.messaging();
 
 const shownNotifications = new Set();
 
+// Force immediate Service Worker activation
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
   
@@ -32,7 +41,10 @@ messaging.onBackgroundMessage((payload) => {
     data: payload.data
   };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions)
+    .catch((err) => {
+      console.error('[firebase-messaging-sw.js] Error showing notification:', err);
+    });
 });
 
 // Handle background notification clicks
