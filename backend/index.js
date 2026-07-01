@@ -25,6 +25,7 @@ const mockRoutes = require('./routes/mockRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const scrapRoutes = require('./routes/scrapRoutes');
 const bazaarRoutes = require('./routes/bazaarRoutes');
+const leadRoutes = require('./routes/leadRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -89,6 +90,7 @@ app.use('/mock', mockRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/scrap', scrapRoutes);
 app.use('/api/bazaar', bazaarRoutes);
+app.use('/api/leads', leadRoutes);
 
 // V2 Versioned Commission APIs
 const { adminV2Router, providerV2Router } = require('./routes/v2Routes');
@@ -99,9 +101,11 @@ app.use('/api/v2/provider', providerV2Router);
 const { startCronJobs } = require('./cron/payouts');
 const startBookingReminderCron = require('./cron/bookingReminders');
 const { startSubscriptionCheckCron } = require('./cron/subscriptionCheck');
+const { startLeadJobsCron } = require('./cron/leadJobs');
 startCronJobs();
 startBookingReminderCron();
 startSubscriptionCheckCron();
+startLeadJobsCron();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });

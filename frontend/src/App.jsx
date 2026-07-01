@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ChatProvider } from "@/context/ChatContext";
 import { SocketProvider } from "@/context/SocketContext";
+import { ConfirmDialogProvider } from "@/hooks/useConfirm";
 
 // User Pages
 import Index from "./modules/user/pages/Index";
@@ -31,6 +32,7 @@ import AddScrap from "./modules/user/pages/Scrap/AddScrap";
 import RojsewaBazaar from "./modules/user/pages/RojsewaBazaar";
 import BazaarAdDetails from "./modules/user/pages/BazaarAdDetails";
 import BazaarOfferChat from "./modules/user/pages/BazaarOfferChat";
+import LeadRequirementForm from "./modules/user/pages/LeadRequirementForm";
 
 import HelpSupport from "./modules/user/pages/HelpSupport";
 import CustomerLogin from "./modules/user/pages/CustomerLogin";
@@ -47,6 +49,7 @@ import LocationGate from "./components/LocationGate";
 
 // Provider Pages
 import ProviderDashboard from "./modules/provider/pages/ProviderDashboard";
+import ProviderLeads from "./modules/provider/pages/ProviderLeads";
 import ProviderBookings from "./modules/provider/pages/ProviderBookings";
 import ProviderStaff from "./modules/provider/pages/ProviderStaff";
 import ProviderEarnings from "./modules/provider/pages/ProviderEarnings";
@@ -77,6 +80,7 @@ import AdminEarnings from "./modules/admin/pages/AdminEarnings";
 import AdminCoupons from "./modules/admin/pages/AdminCoupons";
 import AdminFeedback from "./modules/admin/pages/AdminFeedback";
 import AdminServices from "./modules/admin/pages/AdminServices";
+import AdminLeads from "./modules/admin/pages/AdminLeads";
 import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
@@ -130,11 +134,12 @@ const App = () => (
           <SocketProvider>
             <QueryClientProvider client={queryClient}>
               <TooltipProvider>
-                <Toaster />
-                <Sonner position="bottom-right" expand={true} richColors />
-                <GlobalAlarm />
-                <AnimatePresence mode="wait">
-                  <Routes>
+                <ConfirmDialogProvider>
+                  <Toaster />
+                  <Sonner position="bottom-right" expand={true} richColors />
+                  <GlobalAlarm />
+                  <AnimatePresence mode="wait">
+                    <Routes>
                     {/* User Panel as Default */}
                     <Route path="/" element={<Navigate to="/home" replace />} />
                     <Route path="/login" element={<CustomerLogin />} />
@@ -157,6 +162,7 @@ const App = () => (
                       <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
                       <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
                       <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
+                      <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer"]}><LeadRequirementForm /></ProtectedRoute>} />
                       <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
                       <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
                       <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />
@@ -197,6 +203,7 @@ const App = () => (
                     <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
                     <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
                     <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
+                    <Route path="/provider/leads" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderLeads /></ProtectedRoute>} />
 
                     {/* Admin Routes with Persistent Layout */}
                     <Route path="/admin" element={<AdminLayout />}>
@@ -212,6 +219,7 @@ const App = () => (
                       <Route path="verify-employees" element={<AdminVerifyEmployee />} />
                       <Route path="verify-combos" element={<AdminVerifyCombo />} />
                       <Route path="bookings" element={<AdminBookings />} />
+                      <Route path="leads" element={<AdminLeads />} />
                       <Route path="earnings" element={<AdminEarnings />} />
                       <Route path="coupons" element={<AdminCoupons />} />
                       <Route path="feedback" element={<AdminFeedback />} />
@@ -255,6 +263,7 @@ const App = () => (
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </AnimatePresence>
+                </ConfirmDialogProvider>
               </TooltipProvider>
             </QueryClientProvider>
           </SocketProvider>

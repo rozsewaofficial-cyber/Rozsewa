@@ -5,6 +5,7 @@ import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Clock, Navigation } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
@@ -12,6 +13,7 @@ const ProviderProfile = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const draft = JSON.parse(sessionStorage.getItem("provider-profile-draft") || "{}");
   const [isEditing, setIsEditing] = useState(draft.isEditing || false);
   const [profileData, setProfileData] = useState(draft.profileData || {
@@ -112,8 +114,12 @@ const ProviderProfile = () => {
 
       try {
         const isShopNameChanged = updatedProfile.shopName !== user.shopName;
-        if (isShopNameChanged && !window.confirm("Changing shop name will reset your verification status to PENDING. Admin will need to re-verify your business. Continue?")) {
-          return;
+        if (isShopNameChanged) {
+          const ok = await confirm(
+            "Changing your shop name will reset your verification status to PENDING. Admin will need to re-verify your business.",
+            { title: "Change Shop Name?", confirmLabel: "Yes, Change It", cancelLabel: "Keep Current" }
+          );
+          if (!ok) return;
         }
         await API.put("/provider/profile", updatedProfile);
         setProfileData(updatedProfile);

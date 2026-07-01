@@ -22,7 +22,14 @@ const AdminSettings = () => {
     autoAssign: true,
     vendorCardEnabled: true,
     vendorCardPrice: 99,
-    max_bargain_discount_limit: 20
+    max_bargain_discount_limit: 20,
+    lead_min_wallet_balance: 200,
+    lead_max_unlock_count: 1,
+    lead_geofence_radius: 15,
+    lead_expiry: 24,
+    lead_dispute_enabled: true,
+    lead_refund_enabled: true,
+    lead_pay_per_lead_enabled: true
   });
 
   const [adminProfile, setAdminProfile] = useState({
@@ -53,6 +60,13 @@ const AdminSettings = () => {
         vendorCardEnabled: data.vendorCardEnabled !== undefined ? data.vendorCardEnabled : true,
         vendorCardPrice: data.vendorCardPrice || 99,
         max_bargain_discount_limit: data.max_bargain_discount_limit !== undefined ? data.max_bargain_discount_limit : 20,
+        lead_min_wallet_balance: data.lead_min_wallet_balance || 200,
+        lead_max_unlock_count: data.lead_max_unlock_count || 1,
+        lead_geofence_radius: data.lead_geofence_radius || 15,
+        lead_expiry: data.lead_expiry || 24,
+        lead_dispute_enabled: data.lead_dispute_enabled !== undefined ? (data.lead_dispute_enabled === 'true' || data.lead_dispute_enabled === true) : true,
+        lead_refund_enabled: data.lead_refund_enabled !== undefined ? (data.lead_refund_enabled === 'true' || data.lead_refund_enabled === true) : true,
+        lead_pay_per_lead_enabled: data.lead_pay_per_lead_enabled !== undefined ? (data.lead_pay_per_lead_enabled === 'true' || data.lead_pay_per_lead_enabled === true) : true,
       });
       setPolicySettings({
         terms: data.terms || "",
@@ -105,6 +119,27 @@ const AdminSettings = () => {
       setLoading(false);
     }
   }
+
+  const saveLeadSettingsGroup = async () => {
+    setLoading(true);
+    try {
+      const updates = [
+        API.post("/admin/settings", { key: "lead_min_wallet_balance", value: platformSettings.lead_min_wallet_balance }),
+        API.post("/admin/settings", { key: "lead_max_unlock_count", value: platformSettings.lead_max_unlock_count }),
+        API.post("/admin/settings", { key: "lead_geofence_radius", value: platformSettings.lead_geofence_radius }),
+        API.post("/admin/settings", { key: "lead_expiry", value: platformSettings.lead_expiry }),
+        API.post("/admin/settings", { key: "lead_dispute_enabled", value: platformSettings.lead_dispute_enabled }),
+        API.post("/admin/settings", { key: "lead_refund_enabled", value: platformSettings.lead_refund_enabled }),
+        API.post("/admin/settings", { key: "lead_pay_per_lead_enabled", value: platformSettings.lead_pay_per_lead_enabled }),
+      ];
+      await Promise.all(updates);
+      toast({ title: "Lead Rules Saved", description: "Global lead controls updated successfully." });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to save lead settings.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSavePolicies = async () => {
     setLoading(true);
@@ -264,6 +299,66 @@ const AdminSettings = () => {
                     <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${platformSettings.vendorCardEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-gray-100 bg-white p-6 md:p-8 shadow-sm">
+            <div className="mb-6 flex items-center justify-between border-b border-gray-100 pb-4">
+              <h3 className="text-lg font-bold text-gray-900 border-l-4 border-blue-500 pl-3 text-left">Lead Model settings</h3>
+              <button onClick={saveLeadSettingsGroup} className="flex items-center gap-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 px-4 py-2 text-xs font-bold text-blue-700 transition-colors border border-blue-200 shadow-sm">
+                <Save className="h-4 w-4" /> Save Lead Rules
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left mb-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Min. Wallet Balance (₹)</label>
+                <input type="number" value={platformSettings.lead_min_wallet_balance} onChange={e => setPlatformSettings({ ...platformSettings, lead_min_wallet_balance: Number(e.target.value) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Max Unlock Limit</label>
+                <input type="number" value={platformSettings.lead_max_unlock_count} onChange={e => setPlatformSettings({ ...platformSettings, lead_max_unlock_count: Number(e.target.value) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Geofence Radius (KM)</label>
+                <input type="number" value={platformSettings.lead_geofence_radius} onChange={e => setPlatformSettings({ ...platformSettings, lead_geofence_radius: Number(e.target.value) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Lead Expiry (Hours)</label>
+                <input type="number" value={platformSettings.lead_expiry} onChange={e => setPlatformSettings({ ...platformSettings, lead_expiry: Number(e.target.value) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-gray-100 text-left">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 border border-gray-100">
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900">Enable Lead Disputes</h4>
+                  <p className="text-xs text-gray-500">Allow providers to file refund disputes for invalid leads.</p>
+                </div>
+                <button onClick={() => setPlatformSettings(prev => ({ ...prev, lead_dispute_enabled: !prev.lead_dispute_enabled }))} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${platformSettings.lead_dispute_enabled ? 'bg-blue-600' : 'bg-gray-200'}`} role="switch">
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white transition duration-200 ${platformSettings.lead_dispute_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 border border-gray-100">
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900">Enable Dispute Refunds</h4>
+                  <p className="text-xs text-gray-500">Enable automated credit or wallet balances refund upon dispute approval.</p>
+                </div>
+                <button onClick={() => setPlatformSettings(prev => ({ ...prev, lead_refund_enabled: !prev.lead_refund_enabled }))} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${platformSettings.lead_refund_enabled ? 'bg-blue-600' : 'bg-gray-200'}`} role="switch">
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white transition duration-200 ${platformSettings.lead_refund_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 border border-gray-100">
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900">Pay Per Lead Fallback</h4>
+                  <p className="text-xs text-gray-500">Allow direct payment checkout when wallet balance and subscription credits are low.</p>
+                </div>
+                <button onClick={() => setPlatformSettings(prev => ({ ...prev, lead_pay_per_lead_enabled: !prev.lead_pay_per_lead_enabled }))} className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${platformSettings.lead_pay_per_lead_enabled ? 'bg-blue-600' : 'bg-gray-200'}`} role="switch">
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white transition duration-200 ${platformSettings.lead_pay_per_lead_enabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
               </div>
             </div>
           </div>

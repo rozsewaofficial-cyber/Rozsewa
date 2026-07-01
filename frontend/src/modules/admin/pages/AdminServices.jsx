@@ -4,6 +4,7 @@ import { useOutletContext } from "react-router-dom";
 import { Plus, Search, Edit, Trash2, Loader2, Image as ImageIcon, Layers, X, Briefcase, Zap, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 import { normalizeNonNegativeNumber, validateNonNegativeNumber } from "@/lib/numberValidation";
 
@@ -19,6 +20,7 @@ const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 
 const AdminServices = () => {
     const { setTitle } = useOutletContext();
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -37,6 +39,8 @@ const AdminServices = () => {
         partnerCommissionBasic: 25,
         partnerCommissionStandard: 20,
         partnerCommissionPremium: 15,
+        businessModel: "commission",
+        defaultLeadPrice: 0,
         services: [] // Default sub-services
     });
 
@@ -97,14 +101,15 @@ const AdminServices = () => {
             }
             setShowModal(false);
             setEditingCat(null);
-            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
+            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, businessModel: "commission", defaultLeadPrice: 0, services: [] });
         } catch (err) {
             toast({ title: "Save Failed", variant: "destructive" });
         }
     };
 
     const deleteCategory = async (id) => {
-        if (!window.confirm("Delete this category and all its default services?")) return;
+        const ok = await confirm("This will permanently delete the category and all its base services.", { title: "Delete Industry", confirmLabel: "Delete", destructive: true });
+        if (!ok) return;
         try {
             await API.delete(`/admin/categories/${id}`);
             setCategories(categories.filter(c => c._id !== id));
@@ -115,7 +120,7 @@ const AdminServices = () => {
     };
 
     const addServiceRow = () => {
-        setNewCat({ ...newCat, services: [...newCat.services, { name: "", basePrice: 0 }] });
+        setNewCat({ ...newCat, services: [...newCat.services, { name: "", basePrice: 0, useCategoryLeadPrice: true, customLeadPrice: 0 }] });
     };
 
     const removeServiceRow = (idx) => {
@@ -141,6 +146,8 @@ const AdminServices = () => {
             partnerCommissionBasic: cat.partnerCommissionBasic || 25,
             partnerCommissionStandard: cat.partnerCommissionStandard || 20,
             partnerCommissionPremium: cat.partnerCommissionPremium || 15,
+            businessModel: cat.businessModel || "commission",
+            defaultLeadPrice: cat.defaultLeadPrice || 0,
             services: cat.services || []
         });
         setShowModal(true);
@@ -176,7 +183,7 @@ const AdminServices = () => {
                 <button
                     onClick={() => {
                         setEditingCat(null);
-                        setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, services: [] });
+                        setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, businessModel: "commission", defaultLeadPrice: 0, services: [] });
                         setShowModal(true);
                     }}
                     className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95"
@@ -253,13 +260,26 @@ const AdminServices = () => {
                                 </div>
                             </div>
 
-                            <div className="flex items-start justify-between gap-2 mb-1.5">
-                                <h3 className="text-lg font-black text-gray-900 tracking-tight leading-tight">{cat.name}</h3>
-                                {cat.isComingSoon && (
-                                    <span className="shrink-0 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase tracking-widest mt-0.5">
-                                        Soon
-                                    </span>
-                                )}
+                            <div className="flex flex-col gap-1 items-start mb-1.5">
+                                <div className="flex items-center justify-between w-full">
+                                    <h3 className="text-lg font-black text-gray-900 tracking-tight leading-tight">{cat.name}</h3>
+                                    {cat.isComingSoon && (
+                                        <span className="shrink-0 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase tracking-widest">
+                                            Soon
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex gap-1.5 flex-wrap mt-0.5">
+                                    {cat.businessModel === 'lead' ? (
+                                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100 text-[9px] font-black uppercase tracking-widest">
+                                            Lead (₹{cat.defaultLeadPrice})
+                                        </span>
+                                    ) : (
+                                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 text-[9px] font-black uppercase tracking-widest">
+                                            Commission
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             
                             <p className="text-xs text-gray-500 font-medium mb-4 line-clamp-2 min-h-[32px]">
@@ -383,7 +403,50 @@ const AdminServices = () => {
                                         </div>
                                     </div>
 
+                                    {/* Section 3: Business Model Settings */}
+                                    <div className="space-y-4 pt-4 border-t border-gray-100">
+                                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Business Model Setup
+                                        </h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <InputField label="Business Model">
+                                                <select
+                                                    value={newCat.businessModel}
+                                                    onChange={e => setNewCat({ ...newCat, businessModel: e.target.value })}
+                                                    className={inputCls}
+                                                >
+                                                    <option value="commission">Commission-Based</option>
+                                                    <option value="lead">Lead-Based</option>
+                                                </select>
+                                            </InputField>
 
+                                            {newCat.businessModel === 'lead' ? (
+                                                <InputField label="Default Lead Price (₹)">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={newCat.defaultLeadPrice}
+                                                        onChange={e => setNewCat({ ...newCat, defaultLeadPrice: Number(e.target.value) })}
+                                                        className={inputCls}
+                                                        placeholder="e.g. 100"
+                                                        required
+                                                    />
+                                                </InputField>
+                                            ) : (
+                                                <div className="grid grid-cols-3 gap-2 col-span-1">
+                                                    <InputField label="Basic %">
+                                                        <input type="number" min="0" max="100" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className={inputCls} />
+                                                    </InputField>
+                                                    <InputField label="Standard %">
+                                                        <input type="number" min="0" max="100" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className={inputCls} />
+                                                    </InputField>
+                                                    <InputField label="Premium %">
+                                                        <input type="number" min="0" max="100" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className={inputCls} />
+                                                    </InputField>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
 
                                     {/* Section 4: Managed Services */}
                                     <div className="space-y-4 pt-4 border-t border-gray-100">
@@ -404,9 +467,38 @@ const AdminServices = () => {
                                                     <div key={idx} className="flex gap-2 items-center bg-white border border-gray-200 rounded-xl p-2 shadow-sm">
                                                         <div className="h-8 w-8 rounded bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 shrink-0 border border-gray-100">{idx + 1}</div>
                                                         <input type="text" placeholder="Service Name" value={s.name} onChange={e => updateServiceRow(idx, 'name', e.target.value)} className="flex-1 rounded-lg border-none bg-transparent px-2 text-sm font-bold focus:ring-0 outline-none" required />
-                                                        <div className="relative w-32 shrink-0 border-l border-gray-100 pl-2">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
-                                                            <input type="number" min="0" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', normalizeNonNegativeNumber(e.target.value))} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
+                                                        <div className="relative w-36 shrink-0 border-l border-gray-100 pl-2">
+                                                            {newCat.businessModel === 'lead' ? (
+                                                                <div className="flex flex-col items-start gap-1 justify-center h-full">
+                                                                    <label className="flex items-center gap-1 text-[9px] font-bold text-gray-500 cursor-pointer">
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={s.useCategoryLeadPrice !== false} 
+                                                                            onChange={e => updateServiceRow(idx, 'useCategoryLeadPrice', e.target.checked)}
+                                                                            className="rounded text-blue-600 focus:ring-blue-500 h-3 w-3"
+                                                                        />
+                                                                        Default (₹{newCat.defaultLeadPrice})
+                                                                    </label>
+                                                                    {s.useCategoryLeadPrice === false && (
+                                                                        <div className="relative mt-1">
+                                                                            <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
+                                                                            <input 
+                                                                                type="number" 
+                                                                                min="0" 
+                                                                                placeholder="Lead Price" 
+                                                                                value={s.customLeadPrice || 0} 
+                                                                                onChange={e => updateServiceRow(idx, 'customLeadPrice', normalizeNonNegativeNumber(e.target.value))} 
+                                                                                className="w-full rounded-lg border border-gray-200 py-1 pl-4 text-xs font-bold focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 bg-white" 
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
+                                                                    <input type="number" min="0" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', normalizeNonNegativeNumber(e.target.value))} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
+                                                                </>
+                                                            )}
                                                         </div>
                                                         <button type="button" onClick={() => removeServiceRow(idx)} className="h-8 w-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg shrink-0 transition-colors"><Trash2 className="h-4 w-4" /></button>
                                                     </div>

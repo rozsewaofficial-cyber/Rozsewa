@@ -25,6 +25,7 @@ export const adminSidebarLinks = [
   { path: "/admin/sewak-pricing", label: "Sewak Pricing Management", icon: IndianRupee },
   // { path: "/admin/kyc", label: "KYC Verification", icon: ShieldCheck },
   { path: "/admin/bookings", label: "Bookings", icon: CalendarDays },
+  { path: "/admin/leads", label: "Leads Management", icon: Briefcase },
   { path: "/admin/dispatch", label: "Job Dispatching", icon: Zap },
   { path: "/admin/emergency", label: "24x7 Emergency", icon: ShieldAlert },
   { path: "/admin/99cards", label: "Registration / 99 Cards", icon: CreditCard },

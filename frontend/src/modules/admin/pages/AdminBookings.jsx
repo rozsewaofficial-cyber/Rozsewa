@@ -3,6 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { Search, Download, CalendarDays, IndianRupee, Loader2, Clock, Image, Filter, Users, TrendingUp, XCircle, CheckCircle2, Truck, Play, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 
 const STATUS_CONFIG = {
@@ -22,6 +23,7 @@ const PAYMENT_LABELS = {
 const AdminBookings = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,7 +47,8 @@ const AdminBookings = () => {
   };
 
   const handleDeleteBooking = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this booking?")) return;
+    const ok = await confirm("This will permanently delete the booking record.", { title: "Delete Booking", confirmLabel: "Delete", destructive: true });
+    if (!ok) return;
     try {
       const { data } = await API.delete(`/admin/bookings/${id}`);
       if (data.success) {

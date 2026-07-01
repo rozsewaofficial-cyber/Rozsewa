@@ -6,6 +6,7 @@ const providerSubscriptionSchema = new mongoose.Schema({
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
     pricePaid: { type: Number },
+    creditsRemaining: { type: Number, default: 0 },
     status: { type: String, enum: ['active', 'expired', 'cancelled'], default: 'active' }
 }, { timestamps: true });
 

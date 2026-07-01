@@ -149,6 +149,32 @@ const providerSchema = mongoose.Schema({
         type: Date,
         default: null
     },
+    subscriptionPlan: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SubscriptionPlan',
+        default: null
+    },
+    leadCredits: {
+        type: Number,
+        default: 0
+    },
+    canReceiveLead: {
+        type: Boolean,
+        default: true
+    },
+    leadWalletEnabled: {
+        type: Boolean,
+        default: true
+    },
+    minimumWalletEligible: {
+        type: Boolean,
+        default: true
+    },
+    providerType: {
+        type: String,
+        enum: ['commission', 'lead', 'both'],
+        default: 'commission'
+    },
     subscriptionPurchaseDate: {
         type: Date,
         default: null

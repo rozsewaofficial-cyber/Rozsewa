@@ -49,6 +49,8 @@ self.addEventListener('notificationclick', (event) => {
       targetUrl = data.url;
     } else if (data.type === 'booking' || data.bookingId) {
       targetUrl = '/provider/bookings';
+    } else if (data.type === 'lead' || data.leadId) {
+      targetUrl = '/provider/leads';
     }
   }
 

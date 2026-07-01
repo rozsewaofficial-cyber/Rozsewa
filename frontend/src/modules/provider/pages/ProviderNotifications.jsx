@@ -58,6 +58,8 @@ const ProviderNotifications = () => {
     let targetLink = "";
     if (notif.type === "booking" || notif.bookingId) {
       targetLink = `/provider/bookings`;
+    } else if (notif.type === "lead" || notif.leadId) {
+      targetLink = `/provider/leads`;
     } else if (notif.type === "payment") {
       targetLink = `/provider/wallet`;
     }
@@ -73,6 +75,12 @@ const ProviderNotifications = () => {
       case "warning": return <AlertTriangle className="h-5 w-5 text-amber-500" />;
       default: return <Info className="h-5 w-5 text-blue-500" />;
     }
+  };
+
+  const formatTime = (createdAt) => {
+    if (!createdAt) return "";
+    const date = new Date(createdAt);
+    return `${date.toLocaleDateString("en-IN")} · ${date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })}`;
   };
 
   const hasUnread = notifications.some(n => !n.isRead);
@@ -118,7 +126,7 @@ const ProviderNotifications = () => {
                       {n.title}
                       {!n.isRead && <span className="h-1.5 w-1.5 rounded-full bg-rose-500 inline-block shrink-0"></span>}
                     </h3>
-                    <span className="text-[10px] whitespace-nowrap text-muted-foreground font-semibold ml-2">{n.time || new Date(n.createdAt).toLocaleDateString()}</span>
+                    <span className="text-[10px] whitespace-nowrap text-muted-foreground font-semibold ml-2">{formatTime(n.createdAt)}</span>
                   </div>
                   <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">{n.desc || n.message}</p>
                 </div>

@@ -87,6 +87,14 @@ const {
 } = require('../controllers/adminController');
 
 const {
+    getAdminLeads,
+    getAdminDisputes,
+    resolveDispute,
+    forceCloseLead,
+    getAdminStats: getAdminLeadStats
+} = require('../controllers/leadController');
+
+const {
     getBenefitPolicies,
     createBenefitPolicy,
     updateBenefitPolicy,
@@ -248,5 +256,12 @@ router.delete('/sewak-enquiries/:id', protect, admin, deleteEnquiry);
 // Partner Program Configuration
 router.get('/partner-program-config', protect, admin, partnerConfigController.getConfig);
 router.put('/partner-program-config', protect, admin, partnerConfigController.updateConfig);
+
+// Lead Management
+router.get('/leads', protect, admin, getAdminLeads);
+router.get('/leads/disputes', protect, admin, getAdminDisputes);
+router.post('/leads/disputes/:id/resolve', protect, admin, resolveDispute);
+router.post('/leads/:id/close', protect, admin, forceCloseLead);
+router.get('/leads/stats', protect, admin, getAdminLeadStats);
 
 module.exports = router;

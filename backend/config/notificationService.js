@@ -281,7 +281,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
         const { emitToUser, emitToProvider } = require('./socket');
 
         const titleKey = title ? title.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-        const idKey = bookingId ? bookingId.toString() : (data?.bookingId || data?.id || 'default');
+        const idKey = bookingId ? bookingId.toString() : (data?.bookingId || data?.leadId || data?.id || 'default');
         const eventKey = `${userId}_${type}_${idKey}_${titleKey}`;
 
         // 1. Atomic Duplicate Prevention using findOneAndUpdate + upsert
@@ -309,6 +309,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                 type,
             };
             if (bookingId) notificationData.bookingId = bookingId;
+            if (data?.leadId) notificationData.leadId = data.leadId;
 
             newNotification = await Notification.create(notificationData);
             inAppStatus = 'success';
@@ -328,6 +329,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                 message,
                 type,
                 bookingId,
+                leadId: data?.leadId,
                 createdAt: newNotification ? newNotification.createdAt : new Date(),
                 isRead: false,
                 ...data

@@ -4,11 +4,13 @@ import { useScrollLock } from "@/lib/scrollLock";
 import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail, X, MapPin, ChevronLeft, ChevronRight, Users, Activity, AlertOctagon, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 
 const AdminUsers = () => {
     const { setTitle } = useOutletContext();
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -77,7 +79,8 @@ const AdminUsers = () => {
     };
 
     const handleDeleteUser = async (id) => {
-        if (!window.confirm("Are you sure you want to permanently delete this user? This action cannot be undone.")) return;
+        const ok = await confirm("This will permanently delete the user and all their booking history. This cannot be undone.", { title: "Delete User", confirmLabel: "Delete Forever", destructive: true });
+        if (!ok) return;
         try {
             const { data } = await API.delete(`/admin/users/${id}`);
             if (data.success) {

@@ -15,6 +15,8 @@ const serviceSchema = mongoose.Schema({
     image: { type: String },
     amenities: [{ type: String }],
     serviceDetails: [{ type: String }],
+    useCategoryLeadPrice: { type: Boolean, default: true },
+    customLeadPrice: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now }
 }, {
     timestamps: true

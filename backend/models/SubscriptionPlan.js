@@ -13,7 +13,7 @@ const subscriptionPlanSchema = mongoose.Schema({
         ref: 'Category',
         required: false 
     },
-    offeredCommissionRate: { type: Number, required: true },
+    offeredCommissionRate: { type: Number, required: false },
     offeredCommissionType: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
     commissionRate: { type: Number }, // alias/new field
     duration: { type: Number, default: 365 }, // duration in days
@@ -26,7 +26,9 @@ const subscriptionPlanSchema = mongoose.Schema({
     ],
     description: { type: String },
     features: [{ type: String }],
-    isActive: { type: Boolean, default: true }
+    isActive: { type: Boolean, default: true },
+    leadCredits: { type: Number, default: 0 },
+    validity: { type: Number, default: 365 }
 }, {
     timestamps: true
 });

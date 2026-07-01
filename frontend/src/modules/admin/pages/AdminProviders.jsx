@@ -3,6 +3,7 @@ import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
     Plus, Edit, Trash2, Search, MapPin, CheckCircle,
     XCircle, Clock, Star, AlertTriangle, Loader2, ShieldCheck,
@@ -21,6 +22,7 @@ const statusStyles = {
 const AdminProviders = () => {
     const { setTitle } = useOutletContext();
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [providers, setProviders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -152,7 +154,8 @@ const AdminProviders = () => {
     };
 
     const handleManualCancelSub = async () => {
-        if (!window.confirm("Are you sure you want to terminate this provider's active subscription?")) return;
+        const ok = await confirm("This will immediately terminate the provider's active subscription and reset their commission rate.", { title: "Cancel Subscription", confirmLabel: "Terminate", destructive: true });
+        if (!ok) return;
         try {
             await API.post(`/admin/providers/${selectedProvider._id}/subscription/cancel`, {
                 reason: "Administrative cancellation"
@@ -245,7 +248,8 @@ const AdminProviders = () => {
     };
 
     const deleteProvider = async (id) => {
-        if (!window.confirm("Are you sure you want to remove this provider? This action cannot be undone.")) return;
+        const ok = await confirm("This will permanently remove the provider and all associated data. This cannot be undone.", { title: "Delete Provider", confirmLabel: "Delete Forever", destructive: true });
+        if (!ok) return;
         try {
             await API.delete(`/admin/providers/${id}`);
             setProviders(providers.filter(p => p._id !== id));

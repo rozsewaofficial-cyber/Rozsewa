@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Provider = require('../models/Provider');
 const User = require('../models/User');
 const Booking = require('../models/Booking');
@@ -428,6 +429,8 @@ const updateCategory = async (req, res) => {
         if (req.body.partnerCommissionBasic !== undefined) category.partnerCommissionBasic = req.body.partnerCommissionBasic;
         if (req.body.partnerCommissionStandard !== undefined) category.partnerCommissionStandard = req.body.partnerCommissionStandard;
         if (req.body.partnerCommissionPremium !== undefined) category.partnerCommissionPremium = req.body.partnerCommissionPremium;
+        if (req.body.businessModel !== undefined) category.businessModel = req.body.businessModel;
+        if (req.body.defaultLeadPrice !== undefined) category.defaultLeadPrice = req.body.defaultLeadPrice;
 
         if (req.body.services) {
             category.services = [];
@@ -802,6 +805,14 @@ const getSettings = async (req, res) => {
             privacy: config.privacy || "Standard Privacy",
             cancellation: config.cancellation || "Standard Cancellation",
             max_bargain_discount_limit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20,
+            // Lead Model settings
+            lead_min_wallet_balance: config.lead_min_wallet_balance || 200,
+            lead_max_unlock_count: config.lead_max_unlock_count || 3,
+            lead_geofence_radius: config.lead_geofence_radius || 15,
+            lead_expiry: config.lead_expiry || 24,
+            lead_dispute_enabled: config.lead_dispute_enabled !== undefined ? (config.lead_dispute_enabled === 'true' || config.lead_dispute_enabled === true) : true,
+            lead_refund_enabled: config.lead_refund_enabled !== undefined ? (config.lead_refund_enabled === 'true' || config.lead_refund_enabled === true) : true,
+            lead_pay_per_lead_enabled: config.lead_pay_per_lead_enabled !== undefined ? (config.lead_pay_per_lead_enabled === 'true' || config.lead_pay_per_lead_enabled === true) : true,
             adminProfile: {
                 name: req.user.name,
                 email: req.user.email,
@@ -827,11 +838,31 @@ const updateSettings = async (req, res) => {
             }
         }
 
+        const preSetting = await Setting.findOne({ key });
+        const oldValue = preSetting ? preSetting.value : null;
+
         await Setting.findOneAndUpdate(
             { key },
             { value, updatedAt: Date.now() },
             { upsert: true, new: true }
         );
+
+        // Audit Log entry
+        await AuditLog.create({
+            actionType: 'ADMIN_SETTING_UPDATE',
+            entityType: 'LEAD_SETTING',
+            entityId: new mongoose.Types.ObjectId(),
+            entityName: `Config setting updated: ${key}`,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name || "Admin",
+            verifiedByRole: req.user.role || "admin",
+            details: {
+                key,
+                oldValue,
+                newValue: value
+            }
+        });
+
         res.json({ success: true, message: `${key} updated` });
     } catch (error) {
         res.status(500).json({ message: error.message });
