@@ -24,7 +24,8 @@ const {
   updateBazaarSettings,
   editAdAdmin,
   getSellerOfferRequests,
-  getUserAds
+  getUserAds,
+  getBazaarTransactions
 } = require('../controllers/bazaarController');
 
 // ========================
@@ -74,5 +75,10 @@ router.delete('/admin/chat-templates/:id', protect, admin, deleteChatTemplate);
 router.get('/settings', getBazaarSettings);
 router.get('/admin/settings', protect, admin, getBazaarSettings);
 router.put('/admin/settings', protect, admin, updateBazaarSettings);
+
+// ========================
+// TRANSACTIONS / PAYMENTS
+// ========================
+router.get('/admin/transactions', protect, admin, getBazaarTransactions);
 
 module.exports = router;

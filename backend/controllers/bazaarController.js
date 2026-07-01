@@ -687,6 +687,34 @@ exports.updateBazaarSettings = async (req, res) => {
   }
 };
 
+// ========================
+// GET ALL TRANSACTIONS (ADMIN)
+// ========================
+
+exports.getBazaarTransactions = async (req, res) => {
+  try {
+    const offers = await BazaarOffer.find({
+      isLeadUnlockedByBuyer: true
+    })
+    .populate('buyerId', 'name phone')
+    .populate('sellerId', 'name phone')
+    .populate('adId', 'title price')
+    .sort({ updatedAt: -1 });
+
+    const setting = await Setting.findOne({ key: 'bazaar_rules' });
+    const commissionFee = setting?.value?.bazaarCommissionFee || 10;
+
+    res.json({
+      success: true,
+      data: offers,
+      commissionFee
+    });
+  } catch (error) {
+    console.error('Get Bazaar Transactions Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 
 exports.editAdAdmin = async (req, res) => {
   try {

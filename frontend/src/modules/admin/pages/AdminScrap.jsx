@@ -13,6 +13,8 @@ const AdminBazaarPage = () => {
   const [categories, setCategories] = useState([]);
   const [chatTemplates, setChatTemplates] = useState([]);
   const [bazaarRules, setBazaarRules] = useState({ minOfferPercentage: 50, maxCounterAttempts: 3, bazaarCommissionFee: 10 });
+  const [transactions, setTransactions] = useState([]);
+  const [commissionFee, setCommissionFee] = useState(10);
   const [loading, setLoading] = useState(true);
 
   // Template Form State
@@ -34,6 +36,8 @@ const AdminBazaarPage = () => {
       fetchChatTemplates();
     } else if (activeTab === 'rules') {
       fetchBazaarRules();
+    } else if (activeTab === 'transactions') {
+      fetchTransactions();
     } else {
       fetchCategories();
     }
@@ -128,9 +132,30 @@ const AdminBazaarPage = () => {
     try {
       setLoading(true);
       const res = await api.get('/bazaar/admin/settings');
-      if (res.data.success) setBazaarRules(res.data.data);
+      if (res.data.success) {
+        setBazaarRules({
+          minOfferPercentage: res.data.data.minOfferPercentage || 50,
+          maxCounterAttempts: res.data.data.maxCounterAttempts || 3,
+          bazaarCommissionFee: res.data.data.bazaarCommissionFee || 10
+        });
+      }
     } catch (err) {
       toast({ title: 'Failed to fetch rules', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/bazaar/admin/transactions');
+      if (res.data.success) {
+        setTransactions(res.data.data);
+        setCommissionFee(res.data.commissionFee || 10);
+      }
+    } catch (err) {
+      toast({ title: 'Failed to fetch transactions', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -251,47 +276,13 @@ const AdminBazaarPage = () => {
   return (
     <div className="space-y-4">
       {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'pending' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Pending Ads Review
-        </button>
-        <button
-          onClick={() => setActiveTab('live')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'live' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Manage All Ads
-        </button>
-        <button
-          onClick={() => setActiveTab('categories')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'categories' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Manage Categories
-        </button>
-        <button
-          onClick={() => setActiveTab('chatTemplates')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'chatTemplates' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Manage Chat Templates
-        </button>
-        <button
-          onClick={() => setActiveTab('rules')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-            activeTab === 'rules' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          Bargaining Rules
-        </button>
+      <div className="flex space-x-1 p-1 bg-slate-100 rounded-xl mb-6 overflow-x-auto scrollbar-hide">
+        <button onClick={() => setActiveTab('pending')} className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'pending' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Pending Approval</button>
+        <button onClick={() => setActiveTab('live')} className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'live' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Live Ads</button>
+        <button onClick={() => setActiveTab('categories')} className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'categories' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Categories</button>
+        <button onClick={() => setActiveTab('chatTemplates')} className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'chatTemplates' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Chat Templates</button>
+        <button onClick={() => setActiveTab('transactions')} className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'transactions' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Transactions</button>
+        <button onClick={() => setActiveTab('rules')} className={`px-4 py-2.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all ${activeTab === 'rules' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}>Bazaar Rules</button>
       </div>
 
       {activeTab === 'pending' && (
@@ -670,6 +661,64 @@ const AdminBazaarPage = () => {
                 Save Rules
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'transactions' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+            <h2 className="text-sm font-black text-gray-800">Lead Unlock Payments (Bazaar Commission)</h2>
+            <div className="bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1 rounded-full border border-blue-100">
+              Total Revenue: ₹{transactions.length * commissionFee}
+            </div>
+          </div>
+          
+          <div className="p-4 overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50 text-slate-500">
+                  <th className="p-3 text-xs font-bold uppercase tracking-wider">Date</th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wider">Buyer (Paid By)</th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wider">Seller (Lead Of)</th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wider">Ad Item</th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wider">Amount Paid</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {transactions.map((txn, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-3 text-sm text-slate-700 whitespace-nowrap">
+                      {new Date(txn.updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="p-3">
+                      <div className="text-sm font-bold text-slate-800">{txn.buyerId?.name || 'Unknown Buyer'}</div>
+                      <div className="text-xs text-slate-500">{txn.buyerId?.phone}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-sm font-bold text-slate-800">{txn.sellerId?.name || 'Unknown Seller'}</div>
+                      <div className="text-xs text-slate-500">{txn.sellerId?.phone}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-sm font-bold text-slate-800 line-clamp-1">{txn.adId?.title || 'Unknown Item'}</div>
+                      <div className="text-xs text-slate-500">Asking Price: ₹{txn.adId?.price}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="inline-flex items-center gap-1 bg-green-50 text-green-700 font-bold px-2.5 py-1 rounded-lg border border-green-200">
+                        ₹{commissionFee}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {transactions.length === 0 && !loading && (
+                  <tr>
+                    <td colSpan="5" className="p-8 text-center text-slate-500 font-medium">
+                      No payments received yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
