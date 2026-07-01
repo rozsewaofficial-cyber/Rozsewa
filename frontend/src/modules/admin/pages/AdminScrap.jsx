@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, ShoppingBag, CheckCircle, XCircle, Plus, Tag, Image as ImageIcon, Loader2, X } from 'lucide-react';
+import { Trash2, Edit2, ShoppingBag, CheckCircle, XCircle, Plus, Tag, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -9,8 +9,15 @@ const AdminBazaarPage = () => {
   
   const [ads, setAds] = useState([]);
   const [liveAds, setLiveAds] = useState([]);
+  const [editingAd, setEditingAd] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [chatTemplates, setChatTemplates] = useState([]);
+  const [bazaarRules, setBazaarRules] = useState({ minOfferPercentage: 50, maxCounterAttempts: 3, bazaarCommissionFee: 10 });
   const [loading, setLoading] = useState(true);
+
+  // Template Form State
+  const [newTemplateText, setNewTemplateText] = useState('');
+  const [newTemplateOrder, setNewTemplateOrder] = useState(0);
 
   // Category Form State
   const [newCatName, setNewCatName] = useState('');
@@ -23,6 +30,10 @@ const AdminBazaarPage = () => {
       fetchPendingAds();
     } else if (activeTab === 'live') {
       fetchLiveAdsAdmin();
+    } else if (activeTab === 'chatTemplates') {
+      fetchChatTemplates();
+    } else if (activeTab === 'rules') {
+      fetchBazaarRules();
     } else {
       fetchCategories();
     }
@@ -70,6 +81,90 @@ const AdminBazaarPage = () => {
       toast({ title: 'Failed to fetch categories', variant: 'destructive' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchChatTemplates = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/bazaar/chat-templates');
+      if (res.data.success) setChatTemplates(res.data.data);
+    } catch (err) {
+      toast({ title: 'Failed to fetch templates', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddTemplate = async (e) => {
+    e.preventDefault();
+    if (!newTemplateText) return;
+    try {
+      const res = await api.post('/bazaar/admin/chat-templates', { text: newTemplateText, order: newTemplateOrder });
+      if (res.data.success) {
+        toast({ title: 'Template Added' });
+        setNewTemplateText('');
+        fetchChatTemplates();
+      }
+    } catch (err) {
+      toast({ title: 'Failed to add template', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteTemplate = async (id) => {
+    if (!window.confirm('Delete this template?')) return;
+    try {
+      const res = await api.delete(`/bazaar/admin/chat-templates/${id}`);
+      if (res.data.success) {
+        toast({ title: 'Template Deleted' });
+        fetchChatTemplates();
+      }
+    } catch (err) {
+      toast({ title: 'Failed to delete template', variant: 'destructive' });
+    }
+  };
+
+  const fetchBazaarRules = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/bazaar/admin/settings');
+      if (res.data.success) setBazaarRules(res.data.data);
+    } catch (err) {
+      toast({ title: 'Failed to fetch rules', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateBazaarRules = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.put('/bazaar/admin/settings', bazaarRules);
+      if (res.data.success) {
+        toast({ title: 'Bazaar rules updated successfully' });
+      }
+    } catch (err) {
+      toast({ title: 'Failed to update rules', variant: 'destructive' });
+    }
+  };
+
+  const handleUpdateAd = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.put(`/bazaar/admin/ads/${editingAd._id}`, {
+        title: editingAd.title,
+        price: editingAd.price,
+        category: editingAd.category,
+        condition: editingAd.condition,
+        description: editingAd.description
+      });
+      if (res.data.success) {
+        toast({ title: 'Ad updated successfully' });
+        setEditingAd(null);
+        fetchLiveAdsAdmin(); // Refresh the list
+      }
+    } catch (err) {
+      toast({ title: 'Failed to update ad', variant: 'destructive' });
     }
   };
 
@@ -180,6 +275,22 @@ const AdminBazaarPage = () => {
           }`}
         >
           Manage Categories
+        </button>
+        <button
+          onClick={() => setActiveTab('chatTemplates')}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+            activeTab === 'chatTemplates' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Manage Chat Templates
+        </button>
+        <button
+          onClick={() => setActiveTab('rules')}
+          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+            activeTab === 'rules' ? 'bg-blue-600 text-white shadow' : 'bg-white text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          Bargaining Rules
         </button>
       </div>
 
@@ -322,13 +433,22 @@ const AdminBazaarPage = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleDeleteAd(item._id)}
-                          className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                          title="Delete Ad"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingAd(item)}
+                            className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                            title="Edit Ad"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAd(item._id)}
+                            className="p-1.5 bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                            title="Delete Ad"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -437,6 +557,201 @@ const AdminBazaarPage = () => {
                  </div>
                )}
              </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'chatTemplates' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+             <h2 className="text-sm font-black text-gray-800">Manage Chat Templates</h2>
+          </div>
+          
+          <div className="p-5">
+            <form onSubmit={handleAddTemplate} className="flex gap-4 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-200">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-600 uppercase mb-1 block">Template Text</label>
+                <input 
+                  type="text" 
+                  value={newTemplateText} 
+                  onChange={e => setNewTemplateText(e.target.value)}
+                  placeholder="e.g. Is this still available?"
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  required
+                />
+              </div>
+              <div className="w-24">
+                <label className="text-xs font-bold text-gray-600 uppercase mb-1 block">Order</label>
+                <input 
+                  type="number" 
+                  value={newTemplateOrder} 
+                  onChange={e => setNewTemplateOrder(Number(e.target.value))}
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+              </div>
+              <div className="flex items-end">
+                <button type="submit" className="px-5 py-2 h-[42px] bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> Add
+                </button>
+              </div>
+            </form>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {chatTemplates.map(template => (
+                <div key={template._id} className="border border-gray-200 rounded-xl p-4 flex items-center justify-between bg-white shadow-sm">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded mr-2">#{template.order}</span>
+                    <span className="text-sm font-bold text-gray-800">{template.text}</span>
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteTemplate(template._id)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              {chatTemplates.length === 0 && (
+                <div className="col-span-full text-center py-8 text-gray-500 text-sm font-medium">
+                  No chat templates added yet.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'rules' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+             <h2 className="text-sm font-black text-gray-800">Bazaar Bargaining Rules</h2>
+          </div>
+          
+          <div className="p-5 max-w-lg">
+            <form onSubmit={updateBazaarRules} className="space-y-6 bg-gray-50 p-6 rounded-xl border border-gray-200">
+              
+              <div>
+                <label className="text-sm font-bold text-gray-800 block mb-2">Minimum Offer Percentage (%)</label>
+                <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">Buyers cannot make an offer less than this percentage of the original asking price. For example, if set to 50, a ₹1000 item cannot get offers below ₹500.</p>
+                <input 
+                  type="number" 
+                  min="10" max="100"
+                  value={bazaarRules.minOfferPercentage} 
+                  onChange={e => setBazaarRules({...bazaarRules, minOfferPercentage: Number(e.target.value)})}
+                  className="w-full px-4 py-3 border rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-bold text-gray-800 block mb-2">Maximum Counter Attempts</label>
+                <p className="text-[11px] text-gray-500 mb-3 leading-relaxed">How many times the buyer and seller can counter-offer before the deal is automatically rejected/locked to prevent endless bargaining.</p>
+                <input 
+                  type="number" 
+                  min="1" max="10"
+                  value={bazaarRules.maxCounterAttempts} 
+                  onChange={e => setBazaarRules({...bazaarRules, maxCounterAttempts: Number(e.target.value)})}
+                  className="w-full px-4 py-3 border rounded-xl text-sm font-medium bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-bold text-slate-700">Commission Fee (₹)</label>
+                <p className="text-[10px] text-slate-500 mb-1">Fee paid by buyer to unlock seller contact after deal is locked.</p>
+                <input
+                  type="number"
+                  value={bazaarRules.bazaarCommissionFee}
+                  onChange={(e) => setBazaarRules({ ...bazaarRules, bazaarCommissionFee: parseInt(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+              
+              <button type="submit" className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
+                Save Rules
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Ad Modal */}
+      {editingAd && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-4 border-b border-slate-100">
+              <h3 className="font-black text-slate-800">Edit Ad Details</h3>
+              <button onClick={() => setEditingAd(null)} className="p-1 text-slate-400 hover:text-red-500 rounded-full hover:bg-red-50">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 overflow-y-auto">
+              <form id="editAdForm" onSubmit={handleUpdateAd} className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Title</label>
+                  <input
+                    type="text"
+                    value={editingAd.title}
+                    onChange={(e) => setEditingAd({...editingAd, title: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 mt-1"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Price (₹)</label>
+                  <input
+                    type="number"
+                    value={editingAd.price}
+                    onChange={(e) => setEditingAd({...editingAd, price: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 mt-1"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700">Category</label>
+                    <input
+                      type="text"
+                      value={editingAd.category}
+                      onChange={(e) => setEditingAd({...editingAd, category: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 mt-1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-700">Condition</label>
+                    <select
+                      value={editingAd.condition}
+                      onChange={(e) => setEditingAd({...editingAd, condition: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 mt-1"
+                    >
+                      <option value="New">New</option>
+                      <option value="Like New">Like New</option>
+                      <option value="Good">Good</option>
+                      <option value="Fair">Fair</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700">Description</label>
+                  <textarea
+                    value={editingAd.description || ''}
+                    onChange={(e) => setEditingAd({...editingAd, description: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-xl text-sm outline-none focus:border-blue-500 mt-1"
+                    rows="3"
+                  />
+                </div>
+              </form>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button onClick={() => setEditingAd(null)} type="button" className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">
+                Cancel
+              </button>
+              <button form="editAdForm" type="submit" className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-700">
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       )}

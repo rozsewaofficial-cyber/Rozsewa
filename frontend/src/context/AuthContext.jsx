@@ -94,11 +94,30 @@ export const AuthProvider = ({ children }) => {
           localStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
 
           try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}`);
-            const data = await res.json();
-            const detectedCity = data.address?.city || data.address?.town || data.address?.village || "";
-            if (detectedCity) {
-              localStorage.setItem("rozsewa_user_city", detectedCity);
+            const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+            
+            if (apiKey) {
+              // Google Maps Reverse Geocoding
+              const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.lat},${loc.lng}&key=${apiKey}`);
+              const data = await res.json();
+              
+              if (data.results && data.results.length > 0) {
+                const addressComponents = data.results[0].address_components;
+                const cityComponent = addressComponents.find(c => c.types.includes('locality')) || 
+                                      addressComponents.find(c => c.types.includes('administrative_area_level_2'));
+                
+                if (cityComponent) {
+                  localStorage.setItem("rozsewa_user_city", cityComponent.long_name);
+                }
+              }
+            } else {
+              // Fallback to OpenStreetMap if no Google API key is set
+              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}`);
+              const data = await res.json();
+              const detectedCity = data.address?.city || data.address?.town || data.address?.village || "";
+              if (detectedCity) {
+                localStorage.setItem("rozsewa_user_city", detectedCity);
+              }
             }
           } catch (e) {
             console.error("Reverse geocoding failed on startup:", e);

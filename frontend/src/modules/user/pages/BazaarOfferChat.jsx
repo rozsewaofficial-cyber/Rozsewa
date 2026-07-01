@@ -1,12 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2, Send, ShieldAlert, Unlock, Delete } from 'lucide-react';
+import { ArrowLeft, Loader2, Send, ShieldAlert, Unlock, Delete, Phone, MapPin, Lock } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-
-const QUICK_REPLIES = [
-  'Available?', 'Pickup Only?', 'Bill Available?', 'Warranty?', 'Delivery Possible?', 'Price Negotiable?'
-];
 
 const BazaarOfferChat = () => {
   const { id } = useParams();
@@ -18,6 +14,9 @@ const BazaarOfferChat = () => {
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
+  const [chatTemplates, setChatTemplates] = useState([]);
+  const [commissionFee, setCommissionFee] = useState(10);
+  const [isPayingFee, setIsPayingFee] = useState(false);
   
   const [numericInput, setNumericInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,6 +69,17 @@ const BazaarOfferChat = () => {
       const historyRes = await api.get(`/bazaar/offer/${id}`);
       if (historyRes.data.success && historyRes.data.data.length > 0) {
         setOfferThread(historyRes.data.data[0]);
+      }
+      
+      const templatesRes = await api.get(`/bazaar/chat-templates`);
+      if (templatesRes.data.success) {
+        setChatTemplates(templatesRes.data.data.map(t => t.text));
+      }
+
+      // Fetch commission fee
+      const settingsRes = await api.get('/bazaar/settings');
+      if (settingsRes.data.success && settingsRes.data.data?.bazaarCommissionFee !== undefined) {
+        setCommissionFee(settingsRes.data.data.bazaarCommissionFee);
       }
     } catch (err) {
       console.error('fetchData error:', err);
@@ -133,15 +143,69 @@ const BazaarOfferChat = () => {
     } finally { setIsSubmitting(false); }
   };
 
-  const handleUnlockLead = async () => {
+  const loadRazorpayScript = () => new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+
+  const handlePayToUnlock = async () => {
     if (!offerThread) return;
     try {
-      setIsSubmitting(true);
-      const res = await api.post('/bazaar/lead/unlock', { offerId: offerThread._id });
-      if (res.data.success) { showToast('Lead Unlocked! ₹10 deducted.'); fetchData(); }
+      setIsPayingFee(true);
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        showToast('Razorpay SDK failed to load. Check your internet connection.', true);
+        return;
+      }
+
+      // Create Razorpay order
+      const orderRes = await api.post('/payment/order', {
+        amount: commissionFee,
+        currency: 'INR'
+      });
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: orderRes.data.amount,
+        currency: 'INR',
+        name: 'Rojsewa Bazaar',
+        description: `Lead Unlock Fee — ${ad?.title}`,
+        order_id: orderRes.data.id,
+        handler: async (response) => {
+          try {
+            const verifyRes = await api.post('/payment/verify-bazaar', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              offerId: offerThread._id
+            });
+            if (verifyRes.data.success) {
+              showToast('🎉 Payment successful! Contact details unlocked.');
+              fetchData();
+            } else {
+              showToast('Payment verification failed. Contact support.', true);
+            }
+          } catch (e) {
+            showToast('Payment verification error.', true);
+          }
+        },
+        prefill: {
+          name: user?.name || '',
+          contact: user?.mobile || ''
+        },
+        theme: { color: '#4f46e5' }
+      };
+
+      new window.Razorpay(options).open();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to unlock lead', true);
-    } finally { setIsSubmitting(false); }
+      showToast(err.response?.data?.message || 'Failed to initiate payment', true);
+    } finally {
+      setIsPayingFee(false);
+    }
   };
 
   if (loading) {
@@ -236,7 +300,7 @@ const BazaarOfferChat = () => {
 
         {offerThread?.offerHistory?.length > 0 ? (
           offerThread.offerHistory.map((msg, idx) => {
-            const isMe = msg.senderId?.toString() === userId?.toString();
+            const isMe = msg.senderId?.toString() === currentUserId?.toString();
             if (msg.actionType === 'system_message') {
               return (
                 <div key={idx} className="flex justify-center my-1">
@@ -273,18 +337,85 @@ const BazaarOfferChat = () => {
       <div className="bg-white border-t border-slate-100 px-4 py-4 shrink-0">
         {isDealLocked ? (
           <div className="space-y-2">
+            {/* Deal Locked Banner */}
             <div className="bg-green-50 rounded-2xl p-3 border border-green-100 text-center">
-              <p className="text-xs font-bold text-green-700">🎉 Deal Locked at ₹{Number(offerThread?.currentOfferAmount || 0).toLocaleString('en-IN')}</p>
-              <p className="text-[10px] text-green-600 mt-0.5">Pay the lead fee to reveal contact info</p>
+              <p className="text-xs font-bold text-green-700">🔒 Deal Locked at ₹{Number(offerThread?.currentOfferAmount || 0).toLocaleString('en-IN')}</p>
             </div>
-            <button
-              onClick={handleUnlockLead}
-              disabled={isSubmitting}
-              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30"
-            >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Unlock className="w-5 h-5" />}
-              Pay ₹10 — Unlock Contact
-            </button>
+
+            {/* Already unlocked: Show contact info */}
+            {offerThread?.isLeadUnlockedByBuyer && !isSeller ? (
+              <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100 space-y-3">
+                <p className="text-xs font-black text-indigo-800 text-center uppercase tracking-wider">✅ Contact Unlocked</p>
+                {(ad?.contactDetails?.phone || offerThread?.sellerContactDetails?.phone) && (
+                  <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-indigo-100">
+                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                      <Phone className="w-4 h-4 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 font-semibold">Phone Number</p>
+                      <a href={`tel:${ad?.contactDetails?.phone || offerThread?.sellerContactDetails?.phone}`} className="text-base font-black text-slate-900">{ad?.contactDetails?.phone || offerThread?.sellerContactDetails?.phone}</a>
+                    </div>
+                  </div>
+                )}
+                {(ad?.location?.city || offerThread?.sellerLocation?.city) && (
+                  <a 
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      `${offerThread?.sellerLocation?.exactAddress ? offerThread.sellerLocation.exactAddress + ', ' : ''}${ad?.location?.areaName || offerThread?.sellerLocation?.areaName}, ${ad?.location?.city || offerThread?.sellerLocation?.city}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-indigo-100 hover:bg-indigo-50 transition-colors cursor-pointer"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <MapPin className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 font-semibold">Pickup Location <span className="text-blue-500 ml-1">(Tap to map)</span></p>
+                      <p className="text-sm font-black text-slate-900">
+                        {offerThread?.sellerLocation?.exactAddress ? `${offerThread.sellerLocation.exactAddress}, ` : ''}
+                        {ad?.location?.areaName || offerThread?.sellerLocation?.areaName}, {ad?.location?.city || offerThread?.sellerLocation?.city}
+                      </p>
+                    </div>
+                  </a>
+                )}
+              </div>
+            ) : !isSeller ? (
+              /* Buyer: Pay to unlock */
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-100">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
+                    <Lock className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-slate-900">Want to buy this?</p>
+                    <p className="text-[10px] text-slate-500">Pay a small fee to unlock the seller's contact & location</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="bg-white rounded-xl p-3 border border-indigo-100 text-center">
+                    <Phone className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                    <p className="text-[10px] text-slate-500">Phone Number</p>
+                  </div>
+                  <div className="bg-white rounded-xl p-3 border border-indigo-100 text-center">
+                    <MapPin className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                    <p className="text-[10px] text-slate-500">Exact Location</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handlePayToUnlock}
+                  disabled={isPayingFee}
+                  className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30 transition-all"
+                >
+                  {isPayingFee ? <Loader2 className="w-5 h-5 animate-spin" /> : <Unlock className="w-5 h-5" />}
+                  Pay ₹{commissionFee} — Unlock Contact & Location
+                </button>
+              </div>
+            ) : (
+              /* Seller view: deal done */
+              <div className="bg-green-50 rounded-2xl p-3 border border-green-100 text-center">
+                <p className="text-xs font-bold text-green-700">✅ Deal locked! Waiting for buyer to complete payment.</p>
+              </div>
+            )}
           </div>
         ) : isSeller ? (
           <div className="space-y-3">
@@ -318,9 +449,9 @@ const BazaarOfferChat = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {/* Quick Replies */}
+            {/* Quick Replies (Admin Controlled) */}
             <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {QUICK_REPLIES.map((reply, i) => (
+              {chatTemplates.map((reply, i) => (
                 <button
                   key={i} onClick={() => handleQuickReply(reply)} disabled={isSubmitting}
                   className="shrink-0 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-full border border-slate-200 disabled:opacity-40"
@@ -329,6 +460,18 @@ const BazaarOfferChat = () => {
                 </button>
               ))}
             </div>
+
+            {offerThread?.status === 'countered' && (
+              <div className="flex gap-2 pb-1">
+                <button
+                  onClick={() => handleSellerResponse('accept')}
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm transition-colors shadow-md shadow-green-500/20 disabled:opacity-40"
+                >
+                  ✓ Accept Seller's Offer (₹{Number(offerThread.currentOfferAmount).toLocaleString('en-IN')})
+                </button>
+              </div>
+            )}
 
             <div className="flex gap-2">
               <div 

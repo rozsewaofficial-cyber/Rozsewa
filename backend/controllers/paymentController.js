@@ -239,3 +239,36 @@ module.exports = {
     verifyWalletRecharge,
     checkExpiringSubscriptions
 };
+
+// @desc    Verify Razorpay Payment for Bazaar Commission (Unlock Contact)
+// @route   POST /api/payment/verify-bazaar
+// @access  Private (User)
+const verifyBazaarPayment = async (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, offerId } = req.body;
+
+    const sign = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSign = crypto
+        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+        .update(sign.toString())
+        .digest('hex');
+
+    if (razorpay_signature === expectedSign) {
+        const BazaarOffer = require('../models/BazaarOffer');
+        const offer = await BazaarOffer.findById(offerId);
+
+        if (!offer) {
+            return res.status(404).json({ success: false, message: 'Offer not found' });
+        }
+
+        // We assume the buyer paid this. Set isLeadUnlockedByBuyer to true.
+        offer.isLeadUnlockedByBuyer = true;
+        await offer.save();
+
+        res.json({ success: true, message: 'Payment verified! Contact details unlocked.' });
+    } else {
+        res.status(400).json({ success: false, message: 'Invalid payment signature' });
+    }
+};
+
+module.exports.verifyBazaarPayment = verifyBazaarPayment;
+

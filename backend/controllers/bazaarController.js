@@ -1,9 +1,12 @@
 const BazaarAd = require('../models/BazaarAd');
 const BazaarCategory = require('../models/BazaarCategory');
 const BazaarOffer = require('../models/BazaarOffer');
+const BazaarChatTemplate = require('../models/BazaarChatTemplate');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const Setting = require('../models/Setting');
 const { sendNotificationToUser } = require('../config/notificationService');
+const { validationResult } = require('express-validator');
 
 // ========================
 // USER ACTIONS
@@ -129,6 +132,18 @@ exports.getLiveAds = async (req, res) => {
     res.json({ success: true, count: ads.length, data: ads });
   } catch (error) {
     console.error('Get Live Ads Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Get User's Own Ads
+exports.getUserAds = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const ads = await BazaarAd.find({ sellerId: userId }).sort({ createdAt: -1 });
+    res.json({ success: true, count: ads.length, data: ads });
+  } catch (error) {
+    console.error('Get User Ads Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
@@ -342,6 +357,17 @@ exports.makeOffer = async (req, res) => {
       return res.status(400).json({ success: false, message: 'You cannot make an offer on your own ad' });
     }
 
+    // Fetch Admin Settings for Bargaining Rules
+    let settings = await Setting.findOne({ key: 'bazaar_rules' });
+    const rules = settings ? settings.value : { minOfferPercentage: 50, maxCounterAttempts: 3 };
+
+    if (actionType === 'numeric_offer') {
+      const minAllowed = (rules.minOfferPercentage / 100) * ad.price;
+      if (numericAmount < minAllowed) {
+         return res.status(400).json({ success: false, message: `Offer must be at least ${rules.minOfferPercentage}% of the asking price (₹${minAllowed})` });
+      }
+    }
+
     let offer = await BazaarOffer.findOne({ adId, buyerId });
 
     if (!offer) {
@@ -394,6 +420,28 @@ exports.makeOffer = async (req, res) => {
   }
 };
 
+// Get User Offers (where user is buyer or seller)
+exports.getUserOffers = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const offers = await BazaarOffer.find({
+      $or: [
+        { sellerId: userId },
+        { buyerId: userId }
+      ]
+    })
+    .populate('adId', 'title price images')
+    .populate('buyerId', 'name')
+    .populate('sellerId', 'name')
+    .sort({ updatedAt: -1 });
+
+    res.json({ success: true, data: offers });
+  } catch (error) {
+    console.error('Get User Offers Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 exports.respondToOffer = async (req, res) => {
   try {
     const { offerId, action, numericAmount } = req.body; // action: 'accept', 'reject', 'counter'
@@ -402,7 +450,10 @@ exports.respondToOffer = async (req, res) => {
     const offer = await BazaarOffer.findById(offerId).populate('adId');
     if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
 
-    if (offer.sellerId.toString() !== sellerId.toString()) {
+    const isSeller = offer.sellerId.toString() === sellerId.toString();
+    const isBuyer = offer.buyerId.toString() === sellerId.toString();
+
+    if (!isSeller && !isBuyer) {
        return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
@@ -411,6 +462,13 @@ exports.respondToOffer = async (req, res) => {
     }
 
     if (action === 'accept') {
+      if (isBuyer && offer.status !== 'countered') {
+        return res.status(400).json({ success: false, message: 'You can only accept a countered offer' });
+      }
+      if (isSeller && offer.status !== 'pending') {
+        return res.status(400).json({ success: false, message: 'You can only accept a pending offer' });
+      }
+
       offer.status = 'deal_locked';
       offer.offerHistory.push({
         actionType: 'system_message',
@@ -418,6 +476,7 @@ exports.respondToOffer = async (req, res) => {
         predefinedMessage: 'Deal Locked! Both parties must pay the lead fee to view contacts.'
       });
     } else if (action === 'reject') {
+      if (isBuyer) return res.status(403).json({ success: false, message: 'Only seller can explicitly reject' });
       offer.status = 'rejected';
       offer.offerHistory.push({
         actionType: 'system_message',
@@ -425,11 +484,16 @@ exports.respondToOffer = async (req, res) => {
         predefinedMessage: 'Offer Rejected by Seller.'
       });
     } else if (action === 'counter') {
+       if (isBuyer) return res.status(403).json({ success: false, message: 'Buyers cannot counter directly, make a new offer' });
        if (!numericAmount || isNaN(numericAmount) || numericAmount <= 0) {
          return res.status(400).json({ success: false, message: 'Invalid counter amount' });
        }
-       if (offer.counterAttempts >= 3) {
-         return res.status(400).json({ success: false, message: 'Maximum counter attempts reached.' });
+       
+       let settings = await Setting.findOne({ key: 'bazaar_rules' });
+       const rules = settings ? settings.value : { minOfferPercentage: 50, maxCounterAttempts: 3 };
+
+       if (offer.counterAttempts >= rules.maxCounterAttempts) {
+         return res.status(400).json({ success: false, message: `Maximum counter attempts (${rules.maxCounterAttempts}) reached.` });
        }
        
        offer.status = 'countered';
@@ -448,11 +512,12 @@ exports.respondToOffer = async (req, res) => {
     await offer.save();
 
     // Notify Buyer
+    const recipientId = isSeller ? offer.buyerId : offer.sellerId;
     await new Notification({
-      recipientId: offer.buyerId,
+      recipientId,
       recipientModel: 'User',
       title: action === 'accept' ? 'Deal Locked! 🤝' : (action === 'reject' ? 'Offer Rejected' : 'Counter Offer Received'),
-      message: action === 'accept' ? `Seller accepted your offer on "${offer.adId?.title}". Unlock contact now.` : `Seller responded to your offer on "${offer.adId?.title}"`,
+      message: action === 'accept' ? `${isSeller ? 'Seller' : 'Buyer'} accepted the offer on "${offer.adId?.title}". Unlock contact now.` : `Seller responded to your offer on "${offer.adId?.title}"`,
       type: 'bazaar'
     }).save();
 
@@ -476,12 +541,14 @@ exports.getOfferHistory = async (req, res) => {
 
     let offer;
     if (ad.sellerId.toString() === userId.toString()) {
-       // It's the seller looking at their ad's offers. We need all offers.
-       const offers = await BazaarOffer.find({ adId }).populate('buyerId', 'name avatar');
+       const offers = await BazaarOffer.find({ adId }).populate('buyerId', 'name avatar').lean();
        return res.json({ success: true, data: offers });
     } else {
-       // Buyer looking at their own thread
-       offer = await BazaarOffer.findOne({ adId, buyerId: userId });
+       offer = await BazaarOffer.findOne({ adId, buyerId: userId }).lean();
+       if (offer && offer.isLeadUnlockedByBuyer) {
+         offer.sellerContactDetails = ad.contactDetails;
+         offer.sellerLocation = ad.location;
+       }
        return res.json({ success: true, data: offer ? [offer] : [] });
     }
   } catch (error) {
@@ -538,6 +605,130 @@ exports.unlockLead = async (req, res) => {
     });
   } catch (error) {
     console.error('Unlock Lead Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+
+
+// ========================
+// CHAT TEMPLATE ACTIONS
+// ========================
+exports.getChatTemplates = async (req, res) => {
+  try {
+    const templates = await BazaarChatTemplate.find({ isActive: true }).sort({ order: 1 });
+    res.json({ success: true, data: templates });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+exports.createChatTemplate = async (req, res) => {
+  try {
+    const { text, order } = req.body;
+    const template = await BazaarChatTemplate.create({ text, order });
+    res.status(201).json({ success: true, data: template });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+exports.deleteChatTemplate = async (req, res) => {
+  try {
+    await BazaarChatTemplate.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Template deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+
+// ========================
+// BAZAAR RULES / SETTINGS
+// ========================
+exports.getBazaarSettings = async (req, res) => {
+  try {
+    let setting = await Setting.findOne({ key: 'bazaar_rules' });
+    if (!setting) {
+      setting = await new Setting({
+        key: 'bazaar_rules',
+        value: { minOfferPercentage: 50, maxCounterAttempts: 3, bazaarCommissionFee: 10 }
+      }).save();
+    }
+    res.json({ success: true, data: setting.value });
+  } catch (error) {
+    console.error('Get Bazaar Settings Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+exports.updateBazaarSettings = async (req, res) => {
+  try {
+    const { minOfferPercentage, maxCounterAttempts, bazaarCommissionFee } = req.body;
+    let setting = await Setting.findOne({ key: 'bazaar_rules' });
+    
+    const newValue = {
+      minOfferPercentage: minOfferPercentage || 50,
+      maxCounterAttempts: maxCounterAttempts || 3,
+      bazaarCommissionFee: bazaarCommissionFee !== undefined ? bazaarCommissionFee : 10
+    };
+
+    if (!setting) {
+      setting = new Setting({ key: 'bazaar_rules', value: newValue });
+    } else {
+      setting.value = newValue;
+    }
+    await setting.save();
+    
+    res.json({ success: true, message: 'Bazaar rules updated successfully', data: setting.value });
+  } catch (error) {
+    console.error('Update Bazaar Settings Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+
+exports.editAdAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, price, category, condition } = req.body;
+    const ad = await BazaarAd.findById(id);
+    if (!ad) {
+      return res.status(404).json({ success: false, message: 'Ad not found' });
+    }
+    ad.title = title || ad.title;
+    ad.description = description || ad.description;
+    ad.price = price || ad.price;
+    ad.category = category || ad.category;
+    ad.condition = condition || ad.condition;
+    await ad.save();
+    res.json({ success: true, message: 'Ad updated successfully', data: ad });
+  } catch (error) {
+    console.error('Edit Ad Admin Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+
+
+// Get all offer requests received on seller's ads
+exports.getSellerOfferRequests = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find all ads belonging to this user
+    const myAds = await BazaarAd.find({ sellerId: userId }, '_id');
+    const adIds = myAds.map(a => a._id);
+
+    const offers = await BazaarOffer
+      .find({ adId: { $in: adIds } })
+      .populate('adId', 'title images price')
+      .populate('buyerId', 'name avatar')
+      .sort({ updatedAt: -1 });
+
+    res.json({ success: true, data: offers });
+  } catch (error) {
+    console.error('Get Seller Offer Requests Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

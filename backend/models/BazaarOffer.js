@@ -34,8 +34,7 @@ const bazaarOfferSchema = new mongoose.Schema({
       type: Number // Only present if actionType is numeric_offer
     },
     predefinedMessage: {
-      type: String, // E.g., 'Available?', 'Pickup Only?', 'Bill Available?', 'Warranty?'
-      enum: ['Available?', 'Pickup Only?', 'Bill Available?', 'Warranty?', 'Delivery Possible?', 'Price Negotiable?']
+      type: String // Dynamically fetched from Admin chat templates
     },
     createdAt: {
       type: Date,

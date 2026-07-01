@@ -31,6 +31,7 @@ import AddScrap from "./modules/user/pages/Scrap/AddScrap";
 import RojsewaBazaar from "./modules/user/pages/RojsewaBazaar";
 import BazaarAdDetails from "./modules/user/pages/BazaarAdDetails";
 import BazaarOfferChat from "./modules/user/pages/BazaarOfferChat";
+import MyBazaarAds from "./modules/user/pages/MyBazaarAds";
 
 import HelpSupport from "./modules/user/pages/HelpSupport";
 import CustomerLogin from "./modules/user/pages/CustomerLogin";
@@ -160,6 +161,7 @@ const App = () => (
                       <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
                       <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
                       <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />
+                      <Route path="/my-bazaar-ads" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><MyBazaarAds /></ProtectedRoute>} />
                       <Route path="/bazaar/:id" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarAdDetails /></ProtectedRoute>} />
                       <Route path="/bazaar/:id/offer" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarOfferChat /></ProtectedRoute>} />
 

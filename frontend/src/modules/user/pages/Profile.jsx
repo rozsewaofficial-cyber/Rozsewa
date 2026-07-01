@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown } from "lucide-react";
+import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown, MessageCircle, ShoppingBag, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -16,6 +16,7 @@ const menuItems = [
   { icon: Wallet, label: "My Wallet", desc: "Balance & transactions", path: "/wallet" },
   { icon: Clock, label: "My Bookings", desc: "View booking history", path: "/my-bookings" },
   { icon: Heart, label: "Favorites", desc: "Saved providers", path: "/favorites" },
+  { icon: ShoppingBag, label: "My Bazaar Ads", desc: "Ads you have posted", path: "/my-bazaar-ads" },
   { icon: MapPin, label: "Saved Addresses", desc: "Home, Office & more", path: "/addresses" },
   { icon: Bell, label: "Notifications", desc: "Manage alerts", path: "/notifications" },
   { icon: HelpCircle, label: "Help & Support", desc: "FAQs & tickets", path: "/help-support" },
@@ -36,6 +37,9 @@ const Profile = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState(profile);
   const [isSaving, setIsSaving] = useState(false);
+  const [offerRequests, setOfferRequests] = useState([]);
+  const [offersLoading, setOffersLoading] = useState(true);
+  const [activeOfferTab, setActiveOfferTab] = useState('received'); // 'received' or 'sent'
 
   useScrollLock(showEdit);
 
@@ -57,7 +61,21 @@ const Profile = () => {
     }
   }, [user]);
 
-  // Real stats (Keep bookings as is for now until we integrate Bookings API)
+  useEffect(() => {
+    const fetchOfferRequests = async () => {
+      try {
+        setOffersLoading(true);
+        const res = await API.get('/bazaar/user-offers'); // Fetch BOTH incoming and outgoing offers
+        if (res.data.success) setOfferRequests(res.data.data);
+      } catch (e) {
+        // silently fail
+      } finally {
+        setOffersLoading(false);
+      }
+    };
+    fetchOfferRequests();
+  }, []);
+
   const bookings = JSON.parse(localStorage.getItem("rozsewa_bookings") || "[]");
   const completed = bookings.filter(b => b.status === "completed").length;
 
@@ -128,7 +146,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-28 md:pb-0 font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-20 selection:bg-blue-200">
       <TopNav />
       <main className="container max-w-2xl px-4 py-6">
         {/* Profile Header Card */}
@@ -162,6 +180,122 @@ const Profile = () => {
               </div>
             </div>
           </div>
+        </motion.div>
+
+        {/* Bazaar Chat Requests Section */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+          <div className="flex items-center justify-between mb-3 sticky top-[68px] md:top-[72px] z-40 bg-slate-50 dark:bg-slate-900 py-3 -mx-4 px-4 shadow-sm border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-orange-500" />
+              <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Bazaar Chat Requests</h2>
+            </div>
+            {offerRequests.length > 0 && (
+              <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                {offerRequests.length} request{offerRequests.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+
+          {offersLoading ? (
+            <div className="flex justify-center py-6 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+            </div>
+          ) : (
+            <>
+              {offerRequests.length > 0 && (
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4">
+                  <button 
+                    onClick={() => setActiveOfferTab('received')}
+                    className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${activeOfferTab === 'received' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                  >
+                    Received
+                  </button>
+                  <button 
+                    onClick={() => setActiveOfferTab('sent')}
+                    className={`flex-1 py-2 text-[13px] font-bold rounded-lg transition-all ${activeOfferTab === 'sent' ? 'bg-white dark:bg-slate-700 text-orange-600 dark:text-orange-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                  >
+                    Sent
+                  </button>
+                </div>
+              )}
+
+              {offerRequests.filter(offer => activeOfferTab === 'sent' ? offer.buyerId?._id === user?._id : offer.sellerId?._id === user?._id).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 px-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 border-dashed text-center">
+                  <ShoppingBag className="w-8 h-8 text-slate-300 mb-2" />
+                  <p className="text-[13px] font-bold text-slate-600 dark:text-slate-400">No {activeOfferTab} requests yet</p>
+                  <p className="text-[11px] text-slate-400 mt-1">When someone makes an offer on your items, or you make an offer, it will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {offerRequests.filter(offer => activeOfferTab === 'sent' ? offer.buyerId?._id === user?._id : offer.sellerId?._id === user?._id).map((offer, i) => {
+                  const statusColors = {
+                    pending: 'bg-blue-100 text-blue-700',
+                    countered: 'bg-orange-100 text-orange-700',
+                    deal_locked: 'bg-green-100 text-green-700',
+                    rejected: 'bg-red-100 text-red-700',
+                    accepted: 'bg-green-100 text-green-700',
+                  };
+                  const statusLabels = {
+                    pending: '⏳ Pending',
+                    countered: '↔ Countered',
+                    deal_locked: '🔒 Deal Locked',
+                    rejected: '✗ Rejected',
+                    accepted: '✓ Accepted',
+                  };
+                  
+                  const isOutgoing = offer.buyerId?._id === user?._id;
+                  const personName = isOutgoing ? offer.sellerId?.name : offer.buyerId?.name;
+                  const personInitial = personName ? personName.charAt(0) : (isOutgoing ? 'S' : 'B');
+                  const roleLabel = isOutgoing ? 'Seller' : 'Buyer';
+
+                  return (
+                    <motion.button
+                      key={offer._id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.04 }}
+                      onClick={() => navigate(`/bazaar/${offer.adId?._id}/offer`)}
+                      className="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-md hover:border-orange-300 transition-all text-left relative overflow-hidden"
+                    >
+                      {/* Indicator for outgoing/incoming */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isOutgoing ? 'bg-orange-400' : 'bg-blue-400'}`}></div>
+                      
+                      {/* Ad image */}
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 overflow-hidden shrink-0 border border-slate-200 dark:border-slate-600 ml-1">
+                        {offer.adId?.images?.[0] ? (
+                          <img src={offer.adId.images[0]} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <ShoppingBag className="w-5 h-5 text-slate-300 m-3.5" />
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black text-slate-900 dark:text-white truncate">{offer.adId?.title || 'Product'}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${isOutgoing ? 'bg-orange-100' : 'bg-blue-100'}`}>
+                            <span className={`text-[8px] font-black ${isOutgoing ? 'text-orange-600' : 'text-blue-600'}`}>{personInitial}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-semibold truncate">
+                            {isOutgoing ? 'To: ' : 'From: '} {personName || roleLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right side */}
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <p className="text-sm font-black text-orange-500">₹{offer.currentOfferAmount?.toLocaleString('en-IN') || '—'}</p>
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${statusColors[offer.status] || 'bg-slate-100 text-slate-500'}`}>
+                          {statusLabels[offer.status] || offer.status}
+                        </span>
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            )}
+            </>
+          )}
         </motion.div>
 
         {/* Stats Grid */}

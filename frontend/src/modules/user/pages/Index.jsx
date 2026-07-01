@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle } from "lucide-react";
+import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -26,11 +26,13 @@ const Index = () => {
   const [currentBanner, setCurrentBanner] = useState(0);
   const [banners, setBanners] = useState([]);
   const [featured, setFeatured] = useState([]);
+  const [bazaarChats, setBazaarChats] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const init = async () => {
-      if (!userLocation) {
+      const savedCity = localStorage.getItem("rozsewa_user_city");
+      if (!userLocation && !savedCity) {
         try {
           await detectLocation();
         } catch (err) {
@@ -71,6 +73,17 @@ const Index = () => {
         };
       });
       setBanners(apiBanners?.length > 0 ? apiBanners : defaultBanners);
+
+      if (user) {
+        try {
+          const chatsRes = await API.get('/bazaar/user-offers');
+          if (chatsRes.data.success) {
+            setBazaarChats(chatsRes.data.data.slice(0, 3)); // Show top 3 recent chats
+          }
+        } catch(e) {
+          console.error("Failed to fetch bazaar chats", e);
+        }
+      }
 
       let providersData = providersRes.data;
 
@@ -146,15 +159,15 @@ const Index = () => {
 
         {/* Banner Section */}
         {banners.length > 0 && (
-          <div className="relative w-full h-40 sm:h-56 rounded-[24px] overflow-hidden shadow-sm group">
+          <div className="relative w-full aspect-[21/9] sm:aspect-[3/1] max-h-[220px] rounded-[20px] sm:rounded-[24px] overflow-hidden shadow-sm group bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50">
             <AnimatePresence mode="wait">
               <motion.img
                 key={currentBanner}
                 src={banners[currentBanner].image}
-                initial={{ opacity: 0, scale: 1.05 }}
+                initial={{ opacity: 0, scale: 1.02 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.4 }}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt="Promo Banner"
                 onError={(e) => {
@@ -163,32 +176,43 @@ const Index = () => {
                 }}
               />
             </AnimatePresence>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end pb-8 px-6 sm:px-10">
-              <motion.h2
-                key={`title-${currentBanner}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-white text-lg sm:text-2xl font-black max-w-[250px] sm:max-w-md leading-tight"
-              >
-                {banners[currentBanner].title}
-              </motion.h2>
-              {banners[currentBanner].subtitle && (
-                <motion.p
-                  key={`sub-${currentBanner}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="text-white/80 text-[11px] sm:text-sm font-medium mt-1.5 max-w-[250px] sm:max-w-md leading-relaxed"
-                >
-                  {banners[currentBanner].subtitle}
-                </motion.p>
-              )}
-            </div>
+            
+            {/* Optional Title Overlay (Only if provided, and made much cleaner) */}
+            {(banners[currentBanner].title || banners[currentBanner].subtitle) && (
+              <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end">
+                {banners[currentBanner].title && (
+                  <motion.h2
+                    key={`title-${currentBanner}`}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-white text-base sm:text-xl font-black max-w-[80%] leading-tight drop-shadow-md"
+                  >
+                    {banners[currentBanner].title}
+                  </motion.h2>
+                )}
+                {banners[currentBanner].subtitle && (
+                  <motion.p
+                    key={`sub-${currentBanner}`}
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                    className="text-white/90 text-[10px] sm:text-sm font-semibold mt-0.5 max-w-[80%] leading-snug drop-shadow-md"
+                  >
+                    {banners[currentBanner].subtitle}
+                  </motion.p>
+                )}
+              </div>
+            )}
 
-            {/* Banner Pagination Dots */}
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5 z-20">
+            {/* Banner Pagination Dots - Modern Pill Style */}
+            <div className="absolute bottom-3 right-4 flex gap-1.5 z-20 bg-black/20 backdrop-blur-md px-2 py-1.5 rounded-full">
               {banners.map((_, i) => (
-                <div key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === currentBanner ? "w-6 bg-white shadow-sm" : "w-1.5 bg-white/40"}`} />
+                <div 
+                  key={i} 
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === currentBanner ? "w-4 bg-white" : "w-1.5 bg-white/50"
+                  }`} 
+                />
               ))}
             </div>
           </div>
@@ -239,6 +263,45 @@ const Index = () => {
               </div>
               <CategoryGrid showAll={showAllCategories} mode={serviceMode} />
             </section>
+
+            {/* Active Bazaar Chats (If any) */}
+            {bazaarChats.length > 0 && (
+              <section className="mt-2 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <MessageCircle className="w-5 h-5 text-blue-500" /> Bazaar Chats
+                  </h2>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-4 -mx-5 px-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] snap-x">
+                  {bazaarChats.map((chat) => {
+                    const isSeller = chat.sellerId?._id?.toString() === user?._id?.toString();
+                    const otherPartyName = isSeller ? chat.buyerId?.name : chat.sellerId?.name;
+                    return (
+                      <Link 
+                        key={chat._id} 
+                        to={`/bazaar/${chat.adId?._id}/offer`}
+                        className="snap-start shrink-0 w-[240px] bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-sm flex gap-3 items-center active:scale-95 transition-transform"
+                      >
+                        <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                          {chat.adId?.images && chat.adId?.images[0] ? (
+                            <img src={chat.adId.images[0]} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                              <ImageIcon className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">{isSeller ? 'Someone Interested' : 'You Offered'}</p>
+                          <p className="text-xs font-black text-slate-800 dark:text-white line-clamp-1">{chat.adId?.title}</p>
+                          <p className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">With: {otherPartyName || 'User'}</p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
 
             {/* Sell Scrap CTA */}
             <section className="space-y-4 pt-2 pb-4">
