@@ -8,6 +8,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ChatProvider } from "@/context/ChatContext";
 import { SocketProvider } from "@/context/SocketContext";
+import { ConfirmDialogProvider } from "@/hooks/useConfirm";
 
 // User Pages
 import Index from "./modules/user/pages/Index";
@@ -31,6 +32,7 @@ import AddScrap from "./modules/user/pages/Scrap/AddScrap";
 import RojsewaBazaar from "./modules/user/pages/RojsewaBazaar";
 import BazaarAdDetails from "./modules/user/pages/BazaarAdDetails";
 import BazaarOfferChat from "./modules/user/pages/BazaarOfferChat";
+import LeadRequirementForm from "./modules/user/pages/LeadRequirementForm";
 import MyBazaarAds from "./modules/user/pages/MyBazaarAds";
 
 import HelpSupport from "./modules/user/pages/HelpSupport";
@@ -48,6 +50,7 @@ import LocationGate from "./components/LocationGate";
 
 // Provider Pages
 import ProviderDashboard from "./modules/provider/pages/ProviderDashboard";
+import ProviderLeads from "./modules/provider/pages/ProviderLeads";
 import ProviderBookings from "./modules/provider/pages/ProviderBookings";
 import ProviderStaff from "./modules/provider/pages/ProviderStaff";
 import ProviderEarnings from "./modules/provider/pages/ProviderEarnings";
@@ -78,6 +81,7 @@ import AdminEarnings from "./modules/admin/pages/AdminEarnings";
 import AdminCoupons from "./modules/admin/pages/AdminCoupons";
 import AdminFeedback from "./modules/admin/pages/AdminFeedback";
 import AdminServices from "./modules/admin/pages/AdminServices";
+import AdminLeads from "./modules/admin/pages/AdminLeads";
 import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
@@ -131,132 +135,137 @@ const App = () => (
           <SocketProvider>
             <QueryClientProvider client={queryClient}>
               <TooltipProvider>
-                <Toaster />
-                <Sonner position="bottom-right" expand={true} richColors />
-                <GlobalAlarm />
-                <AnimatePresence mode="wait">
-                  <Routes>
-                    {/* User Panel as Default */}
-                    <Route path="/" element={<Navigate to="/home" replace />} />
-                    <Route path="/login" element={<CustomerLogin />} />
+                <ConfirmDialogProvider>
+                  <Toaster />
+                  <Sonner position="bottom-right" expand={true} richColors />
+                  <GlobalAlarm />
+                  <AnimatePresence mode="wait">
+                    <Routes>
+                      {/* User Panel as Default */}
+                      <Route path="/" element={<Navigate to="/home" replace />} />
+                      <Route path="/login" element={<CustomerLogin />} />
 
-                    {/* Location Gated Customer Routes */}
-                    <Route element={<LocationGate />}>
-                      <Route path="/home" element={<Index />} />
-                      <Route path="/shops" element={<ShopListing />} />
-                      <Route path="/shop/:id" element={<ShopDetail />} />
-                      <Route path="/sewak-services" element={<SewakServices />} />
-                      <Route path="/category" element={<SubcategoryPage />} />
+                      {/* Location Gated Customer Routes */}
+                      <Route element={<LocationGate />}>
+                        <Route path="/home" element={<Index />} />
+                        <Route path="/shops" element={<ShopListing />} />
+                        <Route path="/shop/:id" element={<ShopDetail />} />
+                        <Route path="/sewak-services" element={<SewakServices />} />
+                        <Route path="/category" element={<SubcategoryPage />} />
 
-                      {/* Protected Customer Routes */}
-                      <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Checkout /></ProtectedRoute>} />
-                      <Route path="/tracking" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><LiveTracking /></ProtectedRoute>} />
-                      <Route path="/booking-waiting" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BookingWaiting /></ProtectedRoute>} />
-                      <Route path="/my-bookings" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><ServiceHistory /></ProtectedRoute>} />
-                      <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Profile /></ProtectedRoute>} />
-                      <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Favorites /></ProtectedRoute>} />
-                      <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
-                      <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
-                      <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
-                      <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
-                      <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
-                      <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />
-                      <Route path="/my-bazaar-ads" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><MyBazaarAds /></ProtectedRoute>} />
-                      <Route path="/bazaar/:id" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarAdDetails /></ProtectedRoute>} />
-                      <Route path="/bazaar/:id/offer" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarOfferChat /></ProtectedRoute>} />
+                        {/* Protected Customer Routes */}
+                        <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Checkout /></ProtectedRoute>} />
+                        <Route path="/tracking" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><LiveTracking /></ProtectedRoute>} />
+                        <Route path="/booking-waiting" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BookingWaiting /></ProtectedRoute>} />
+                        <Route path="/my-bookings" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><ServiceHistory /></ProtectedRoute>} />
+                        <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Profile /></ProtectedRoute>} />
+                        <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Favorites /></ProtectedRoute>} />
+                        <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
+                        <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
+                        <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
+                        <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer"]}><LeadRequirementForm /></ProtectedRoute>} />
+                        <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
+                        <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
+                        <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />
+                        <Route path="/my-bazaar-ads" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><MyBazaarAds /></ProtectedRoute>} />
+                        <Route path="/bazaar/:id" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarAdDetails /></ProtectedRoute>} />
+                        <Route path="/bazaar/:id/offer" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarOfferChat /></ProtectedRoute>} />
 
-                      {/* Public Info Routes */}
-                      <Route path="/post-service" element={<PostService />} />
-                      <Route path="/help-support" element={<HelpSupport />} />
-                      <Route path="/complaint" element={<ComplaintForm />} />
-                      <Route path="/support-tickets" element={<SupportTickets />} />
-                      <Route path="/offers" element={<Offers />} />
-                    </Route>
+                        {/* Public Info Routes */}
+                        <Route path="/post-service" element={<PostService />} />
+                        <Route path="/help-support" element={<HelpSupport />} />
+                        <Route path="/complaint" element={<ComplaintForm />} />
+                        <Route path="/support-tickets" element={<SupportTickets />} />
+                        <Route path="/offers" element={<Offers />} />
+                      </Route>
 
-                    {/* Public Info Routes (No Location Required) */}
-                    <Route path="/terms" element={<Terms />} />
-                    <Route path="/privacy" element={<Privacy />} />
+                      {/* Public Info Routes (No Location Required) */}
+                      <Route path="/terms" element={<Terms />} />
+                      <Route path="/privacy" element={<Privacy />} />
 
-                    {/* Provider Routes */}
-                    <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />
-                    {/* Provider Routes (Standalone outside layout) */}
-                    <Route path="/provider/register" element={<ProviderRegister />} />
-                    <Route path="/provider/login" element={<ProviderLogin />} />
-                    <Route path="/provider/forgot-password" element={<ProviderForgotPassword />} />
-                    <Route path="/digilocker/callback" element={<DigilockerCallback />} />
-                    <Route path="/provider/profile" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderProfile /></ProtectedRoute>} />
-                    <Route path="/provider/bookings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBookings /></ProtectedRoute>} />
-                    <Route path="/provider/staff" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderStaff /></ProtectedRoute>} />
-                    <Route path="/provider/earnings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderEarnings /></ProtectedRoute>} />
-                    <Route path="/provider/services" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderServices /></ProtectedRoute>} />
-                    <Route path="/provider/availability" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderAvailability /></ProtectedRoute>} />
-                    <Route path="/provider/documents" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDocuments /></ProtectedRoute>} />
-                    <Route path="/provider/reviews" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderReviews /></ProtectedRoute>} />
-                    <Route path="/provider/99card" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><Provider99Card /></ProtectedRoute>} />
-                    <Route path="/provider/benefit-policy" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBenefitPolicy /></ProtectedRoute>} />
-                    <Route path="/provider/settings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSettings /></ProtectedRoute>} />
-                    <Route path="/provider/support" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSupport /></ProtectedRoute>} />
-                    <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
-                    <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
-                    <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
+                      {/* Provider Routes */}
+                      <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />
+                      {/* Provider Routes (Standalone outside layout) */}
+                      <Route path="/provider/register" element={<ProviderRegister />} />
+                      <Route path="/provider/login" element={<ProviderLogin />} />
+                      <Route path="/provider/forgot-password" element={<ProviderForgotPassword />} />
+                      <Route path="/digilocker/callback" element={<DigilockerCallback />} />
+                      <Route path="/provider/profile" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderProfile /></ProtectedRoute>} />
+                      <Route path="/provider/bookings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBookings /></ProtectedRoute>} />
+                      <Route path="/provider/staff" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderStaff /></ProtectedRoute>} />
+                      <Route path="/provider/earnings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderEarnings /></ProtectedRoute>} />
+                      <Route path="/provider/services" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderServices /></ProtectedRoute>} />
+                      <Route path="/provider/availability" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderAvailability /></ProtectedRoute>} />
+                      <Route path="/provider/documents" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDocuments /></ProtectedRoute>} />
+                      <Route path="/provider/reviews" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderReviews /></ProtectedRoute>} />
+                      <Route path="/provider/99card" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><Provider99Card /></ProtectedRoute>} />
+                      <Route path="/provider/benefit-policy" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBenefitPolicy /></ProtectedRoute>} />
+                      <Route path="/provider/settings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSettings /></ProtectedRoute>} />
+                      <Route path="/provider/support" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSupport /></ProtectedRoute>} />
+                      <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
+                      <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
+                      <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
+                      <Route path="/provider/leads" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderLeads /></ProtectedRoute>} />
 
-                    {/* Admin Routes with Persistent Layout */}
-                    <Route path="/admin" element={<AdminLayout />}>
-                      <Route index element={<AdminDashboard />} />
-                      <Route path="users" element={<AdminUsers />} />
-                      <Route path="hrm" element={<AdminHRM />} />
-                      <Route path="supervisors" element={<AdminHRM view="supervisor" />} />
-                      <Route path="employees" element={<AdminHRM view="employee" />} />
-                      <Route path="providers" element={<AdminProviders />} />
-                      <Route path="sewaks" element={<SewakManagement />} />
-                      <Route path="sewak-enquiries" element={<AdminSewakEnquiries />} />
-                      <Route path="verify-sewaks" element={<AdminVerifySewak />} />
-                      <Route path="verify-employees" element={<AdminVerifyEmployee />} />
-                      <Route path="verify-combos" element={<AdminVerifyCombo />} />
-                      <Route path="bookings" element={<AdminBookings />} />
-                      <Route path="earnings" element={<AdminEarnings />} />
-                      <Route path="coupons" element={<AdminCoupons />} />
-                      <Route path="feedback" element={<AdminFeedback />} />
-                      <Route path="services" element={<AdminServices />} />
-                      <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
-                      <Route path="sewak-pricing" element={<SewakPricing />} />
-                      <Route path="settings" element={<AdminSettings />} />
-                      <Route path="settings/cash-limits" element={<AdminCashLimits />} />
-                      <Route path="partner-program" element={<PartnerProgramConfig />} />
-                      <Route path="commission-analytics" element={<AdminCommissionAnalytics />} />
-                      <Route path="benefit-policies" element={<AdminBenefitPolicies />} />
-                      <Route path="disputes" element={<AdminDisputes />} />
-                      <Route path="banners" element={<AdminBanners />} />
-                      <Route path="notifications" element={<AdminNotifications />} />
-                      <Route path="activity-log" element={<AdminActivityLog />} />
-                      <Route path="kyc" element={<AdminKYC />} />
-                      <Route path="99cards" element={<Admin99Card />} />
-                      <Route path="commission" element={<AdminCommission />} />
-                      <Route path="audit-logs" element={<AdminAuditLogs />} />
-                      <Route path="night-charge" element={<AdminNightCharge />} />
-                      <Route path="distance-charges" element={<DistanceCharges />} />
-                      <Route path="settings/service-radius" element={<AdminServiceRadius />} />
-                      <Route path="sewak-incentives" element={<AdminSewakIncentives />} />
+                      {/* Admin Routes with Persistent Layout */}
+                      <Route path="/admin" element={<AdminLayout />}>
+                        <Route index element={<AdminDashboard />} />
+                        <Route path="users" element={<AdminUsers />} />
+                        <Route path="hrm" element={<AdminHRM />} />
+                        <Route path="supervisors" element={<AdminHRM view="supervisor" />} />
+                        <Route path="employees" element={<AdminHRM view="employee" />} />
+                        <Route path="providers" element={<AdminProviders />} />
+                        <Route path="sewaks" element={<SewakManagement />} />
+                        <Route path="sewak-enquiries" element={<AdminSewakEnquiries />} />
+                        <Route path="verify-sewaks" element={<AdminVerifySewak />} />
+                        <Route path="verify-employees" element={<AdminVerifyEmployee />} />
+                        <Route path="verify-combos" element={<AdminVerifyCombo />} />
+                        <Route path="bookings" element={<AdminBookings />} />
+                        <Route path="leads" element={<AdminLeads />} />
+                        <Route path="earnings" element={<AdminEarnings />} />
+                        <Route path="coupons" element={<AdminCoupons />} />
+                        <Route path="feedback" element={<AdminFeedback />} />
+                        <Route path="services" element={<AdminServices />} />
+                        <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
+                        <Route path="sewak-pricing" element={<SewakPricing />} />
+                        <Route path="settings" element={<AdminSettings />} />
+                        <Route path="settings/cash-limits" element={<AdminCashLimits />} />
+                        <Route path="partner-program" element={<PartnerProgramConfig />} />
+                        <Route path="commission-analytics" element={<AdminCommissionAnalytics />} />
+                        <Route path="benefit-policies" element={<AdminBenefitPolicies />} />
+                        <Route path="disputes" element={<AdminDisputes />} />
+                        <Route path="banners" element={<AdminBanners />} />
+                        <Route path="notifications" element={<AdminNotifications />} />
+                        <Route path="activity-log" element={<AdminActivityLog />} />
+                        <Route path="kyc" element={<AdminKYC />} />
+                        <Route path="99cards" element={<Admin99Card />} />
+                        <Route path="commission" element={<AdminCommission />} />
+                        <Route path="audit-logs" element={<AdminAuditLogs />} />
+                        <Route path="night-charge" element={<AdminNightCharge />} />
+                        <Route path="distance-charges" element={<DistanceCharges />} />
+                        <Route path="settings/service-radius" element={<AdminServiceRadius />} />
+                        <Route path="sewak-incentives" element={<AdminSewakIncentives />} />
 
 
-                      <Route path="zones" element={<AdminZones />} />
-                      <Route path="dispatch" element={<AdminDispatch />} />
-                      <Route path="emergency" element={<AdminEmergency />} />
-                      <Route path="finance" element={<AdminFinance />} />
-                      <Route path="quality" element={<AdminQuality />} />
-                      <Route path="provider-reports" element={<ProviderReports />} />
-                      <Route path="withdrawals" element={<AdminWithdrawals />} />
-                      <Route path="bazaar" element={<AdminScrap />} />
+                        <Route path="zones" element={<AdminZones />} />
+                        <Route path="dispatch" element={<AdminDispatch />} />
+                        <Route path="emergency" element={<AdminEmergency />} />
+                        <Route path="finance" element={<AdminFinance />} />
+                        <Route path="quality" element={<AdminQuality />} />
+                        <Route path="provider-reports" element={<ProviderReports />} />
+                        <Route path="withdrawals" element={<AdminWithdrawals />} />
+                        <Route path="bazaar" element={<AdminScrap />} />
 
-                      <Route path="help-training" element={<AdminHelpTraining />} />
-                      <Route path="super" element={<AdminSuper />} />
-                    </Route>
+                        <Route path="help-training" element={<AdminHelpTraining />} />
+                        <Route path="super" element={<AdminSuper />} />
+                      </Route>
 
-                    <Route path="/admin/login" element={<AdminLogin />} />
+                      <Route path="/admin/login" element={<AdminLogin />} />
 
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </AnimatePresence>
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </AnimatePresence>
+                </ConfirmDialogProvider>
               </TooltipProvider>
             </QueryClientProvider>
           </SocketProvider>

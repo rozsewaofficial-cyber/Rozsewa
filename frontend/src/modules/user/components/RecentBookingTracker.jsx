@@ -1,16 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Check, ChevronRight, Shield, XCircle, PackageCheck, Bike, Wrench, Star, X } from 'lucide-react';
+import { Clock, Check, ChevronRight, Shield, XCircle, PackageCheck, Bike, Wrench, Star, X, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 
-const steps = [
-    { label: "Placed", fullLabel: "Booking Placed", status: "pending", icon: PackageCheck, color: "blue" },
-    { label: "Accepted", fullLabel: "Provider Accepted", status: "confirmed", icon: Check, color: "indigo" },
-    { label: "On the Way", fullLabel: "On the Way", status: "on_the_way", icon: Bike, color: "violet" },
-    { label: "In Progress", fullLabel: "Service Started", status: "started", icon: Wrench, color: "amber" },
-    { label: "Done", fullLabel: "Completed", status: "completed", icon: Star, color: "emerald" },
-];
+const getSteps = (isShop) => {
+    if (isShop) {
+        return [
+            { label: "Placed", fullLabel: "Booking Placed", status: "pending", icon: PackageCheck, color: "blue" },
+            { label: "Accepted", fullLabel: "Provider Accepted", status: "confirmed", icon: Check, color: "indigo" },
+            { label: "Ready", fullLabel: "Ready for Visit", status: "on_the_way", icon: MapPin, color: "violet" },
+            { label: "In Progress", fullLabel: "Service Started", status: "started", icon: Wrench, color: "amber" },
+            { label: "Done", fullLabel: "Completed", status: "completed", icon: Star, color: "emerald" },
+        ];
+    }
+    return [
+        { label: "Placed", fullLabel: "Booking Placed", status: "pending", icon: PackageCheck, color: "blue" },
+        { label: "Accepted", fullLabel: "Provider Accepted", status: "confirmed", icon: Check, color: "indigo" },
+        { label: "On the Way", fullLabel: "On the Way", status: "on_the_way", icon: Bike, color: "violet" },
+        { label: "In Progress", fullLabel: "Service Started", status: "started", icon: Wrench, color: "amber" },
+        { label: "Done", fullLabel: "Completed", status: "completed", icon: Star, color: "emerald" },
+    ];
+};
 
 const statusColorMap = {
     blue: { dot: "bg-blue-500", ring: "ring-blue-400/40", glow: "shadow-blue-500/30", icon: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", border: "border-blue-200 dark:border-blue-800", pill: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400", line: "bg-blue-400" },
@@ -24,6 +36,7 @@ const statusIndexMap = { pending: 0, confirmed: 1, on_the_way: 2, started: 3, co
 
 const RecentBookingTracker = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [activeBooking, setActiveBooking] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -36,8 +49,7 @@ const RecentBookingTracker = () => {
     });
 
     const fetchActiveBookings = async () => {
-        const authData = JSON.parse(localStorage.getItem('rozsewa_auth') || 'null');
-        if (!authData?.token) { setLoading(false); return; }
+        if (!user?.token) { setLoading(false); return; }
         try {
             const res = await API.get('/bookings');
             const active = res.data.find(b => {
@@ -53,10 +65,11 @@ const RecentBookingTracker = () => {
                     } catch (e) {}
                     if (dl.includes(b._id)) return false;
 
-                    if (b.updatedAt) {
-                        const updatedAt = new Date(b.updatedAt);
+                    const timeToCheck = b.updatedAt || b.createdAt;
+                    if (timeToCheck) {
+                        const dateObj = new Date(timeToCheck);
                         const now = new Date();
-                        const diffMinutes = (now - updatedAt) / (1000 * 60);
+                        const diffMinutes = (now - dateObj) / (1000 * 60);
                         if (diffMinutes > 1) return false;
                     }
                 }
@@ -83,7 +96,7 @@ const RecentBookingTracker = () => {
         fetchActiveBookings();
         const interval = setInterval(fetchActiveBookings, 15000);
         return () => clearInterval(interval);
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         if (activeBooking?.status === 'cancelled') {
@@ -130,7 +143,8 @@ const RecentBookingTracker = () => {
         );
     }
 
-    const currentStep = statusIndexMap[activeBooking.status] || 0;
+    const steps = getSteps(activeBooking.serviceLocation === 'shop');
+    const currentStep = statusIndexMap[activeBooking.status] ?? 0;
     const currentStepData = steps[currentStep];
     const colors = statusColorMap[currentStepData.color];
     const providerName = activeBooking.providerId?.shopName || 'Finding Expert...';

@@ -50,6 +50,22 @@ const LiveTrackingView = ({ destination, onClose }) => {
     }, []);
 
     useEffect(() => {
+        if (map && destination) {
+            const bounds = new window.google.maps.LatLngBounds();
+            bounds.extend({ lat: destination[1], lng: destination[0] });
+            if (currentPos) {
+                bounds.extend(currentPos);
+            }
+            map.fitBounds(bounds, {
+                top: 50,
+                bottom: 120,
+                left: 50,
+                right: 50
+            });
+        }
+    }, [map, currentPos, destination]);
+
+    useEffect(() => {
         if (isLoaded && currentPos && destination) {
             const directionsService = new window.google.maps.DirectionsService();
             directionsService.route(

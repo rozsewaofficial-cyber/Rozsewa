@@ -4,11 +4,13 @@ import { useScrollLock } from "@/lib/scrollLock";
 import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail, X, MapPin, ChevronLeft, ChevronRight, Users, Activity, AlertOctagon, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 
 const AdminUsers = () => {
     const { setTitle } = useOutletContext();
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -17,10 +19,32 @@ const AdminUsers = () => {
     const activeSelectedUser = selectedUser ? users.find(u => u._id === selectedUser._id) : null;
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    const [walletData, setWalletData] = useState(null);
+    const [loadingWallet, setLoadingWallet] = useState(false);
 
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
+
+    useEffect(() => {
+        if (selectedUser) {
+            fetchUserWallet(selectedUser._id);
+        } else {
+            setWalletData(null);
+        }
+    }, [selectedUser]);
+
+    const fetchUserWallet = async (id) => {
+        setLoadingWallet(true);
+        try {
+            const { data } = await API.get(`/admin/users/${id}/wallet`);
+            setWalletData(data);
+        } catch (err) {
+            console.error("Failed to fetch user wallet", err);
+        } finally {
+            setLoadingWallet(false);
+        }
+    };
 
     useEffect(() => {
         setTitle("Manage Platform Users");
@@ -55,7 +79,8 @@ const AdminUsers = () => {
     };
 
     const handleDeleteUser = async (id) => {
-        if (!window.confirm("Are you sure you want to permanently delete this user? This action cannot be undone.")) return;
+        const ok = await confirm("This will permanently delete the user and all their booking history. This cannot be undone.", { title: "Delete User", confirmLabel: "Delete Forever", destructive: true });
+        if (!ok) return;
         try {
             const { data } = await API.delete(`/admin/users/${id}`);
             if (data.success) {
@@ -360,6 +385,49 @@ const AdminUsers = () => {
                                             </div>
                                         )}
                                     </div>
+                                </div>
+
+                                {/* Wallet Information */}
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Wallet & Transactions</h4>
+                                    
+                                    {loadingWallet ? (
+                                        <div className="flex justify-center p-4"><Loader2 className="h-6 w-6 animate-spin text-blue-600" /></div>
+                                    ) : walletData ? (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between p-4 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl shadow-md text-white">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-200 mb-1">Current Balance</p>
+                                                    <p className="text-2xl font-black">₹{walletData.balance.toLocaleString()}</p>
+                                                </div>
+                                                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm border border-white/10">
+                                                    <span className="text-xl font-black">₹</span>
+                                                </div>
+                                            </div>
+
+                                            {walletData.transactions && walletData.transactions.length > 0 ? (
+                                                <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                                    {walletData.transactions.map((txn, index) => (
+                                                        <div key={index} className="flex items-center justify-between p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
+                                                            <div>
+                                                                <p className="text-xs font-bold text-gray-900">{txn.title || 'Wallet Transaction'}</p>
+                                                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">
+                                                                    {new Date(txn.createdAt).toLocaleDateString()} • {txn.status}
+                                                                </p>
+                                                            </div>
+                                                            <div className={`text-sm font-black ${txn.type === 'credit' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                                {txn.type === 'credit' ? '+' : '-'}₹{txn.amount}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-xs font-bold text-gray-400 text-center py-4 bg-gray-50 rounded-xl border border-gray-100">No transactions found</p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs font-bold text-red-500">Failed to load wallet data</p>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>

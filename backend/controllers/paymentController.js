@@ -1,5 +1,6 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
@@ -194,6 +195,45 @@ const verifyWalletRecharge = async (req, res) => {
     }
 };
 
+// @desc    Verify Razorpay Payment for User Wallet Recharge
+// @route   POST /api/payment/verify-user-wallet
+// @access  Private (User)
+const verifyUserWalletRecharge = async (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount } = req.body;
+
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(sign.toString())
+        .digest("hex");
+
+    if (razorpay_signature === expectedSign) {
+        const { Wallet, Transaction } = require('../models/Wallet');
+
+        let wallet = await Wallet.findOne({ userId: req.user._id });
+        if (!wallet) {
+            wallet = await Wallet.create({ userId: req.user._id, balance: 0 });
+        }
+
+        const rechargeAmount = Number(amount);
+        wallet.balance += rechargeAmount;
+        await wallet.save();
+
+        await Transaction.create({
+            userId: req.user._id,
+            title: 'Added Money to Wallet',
+            amount: rechargeAmount,
+            type: 'credit',
+            status: 'completed',
+            description: `Recharge via Razorpay (ID: ${razorpay_payment_id})`
+        });
+
+        res.json({ message: "Money added successfully!", success: true });
+    } else {
+        res.status(400).json({ message: "Invalid payment signature", success: false });
+    }
+};
+
 // @desc    Check for expiring subscriptions and notify providers
 // This function should be called by a cron job daily!
 const checkExpiringSubscriptions = async () => {
@@ -232,11 +272,72 @@ const checkExpiringSubscriptions = async () => {
     }
 };
 
+// @desc    Verify Razorpay Payment for direct lead unlock
+// @route   POST /api/payment/verify-lead-payment
+// @access  Private (Provider)
+const verifyLeadPayment = async (req, res) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, leadId } = req.body;
+
+    const sign = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSign = crypto
+        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+        .update(sign.toString())
+        .digest("hex");
+
+    if (razorpay_signature === expectedSign) {
+        const session = await mongoose.startSession();
+        try {
+            session.startTransaction();
+            
+            const Lead = require('../models/Lead');
+            const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
+
+            const lead = await Lead.findById(leadId).session(session);
+            if (!lead) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(404).json({ message: "Lead not found" });
+            }
+
+            if (lead.unlockedProviders.includes(req.user._id)) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.json({ success: true, message: "Lead already unlocked" });
+            }
+
+            lead.unlockedProviders.push(req.user._id);
+            lead.status = lead.unlockedProviders.length >= lead.maxUnlockLimit ? 'closed' : 'unlocked';
+            await lead.save({ session });
+
+            await LeadUnlockTransaction.create([{
+                provider: req.user._id,
+                lead: lead._id,
+                unlockAmount: lead.leadPrice,
+                paymentGateway: 'Razorpay',
+                status: 'success'
+            }], { session });
+
+            await session.commitTransaction();
+            session.endSession();
+
+            res.json({ message: "Payment verified and lead unlocked successfully", success: true });
+        } catch (err) {
+            await session.abortTransaction();
+            session.endSession();
+            res.status(500).json({ message: err.message });
+        }
+    } else {
+        res.status(400).json({ message: "Invalid signature", success: false });
+    }
+};
+
 module.exports = {
     createOrder,
     verifyPayment,
     verifySubscriptionPayment,
     verifyWalletRecharge,
+    verifyUserWalletRecharge,
+    verifyLeadPayment,
     checkExpiringSubscriptions
 };
 

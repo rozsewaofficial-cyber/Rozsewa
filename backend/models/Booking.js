@@ -46,6 +46,15 @@ const bookingSchema = new mongoose.Schema({
         enum: ['pending', 'confirmed', 'on_the_way', 'started', 'completed', 'cancelled'],
         default: 'pending',
     },
+    cancellationReason: {
+        type: String,
+        default: null
+    },
+    cancelledBy: {
+        type: String,
+        enum: ['user', 'provider', 'admin', null],
+        default: null
+    },
     startOTP: {
         type: String,
         default: null
@@ -214,10 +223,23 @@ const bookingSchema = new mongoose.Schema({
     onTheWayAt: { type: Date, default: null },
     startedAt: { type: Date, default: null },
     completedAt: { type: Date, default: null },
+    rejectedProviders: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Provider'
+        }
+    ],
     createdAt: {
         type: Date,
         default: Date.now,
     },
+    serviceLocation: {
+        type: String,
+        enum: ['home', 'shop'],
+        default: 'home'
+    }
+}, {
+    timestamps: true
 });
 
 const Booking = mongoose.model('Booking', bookingSchema);

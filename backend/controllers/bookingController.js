@@ -101,8 +101,9 @@ const createBooking = async (req, res) => {
         paymentMode,
         requiredProviderCategory,
         items = [],
-        customerOffer
-        , userProposedAmount } = req.body;
+        customerOffer,
+        userProposedAmount,
+        serviceLocation = 'home' } = req.body;
 
     try {
         // --- 1. Compute Trusted Subtotal on Backend ---
@@ -286,6 +287,7 @@ const createBooking = async (req, res) => {
             couponDiscount,
             totalDiscount,
             paymentMode,
+            serviceLocation,
             extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
         });
 
@@ -295,20 +297,30 @@ const createBooking = async (req, res) => {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
 
             if (providerId) {
-                // If specific provider is selected, calculate travel charge immediately
-                const travelChargeResult = await DistanceChargeService.applyTravelChargeToBooking(booking._id, providerId);
-                booking = travelChargeResult.booking;
-            } else {
-                // For broadcast, just set a fallback estimation for now
-                const config = await DistanceChargeService.getConfig();
-                if (config.enabled) {
-                    booking.travelCharge = {
-                        amount: config.fallbackCharge || 40,
-                        status: 'estimated',
-                        calculationMethod: config.calculationMethod,
-                        calculatedAt: new Date(),
-                    };
+                if (serviceLocation === 'shop') {
+                    booking.travelCharge = { amount: 0, status: 'final', calculationMethod: 'none', calculatedAt: new Date() };
                     await booking.save();
+                } else {
+                    // If specific provider is selected, calculate travel charge immediately
+                    const travelChargeResult = await DistanceChargeService.applyTravelChargeToBooking(booking._id, providerId);
+                    booking = travelChargeResult.booking;
+                }
+            } else {
+                if (serviceLocation === 'shop') {
+                    booking.travelCharge = { amount: 0, status: 'estimated', calculationMethod: 'none', calculatedAt: new Date() };
+                    await booking.save();
+                } else {
+                    // For broadcast, just set a fallback estimation for now
+                    const config = await DistanceChargeService.getConfig();
+                    if (config.enabled) {
+                        booking.travelCharge = {
+                            amount: config.fallbackCharge || 40,
+                            status: 'estimated',
+                            calculationMethod: config.calculationMethod,
+                            calculatedAt: new Date(),
+                        };
+                        await booking.save();
+                    }
                 }
             }
 
@@ -349,7 +361,7 @@ const createBooking = async (req, res) => {
                     const broadRadiusRadians = broadRadiusKm / 6371;
 
                     // Stage 1: Pull candidate providers within the maximum possible radius
-                    const candidateProviders = await Provider.find({
+                    const providerQuery = {
                         _id: { $ne: req.user._id },
                         status: 'verified',
                         isOnline: true,
@@ -359,7 +371,17 @@ const createBooking = async (req, res) => {
                                 $centerSphere: [booking.location.coordinates, broadRadiusRadians]
                             }
                         }
-                    });
+                    };
+                    if (serviceLocation === 'home') {
+                        providerQuery.$or = [
+                            { serviceModes: 'home' },
+                            { serviceModes: { $exists: false } },
+                            { serviceModes: { $size: 0 } }
+                        ];
+                    } else {
+                        providerQuery.serviceModes = 'shop';
+                    }
+                    const candidateProviders = await Provider.find(providerQuery);
 
                     console.log(`Stage 1: ${candidateProviders.length} candidates found within ${broadRadiusKm} km broad net`);
 
@@ -397,7 +419,6 @@ const createBooking = async (req, res) => {
 
             // Filter out providers who have exceeded their cash limit
             const { Wallet } = require('../models/Wallet');
-            const Setting = require('../models/Setting');
             const configSetting = await Setting.findOne({ key: 'cash_limits_config' });
             let cfg = { defaultLimit: 1500, categoryLimits: [], serviceLimits: [] };
             if (configSetting && configSetting.value) {
@@ -423,9 +444,13 @@ const createBooking = async (req, res) => {
                 }
 
                 const wallet = await Wallet.findOne({ providerId: provider._id });
-                if (wallet && wallet.balance <= -limit) {
-                    console.log(`[Debt Enforcement] Provider ${provider._id} blocked from receiving booking (Balance: ${wallet.balance}, Limit: -${limit})`);
+                const walletBalance = wallet ? wallet.balance : 0;
+                if (walletBalance <= -limit) {
+                    console.log(`[Debt Enforcement] Provider ${provider._id} blocked from receiving booking (Balance: ${walletBalance}, Limit: -${limit})`);
                     continue;
+                }
+                if (!wallet) {
+                    console.log(`[Wallet Check] Provider ${provider._id} has no wallet yet (treated as ₹0 balance), allowed.`);
                 }
                 validProviders.push(provider);
             }
@@ -450,7 +475,9 @@ const createBooking = async (req, res) => {
                     bargainDiscount: booking.bargainDiscount,
                     customerOffer: booking.customerOffer,
                     originalFixedPrice: booking.originalFixedPrice,
-                    offerStatus: booking.offerStatus
+                    offerStatus: booking.offerStatus,
+                    extraCharges: booking.extraCharges || [],
+                    serviceLocation: booking.serviceLocation
                 });
 
                 // Use unified notifyUser for persistence, socket, and push
@@ -529,7 +556,7 @@ const createBooking = async (req, res) => {
 const getUserBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ userId: req.user._id })
-            .populate('providerId', 'shopName ownerName rating reviewCount mobile profileImage status planType')
+            .populate('providerId', 'shopName ownerName rating reviewCount mobile profileImage status planType address city state location')
             .sort({ createdAt: -1 });
         res.json(bookings);
     } catch (error) {
@@ -691,6 +718,10 @@ const updateBooking = async (req, res) => {
 
             const { status, bookingDate, bookingTime } = req.body;
 
+            if (status === 'cancelled' && booking.status !== 'pending') {
+                return res.status(400).json({ message: 'Once an order is approved, it cannot be cancelled.' });
+            }
+
             booking.status = status || booking.status;
             booking.bookingDate = bookingDate || booking.bookingDate;
             booking.bookingTime = bookingTime || booking.bookingTime;
@@ -743,10 +774,74 @@ const updateBooking = async (req, res) => {
 // @access  Private (Provider)
 const getProviderBookings = async (req, res) => {
     try {
-        const bookings = await Booking.find({ providerId: req.user._id })
-            .populate('userId', 'ownerName name mobile address') // Populate user details
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) {
+            return res.status(404).json({ message: "Provider not found" });
+        }
+
+        // Fetch pending broadcast bookings eligible for this provider
+        const pendingBookings = await Booking.find({
+            status: 'pending',
+            providerId: { $in: [null, undefined] },
+            requiredProviderCategory: provider.providerCategory || 'partner',
+            rejectedProviders: { $ne: provider._id },
+            serviceLocation: { $in: provider.serviceModes && provider.serviceModes.length ? provider.serviceModes : ['home'] }
+        }).populate('userId', 'ownerName name mobile address');
+
+        // Fetch Wallet and Cash Limits
+        const { Wallet } = require('../models/Wallet');
+        const Setting = require('../models/Setting');
+        const [wallet, configSetting] = await Promise.all([
+            Wallet.findOne({ providerId: req.user._id }),
+            Setting.findOne({ key: 'cash_limits_config' })
+        ]);
+        const walletBalance = wallet ? wallet.balance : 0;
+        
+        let defaultLimit = 1500;
+        let catLimitOverride = null;
+        let cfg = null;
+        if (configSetting && configSetting.value) {
+            cfg = configSetting.value;
+            defaultLimit = Number(cfg.defaultLimit) || 1500;
+            if (provider.vendorType) {
+                const catId = provider.vendorType.toString();
+                const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
+                if (catLimitObj) catLimitOverride = Number(catLimitObj.limit);
+            }
+        }
+
+        // Filter by provider service radius and debt limits
+        const bLon = provider.location?.coordinates?.[0];
+        const bLat = provider.location?.coordinates?.[1];
+        const providerRadius = provider.serviceRadius || 15;
+
+        const eligiblePending = pendingBookings.filter(b => {
+            // Debt limit check per booking
+            let bookingLimit = catLimitOverride !== null ? catLimitOverride : defaultLimit;
+            const bookingServiceId = b.serviceId ? b.serviceId.toString() : (b.services && b.services.length > 0 ? b.services[0].serviceId?.toString() : null);
+            if (bookingServiceId && cfg && cfg.serviceLimits) {
+                const srvLimitObj = cfg.serviceLimits.find(s => s.serviceId === bookingServiceId);
+                if (srvLimitObj) bookingLimit = Number(srvLimitObj.limit);
+            }
+            if (walletBalance <= -bookingLimit) return false;
+
+            // Radius check
+            if (!b.location || !b.location.coordinates || b.location.coordinates.length < 2) return true; // fallback
+            if (!bLat || !bLon) return true; // fallback if provider location is not set
+            const dist = DistanceChargeService.calculateDistance(b.location.coordinates[1], b.location.coordinates[0], bLat, bLon);
+            return dist <= providerRadius;
+        });
+
+        // Fetch bookings assigned to this provider
+        const assignedBookings = await Booking.find({ providerId: req.user._id })
+            .populate('userId', 'ownerName name mobile address')
             .sort({ createdAt: -1 });
-        res.json(bookings);
+
+        // Combine and sort by createdAt descending
+        const combined = [...eligiblePending, ...assignedBookings];
+        combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.json(combined);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -760,6 +855,24 @@ const updateBookingStatusByProvider = async (req, res) => {
         const booking = await Booking.findById(req.params.id);
 
         if (booking) {
+            // Intercept pending booking rejection to avoid cancelling the order
+            if (req.body.status === 'cancelled' && booking.status === 'pending') {
+                console.log(`[Monitoring] Booking rejection event (API): Provider ${req.user._id} rejected Booking ${booking._id}.`);
+                
+                if (!booking.rejectedProviders) {
+                    booking.rejectedProviders = [];
+                }
+                if (!booking.rejectedProviders.includes(req.user._id)) {
+                    booking.rejectedProviders.push(req.user._id);
+                    await booking.save();
+                }
+                
+                const io = require('../config/socket').getIO();
+                io.emit('NEW_BOOKING_REQUEST');
+
+                return res.json(booking);
+            }
+
             // Lock the booking to one provider during negotiation
             if (req.user.role === 'provider' && booking.providerId && booking.providerId.toString() !== req.user._id.toString()) {
                 return res.status(403).json({ message: 'This booking is locked by another provider.' });
@@ -776,6 +889,10 @@ const updateBookingStatusByProvider = async (req, res) => {
 
             const newStatus = req.body.offerDecision === 'counter' ? 'pending' : (req.body.status || booking.status);
 
+            if (newStatus === 'cancelled' && booking.status !== 'pending' && req.user.role !== 'provider') {
+                return res.status(400).json({ message: 'Once an order is approved, it cannot be cancelled.' });
+            }
+
             // Assign provider if accepting
             if (isAccepting && !booking.providerId) {
                 // Pre-check for race condition
@@ -791,7 +908,6 @@ const updateBookingStatusByProvider = async (req, res) => {
 
                 // Check if provider has excessive dues based on dynamic cash limits
                 const { Wallet } = require('../models/Wallet');
-                const Setting = require('../models/Setting');
                 const Provider = require('../models/Provider');
 
                 const [wallet, configSetting, provider] = await Promise.all([
@@ -1072,6 +1188,11 @@ const updateBookingStatusByProvider = async (req, res) => {
 
             // If cancelled by provider, notify Admin, deduct penalty, credit user and admin
             if (newStatus === 'cancelled') {
+                if (req.body.cancellationReason) {
+                    booking.cancellationReason = req.body.cancellationReason;
+                    booking.cancelledBy = req.user.role;
+                }
+                const updatedBookingWithReason = await booking.save();
                 try {
                     const penalty = 100;
                     const creditAmount = 50;
@@ -1503,11 +1624,14 @@ const verifyEndOTP = async (req, res) => {
                         });
                     }
 
-                    await Transaction.create(transactionsToCreate, { session });
+                    for (const txn of transactionsToCreate) {
+                        const newTxn = new Transaction(txn);
+                        await newTxn.save({ session });
+                    }
 
                     // Create commission log
                     if (calculation) {
-                        await CommissionLog.create([{
+                        const newLog = new CommissionLog({
                             booking: booking._id,
                             provider: provider._id,
                             appliedRule: calculation.ruleApplied,
@@ -1515,7 +1639,8 @@ const verifyEndOTP = async (req, res) => {
                             platformEarnings: calculation.platformAmount,
                             providerEarnings: calculation.providerAmount,
                             triggerEvent: 'BOOKING_COMPLETED'
-                        }], { session });
+                        });
+                        await newLog.save({ session });
                     }
 
                     provider.walletBalance = wallet.balance;

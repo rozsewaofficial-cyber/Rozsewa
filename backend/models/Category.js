@@ -28,7 +28,9 @@ const categorySchema = mongoose.Schema({
     hasNightCharge: { type: Boolean, default: false },
     nightChargePercent: { type: Number, default: 0 },
     services: [subServiceSchema], // Pre-defined services in this category
-    combos: [comboTemplateSchema] // Pre-defined combos in this category
+    combos: [comboTemplateSchema], // Pre-defined combos in this category
+    businessModel: { type: String, enum: ['commission', 'lead'], default: 'commission' },
+    defaultLeadPrice: { type: Number, default: 0 }
 }, {
     timestamps: true
 });

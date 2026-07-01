@@ -20,6 +20,8 @@ const statusColors = {
   cancelled: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   active: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
   confirmed: "bg-primary/10 text-primary dark:bg-primary/20",
+  pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  provider_countered: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
 };
 
 const ServiceHistory = () => {
@@ -51,8 +53,10 @@ const ServiceHistory = () => {
         total: (b.totalAmount || 0) + (b.extraCharges?.filter(c => !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0),
         date: b.bookingDate,
         time: b.bookingTime,
-        status: b.status,
+        status: (b.status === 'pending' && b.offerStatus === 'countered') ? 'provider_countered' : b.status,
         negotiation: b.negotiation,
+        serviceLocation: b.serviceLocation,
+        providerAddress: b.providerId ? `${b.providerId.address || ''} ${b.providerId.city ? `, ${b.providerId.city}` : ''}` : '',
       }));
       setBookings(formatted);
     } catch (err) {
@@ -178,13 +182,18 @@ const ServiceHistory = () => {
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${statusColors[booking.status]}`}>
-                      {booking.status}
+                      {booking.status === 'provider_countered' ? 'COUNTER-OFFER RECEIVED' : booking.status}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{booking.id}</span>
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{booking.service}</h3>
+                  <div className="mt-1">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase ${booking.serviceLocation === 'shop' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                      {booking.serviceLocation === 'shop' ? 'At Shop' : 'At Home'}
+                    </span>
+                  </div>
                   <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                    <MapPin className="h-3.5 w-3.5 inline mr-1 -mt-0.5" /> {booking.address}
+                    <MapPin className="h-3.5 w-3.5 inline mr-1 -mt-0.5" /> {booking.serviceLocation === 'shop' ? 'Provider Shop' : booking.address}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
@@ -255,12 +264,23 @@ const ServiceHistory = () => {
                   <div className="space-y-4 rounded-2xl bg-muted/30 p-4 border border-border/50">
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-semibold text-muted-foreground">Service</span>
-                      <span className="text-sm font-black text-foreground text-right">{selectedBooking.service}</span>
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-sm font-black text-foreground">{selectedBooking.service}</span>
+                        <span className={`mt-0.5 text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase ${selectedBooking.serviceLocation === 'shop' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                          {selectedBooking.serviceLocation === 'shop' ? 'At Shop' : 'At Home'}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-semibold text-muted-foreground">Provider</span>
                       <span className="text-sm font-bold text-foreground text-right">{selectedBooking.provider}</span>
                     </div>
+                    {selectedBooking.serviceLocation === 'shop' && selectedBooking.providerAddress?.trim() && (
+                      <div className="flex justify-between items-start bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-xl border border-blue-100 dark:border-blue-800">
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-400">Shop Location</span>
+                        <span className="text-xs font-semibold text-foreground text-right max-w-[60%]">{selectedBooking.providerAddress}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-semibold text-muted-foreground">Schedule</span>
                       <div className="text-right">
@@ -297,22 +317,36 @@ const ServiceHistory = () => {
                       )}
 
                       <div className="flex justify-between text-sm"><span className="text-muted-foreground">Taxes & Fee</span><span className="font-semibold">₹0</span></div>
-                      <div className="border-t border-border mt-3 pt-3 flex justify-between items-center">
-                        <span className="font-black text-foreground">Total Paid</span>
-                        <span className="text-xl font-black text-primary">₹{selectedBooking.total}</span>
-                      </div>
                       
-                      {selectedBooking.negotiation && selectedBooking.negotiation.userProposedAmount && (
+                      {selectedBooking.paymentMode === 'after' && selectedBooking.status !== 'completed' ? (
+                        <div className="border-t border-border mt-3 pt-3 flex justify-between items-center">
+                          <span className="font-black text-amber-600 dark:text-amber-500">To Pay (Cash on Delivery)</span>
+                          <span className="text-xl font-black text-amber-600 dark:text-amber-500">₹{selectedBooking.total}</span>
+                        </div>
+                      ) : (
+                        <div className="border-t border-border mt-3 pt-3 flex justify-between items-center">
+                          <span className="font-black text-foreground">{selectedBooking.paymentStatus === 'paid' ? 'Total Paid' : 'Total Amount'}</span>
+                          <span className="text-xl font-black text-primary">₹{selectedBooking.total}</span>
+                        </div>
+                      )}
+                      
+                      {((selectedBooking.customerOffer !== undefined && selectedBooking.customerOffer !== null) || (selectedBooking.negotiation && selectedBooking.negotiation.userProposedAmount)) && (
                         <div className="border-t border-border mt-3 pt-3">
                             <h5 className="text-xs font-bold text-muted-foreground mb-2">Negotiation Details</h5>
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">You Proposed:</span>
-                                <span>₹{selectedBooking.negotiation.userProposedAmount}</span>
+                                <span>₹{(selectedBooking.customerOffer || selectedBooking.negotiation?.userProposedAmount) - (selectedBooking.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                             </div>
-                            {selectedBooking.negotiation.providerCounterAmount && (
-                                <div className="flex justify-between text-sm mt-1">
-                                    <span className="text-blue-500 font-bold">Provider Countered:</span>
-                                    <span className="text-blue-500 font-bold">₹{selectedBooking.negotiation.providerCounterAmount}</span>
+                            {(selectedBooking.partnerCounterOffer || selectedBooking.negotiation?.providerCounterAmount) && (
+                                <div className="mt-2 bg-purple-50 dark:bg-purple-900/10 p-3 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-purple-600 font-black">Provider Countered:</span>
+                                        <span className="text-purple-600 font-black">₹{(selectedBooking.partnerCounterOffer || selectedBooking.negotiation?.providerCounterAmount) - (selectedBooking.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-purple-500/80">
+                                        <span>Total with Travel Charge:</span>
+                                        <span>₹{selectedBooking.partnerCounterOffer || selectedBooking.negotiation?.providerCounterAmount}</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -351,7 +385,7 @@ const ServiceHistory = () => {
                     <button onClick={handleDownloadInvoice} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-extrabold text-primary-foreground shadow-xl shadow-primary/20">
                       <Download className="h-5 w-5" /> Download Invoice
                     </button>
-                  ) : (selectedBooking.status === "pending" || selectedBooking.status === "confirmed") ? (
+                  ) : selectedBooking.status === "pending" ? (
                     <div className="flex gap-3">
                       <button onClick={() => setSelectedBooking(null)} className="flex-1 rounded-2xl border border-border py-4 text-sm font-extrabold hover:bg-muted">Close</button>
                       <button
@@ -359,6 +393,27 @@ const ServiceHistory = () => {
                         className="flex-1 rounded-2xl bg-rose-600 py-4 text-sm font-extrabold text-white shadow-lg shadow-rose-600/30 hover:bg-rose-700"
                       >
                         Cancel Booking
+                      </button>
+                    </div>
+                  ) : selectedBooking.status === "provider_countered" ? (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={async () => {
+                          await handleRejectCounter(selectedBooking.id);
+                          setSelectedBooking(null);
+                        }}
+                        className="flex-1 rounded-2xl border-2 border-red-200 bg-red-50 py-4 text-sm font-extrabold text-red-600 hover:bg-red-100"
+                      >
+                        Reject Price
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await handleAcceptCounter(selectedBooking.id);
+                          setSelectedBooking(null);
+                        }}
+                        className="flex-1 rounded-2xl bg-purple-600 py-4 text-sm font-extrabold text-white shadow-lg shadow-purple-600/30 hover:bg-purple-700"
+                      >
+                        Accept Counter
                       </button>
                     </div>
                   ) : (

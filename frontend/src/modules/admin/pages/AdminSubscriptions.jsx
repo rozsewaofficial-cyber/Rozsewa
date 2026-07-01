@@ -24,6 +24,8 @@ const AdminSubscriptions = () => {
     planType: "monthly",
     category: "",
     offeredCommissionRate: "",
+    leadCredits: "",
+    validity: "",
     description: "",
     features: [""],
     isActive: true
@@ -96,6 +98,8 @@ const AdminSubscriptions = () => {
       planType: "monthly",
       category: "",
       offeredCommissionRate: "",
+      leadCredits: "",
+      validity: "",
       description: "",
       features: [""],
       isActive: true
@@ -184,8 +188,17 @@ const AdminSubscriptions = () => {
                     <p className="text-2xl font-black text-slate-900">₹{plan.price}<span className="text-xs opacity-40">/{plan.planType === 'monthly' ? 'mo' : 'yr'}</span></p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Commission</p>
-                    <p className="text-lg font-black text-emerald-600">{plan.offeredCommissionRate}%</p>
+                    {plan.leadCredits > 0 ? (
+                      <>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Credits</p>
+                        <p className="text-base font-black text-blue-600">{plan.leadCredits} Credits</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Commission</p>
+                        <p className="text-lg font-black text-emerald-600">{plan.offeredCommissionRate}%</p>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -293,17 +306,44 @@ const AdminSubscriptions = () => {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Commission Rate (%)</label>
-                      <input
-                        type="number"
-                        required
-                        value={newPlan.offeredCommissionRate}
-                        onChange={(e) => setNewPlan({ ...newPlan, offeredCommissionRate: e.target.value })}
-                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
-                        placeholder="e.g. 5"
-                      />
-                    </div>
+                    {categories.find(c => c._id === newPlan.category)?.businessModel === 'lead' ? (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Lead Credits</label>
+                          <input
+                            type="number"
+                            required
+                            value={newPlan.leadCredits}
+                            onChange={(e) => setNewPlan({ ...newPlan, leadCredits: e.target.value })}
+                            className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
+                            placeholder="e.g. 50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Validity (Days)</label>
+                          <input
+                            type="number"
+                            required
+                            value={newPlan.validity}
+                            onChange={(e) => setNewPlan({ ...newPlan, validity: e.target.value })}
+                            className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
+                            placeholder="e.g. 365"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Commission Rate (%)</label>
+                        <input
+                          type="number"
+                          required
+                          value={newPlan.offeredCommissionRate}
+                          onChange={(e) => setNewPlan({ ...newPlan, offeredCommissionRate: e.target.value })}
+                          className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
+                          placeholder="e.g. 5"
+                        />
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Visibility</label>

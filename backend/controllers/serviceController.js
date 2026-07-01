@@ -67,7 +67,9 @@ const createService = async (req, res) => {
             visible: visible !== undefined ? visible : true,
             image,
             amenities: amenities || [],
-            serviceDetails: serviceDetails || []
+            serviceDetails: serviceDetails || [],
+            useCategoryLeadPrice: req.body.useCategoryLeadPrice !== undefined ? req.body.useCategoryLeadPrice : true,
+            customLeadPrice: req.body.customLeadPrice !== undefined ? req.body.customLeadPrice : 0
         });
 
         if (service) {
@@ -100,6 +102,8 @@ const updateService = async (req, res) => {
             if (req.body.image !== undefined) service.image = req.body.image;
             if (req.body.amenities !== undefined) service.amenities = req.body.amenities;
             if (req.body.serviceDetails !== undefined) service.serviceDetails = req.body.serviceDetails;
+            if (req.body.useCategoryLeadPrice !== undefined) service.useCategoryLeadPrice = req.body.useCategoryLeadPrice;
+            if (req.body.customLeadPrice !== undefined) service.customLeadPrice = req.body.customLeadPrice;
 
             const updatedService = await service.save();
             res.json(updatedService);

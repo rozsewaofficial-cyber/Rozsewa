@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useAuth } from "@/context/AuthContext";
 import { GoogleMap, useJsApiLoader, MarkerF, Autocomplete } from "@react-google-maps/api";
 import API from "@/lib/api";
@@ -48,6 +49,7 @@ const Checkout = () => {
   const [providerDetails, setProviderDetails] = useState(null);
   const [userProposedAmount, setUserProposedAmount] = useState("");
   const [drivingDistanceKm, setDrivingDistanceKm] = useState(null);
+  const [serviceLocation, setServiceLocation] = useState("home");
 
   const checkoutData = JSON.parse(localStorage.getItem("rozsewa_checkout_data")) || {
     shopName: "Provider",
@@ -330,6 +332,18 @@ const Checkout = () => {
       };
       window.addEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
 
+      const handleCounterOfferReceived = (e) => {
+        const { bookingId: counteredId } = e.detail;
+        if (counteredId === bookingId) {
+          toast({
+            title: "Counter-Offer Received",
+            description: "The provider proposed a new price for your booking.",
+          });
+          navigate("/tracking", { replace: true });
+        }
+      };
+      window.addEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
+
       interval = setInterval(async () => {
         try {
           const { data } = await API.get('/bookings');
@@ -338,8 +352,8 @@ const Checkout = () => {
             setCurrentBookingStatus(myBooking.status);
             setCreatedBooking(myBooking);
 
-            // Redirect to tracking page if a reschedule has been proposed
-            if (myBooking.proposedSchedule && myBooking.proposedSchedule.status === 'pending') {
+            // Redirect to tracking page if a reschedule or counter-offer has been proposed
+            if ((myBooking.proposedSchedule && myBooking.proposedSchedule.status === 'pending') || myBooking.offerStatus === 'countered') {
               clearInterval(interval);
               navigate("/tracking", { replace: true });
               return;
@@ -357,9 +371,33 @@ const Checkout = () => {
         window.removeEventListener("popstate", handlePopState);
         window.removeEventListener('BOOKING_REJECTED', handleRejected);
         window.removeEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
+        window.removeEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
       };
     }
   }, [bookingConfirmed, bookingId, navigate]);
+
+  const handleCancelBooking = () => {
+    if (!bookingId) return;
+    
+    toast({
+      title: "Cancel Booking",
+      description: "Are you sure you want to cancel this booking request?",
+      variant: "destructive",
+      action: (
+        <ToastAction altText="Confirm Cancel" onClick={async () => {
+          try {
+            await API.put(`/bookings/${bookingId}`, { status: 'cancelled' });
+            toast({ title: "Booking Cancelled", description: "Your booking request has been cancelled.", variant: "default" });
+            setCurrentBookingStatus('cancelled');
+          } catch (err) {
+            toast({ title: "Failed to cancel booking", variant: "destructive" });
+          }
+        }}>
+          Yes, Cancel
+        </ToastAction>
+      ),
+    });
+  };
 
   const applyCoupon = async () => {
     try {
@@ -449,6 +487,10 @@ const Checkout = () => {
                   default: charge = Math.round(charge); break;
               }
               estimatedTravelCharge = charge;
+  }
+  
+  if (serviceLocation === 'shop') {
+      estimatedTravelCharge = 0;
   }
   
   const total = payableSubtotal + (isExpress ? EXPRESS_FEE : 0) + estimatedTravelCharge;
@@ -623,14 +665,15 @@ const Checkout = () => {
         bookingDate: isExpress ? "ASAP" : selectedDate,
         bookingTime: isExpress ? "ASAP" : selectedTime,
         totalAmount: total,
-        address: selectedAddress.address,
-        location: selectedAddress.location,
+        address: selectedAddress ? selectedAddress.address : (serviceLocation === 'shop' ? "Shop Address (Customer Visits)" : ""),
+        location: selectedAddress ? selectedAddress.location : (serviceLocation === 'shop' ? { type: "Point", coordinates: [0, 0] } : undefined),
         paymentMode: paymentMode,
         couponCode: appliedCouponData?.code || "",
         discountAmount: totalDiscount,
         customerOffer: hasCustomOffer ? payableSubtotal : null,
         items: checkoutData.items || [],
-        userProposedAmount: userProposedAmount ? Number(userProposedAmount) : undefined
+        userProposedAmount: userProposedAmount ? Number(userProposedAmount) : undefined,
+        serviceLocation
       };
 
       const { data } = await API.post("/bookings", bookingData);
@@ -660,7 +703,7 @@ const Checkout = () => {
       toast({ title: "Select Time", description: "Please select a time slot.", variant: "destructive" });
       return;
     }
-    if (!selectedAddress) {
+    if (!selectedAddress && serviceLocation !== 'shop') {
       toast({ title: "Select Address", description: "Please select a delivery address.", variant: "destructive" });
       return;
     }
@@ -915,6 +958,16 @@ const Checkout = () => {
               My Bookings
             </motion.button>
           </div>
+
+          {currentBookingStatus === 'pending' && (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleCancelBooking}
+              className="w-full mt-3 rounded-[20px] border-2 border-rose-500/20 bg-rose-50 dark:bg-rose-950/20 py-4 text-sm font-black text-rose-600 dark:text-rose-400 hover:bg-rose-100 transition-all flex items-center justify-center gap-2"
+            >
+              <X className="h-4 w-4" /> Cancel Booking request
+            </motion.button>
+          )}
         </motion.div>
       </div>
     );
@@ -935,6 +988,34 @@ const Checkout = () => {
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{serviceNames}</p>
           </div>
         </div>
+
+        {/* Service Preference Toggle */}
+        <section className="bg-white dark:bg-slate-800 rounded-[20px] p-4 border border-slate-200 dark:border-slate-700">
+          <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Where would you like your service?
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("home")}
+              className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "home" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
+                }`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Home className={`h-4 w-4 ${serviceLocation === "home" ? "text-blue-600" : "text-slate-400"}`} />
+                <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Home</h3>
+              </div>
+              <p className="text-[10px] font-bold text-slate-500 leading-tight">Provider visits you</p>
+            </motion.div>
+            
+            <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("shop")}
+              className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "shop" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
+                }`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Briefcase className={`h-4 w-4 ${serviceLocation === "shop" ? "text-blue-600" : "text-slate-400"}`} />
+                <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Shop</h3>
+              </div>
+              <p className="text-[10px] font-bold text-slate-500 leading-tight">You visit provider</p>
+            </motion.div>
+          </div>
+        </section>
 
         {/* Feature Toggles */}
         {EXPRESS_FEE > 0 && (
@@ -1021,24 +1102,35 @@ const Checkout = () => {
 
         {/* Address */}
         <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Location</h3>
-            <button onClick={() => setShowAddressModal(true)} className="rounded-full bg-blue-50 dark:bg-blue-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors">Change</button>
-          </div>
-          {selectedAddress ? (
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-slate-100 dark:bg-slate-800">
-                {selectedAddress.icon === "office" ? <Briefcase className="h-6 w-6 text-slate-900 dark:text-white" /> : <Home className="h-6 w-6 text-slate-900 dark:text-white" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAddress.label}</p>
-                <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug truncate">{selectedAddress.address}</p>
-              </div>
+          {serviceLocation === 'shop' ? (
+            <div className="text-center py-4">
+              <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-center gap-2">
+                <Briefcase className="h-5 w-5 text-blue-600 dark:text-blue-400" /> You will visit the provider's shop
+              </h3>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500">The provider's shop address will be shown after booking confirmation.</p>
             </div>
           ) : (
-            <button onClick={() => setShowAddressModal(true)} className="w-full flex items-center justify-center gap-2 py-4 rounded-[20px] border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">
-              <Plus className="h-5 w-5" /> Add Delivery Address
-            </button>
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Location</h3>
+                <button onClick={() => setShowAddressModal(true)} className="rounded-full bg-blue-50 dark:bg-blue-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors">Change</button>
+              </div>
+              {selectedAddress ? (
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-slate-100 dark:bg-slate-800">
+                    {selectedAddress.icon === "office" ? <Briefcase className="h-6 w-6 text-slate-900 dark:text-white" /> : <Home className="h-6 w-6 text-slate-900 dark:text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAddress.label}</p>
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug truncate">{selectedAddress.address}</p>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowAddressModal(true)} className="w-full flex items-center justify-center gap-2 py-4 rounded-[20px] border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">
+                  <Plus className="h-5 w-5" /> Add Delivery Address
+                </button>
+              )}
+            </>
           )}
         </section>
 
@@ -1150,6 +1242,30 @@ const Checkout = () => {
                 <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
                 <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{userProposedAmount || total}</span>
               </div>
+            </div>
+          </section>
+
+          {/* Payment Mode Selection */}
+          <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-4">
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Payment Method</h3>
+            <div className="flex flex-col gap-3">
+              <label className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMode === 'now' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800'}`}>
+                <input type="radio" name="paymentMode" value="now" checked={paymentMode === 'now'} onChange={() => setPaymentMode('now')} className="hidden" />
+                <div className="flex-1">
+                  <p className="font-bold text-slate-900 dark:text-white">Pay Online</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay securely via UPI/Card after provider acceptance</p>
+                </div>
+                {paymentMode === 'now' ? <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center shadow-md"><Check className="h-3 w-3 text-white" /></div> : <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}
+              </label>
+              
+              <label className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMode === 'after' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800'}`}>
+                <input type="radio" name="paymentMode" value="after" checked={paymentMode === 'after'} onChange={() => setPaymentMode('after')} className="hidden" />
+                <div className="flex-1">
+                  <p className="font-bold text-slate-900 dark:text-white">Cash on Delivery</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay in cash when the service is completed</p>
+                </div>
+                {paymentMode === 'after' ? <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center shadow-md"><Check className="h-3 w-3 text-white" /></div> : <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}
+              </label>
             </div>
           </section>
         </>

@@ -1,18 +1,32 @@
 import { motion } from "framer-motion";
-import { Home, Calendar, LayoutGrid, Wallet } from "lucide-react";
+import { Home, Calendar, LayoutGrid, Wallet, Briefcase } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 const ProviderBottomNav = () => {
   const location = useLocation();
-  const { user } = useAuth();
-  
-  const isRestricted = (user?.role === 'sewak' || user?.providerCategory === 'sewak') ? !user?.kycVerified : user?.status !== 'verified';
+  const { user, loading } = useAuth();
+
+  // During initial loading, read from localStorage so nav doesn't flash empty
+  const effectiveUser = user || (() => {
+    try {
+      const saved = localStorage.getItem("rozsewa_auth_provider");
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  })();
+
+  // Only restrict AFTER auth is confirmed (not during the brief loading window)
+  const isRestricted = loading
+    ? false // Show all items while loading to prevent flash
+    : (effectiveUser?.role === 'sewak' || effectiveUser?.providerCategory === 'sewak')
+        ? !effectiveUser?.kycVerified
+        : effectiveUser?.status !== 'verified';
 
   const navItems = [
     { icon: Home, label: "Home", path: "/provider" },
     ...(!isRestricted ? [
       { icon: Calendar, label: "Bookings", path: "/provider/bookings" },
+      { icon: Briefcase, label: "Leads", path: "/provider/leads" },
       { icon: LayoutGrid, label: "Services", path: "/provider/services" },
       { icon: Wallet, label: "Wallet", path: "/provider/wallet" },
     ] : [])

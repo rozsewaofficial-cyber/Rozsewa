@@ -111,7 +111,9 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
         whileTap={!cat.isComingSoon ? { scale: 0.95 } : {}}
         onClick={() => {
           if (!cat.isComingSoon) {
-            if (mode === "sewak") {
+            if (cat.businessModel === 'lead') {
+              navigate(`/submit-lead?category=${cat._id}&name=${encodeURIComponent(cat.name)}`);
+            } else if (mode === "sewak") {
               navigate(`/sewak-services?category=${encodeURIComponent(cat.name)}`);
             } else {
               navigate(`/shops?category=${encodeURIComponent(cat.name)}&mode=${mode}`);

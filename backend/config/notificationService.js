@@ -17,7 +17,7 @@ const mapEventDetails = (title, type, booking, provider) => {
     const dateStr = booking ? `${booking.bookingDate || 'N/A'} at ${booking.bookingTime || 'N/A'}` : 'N/A';
     const amountStr = booking ? `₹${booking.totalAmount || 0}` : '₹0';
     const addressStr = booking ? (booking.address || 'N/A') : 'N/A';
-    const paymentStr = booking ? (booking.paymentMode === 'after' ? 'Cash After Service' : 'Paid Online') : 'N/A';
+    const paymentStr = booking ? (booking.paymentMode === 'after' ? 'Cash on Delivery' : 'Online Payment') : 'N/A';
 
     const normalizedTitle = title ? title.toLowerCase() : '';
 
@@ -212,6 +212,19 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                 title: payload.title,
                 body: payload.body
             },
+            android: {
+                notification: {
+                    sound: 'default',
+                    channelId: 'default'
+                }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default'
+                    }
+                }
+            },
             data: {
                 ...payload.data,
                 notificationId
@@ -268,7 +281,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
         const { emitToUser, emitToProvider } = require('./socket');
 
         const titleKey = title ? title.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-        const idKey = bookingId ? bookingId.toString() : (data?.bookingId || data?.id || 'default');
+        const idKey = bookingId ? bookingId.toString() : (data?.bookingId || data?.leadId || data?.id || 'default');
         const eventKey = `${userId}_${type}_${idKey}_${titleKey}`;
 
         // 1. Atomic Duplicate Prevention using findOneAndUpdate + upsert
@@ -296,6 +309,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                 type,
             };
             if (bookingId) notificationData.bookingId = bookingId;
+            if (data?.leadId) notificationData.leadId = data.leadId;
 
             newNotification = await Notification.create(notificationData);
             inAppStatus = 'success';
@@ -315,6 +329,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                 message,
                 type,
                 bookingId,
+                leadId: data?.leadId,
                 createdAt: newNotification ? newNotification.createdAt : new Date(),
                 isRead: false,
                 ...data

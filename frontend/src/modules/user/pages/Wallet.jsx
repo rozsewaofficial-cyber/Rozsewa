@@ -14,6 +14,16 @@ const defaultTransactions = [
   { id: "TXN-003", type: "Refund", title: "Cancelled Booking", amount: 250, date: new Date(Date.now() - 86400000 * 10).toISOString(), status: "credited" },
 ];
 
+const loadRazorpay = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 const WalletPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -57,18 +67,64 @@ const WalletPage = () => {
     setIsProcessing(true);
 
     try {
-      await API.post("/wallet/add", {
+      const res = await loadRazorpay();
+      if (!res) {
+        toast({ title: "Razorpay SDK failed to load. Are you online?", variant: "destructive" });
+        setIsProcessing(false);
+        return;
+      }
+
+      // 1. Create Order on Backend
+      const { data: order } = await API.post("/payment/order", {
         amount: amount,
-        title: "Added Money to Wallet"
+        currency: "INR"
       });
 
-      toast({ title: "Money Added! 🎉", description: `₹${amount} added to your wallet.` });
-      setAddAmount("");
-      setShowAddMoney(false);
-      fetchWalletData(); // Refresh balance
+      // 2. Open Razorpay Checkout
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa",
+        description: `Add money to Wallet`,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            // 3. Verify Payment and Add Money Securely
+            const { data: verification } = await API.post("/payment/verify-user-wallet", {
+              ...response,
+              amount: amount
+            });
+            
+            if (verification.success) {
+              toast({ title: "Money Added! 🎉", description: `₹${amount} successfully added to your wallet.` });
+              setAddAmount("");
+              setShowAddMoney(false);
+              fetchWalletData(); // Refresh balance
+            }
+          } catch (err) {
+            toast({ title: "Payment Verification Failed", variant: "destructive" });
+          } finally {
+            setIsProcessing(false);
+          }
+        },
+        prefill: {
+          name: "User",
+        },
+        theme: {
+          color: "#2563eb", // blue-600 to match wallet theme
+        },
+        modal: {
+          ondismiss: () => {
+            setIsProcessing(false);
+          }
+        }
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
     } catch (err) {
-      toast({ title: "Transaction Failed", description: "Payment processing error", variant: "destructive" });
-    } finally {
+      toast({ title: "Failed to initiate payment", description: err.message, variant: "destructive" });
       setIsProcessing(false);
     }
   };
