@@ -247,10 +247,10 @@ export const AuthProvider = ({ children }) => {
               event.preventDefault();
               window.focus();
 
-              const data = event.target.data;
+              const data = notif.data || payload.data;
               if (data) {
                 const targetLink = data.link || data.url || 
-                  (data.type === 'booking' ? (data.userRole === 'provider' ? '/provider/bookings' : '/my-bookings') : 
+                  (data.type === 'booking' ? (data.userRole === 'provider' ? '/provider/bookings' : '/tracking') : 
                    (data.type === 'lead' || data.leadId) ? '/provider/leads' : '');
                 if (targetLink) {
                   navigate(targetLink);
@@ -270,6 +270,32 @@ export const AuthProvider = ({ children }) => {
       if (unsubscribe) unsubscribe();
     };
   }, [navigate]);
+
+  // Sync FCM token with backend when authenticated on startup/reload
+  useEffect(() => {
+    if (auth && auth.token) {
+      const syncFCMToken = async () => {
+        try {
+          const { requestForToken } = await import("@/lib/firebase");
+          const token = await requestForToken();
+          if (token) {
+            await API.post("/notifications/fcm-tokens/save", 
+              { token, platform: 'web' },
+              { headers: { Authorization: `Bearer ${auth.token}` } }
+            );
+            localStorage.setItem("rozsewa_last_fcm_token", token);
+            console.log("FCM Token successfully synced with backend.");
+          }
+        } catch (err) {
+          console.error("Error syncing FCM token:", err);
+        }
+      };
+
+      // Delay execution slightly to ensure it doesn't block critical page load
+      const timer = setTimeout(syncFCMToken, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [auth]);
 
   const login = async (identifier, password, type = 'customer') => {
     try {
@@ -317,6 +343,21 @@ export const AuthProvider = ({ children }) => {
 
       const sessionData = { ...authData, token, role: type };
       setAuth(sessionData);
+
+      try {
+        const { requestForToken } = await import("@/lib/firebase");
+        const fcmToken = await requestForToken();
+        if (fcmToken) {
+          await API.post("/notifications/fcm-tokens/save",
+            { token: fcmToken, platform: 'web' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          localStorage.setItem("rozsewa_last_fcm_token", fcmToken);
+        }
+      } catch (err) {
+        console.error("Error saving FCM token on OTP login", err);
+      }
+
       return { success: true, data: sessionData };
     } catch (error) {
       return { success: false, error: error.response?.data?.message || "OTP Verification failed" };
@@ -348,11 +389,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      const lastToken = localStorage.getItem("rozsewa_last_fcm_token");
+      if (lastToken && auth?.token) {
+        // Send request to backend to delete token
+        await API.delete("/notifications/fcm-tokens/remove", { 
+          data: { token: lastToken },
+          headers: { Authorization: `Bearer ${auth.token}` }
+        });
+      }
+    } catch (err) {
+      console.error("Error removing FCM token on logout:", err);
+    }
     localStorage.removeItem("rozsewa_auth_user");
     localStorage.removeItem("rozsewa_auth_admin");
     localStorage.removeItem("rozsewa_auth_provider");
     localStorage.removeItem("rozsewa_auth");
+    localStorage.removeItem("rozsewa_last_fcm_token");
     setAuth(null);
   };
 

@@ -160,6 +160,12 @@ const mapEventDetails = (title, type, booking, provider) => {
     return { eventName, emailSubject, emailHtml, smsText };
 };
 
+/** FCM requires all data payload values to be strings */
+const stringifyFcmData = (data = {}) =>
+    Object.fromEntries(
+        Object.entries(data).map(([key, value]) => [key, value == null ? '' : String(value)])
+    );
+
 /**
  * Send FCM push notification (direct or called via notifyUser)
  */
@@ -205,6 +211,12 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
         return;
     }
 
+    const fcmData = stringifyFcmData({
+        ...payload.data,
+        userRole,
+        notificationId
+    });
+
     try {
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
@@ -230,11 +242,26 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                     }
                 }
             },
-            data: {
-                ...payload.data,
-                userRole,
-                notificationId
-            }
+            webpush: {
+                headers: {
+                    Urgency: 'high'
+                },
+                notification: {
+                    title: payload.title,
+                    body: payload.body,
+                    requireInteraction: true,
+                    icon: '/logo.png',
+                    badge: '/logo.png',
+                    tag: notificationId
+                },
+                fcmOptions: {
+                    link: payload.data?.link
+                        ? `${process.env.FRONTEND_URL || 'https://rozsewa.in'}${payload.data.link}`
+                        : undefined
+                },
+                data: fcmData
+            },
+            data: fcmData
         });
 
         console.log(`Successfully sent ${response.successCount} push notifications.`);

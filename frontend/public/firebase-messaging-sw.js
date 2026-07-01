@@ -38,6 +38,11 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: payload.notification?.body || '',
     icon: '/logo.png',
+    badge: '/logo.png',
+    requireInteraction: true,
+    silent: false,
+    vibrate: [200, 100, 200],
+    tag: payload.data?.notificationId || undefined,
     data: payload.data
   };
 
