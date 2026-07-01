@@ -34,10 +34,11 @@ messaging.onBackgroundMessage((payload) => {
   }
   if (id) shownNotifications.add(id);
 
-  const notificationTitle = payload.notification?.title || 'New Notification';
+  // Read from data if notification block is missing
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'RozSewa Notification';
   const notificationOptions = {
-    body: payload.notification?.body || '',
-    icon: '/logo.png',
+    body: payload.notification?.body || payload.data?.body || '',
+    icon: '/RozSewa.png',
     data: payload.data
   };
 

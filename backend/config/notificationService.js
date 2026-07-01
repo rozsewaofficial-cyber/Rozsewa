@@ -217,19 +217,15 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
         }
         stringifiedData.userRole = String(userRole);
         stringifiedData.notificationId = String(notificationId);
+        // Explicitly pass title and body in data for Web SDK onBackgroundMessage
+        stringifiedData.title = String(payload.title || 'RozSewa Notification');
+        stringifiedData.body = String(payload.body || '');
 
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
-            notification: {
-                title: payload.title || 'New Notification',
-                body: payload.body || ''
-            },
+            // Removing root notification block to force Web Push to use onBackgroundMessage
             android: {
-                priority: 'high',
-                notification: {
-                    sound: 'default',
-                    channelId: 'default'
-                }
+                priority: 'high'
             },
             apns: {
                 headers: {
@@ -245,9 +241,6 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             webpush: {
                 headers: {
                     Urgency: 'high'
-                },
-                notification: {
-                    icon: '/RozSewa.png'
                 }
             },
             data: stringifiedData
