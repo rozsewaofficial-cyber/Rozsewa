@@ -232,6 +232,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             },
             data: {
                 ...payload.data,
+                userRole,
                 notificationId
             }
         });
@@ -250,16 +251,21 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             const failedTokens = [];
             response.responses.forEach((resp, idx) => {
                 if (!resp.success) {
-                    failedTokens.push(tokens[idx]);
+                    const err = resp.error;
+                    console.error(`FCM token delivery failed for token [${tokens[idx].substring(0, 15)}...]: Code=${err?.code}, Message=${err?.message}`);
+                    // Only remove if it is a permanent invalid/unregistered token error
+                    if (err?.code === 'messaging/registration-token-not-registered' || err?.code === 'messaging/invalid-argument') {
+                        failedTokens.push(tokens[idx]);
+                    }
                 }
             });
-            console.log(`Failed tokens count: ${failedTokens.length}`);
+            console.log(`Failed tokens to remove: ${failedTokens.length}`);
             
             if (failedTokens.length > 0) {
                 if (target.fcmTokens) target.fcmTokens = target.fcmTokens.filter(t => !failedTokens.includes(t));
                 if (target.fcmTokenMobile) target.fcmTokenMobile = target.fcmTokenMobile.filter(t => !failedTokens.includes(t));
                 await target.save();
-                console.log(`Removed ${failedTokens.length} failed tokens from DB.`);
+                console.log(`Removed ${failedTokens.length} permanently failed/unregistered tokens from DB.`);
             }
         }
     } catch (error) {

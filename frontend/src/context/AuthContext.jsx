@@ -250,7 +250,7 @@ export const AuthProvider = ({ children }) => {
               const data = event.target.data;
               if (data) {
                 const targetLink = data.link || data.url || 
-                  (data.type === 'booking' ? '/provider/bookings' : 
+                  (data.type === 'booking' ? (data.userRole === 'provider' ? '/provider/bookings' : '/my-bookings') : 
                    (data.type === 'lead' || data.leadId) ? '/provider/leads' : '');
                 if (targetLink) {
                   navigate(targetLink);
