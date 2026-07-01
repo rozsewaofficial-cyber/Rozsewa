@@ -234,7 +234,16 @@ const RecentBookingsList = () => {
   const [afterWorkPhoto, setAfterWorkPhoto] = useState(null);
 
   const [showExtraModal, setShowExtraModal] = useState(false);
-  const [newExtraCharges, setNewExtraCharges] = useState([{ item: '', amount: '' }]);
+  const [newExtraCharges, setNewExtraCharges] = useState([]);
+  
+  const isBeautyBooking = (req) => {
+    const svc = (req?.serviceName || '').toLowerCase();
+    const biz = (user?.businessType || '').toLowerCase();
+    const shop = (user?.shopName || '').toLowerCase();
+    return svc.match(/salon|spa|grooming|beauty|makeup|facial|hair/) || 
+           biz.match(/salon|spa|grooming|beauty|makeup|facial|hair/) ||
+           shop.match(/salon|spa|grooming|beauty|makeup|facial|hair/);
+  };
   const [extraMode, setExtraMode] = useState('parts');
   const [providerServices, setProviderServices] = useState([]);
   const [showAdminRequestModal, setShowAdminRequestModal] = useState(false);
@@ -267,7 +276,11 @@ const RecentBookingsList = () => {
       setAfterWorkPhoto(null);
       fetchBookings();
     } catch (err) {
-      toast({ title: "Invalid OTP", description: "Please enter the correct code.", variant: "destructive" });
+      toast({ 
+        title: "Verification Failed", 
+        description: err.response?.data?.message || "Please enter the correct code.", 
+        variant: "destructive" 
+      });
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -360,6 +373,12 @@ const RecentBookingsList = () => {
 
                 <h3 className="text-lg font-black text-foreground truncate">{req.serviceName}</h3>
 
+                <div className="mt-1">
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase ${req.serviceLocation === 'shop' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                    {req.serviceLocation === 'shop' ? 'At Shop' : 'At Home'}
+                  </span>
+                </div>
+
                 <div className="flex items-center gap-1.5 mt-1.5 mb-1 text-xs font-bold text-muted-foreground bg-muted/30 w-fit px-2 py-1 rounded-lg">
                   <Clock className="h-3.5 w-3.5 text-primary" />
                   <span>{req.bookingDate} • {req.bookingTime}</span>
@@ -437,7 +456,7 @@ const RecentBookingsList = () => {
                     )}
                     <div className="flex items-start gap-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 px-2 py-1 rounded-lg max-w-[180px]">
                       <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{req.address}</span>
+                      <span className="line-clamp-2">{req.serviceLocation === 'shop' ? 'Customer visits shop' : req.address}</span>
                     </div>
                   </div>
                 </div>
@@ -670,7 +689,7 @@ const RecentBookingsList = () => {
                           }}
                           className="w-full flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-primary bg-primary/5 py-3 text-[10px] font-black uppercase text-primary tracking-widest hover:bg-primary/10 transition-all"
                         >
-                          <Plus className="h-4 w-4" /> Add Spare Parts
+                          <Plus className="h-4 w-4" /> {isBeautyBooking(req) ? 'Add Products Used' : 'Add Spare Parts'}
                         </button>
                         <button
                           onClick={() => {
@@ -860,7 +879,7 @@ const RecentBookingsList = () => {
         {showExtraModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-6 border border-border shadow-2xl my-auto">
-              <h3 className="text-lg font-black text-center mb-1">{extraMode === 'services' ? 'Add Extra Services' : 'Add Extra Charges'}</h3>
+              <h3 className="text-lg font-black text-center mb-1">{extraMode === 'services' ? 'Add Extra Services' : (isBeautyBooking(requests.find(r => r._id === activeBookingForExtra)) ? 'Add Products Used' : 'Add Spare Parts')}</h3>
               <p className="text-[10px] text-muted-foreground text-center mb-5 font-bold uppercase tracking-widest">Customer will approve before payment</p>
 
               <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -888,7 +907,7 @@ const RecentBookingsList = () => {
                       </select>
                     ) : (
                       <input
-                        placeholder="Part Name"
+                        placeholder={isBeautyBooking(requests.find(r => r._id === activeBookingForExtra)) ? "Product Name" : "Part Name"}
                         value={charge.item}
                         onChange={(e) => {
                           const updated = [...newExtraCharges];

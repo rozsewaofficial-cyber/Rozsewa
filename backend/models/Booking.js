@@ -233,6 +233,11 @@ const bookingSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    serviceLocation: {
+        type: String,
+        enum: ['home', 'shop'],
+        default: 'home'
+    }
 }, {
     timestamps: true
 });

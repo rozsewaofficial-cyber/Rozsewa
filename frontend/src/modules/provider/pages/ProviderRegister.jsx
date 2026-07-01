@@ -93,6 +93,7 @@ const ProviderRegister = () => {
       kycPanPhoto: "",
       profileImage: "",
       serviceRadius: "5",
+      serviceModes: ["home"],
       registrationType: "individual",
       referredBy: "",
       address: "",
@@ -1169,12 +1170,32 @@ const ProviderRegister = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
-                      <input type="checkbox" checked={formData.isHomeVisitAvailable || false} onChange={e => setFormData({ ...formData, isHomeVisitAvailable: e.target.checked })} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                      <input type="checkbox" checked={formData.serviceModes?.includes("home") || false} onChange={e => {
+                        const newModes = e.target.checked 
+                          ? [...(formData.serviceModes || []), "home"] 
+                          : (formData.serviceModes || []).filter(m => m !== "home");
+                        setFormData({ ...formData, serviceModes: newModes });
+                      }} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-800">Home Visit Available</span>
+                        <span className="text-xs font-bold text-slate-800">Home Service</span>
                         <span className="text-[9px] font-medium text-slate-500">I can visit customer's location</span>
                       </div>
                     </label>
+                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
+                      <input type="checkbox" checked={formData.serviceModes?.includes("shop") || false} onChange={e => {
+                        const newModes = e.target.checked 
+                          ? [...(formData.serviceModes || []), "shop"] 
+                          : (formData.serviceModes || []).filter(m => m !== "shop");
+                        setFormData({ ...formData, serviceModes: newModes });
+                      }} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-800">Shop Service</span>
+                        <span className="text-[9px] font-medium text-slate-500">Customers visit my shop</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
                       <input type="checkbox" checked={formData.is24x7 || false} onChange={e => setFormData({ ...formData, is24x7: e.target.checked })} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
                       <div className="flex flex-col">

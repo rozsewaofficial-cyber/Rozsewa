@@ -45,7 +45,7 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
         };
 
         fetchMessages();
-    }, [isOpen, bookingId]);
+    }, [isOpen, activeBookingId]);
 
     // Socket listeners
     useEffect(() => {
@@ -62,7 +62,7 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
         return () => {
             socket.off('receive_message', handleReceiveMessage);
         };
-    }, [isOpen, socket, bookingId]);
+    }, [isOpen, socket, activeBookingId]);
 
     // Auto scroll
     useEffect(() => {
@@ -200,6 +200,23 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                     {/* Input Area */}
                     <div className="border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                         
+                        {/* Quick Suggestions */}
+                        <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-hide no-scrollbar -mx-2 px-2">
+                            {(userType === 'Provider' 
+                                ? ["I'm on my way!", "Running 10 mins late", "Please share exact location", "Arrived at your location"]
+                                : ["When will you arrive?", "Please call me", "Can we reschedule?", "I'm at the location"]
+                            ).map((suggestion, i) => (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setInputText(suggestion)}
+                                    className="shrink-0 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 transition-colors"
+                                >
+                                    {suggestion}
+                                </button>
+                            ))}
+                        </div>
+
                         <form onSubmit={(e) => handleSendMessage(e, 'text')} className="flex items-center gap-2">
                             
                             <input 

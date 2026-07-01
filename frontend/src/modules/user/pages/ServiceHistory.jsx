@@ -55,6 +55,8 @@ const ServiceHistory = () => {
         time: b.bookingTime,
         status: (b.status === 'pending' && b.offerStatus === 'countered') ? 'provider_countered' : b.status,
         negotiation: b.negotiation,
+        serviceLocation: b.serviceLocation,
+        providerAddress: b.providerId ? `${b.providerId.address || ''} ${b.providerId.city ? `, ${b.providerId.city}` : ''}` : '',
       }));
       setBookings(formatted);
     } catch (err) {
@@ -185,8 +187,13 @@ const ServiceHistory = () => {
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{booking.id}</span>
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{booking.service}</h3>
+                  <div className="mt-1">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase ${booking.serviceLocation === 'shop' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                      {booking.serviceLocation === 'shop' ? 'At Shop' : 'At Home'}
+                    </span>
+                  </div>
                   <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                    <MapPin className="h-3.5 w-3.5 inline mr-1 -mt-0.5" /> {booking.address}
+                    <MapPin className="h-3.5 w-3.5 inline mr-1 -mt-0.5" /> {booking.serviceLocation === 'shop' ? 'Provider Shop' : booking.address}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
@@ -257,12 +264,23 @@ const ServiceHistory = () => {
                   <div className="space-y-4 rounded-2xl bg-muted/30 p-4 border border-border/50">
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-semibold text-muted-foreground">Service</span>
-                      <span className="text-sm font-black text-foreground text-right">{selectedBooking.service}</span>
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-sm font-black text-foreground">{selectedBooking.service}</span>
+                        <span className={`mt-0.5 text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase ${selectedBooking.serviceLocation === 'shop' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
+                          {selectedBooking.serviceLocation === 'shop' ? 'At Shop' : 'At Home'}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-semibold text-muted-foreground">Provider</span>
                       <span className="text-sm font-bold text-foreground text-right">{selectedBooking.provider}</span>
                     </div>
+                    {selectedBooking.serviceLocation === 'shop' && selectedBooking.providerAddress?.trim() && (
+                      <div className="flex justify-between items-start bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-xl border border-blue-100 dark:border-blue-800">
+                        <span className="text-xs font-bold text-blue-700 dark:text-blue-400">Shop Location</span>
+                        <span className="text-xs font-semibold text-foreground text-right max-w-[60%]">{selectedBooking.providerAddress}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-semibold text-muted-foreground">Schedule</span>
                       <div className="text-right">

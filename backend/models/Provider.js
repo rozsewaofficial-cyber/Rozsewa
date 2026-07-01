@@ -177,6 +177,11 @@ const providerSchema = mongoose.Schema({
         type: String,
         enum: ['partner', 'sewak'],
         default: 'partner'
+    },
+    serviceModes: {
+        type: [String],
+        enum: ['home', 'shop'],
+        default: ['home']
     }
 }, {
     timestamps: true,

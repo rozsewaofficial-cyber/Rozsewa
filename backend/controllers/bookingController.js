@@ -101,8 +101,9 @@ const createBooking = async (req, res) => {
         paymentMode,
         requiredProviderCategory,
         items = [],
-        customerOffer
-        , userProposedAmount } = req.body;
+        customerOffer,
+        userProposedAmount,
+        serviceLocation = 'home' } = req.body;
 
     try {
         // --- 1. Compute Trusted Subtotal on Backend ---
@@ -286,6 +287,7 @@ const createBooking = async (req, res) => {
             couponDiscount,
             totalDiscount,
             paymentMode,
+            serviceLocation,
             extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
         });
 
@@ -295,20 +297,30 @@ const createBooking = async (req, res) => {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
 
             if (providerId) {
-                // If specific provider is selected, calculate travel charge immediately
-                const travelChargeResult = await DistanceChargeService.applyTravelChargeToBooking(booking._id, providerId);
-                booking = travelChargeResult.booking;
-            } else {
-                // For broadcast, just set a fallback estimation for now
-                const config = await DistanceChargeService.getConfig();
-                if (config.enabled) {
-                    booking.travelCharge = {
-                        amount: config.fallbackCharge || 40,
-                        status: 'estimated',
-                        calculationMethod: config.calculationMethod,
-                        calculatedAt: new Date(),
-                    };
+                if (serviceLocation === 'shop') {
+                    booking.travelCharge = { amount: 0, status: 'final', calculationMethod: 'none', calculatedAt: new Date() };
                     await booking.save();
+                } else {
+                    // If specific provider is selected, calculate travel charge immediately
+                    const travelChargeResult = await DistanceChargeService.applyTravelChargeToBooking(booking._id, providerId);
+                    booking = travelChargeResult.booking;
+                }
+            } else {
+                if (serviceLocation === 'shop') {
+                    booking.travelCharge = { amount: 0, status: 'estimated', calculationMethod: 'none', calculatedAt: new Date() };
+                    await booking.save();
+                } else {
+                    // For broadcast, just set a fallback estimation for now
+                    const config = await DistanceChargeService.getConfig();
+                    if (config.enabled) {
+                        booking.travelCharge = {
+                            amount: config.fallbackCharge || 40,
+                            status: 'estimated',
+                            calculationMethod: config.calculationMethod,
+                            calculatedAt: new Date(),
+                        };
+                        await booking.save();
+                    }
                 }
             }
 
@@ -349,7 +361,7 @@ const createBooking = async (req, res) => {
                     const broadRadiusRadians = broadRadiusKm / 6371;
 
                     // Stage 1: Pull candidate providers within the maximum possible radius
-                    const candidateProviders = await Provider.find({
+                    const providerQuery = {
                         _id: { $ne: req.user._id },
                         status: 'verified',
                         isOnline: true,
@@ -359,7 +371,17 @@ const createBooking = async (req, res) => {
                                 $centerSphere: [booking.location.coordinates, broadRadiusRadians]
                             }
                         }
-                    });
+                    };
+                    if (serviceLocation === 'home') {
+                        providerQuery.$or = [
+                            { serviceModes: 'home' },
+                            { serviceModes: { $exists: false } },
+                            { serviceModes: { $size: 0 } }
+                        ];
+                    } else {
+                        providerQuery.serviceModes = 'shop';
+                    }
+                    const candidateProviders = await Provider.find(providerQuery);
 
                     console.log(`Stage 1: ${candidateProviders.length} candidates found within ${broadRadiusKm} km broad net`);
 
@@ -454,7 +476,8 @@ const createBooking = async (req, res) => {
                     customerOffer: booking.customerOffer,
                     originalFixedPrice: booking.originalFixedPrice,
                     offerStatus: booking.offerStatus,
-                    extraCharges: booking.extraCharges || []
+                    extraCharges: booking.extraCharges || [],
+                    serviceLocation: booking.serviceLocation
                 });
 
                 // Use unified notifyUser for persistence, socket, and push
@@ -533,7 +556,7 @@ const createBooking = async (req, res) => {
 const getUserBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ userId: req.user._id })
-            .populate('providerId', 'shopName ownerName rating reviewCount mobile profileImage status planType')
+            .populate('providerId', 'shopName ownerName rating reviewCount mobile profileImage status planType address city state location')
             .sort({ createdAt: -1 });
         res.json(bookings);
     } catch (error) {
@@ -761,7 +784,8 @@ const getProviderBookings = async (req, res) => {
             status: 'pending',
             providerId: { $in: [null, undefined] },
             requiredProviderCategory: provider.providerCategory || 'partner',
-            rejectedProviders: { $ne: provider._id }
+            rejectedProviders: { $ne: provider._id },
+            serviceLocation: { $in: provider.serviceModes && provider.serviceModes.length ? provider.serviceModes : ['home'] }
         }).populate('userId', 'ownerName name mobile address');
 
         // Fetch Wallet and Cash Limits
@@ -1600,11 +1624,14 @@ const verifyEndOTP = async (req, res) => {
                         });
                     }
 
-                    await Transaction.create(transactionsToCreate, { session });
+                    for (const txn of transactionsToCreate) {
+                        const newTxn = new Transaction(txn);
+                        await newTxn.save({ session });
+                    }
 
                     // Create commission log
                     if (calculation) {
-                        await CommissionLog.create([{
+                        const newLog = new CommissionLog({
                             booking: booking._id,
                             provider: provider._id,
                             appliedRule: calculation.ruleApplied,
@@ -1612,7 +1639,8 @@ const verifyEndOTP = async (req, res) => {
                             platformEarnings: calculation.platformAmount,
                             providerEarnings: calculation.providerAmount,
                             triggerEvent: 'BOOKING_COMPLETED'
-                        }], { session });
+                        });
+                        await newLog.save({ session });
                     }
 
                     provider.walletBalance = wallet.balance;

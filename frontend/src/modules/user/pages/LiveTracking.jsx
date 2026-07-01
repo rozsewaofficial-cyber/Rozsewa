@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Phone, MessageCircle, AlertOctagon, Check, Clock, User, Star, Shield, CreditCard, X } from "lucide-react";
+import { ArrowLeft, Phone, MessageCircle, AlertOctagon, Check, Clock, User, Star, Shield, CreditCard, X, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -24,6 +24,16 @@ const LiveTracking = () => {
       const d = new Date(dateString);
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
+
+    if (bookingDetails?.serviceLocation === 'shop') {
+      return [
+        { label: "Booking Placed", time: formatTimestamp(bookingDetails?.createdAt) },
+        { label: "Provider Accepted", time: formatTimestamp(bookingDetails?.acceptedAt) },
+        { label: "Ready for Visit", time: formatTimestamp(bookingDetails?.onTheWayAt) },
+        { label: "Service Started", time: formatTimestamp(bookingDetails?.startedAt) },
+        { label: "Completed", time: formatTimestamp(bookingDetails?.completedAt) },
+      ];
+    }
 
     return [
       { label: "Booking Placed", time: formatTimestamp(bookingDetails?.createdAt) },
@@ -116,11 +126,25 @@ const LiveTracking = () => {
   const fetchBookingStatus = async () => {
     try {
       const { data } = await API.get('/bookings');
-      // Find the most recent active booking (only include completed if not reviewed)
-      const active = data.find(b =>
-        ['pending', 'confirmed', 'on_the_way', 'started', 'cancelled'].includes(b.status) ||
-        (b.status === 'completed' && (!b.rating || b.rating === 0))
-      );
+      // Find the most recent active booking prioritizing non-cancelled ones
+      let active = data.find(b => ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status));
+      if (!active) {
+        active = data.find(b => b.status === 'completed' && (!b.rating || b.rating === 0));
+      }
+      if (!active) {
+        active = data.find(b => {
+          if (b.status !== 'cancelled') return false;
+          let dl = [];
+          try { dl = JSON.parse(localStorage.getItem('rozsewa_dismissed_bookings') || '[]'); } catch (e) {}
+          if (dl.includes(b._id)) return false;
+          const timeToCheck = b.updatedAt || b.createdAt;
+          if (timeToCheck) {
+            const diffMinutes = (new Date() - new Date(timeToCheck)) / (1000 * 60);
+            if (diffMinutes > 1) return false;
+          }
+          return true;
+        });
+      }
       if (active) {
         const current = active.status;
         setBookingDetails(active);
@@ -206,6 +230,8 @@ const LiveTracking = () => {
         jobs: p.reviewCount !== undefined ? p.reviewCount : 0,
         mobile: p.mobile || "",
         profileImage: p.profileImage,
+        address: p.address,
+        city: p.city,
         tags: tags.join(" • ")
       });
     }
@@ -558,6 +584,18 @@ const LiveTracking = () => {
                       <span className="text-[11px] font-bold text-slate-400">({providerInfo.jobs} jobs)</span>
                     </div>
                     <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{providerInfo.tags || "Expert Professional"}</p>
+                    
+                    {bookingDetails?.serviceLocation === 'shop' && providerInfo.address && (
+                      <a 
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(providerInfo.address + (providerInfo.city ? `, ${providerInfo.city}` : ''))}`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="mt-2 block bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-blue-700 dark:text-blue-300 p-2 rounded-lg border border-blue-100 dark:border-blue-800"
+                      >
+                        <span className="text-[11px] font-bold flex items-center gap-1"><MapPin className="h-3 w-3" /> Shop Address:</span>
+                        <span className="text-[11px] mt-0.5 block">{providerInfo.address} {providerInfo.city ? `, ${providerInfo.city}` : ''}</span>
+                      </a>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
                     <button onClick={() => { if (providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>

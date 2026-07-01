@@ -330,8 +330,13 @@ const IncomingRequestModal = ({ request, onAction }) => {
                                     <div className="flex items-start gap-3">
                                         <MapPin className="h-5 w-5 text-emerald-600 mt-1" />
                                         <div>
-                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Customer Location</p>
-                                            <p className="font-bold text-sm text-foreground">{request.address}</p>
+                                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                                                Location
+                                                <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-bold uppercase ${request.serviceLocation === 'shop' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                    {request.serviceLocation === 'shop' ? 'At Shop' : 'At Home'}
+                                                </span>
+                                            </p>
+                                            <p className="font-bold text-sm text-foreground">{request.serviceLocation === 'shop' ? 'Customer will visit your shop' : request.address}</p>
                                         </div>
                                     </div>
 

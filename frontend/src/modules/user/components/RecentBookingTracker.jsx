@@ -1,17 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Check, ChevronRight, Shield, XCircle, PackageCheck, Bike, Wrench, Star, X } from 'lucide-react';
+import { Clock, Check, ChevronRight, Shield, XCircle, PackageCheck, Bike, Wrench, Star, X, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
-const steps = [
-    { label: "Placed", fullLabel: "Booking Placed", status: "pending", icon: PackageCheck, color: "blue" },
-    { label: "Accepted", fullLabel: "Provider Accepted", status: "confirmed", icon: Check, color: "indigo" },
-    { label: "On the Way", fullLabel: "On the Way", status: "on_the_way", icon: Bike, color: "violet" },
-    { label: "In Progress", fullLabel: "Service Started", status: "started", icon: Wrench, color: "amber" },
-    { label: "Done", fullLabel: "Completed", status: "completed", icon: Star, color: "emerald" },
-];
+const getSteps = (isShop) => {
+    if (isShop) {
+        return [
+            { label: "Placed", fullLabel: "Booking Placed", status: "pending", icon: PackageCheck, color: "blue" },
+            { label: "Accepted", fullLabel: "Provider Accepted", status: "confirmed", icon: Check, color: "indigo" },
+            { label: "Ready", fullLabel: "Ready for Visit", status: "on_the_way", icon: MapPin, color: "violet" },
+            { label: "In Progress", fullLabel: "Service Started", status: "started", icon: Wrench, color: "amber" },
+            { label: "Done", fullLabel: "Completed", status: "completed", icon: Star, color: "emerald" },
+        ];
+    }
+    return [
+        { label: "Placed", fullLabel: "Booking Placed", status: "pending", icon: PackageCheck, color: "blue" },
+        { label: "Accepted", fullLabel: "Provider Accepted", status: "confirmed", icon: Check, color: "indigo" },
+        { label: "On the Way", fullLabel: "On the Way", status: "on_the_way", icon: Bike, color: "violet" },
+        { label: "In Progress", fullLabel: "Service Started", status: "started", icon: Wrench, color: "amber" },
+        { label: "Done", fullLabel: "Completed", status: "completed", icon: Star, color: "emerald" },
+    ];
+};
 
 const statusColorMap = {
     blue: { dot: "bg-blue-500", ring: "ring-blue-400/40", glow: "shadow-blue-500/30", icon: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-900/20", border: "border-blue-200 dark:border-blue-800", pill: "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400", line: "bg-blue-400" },
@@ -132,7 +143,8 @@ const RecentBookingTracker = () => {
         );
     }
 
-    const currentStep = statusIndexMap[activeBooking.status] || 0;
+    const steps = getSteps(activeBooking.serviceLocation === 'shop');
+    const currentStep = statusIndexMap[activeBooking.status] ?? 0;
     const currentStepData = steps[currentStep];
     const colors = statusColorMap[currentStepData.color];
     const providerName = activeBooking.providerId?.shopName || 'Finding Expert...';
