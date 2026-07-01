@@ -57,7 +57,7 @@ export default function PartnerProgramConfig() {
     ruleVersion: 1,
     commissionSlabs: [],
     performanceBonuses: { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
-    penalties: { cancellationCharge: 50 },
+    penalties: { cancellationCharge: 100 },
     referral: { commissionRate: 1, durationMonths: 12 },
     attendance: { requiredDays: 30, discountRate: 2 }
   });
@@ -121,7 +121,7 @@ export default function PartnerProgramConfig() {
         ruleVersion: data.ruleVersion || 1,
         commissionSlabs: data.commissionSlabs || [],
         performanceBonuses: data.performanceBonuses || { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
-        penalties: data.penalties || { cancellationCharge: 50 },
+        penalties: data.penalties || { cancellationCharge: 100 },
         referral: data.referral || { commissionRate: 1, durationMonths: 12 },
         attendance: data.attendance || { requiredDays: 30, discountRate: 2 }
       });
@@ -361,7 +361,7 @@ export default function PartnerProgramConfig() {
       </div>
 
       {activeTab === 'rules' && (
-        <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
+        <div className="max-w-2xl mx-auto animate-in fade-in duration-300 space-y-6">
           {/* Onboarding Settings */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -426,6 +426,39 @@ export default function PartnerProgramConfig() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Cancellation Charges */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" /> Provider Cancellation Charges
+            </h2>
+            <div className="space-y-4 pt-2">
+              <div>
+                <label className="text-xs font-bold text-slate-500">Cancellation Penalty (₹)</label>
+                <input 
+                  type="text" 
+                  inputMode="numeric"
+                  value={config.penalties?.cancellationCharge !== undefined ? config.penalties.cancellationCharge : 100} 
+                  onChange={e => {
+                    const penaltyVal = normalizeNonNegativeNumber(e.target.value);
+                    setConfig({ 
+                      ...config, 
+                      penalties: { 
+                        ...config.penalties, 
+                        cancellationCharge: Number(penaltyVal) 
+                      } 
+                    });
+                  }}
+                  className="w-full border p-2.5 rounded-lg mt-1 outline-emerald-500 text-sm font-semibold" 
+                  placeholder="e.g. 100"
+                />
+                <p className="text-xs text-slate-400 font-medium mt-1">
+                  Amount deducted from the provider's wallet when they cancel a booking. 
+                  50% of this charge will credit to the user, and 50% will credit to the admin.
+                </p>
+              </div>
             </div>
           </div>
         </div>

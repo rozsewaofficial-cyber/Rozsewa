@@ -67,10 +67,10 @@ exports.getConfig = async (req, res) => {
             trialStarts: program.trialStarts,
             trialEnds: program.trialEnds,
             commissionSlabs: legacySlabs,
-            performanceBonuses: { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
-            penalties: { cancellationCharge: 50 },
-            referral: { commissionRate: 1, durationMonths: 12 },
-            attendance: { requiredDays: 30, discountRate: 2 }
+            performanceBonuses: program.performanceBonuses || { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
+            penalties: program.penalties || { cancellationCharge: 100 },
+            referral: program.referral || { commissionRate: 1, durationMonths: 12 },
+            attendance: program.attendance || { requiredDays: 30, discountRate: 2 }
         });
     } catch (error) {
         console.error('Error fetching partner config:', error);
@@ -87,7 +87,11 @@ exports.updateConfig = async (req, res) => {
             selectedCategories, 
             trialStarts, 
             trialEnds, 
-            commissionSlabs 
+            commissionSlabs,
+            penalties,
+            performanceBonuses,
+            referral,
+            attendance
         } = req.body;
 
         // 1. Group slabs by category to run contiguity check
@@ -130,6 +134,32 @@ exports.updateConfig = async (req, res) => {
         program.selectedCategories = selectedCategories || program.selectedCategories;
         program.trialStarts = trialStarts || program.trialStarts;
         program.trialEnds = trialEnds || program.trialEnds;
+
+        if (penalties) {
+            program.penalties = {
+                cancellationCharge: penalties.cancellationCharge !== undefined ? Number(penalties.cancellationCharge) : (program.penalties?.cancellationCharge || 100)
+            };
+        }
+        if (performanceBonuses) {
+            program.performanceBonuses = {
+                silverStarRate: performanceBonuses.silverStarRate !== undefined ? Number(performanceBonuses.silverStarRate) : (program.performanceBonuses?.silverStarRate || 1),
+                goldStarRate: performanceBonuses.goldStarRate !== undefined ? Number(performanceBonuses.goldStarRate) : (program.performanceBonuses?.goldStarRate || 2),
+                loyaltyBonusBookings: performanceBonuses.loyaltyBonusBookings !== undefined ? Number(performanceBonuses.loyaltyBonusBookings) : (program.performanceBonuses?.loyaltyBonusBookings || 100),
+                loyaltyBonusAmount: performanceBonuses.loyaltyBonusAmount !== undefined ? Number(performanceBonuses.loyaltyBonusAmount) : (program.performanceBonuses?.loyaltyBonusAmount || 1000)
+            };
+        }
+        if (referral) {
+            program.referral = {
+                commissionRate: referral.commissionRate !== undefined ? Number(referral.commissionRate) : (program.referral?.commissionRate || 1),
+                durationMonths: referral.durationMonths !== undefined ? Number(referral.durationMonths) : (program.referral?.durationMonths || 12)
+            };
+        }
+        if (attendance) {
+            program.attendance = {
+                requiredDays: attendance.requiredDays !== undefined ? Number(attendance.requiredDays) : (program.attendance?.requiredDays || 30),
+                discountRate: attendance.discountRate !== undefined ? Number(attendance.discountRate) : (program.attendance?.discountRate || 2)
+            };
+        }
         
         // Increment Rule Version
         program.ruleVersion = (program.ruleVersion || 1) + 1;
@@ -170,10 +200,10 @@ exports.updateConfig = async (req, res) => {
             { 
                 value: JSON.stringify({
                     commissionSlabs: commissionSlabs || [],
-                    performanceBonuses: { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
-                    penalties: { cancellationCharge: 50 },
-                    referral: { commissionRate: 1, durationMonths: 12 },
-                    attendance: { requiredDays: 30, discountRate: 2 }
+                    performanceBonuses: program.performanceBonuses || { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
+                    penalties: program.penalties || { cancellationCharge: 100 },
+                    referral: program.referral || { commissionRate: 1, durationMonths: 12 },
+                    attendance: program.attendance || { requiredDays: 30, discountRate: 2 }
                 })
             },
             { upsert: true }

@@ -1194,8 +1194,12 @@ const updateBookingStatusByProvider = async (req, res) => {
                 }
                 const updatedBookingWithReason = await booking.save();
                 try {
-                    const penalty = 100;
-                    const creditAmount = 50;
+                    const PartnerProgram = require('../models/PartnerProgram');
+                    const partnerConfig = await PartnerProgram.findOne();
+                    const penalty = (partnerConfig && partnerConfig.penalties && partnerConfig.penalties.cancellationCharge !== undefined)
+                        ? partnerConfig.penalties.cancellationCharge
+                        : 100;
+                    const creditAmount = penalty / 2;
 
                     const { Wallet, Transaction } = require('../models/Wallet');
                     const Provider = require('../models/Provider');
@@ -1253,7 +1257,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                             userId: booking.userId,
                             userRole: 'user',
                             title: 'Booking Cancelled by Partner',
-                            message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been cancelled by the partner. ₹50 has been credited to your wallet.`,
+                            message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been cancelled by the partner. ₹${creditAmount} has been credited to your wallet.`,
                             type: 'booking',
                             bookingId: booking._id
                         });
