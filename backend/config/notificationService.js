@@ -206,11 +206,23 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
     }
 
     try {
+        // FCM requires all data values to be strings
+        const stringifiedData = {};
+        if (payload.data) {
+            for (const key in payload.data) {
+                if (payload.data[key] !== undefined && payload.data[key] !== null) {
+                    stringifiedData[key] = String(payload.data[key]);
+                }
+            }
+        }
+        stringifiedData.userRole = String(userRole);
+        stringifiedData.notificationId = String(notificationId);
+
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
             notification: {
-                title: payload.title,
-                body: payload.body
+                title: payload.title || 'New Notification',
+                body: payload.body || ''
             },
             android: {
                 priority: 'high',
@@ -230,11 +242,15 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                     }
                 }
             },
-            data: {
-                ...payload.data,
-                userRole,
-                notificationId
-            }
+            webpush: {
+                headers: {
+                    Urgency: 'high'
+                },
+                notification: {
+                    icon: '/RozSewa.png'
+                }
+            },
+            data: stringifiedData
         });
 
         console.log(`Successfully sent ${response.successCount} push notifications.`);
