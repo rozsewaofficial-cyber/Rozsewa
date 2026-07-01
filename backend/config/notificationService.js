@@ -223,9 +223,17 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
 
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
-            // Removing root notification block to force Web Push to use onBackgroundMessage
+            notification: {
+                title: payload.title || 'New Notification',
+                body: payload.body || ''
+            },
             android: {
-                priority: 'high'
+                priority: 'high',
+                notification: {
+                    sound: 'default',
+                    channelId: 'default',
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                }
             },
             apns: {
                 headers: {
@@ -241,6 +249,9 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             webpush: {
                 headers: {
                     Urgency: 'high'
+                },
+                notification: {
+                    icon: '/RozSewa.png'
                 }
             },
             data: stringifiedData
