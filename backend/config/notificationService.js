@@ -232,6 +232,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             },
             data: {
                 ...payload.data,
+                userRole,
                 notificationId
             }
         });
