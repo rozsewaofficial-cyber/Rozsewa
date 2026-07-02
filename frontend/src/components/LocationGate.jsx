@@ -8,12 +8,14 @@ const LocationGate = () => {
   const [status, setStatus] = useState("checking"); // 'checking' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState("");
 
-  const performDetection = async () => {
-    setStatus("checking");
+  const performDetection = async (isSilent = false) => {
+    if (!isSilent) {
+      setStatus("checking");
+    }
     setErrorMsg("");
     try {
       await detectLocation();
-      sessionStorage.setItem("location_gate_passed", "true");
+      localStorage.setItem("location_gate_passed", "true");
       setStatus("success");
     } catch (err) {
       console.error("Location detection error:", err);
@@ -38,8 +40,9 @@ const LocationGate = () => {
         sessionStorage.setItem("location_gate_passed", "true");
       }
       setStatus("success");
+      performDetection(true); // Fetch live location in the background
     } else {
-      performDetection();
+      performDetection(false);
     }
   }, [userLocation]);
 
@@ -74,7 +77,7 @@ const LocationGate = () => {
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed mb-6 max-w-xs">
               We are finding your current coordinates to match you with the nearest and best service partners.
             </p>
-            
+
             <div className="bg-blue-50 dark:bg-blue-950/30 rounded-2xl p-4 mb-6 border border-blue-100 dark:border-blue-900/30 w-full">
               <p className="text-xs font-bold text-blue-800 dark:text-blue-300 leading-relaxed">
                 हमें आपके आस-पास की सेवाएं दिखाने के लिए आपकी लोकेशन की आवश्यकता है। कृपया लोकेशन एक्सेस की अनुमति दें।
@@ -95,7 +98,7 @@ const LocationGate = () => {
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-3">
               Location Access Required
             </h2>
-            
+
             <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed mb-6 max-w-sm">
               {errorMsg}
             </p>

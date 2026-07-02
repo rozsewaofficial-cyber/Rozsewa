@@ -82,7 +82,12 @@ const clearAllNotifications = async (req, res) => {
 const saveFCMToken = async (req, res) => {
     try {
         const { token, platform } = req.body;
-        if (!token) return res.status(400).json({ message: 'Token is required' });
+        console.log(`[saveFCMToken API] Received token request: platform="${platform}", tokenLength=${token ? token.length : 0}, userId=${req.user?._id}`);
+        
+        if (!token) {
+            console.log(`[saveFCMToken API] Error: Token is required (platform: ${platform})`);
+            return res.status(400).json({ message: 'Token is required' });
+        }
 
         const userId = req.user._id;
         const userRole = req.user.role;
@@ -94,7 +99,10 @@ const saveFCMToken = async (req, res) => {
             target = await User.findById(userId);
         }
 
-        if (!target) return res.status(404).json({ message: 'User/Provider not found' });
+        if (!target) {
+            console.log(`[saveFCMToken API] Error: User/Provider not found for userId: ${userId}`);
+            return res.status(404).json({ message: 'User/Provider not found' });
+        }
 
         if (!target.fcmTokens) target.fcmTokens = [];
         if (!target.fcmTokenMobile) target.fcmTokenMobile = [];
@@ -103,11 +111,17 @@ const saveFCMToken = async (req, res) => {
             if (!target.fcmTokenMobile.includes(token)) {
                 target.fcmTokenMobile.push(token);
                 if (target.fcmTokenMobile.length > 10) target.fcmTokenMobile.shift();
+                console.log(`[saveFCMToken API] Saved Mobile/App Token for ${target.ownerName || target.name} (Total mobile tokens: ${target.fcmTokenMobile.length})`);
+            } else {
+                console.log(`[saveFCMToken API] Token already exists in fcmTokenMobile for ${target.ownerName || target.name}`);
             }
         } else {
             if (!target.fcmTokens.includes(token)) {
                 target.fcmTokens.push(token);
                 if (target.fcmTokens.length > 10) target.fcmTokens.shift();
+                console.log(`[saveFCMToken API] Saved Web Token for ${target.ownerName || target.name} (Total web tokens: ${target.fcmTokens.length})`);
+            } else {
+                console.log(`[saveFCMToken API] Token already exists in fcmTokens (web) for ${target.ownerName || target.name}`);
             }
         }
 

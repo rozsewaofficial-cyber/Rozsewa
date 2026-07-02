@@ -26,23 +26,19 @@ self.addEventListener('activate', (event) => {
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
+
   const id = payload.data?.notificationId;
   if (id && shownNotifications.has(id)) {
-      console.log('Duplicate notification ignored in background:', id);
-      return;
+    console.log('Duplicate notification ignored in background:', id);
+    return;
   }
   if (id) shownNotifications.add(id);
 
-  const notificationTitle = payload.notification?.title || 'New Notification';
+  // Read from data if notification block is missing
+  const notificationTitle = payload.notification?.title || payload.data?.title || 'RozSewa Notification';
   const notificationOptions = {
-    body: payload.notification?.body || '',
-    icon: '/logo.png',
-    badge: '/logo.png',
-    requireInteraction: true,
-    silent: false,
-    vibrate: [200, 100, 200],
-    tag: payload.data?.notificationId || undefined,
+    body: payload.notification?.body || payload.data?.body || '',
+    icon: '/RozSewa.png',
     data: payload.data
   };
 
@@ -55,10 +51,10 @@ messaging.onBackgroundMessage((payload) => {
 // Handle background notification clicks
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
+
   const data = event.notification.data;
   let targetUrl = '/';
-  
+
   if (data) {
     if (data.link) {
       targetUrl = data.link;

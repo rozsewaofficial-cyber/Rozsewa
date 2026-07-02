@@ -211,25 +211,15 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
         return;
     }
 
-    const fcmData = stringifyFcmData({
-        ...payload.data,
-        userRole,
-        notificationId
-    });
-
     try {
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
             notification: {
-                title: payload.title,
-                body: payload.body
+                title: payload.title || 'New Notification',
+                body: payload.body || ''
             },
             android: {
-                priority: 'high',
-                notification: {
-                    sound: 'default',
-                    channelId: 'default'
-                }
+                priority: 'high'
             },
             apns: {
                 headers: {
@@ -247,21 +237,10 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                     Urgency: 'high'
                 },
                 notification: {
-                    title: payload.title,
-                    body: payload.body,
-                    requireInteraction: true,
-                    icon: '/logo.png',
-                    badge: '/logo.png',
-                    tag: notificationId
-                },
-                fcmOptions: {
-                    link: payload.data?.link
-                        ? `${process.env.FRONTEND_URL || 'https://rozsewa.in'}${payload.data.link}`
-                        : undefined
-                },
-                data: fcmData
+                    icon: '/RozSewa.png'
+                }
             },
-            data: fcmData
+            data: stringifiedData
         });
 
         console.log(`Successfully sent ${response.successCount} push notifications.`);
@@ -270,7 +249,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
         await NotificationLog.findOneAndUpdate(
             { notificationId },
             { userId: userId.toString(), tokens },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         // Clean up failed tokens
@@ -287,7 +266,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                 }
             });
             console.log(`Failed tokens to remove: ${failedTokens.length}`);
-            
+
             if (failedTokens.length > 0) {
                 if (target.fcmTokens) target.fcmTokens = target.fcmTokens.filter(t => !failedTokens.includes(t));
                 if (target.fcmTokenMobile) target.fcmTokenMobile = target.fcmTokenMobile.filter(t => !failedTokens.includes(t));
@@ -327,7 +306,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
             const existingLog = await NotificationLog.findOneAndUpdate(
                 { notificationId: eventKey },
                 { $setOnInsert: { userId: userId.toString(), createdAt: new Date() } },
-                { upsert: true, new: false } // Returns pre-upsert document
+                { upsert: true, returnDocument: 'before' } // Returns pre-upsert document
             );
 
             if (existingLog) {
@@ -437,8 +416,8 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                             if (emailRes && emailRes.success) {
                                 emailStatus = 'success';
                             } else {
-                                const classification = emailRes?.error && (emailRes.error.includes('550') || emailRes.error.includes('553') || emailRes.error.includes('Invalid recipient')) 
-                                    ? 'Permanent Failure' 
+                                const classification = emailRes?.error && (emailRes.error.includes('550') || emailRes.error.includes('553') || emailRes.error.includes('Invalid recipient'))
+                                    ? 'Permanent Failure'
                                     : 'Transient Failure';
                                 emailStatus = `fail [${classification}: ${emailRes?.error || 'Unknown Error'}]`;
                                 hasErrors = true;
@@ -463,7 +442,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                         try {
                             const cleanMobile = provider.mobile.replace(/\D/g, '');
                             const isDummy = !cleanMobile || cleanMobile.length < 10 || /^0+$/.test(cleanMobile) || /^1+$/.test(cleanMobile) || cleanMobile === '1234567890';
-                            
+
                             if (isDummy) {
                                 smsStatus = 'fail [Permanent Failure: Invalid/Dummy phone number]';
                                 hasErrors = true;
