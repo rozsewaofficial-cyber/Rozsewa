@@ -228,10 +228,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                 body: payload.body || ''
             },
             android: {
-                priority: 'high',
-                notification: {
-                    clickAction: 'FLUTTER_NOTIFICATION_CLICK'
-                }
+                priority: 'high'
             },
             apns: {
                 headers: {
