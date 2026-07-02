@@ -354,6 +354,21 @@ const ProviderProfile = () => {
             </div>
           </section>
         )}
+
+        <button 
+          onClick={async () => {
+            try {
+              await API.post('/notifications/fcm-tokens/test');
+              toast({ title: "Test Notification Sent", description: "You should receive a push notification shortly." });
+            } catch (err) {
+              toast({ title: "Test Failed", description: err.response?.data?.message || "Failed to send test notification", variant: "destructive" });
+            }
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 py-4 font-bold text-blue-600 hover:bg-blue-600 hover:text-white transition-all"
+        >
+          Test Notification
+        </button>
+
         <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 py-4 font-bold text-destructive hover:bg-destructive hover:text-white transition-all"><LogOut className="h-5 w-5" /> Sign Out</button>
       </main>
       <ProviderBottomNav />
