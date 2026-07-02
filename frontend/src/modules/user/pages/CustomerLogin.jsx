@@ -85,8 +85,11 @@ const CustomerLogin = () => {
     if (result.success) {
       try {
         const loc = await detectLocation();
-        if (loc) {
-          await API.put("/auth/profile", { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } });
+        if (loc && result.data?.token) {
+          await API.put("/auth/profile", 
+            { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } },
+            { headers: { Authorization: `Bearer ${result.data.token}` } }
+          );
         }
       } catch (err) {
         console.log("Location not granted during login", err);
@@ -128,8 +131,11 @@ const CustomerLogin = () => {
       if (result.success) {
         try {
           const loc = await detectLocation();
-          if (loc) {
-            await API.put("/auth/profile", { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } });
+          if (loc && result.data?.token) {
+            await API.put("/auth/profile", 
+              { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } },
+              { headers: { Authorization: `Bearer ${result.data.token}` } }
+            );
           }
         } catch (err) {
           console.log("Location not granted during login", err);

@@ -31,12 +31,17 @@ const LocationGate = () => {
   };
 
   useEffect(() => {
-    if (sessionStorage.getItem("location_gate_passed") === "true") {
+    const savedCity = localStorage.getItem("rozsewa_user_city");
+    const savedLoc = localStorage.getItem("rozsewa_user_location");
+    if (sessionStorage.getItem("location_gate_passed") === "true" || userLocation || savedLoc || savedCity) {
+      if ((userLocation || savedLoc || savedCity) && sessionStorage.getItem("location_gate_passed") !== "true") {
+        sessionStorage.setItem("location_gate_passed", "true");
+      }
       setStatus("success");
     } else {
       performDetection();
     }
-  }, []);
+  }, [userLocation]);
 
   if (status === "success") {
     return <Outlet />;

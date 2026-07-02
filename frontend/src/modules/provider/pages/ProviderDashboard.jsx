@@ -41,7 +41,7 @@ import { useSocket } from "@/context/SocketContext";
 
 const ProviderDashboard = () => {
   const { toast } = useToast();
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, syncFCMToken } = useAuth();
   const { socket, incomingRequest, setIncomingRequest } = useSocket();
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? true);
   const [isEmergencyActive, setIsEmergencyActive] = useState(user?.isEmergencyEnabled ?? false);
@@ -154,9 +154,16 @@ const ProviderDashboard = () => {
   const toggleOnline = async () => {
     const newState = !isOnline;
     
-    // Request notification permission to show incoming requests in the background
-    if (newState && 'Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-        Notification.requestPermission();
+    // Request notification permission and sync FCM token in user interaction context
+    if (newState) {
+      if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        await Notification.requestPermission();
+      }
+      try {
+        await syncFCMToken();
+      } catch (fcmErr) {
+        console.error("FCM sync failed on toggleOnline:", fcmErr);
+      }
     }
 
     setIsOnline(newState); // Optimistic update

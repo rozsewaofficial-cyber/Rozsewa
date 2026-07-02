@@ -20,7 +20,7 @@ const defaultBanners = [
 
 const Index = () => {
   const navigate = useNavigate();
-  const { userLocation, detectLocation, serviceMode, setServiceMode, user } = useAuth();
+  const { userLocation, userCity, detectLocation, serviceMode, setServiceMode, user } = useAuth();
   const userName = user ? (user.name || user.ownerName || "Guest").split(" ")[0] : "Guest";
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
@@ -45,15 +45,16 @@ const Index = () => {
 
   useEffect(() => {
     fetchHomeData();
-  }, [userLocation]);
+  }, [userLocation, userCity]);
 
   const fetchHomeData = async () => {
     setLoading(true);
     try {
-      const savedCity = localStorage.getItem("rozsewa_user_city");
-      const providersEndpoint = userLocation
-        ? `/public/featured-providers?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=15`
-        : `/public/featured-providers${savedCity ? `?city=${savedCity}` : ""}`;
+      const providersEndpoint = userCity
+        ? `/public/featured-providers?city=${encodeURIComponent(userCity)}`
+        : (userLocation
+            ? `/public/featured-providers?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=15`
+            : "/public/featured-providers");
 
       const [bannersRes, providersRes] = await Promise.all([
         API.get("/public/banners"),

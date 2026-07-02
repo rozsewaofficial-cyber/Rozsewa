@@ -20,10 +20,7 @@ export const requestForToken = async () => {
     if (permission === 'granted') {
       let registration;
       if ('serviceWorker' in navigator) {
-        registration = await navigator.serviceWorker.getRegistration('/');
-        if (!registration) {
-          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
-        }
+        registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
         await navigator.serviceWorker.ready;
       }
       const token = await getToken(messaging, { 

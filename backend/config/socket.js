@@ -53,7 +53,10 @@ const initSocket = (server) => {
                     if (!booking.rejectedProviders) {
                         booking.rejectedProviders = [];
                     }
-                    if (!booking.rejectedProviders.includes(providerId)) {
+                    const alreadyRejected = booking.rejectedProviders.some(
+                        (id) => id.toString() === providerId.toString()
+                    );
+                    if (!alreadyRejected) {
                         booking.rejectedProviders.push(providerId);
                         await booking.save();
                     }
@@ -82,14 +85,16 @@ const getIO = () => {
 };
 
 const emitToProvider = (providerId, event, data) => {
-    if (io) {
-        io.to(`provider_${providerId}`).emit(event, data);
+    if (io && providerId) {
+        const idStr = providerId._id ? providerId._id.toString() : providerId.toString();
+        io.to(`provider_${idStr}`).emit(event, data);
     }
 };
 
 const emitToUser = (userId, event, data) => {
-    if (io) {
-        io.to(`user_${userId}`).emit(event, data);
+    if (io && userId) {
+        const idStr = userId._id ? userId._id.toString() : userId.toString();
+        io.to(`user_${idStr}`).emit(event, data);
     }
 };
 

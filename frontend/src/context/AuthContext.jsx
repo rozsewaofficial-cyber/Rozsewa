@@ -72,6 +72,9 @@ export const AuthProvider = ({ children }) => {
     const saved = localStorage.getItem("rozsewa_user_location");
     return saved ? JSON.parse(saved) : null;
   });
+  const [userCity, setUserCity] = useState(() => {
+    return localStorage.getItem("rozsewa_user_city") || "";
+  });
 
   const [serviceMode, setServiceMode] = useState(() => {
     return localStorage.getItem("rozsewa_service_mode") || "partner";
@@ -108,6 +111,7 @@ export const AuthProvider = ({ children }) => {
                 
                 if (cityComponent) {
                   localStorage.setItem("rozsewa_user_city", cityComponent.long_name);
+                  setUserCity(cityComponent.long_name);
                 }
               }
             } else {
@@ -117,6 +121,7 @@ export const AuthProvider = ({ children }) => {
               const detectedCity = data.address?.city || data.address?.town || data.address?.village || "";
               if (detectedCity) {
                 localStorage.setItem("rozsewa_user_city", detectedCity);
+                setUserCity(detectedCity);
               }
             }
           } catch (e) {
@@ -422,6 +427,8 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!auth,
     role: auth?.role || null,
     userLocation,
+    userCity,
+    setUserCity,
     detectLocation,
     loading,
     login,

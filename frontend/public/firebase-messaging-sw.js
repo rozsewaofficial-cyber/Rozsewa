@@ -75,18 +75,20 @@ self.addEventListener('notificationclick', (event) => {
     }
   }
 
+  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // Check if there is already a window open with our origin
       for (let client of windowClients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           // Navigate the existing window and focus it
-          return client.navigate(targetUrl).then(c => c.focus());
+          return client.navigate(absoluteUrl).then(c => c.focus());
         }
       }
       // If no window is open, open a new one
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(absoluteUrl);
       }
     })
   );
