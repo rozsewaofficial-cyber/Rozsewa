@@ -106,6 +106,19 @@ const createBooking = async (req, res) => {
         serviceLocation = 'home' } = req.body;
 
     try {
+        if (providerId) {
+            const specificProvider = await Provider.findById(providerId);
+            if (!specificProvider) {
+                return res.status(404).json({ message: 'Selected provider not found.' });
+            }
+            if (specificProvider.status !== 'verified') {
+                return res.status(400).json({ message: 'Selected provider is not verified.' });
+            }
+            if (!specificProvider.isOnline) {
+                return res.status(400).json({ message: 'Provider is currently offline and not accepting bookings.' });
+            }
+        }
+
         // --- 1. Compute Trusted Subtotal on Backend ---
         let subtotal = 0;
 
@@ -344,7 +357,7 @@ const createBooking = async (req, res) => {
                 }
             }
 
-            if (providersToNotify.length === 0) {
+            if (providersToNotify.length === 0 && !providerId) {
                 const targetCategory = requiredProviderCategory || 'partner';
 
                 if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {

@@ -50,16 +50,41 @@ const initSocket = (server) => {
                         console.log(`[Monitoring] Booking rejection event: Provider ${providerId} explicitly rejected Booking ${bookingId}.`);
                     }
 
-                    if (!booking.rejectedProviders) {
-                        booking.rejectedProviders = [];
-                    }
-                    if (!booking.rejectedProviders.includes(providerId)) {
-                        booking.rejectedProviders.push(providerId);
+                    if (booking.providerId && booking.providerId.toString() === providerId.toString()) {
+                        // Direct booking rejected -> Cancel entirely
+                        booking.status = 'cancelled';
+                        booking.cancellationReason = actReason === 'timeout' ? 'Provider did not respond in time.' : 'Provider declined the request.';
                         await booking.save();
+                        
+                        console.log(`[Monitoring] Direct booking ${bookingId} cancelled as specific provider ${providerId} rejected/timed out.`);
+                        io.to(`user_${booking.userId}`).emit('BOOKING_STATUS_UPDATED', { bookingId, status: 'cancelled' });
+                        
+                        try {
+                            const { notifyUser } = require('../services/notificationService');
+                            const User = require('../models/User');
+                            const user = await User.findById(booking.userId);
+                            if (user) {
+                                await notifyUser(user, 'booking_cancelled', {
+                                    title: 'Booking Cancelled',
+                                    body: `Your service request for ${booking.serviceName} was declined by the provider.`,
+                                    data: { bookingId: booking._id.toString() }
+                                });
+                            }
+                        } catch (notifErr) {
+                            console.error("Error sending cancellation notification:", notifErr);
+                        }
+                    } else {
+                        // Broadcast booking -> just record rejection and keep it pending for others
+                        if (!booking.rejectedProviders) {
+                            booking.rejectedProviders = [];
+                        }
+                        if (!booking.rejectedProviders.includes(providerId)) {
+                            booking.rejectedProviders.push(providerId);
+                            await booking.save();
+                        }
+                        // Broadcast to other sockets to refresh available request lists
+                        io.emit('NEW_BOOKING_REQUEST');
                     }
-
-                    // Broadcast to other sockets to refresh available request lists
-                    io.emit('NEW_BOOKING_REQUEST');
                 } else if (booking) {
                     console.log(`Booking ${bookingId} reject ignored because status is ${booking.status}`);
                 }
