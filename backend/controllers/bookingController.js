@@ -489,10 +489,7 @@ const createBooking = async (req, res) => {
                         title: 'Urgent: Service Request!',
                         message: `You received a new request for ${booking.serviceName}. Accept now!`,
                         type: 'booking',
-                        bookingId: booking._id,
-                        data: {
-                            link: `/provider/bookings`
-                        }
+                        bookingId: booking._id
                     });
 
                     // Send Email Notification

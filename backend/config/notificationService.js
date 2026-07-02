@@ -230,8 +230,6 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             android: {
                 priority: 'high',
                 notification: {
-                    sound: 'default',
-                    channelId: 'default',
                     clickAction: 'FLUTTER_NOTIFICATION_CLICK'
                 }
             },
