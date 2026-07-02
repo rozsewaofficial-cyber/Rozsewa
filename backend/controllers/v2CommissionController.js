@@ -721,7 +721,7 @@ exports.manualCancelSubscription = async (req, res) => {
             userRole: 'provider',
             title: "Subscription Cancelled",
             message: `Your active subscription has been manually cancelled by support. Your commission rate has reverted to default.`,
-            type: 'system'
+            type: 'cancel'
         });
 
         res.json({ message: "Subscription cancelled manually" });

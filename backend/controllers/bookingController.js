@@ -753,7 +753,7 @@ const updateBooking = async (req, res) => {
                             userRole: 'provider',
                             title: 'Booking Cancelled',
                             message: `User has cancelled booking #${booking._id.toString().slice(-6)} for ${booking.serviceName}.`,
-                            type: 'booking',
+                            type: 'cancel',
                             bookingId: booking._id
                         });
                     } catch (err) {
@@ -767,7 +767,7 @@ const updateBooking = async (req, res) => {
                         userRole: 'user',
                         title: 'Booking Cancelled',
                         message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been cancelled.`,
-                        type: 'booking',
+                        type: 'cancel',
                         bookingId: booking._id
                     });
                 } catch (err) {
@@ -884,7 +884,7 @@ const notifyCustomerOfProviderCancellation = async (booking, reason, creditAmoun
         userRole: 'user',
         title,
         message,
-        type: 'booking',
+        type: 'cancel',
         bookingId: booking._id,
         data: {
             link: '/tracking',
@@ -1393,7 +1393,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                             title: 'Booking Cancelled by Provider',
                             body: `Provider ${req.user.ownerName} cancelled booking #${booking._id.toString().slice(-6)}.${reason ? ` Reason: "${reason}"` : ''}`,
                             data: {
-                                type: 'booking',
+                                type: 'cancel',
                                 id: booking._id.toString(),
                                 link: '/admin/bookings',
                                 cancellationReason: reason || ''
