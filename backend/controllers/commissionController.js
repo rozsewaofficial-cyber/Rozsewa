@@ -4,6 +4,7 @@ const { Wallet } = require('../models/Wallet');
 const Setting = require('../models/Setting');
 const EarningsAnalyticsService = require('../services/EarningsAnalyticsService');
 const mongoose = require('mongoose');
+const AuditLog = require('../models/AuditLog');
 
 // @desc    Get commission and settlement data
 // @route   GET /api/admin/commission
@@ -111,44 +112,184 @@ const getCommissionData = async (req, res) => {
 // @access  Private (Admin)
 const getFinanceData = async (req, res) => {
     try {
-        // Escrow Balance (Sum of all wallet balances)
+        const { range, startDate, endDate } = req.query;
+        const { currentStart, currentEnd, interval } = EarningsAnalyticsService.getPeriodDates(range, startDate, endDate);
+
+        // Escrow Balance (Sum of all wallet balances - point-in-time)
         const wallets = await Wallet.find();
         const escrowBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
 
-        // Platform Revenue (Sum of adminCommission from completed bookings)
-        const completedBookings = await Booking.find({ status: 'completed' });
+        // Filter bookings by date range
+        const completedBookings = await Booking.find({
+            status: 'completed',
+            createdAt: { $gte: currentStart, $lte: currentEnd }
+        });
         const platformRevenue = completedBookings.reduce((sum, b) => sum + (b.adminCommission || 0), 0);
 
-        // GST Payable (Assume 18% of platform revenue)
-        const gstPayable = platformRevenue * 0.18;
+        // Dynamic GST rate from settings
+        const gstRateSetting = await Setting.findOne({ key: 'gstRate' });
+        const gstRate = gstRateSetting ? Number(gstRateSetting.value) : 18;
 
-        // Platform Profit
+        const gstPayable = platformRevenue * (gstRate / 100);
         const platformProfit = platformRevenue - gstPayable;
 
-        // Cash Managed (Sum of totalAmount for completed bookings with paymentMode 'after')
-        const codBookings = await Booking.find({ status: 'completed', paymentMode: 'after' })
-            .populate('providerId', 'shopName');
+        // Cash Managed (COD bookings in date range)
+        const codBookings = await Booking.find({
+            status: 'completed',
+            paymentMode: 'after',
+            createdAt: { $gte: currentStart, $lte: currentEnd }
+        }).populate('providerId', 'shopName');
         const cashManaged = codBookings.reduce((sum, b) => sum + b.totalAmount, 0);
 
-        // Ledger (COD Bookings)
+        // Ledger
         const ledger = codBookings.map(b => ({
             _id: b._id,
             id: `COD-${b._id.toString().slice(-6).toUpperCase()}`,
             vendor: b.providerId?.shopName || 'N/A',
             amount: b.totalAmount,
             cut: b.adminCommission,
-            status: b.paymentStatus === 'paid' ? 'Settled' : 'Due'
+            status: b.paymentStatus === 'paid' ? 'Settled' : 'Due',
+            date: b.createdAt
         }));
+
+        // Binned timeline data for charts
+        const binnedRevenue = EarningsAnalyticsService.binData(
+            completedBookings,
+            currentStart,
+            currentEnd,
+            interval,
+            b => b.adminCommission || 0
+        );
+
+        const timeline = binnedRevenue.map(bin => {
+            const rev = bin.value;
+            const gst = rev * (gstRate / 100);
+            const profit = rev - gst;
+            return {
+                date: bin.key,
+                platformRevenue: Math.round(rev * 100) / 100,
+                gstPayable: Math.round(gst * 100) / 100,
+                platformProfit: Math.round(profit * 100) / 100
+            };
+        });
 
         res.json({
             stats: {
-                escrowBalance,
-                gstPayable,
-                platformProfit,
-                cashManaged
+                escrowBalance: Math.round(escrowBalance * 100) / 100,
+                gstPayable: Math.round(gstPayable * 100) / 100,
+                platformProfit: Math.round(platformProfit * 100) / 100,
+                cashManaged: Math.round(cashManaged * 100) / 100,
+                gstRate
             },
-            ledger
+            ledger,
+            timeline
         });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Settle a Cash on Delivery booking payment
+// @route   POST /api/admin/finance/settle/:id
+// @access  Private (Admin)
+const settleCodBooking = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const booking = await Booking.findById(id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+        if (booking.paymentMode !== 'after') {
+            return res.status(400).json({ message: 'Only Cash on Delivery bookings can be settled here' });
+        }
+        if (booking.paymentStatus === 'paid') {
+            return res.status(400).json({ message: 'Booking is already settled' });
+        }
+
+        booking.paymentStatus = 'paid';
+        await booking.save();
+
+        // Credit provider's wallet if applicable
+        if (booking.providerPayout > 0 && booking.providerId) {
+            const { Wallet, Transaction } = require('../models/Wallet');
+            let wallet = await Wallet.findOne({ providerId: booking.providerId });
+            if (!wallet) {
+                wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
+            }
+            wallet.availableBalance += booking.providerPayout;
+            wallet.updatedAt = Date.now();
+            await wallet.save();
+
+            await Transaction.create({
+                providerId: booking.providerId,
+                title: `Cash Collected: ${booking.serviceName}`,
+                amount: booking.providerPayout,
+                type: 'credit',
+                status: 'completed',
+                bookingId: booking._id,
+                description: `Cash payment settled by Admin. Commission (₹${booking.adminCommission || 0}) already deducted.`
+            });
+        }
+
+        // Add Audit Log
+        await AuditLog.create({
+            actionType: 'FINANCE_COD_SETTLEMENT',
+            entityType: 'BOOKING',
+            entityId: booking._id,
+            entityName: `COD Settle: ${booking.serviceName}`,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name || "Admin",
+            verifiedByRole: req.user.role || "admin",
+            details: {
+                bookingId: booking._id,
+                totalAmount: booking.totalAmount,
+                adminCommission: booking.adminCommission,
+                providerPayout: booking.providerPayout
+            }
+        });
+
+        res.json({ success: true, message: 'Transaction settled successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Update GST rate configuration
+// @route   POST /api/admin/finance/gst-rate
+// @access  Private (Admin)
+const updateGstRate = async (req, res) => {
+    try {
+        const { rate } = req.body;
+        const numRate = Number(rate);
+        if (isNaN(numRate) || numRate < 0 || numRate > 100) {
+            return res.status(400).json({ message: 'GST rate must be a valid number between 0% and 100%' });
+        }
+
+        const prevSetting = await Setting.findOne({ key: 'gstRate' });
+        const oldValue = prevSetting ? prevSetting.value : null;
+
+        await Setting.findOneAndUpdate(
+            { key: 'gstRate' },
+            { value: numRate, updatedAt: Date.now() },
+            { upsert: true, new: true }
+        );
+
+        // Add Audit Log
+        await AuditLog.create({
+            actionType: 'FINANCE_GST_RATE_UPDATE',
+            entityType: 'GST_SETTING',
+            entityId: new mongoose.Types.ObjectId(),
+            entityName: `GST Rate updated`,
+            verifiedBy: req.user._id,
+            verifiedByName: req.user.name || "Admin",
+            verifiedByRole: req.user.role || "admin",
+            details: {
+                oldValue,
+                newValue: numRate
+            }
+        });
+
+        res.json({ success: true, message: `GST rate updated to ${numRate}%` });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -458,5 +599,7 @@ module.exports = {
     getFinanceData,
     getEarningsData,
     getIncentives,
-    updateIncentiveSettings
+    updateIncentiveSettings,
+    settleCodBooking,
+    updateGstRate
 };

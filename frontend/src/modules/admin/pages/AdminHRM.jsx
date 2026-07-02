@@ -18,15 +18,15 @@ import { INDIAN_STATES_AND_CITIES } from "@/lib/statesAndCities";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const ROLE_CONFIG = {
-    supervisor:  { label: "Supervisor",   color: "bg-purple-100 text-purple-700 border-purple-200",  dot: "bg-purple-500",  badge: "bg-purple-50 text-purple-700 border border-purple-200" },
-    field_staff: { label: "Field Staff",  color: "bg-orange-100 text-orange-700 border-orange-200",  dot: "bg-orange-500",  badge: "bg-orange-50 text-orange-700 border border-orange-200" },
-    employee:    { label: "Employee",     color: "bg-blue-100 text-blue-700 border-blue-200",         dot: "bg-blue-500",    badge: "bg-blue-50 text-blue-700 border border-blue-200" },
+    supervisor: { label: "Supervisor", color: "bg-purple-100 text-purple-700 border-purple-200", dot: "bg-purple-500", badge: "bg-purple-50 text-purple-700 border border-purple-200" },
+    field_staff: { label: "Field Staff", color: "bg-orange-100 text-orange-700 border-orange-200", dot: "bg-orange-500", badge: "bg-orange-50 text-orange-700 border border-orange-200" },
+    employee: { label: "Employee", color: "bg-blue-100 text-blue-700 border-blue-200", dot: "bg-blue-500", badge: "bg-blue-50 text-blue-700 border border-blue-200" },
 };
 
 const STATUS_CONFIG = {
-    verified: { label: "Verified",  cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
-    pending:  { label: "Pending",   cls: "bg-amber-50 text-amber-700 border border-amber-200" },
-    rejected: { label: "Rejected",  cls: "bg-red-50 text-red-700 border border-red-200" },
+    verified: { label: "Verified", cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+    pending: { label: "Pending", cls: "bg-amber-50 text-amber-700 border border-amber-200" },
+    rejected: { label: "Rejected", cls: "bg-red-50 text-red-700 border border-red-200" },
 };
 
 const InputField = ({ label, required, children }) => (
@@ -138,10 +138,10 @@ const AdminHRM = ({ view }) => {
         }
         setIsVerifyingAadhaar(true);
         try {
-            const { data } = await API.post('/verify/okyc/verify', { 
-                sessionId: aadhaarSessionId, 
-                otp: aadhaarOTP, 
-                aadhaarNumber: formData.aadharCard 
+            const { data } = await API.post('/verify/okyc/verify', {
+                sessionId: aadhaarSessionId,
+                otp: aadhaarOTP,
+                aadhaarNumber: formData.aadharCard
             });
             if (data.success || data.status === "VERIFIED" || data.data?.status === "VALID" || data.data?.status === "VERIFIED") {
                 setAadhaarVerified(true);
@@ -458,16 +458,15 @@ const AdminHRM = ({ view }) => {
             <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center">
                 <div className="flex flex-wrap gap-1.5">
                     {view !== 'supervisor' && [
-                        { key: "all",        label: "All", count: stats.total },
-                        { key: "field_staff",label: "Field Staff", count: stats.fieldStaff },
-                        { key: "employee",   label: "Employees", count: stats.employees },
+                        { key: "all", label: "All", count: stats.total },
+                        { key: "field_staff", label: "Field Staff", count: stats.fieldStaff },
+                        { key: "employee", label: "Employees", count: stats.employees },
                     ].map(f => (
                         <button
                             key={f.key}
                             onClick={() => setRoleFilter(f.key)}
-                            className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-                                roleFilter === f.key ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            }`}
+                            className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${roleFilter === f.key ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                }`}
                         >
                             {f.label}
                             <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${roleFilter === f.key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{f.count}</span>
@@ -698,9 +697,9 @@ const AdminHRM = ({ view }) => {
                                 {formData.role === 'supervisor' && (
                                     <div className="grid grid-cols-2 gap-4">
                                         <InputField label="Allowed Creation Scope" required>
-                                            <select value={formData.allowedCreationScope} 
-                                                    onChange={(e) => setFormData({ ...formData, allowedCreationScope: e.target.value })} 
-                                                    className={inputCls}>
+                                            <select value={formData.allowedCreationScope}
+                                                onChange={(e) => setFormData({ ...formData, allowedCreationScope: e.target.value })}
+                                                className={inputCls}>
                                                 <option value="employee_only">Employee Only</option>
                                                 <option value="all">Employee & Supervisor</option>
                                             </select>
@@ -734,12 +733,12 @@ const AdminHRM = ({ view }) => {
                                             {showStateSuggestions && filteredStates.length > 0 && (
                                                 <ul className="absolute z-50 left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
                                                     {filteredStates.map(st => (
-                                                        <li key={st} 
+                                                        <li key={st}
                                                             onMouseDown={() => {
-                                                                setFormData(prev => ({ 
-                                                                    ...prev, 
-                                                                    state: st, 
-                                                                    city: INDIAN_STATES_AND_CITIES[st]?.[0] || prev.city 
+                                                                setFormData(prev => ({
+                                                                    ...prev,
+                                                                    state: st,
+                                                                    city: INDIAN_STATES_AND_CITIES[st]?.[0] || prev.city
                                                                 }));
                                                             }}
                                                             className="px-4 py-2 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer font-medium transition-colors text-left"
@@ -891,7 +890,7 @@ const AdminHRM = ({ view }) => {
                                     <button type="button" onClick={() => { setShowAddModal(false); resetForm(); }} className="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 transition-all">
                                         Cancel
                                     </button>
-                                    <button type="submit" disabled={uploading} className="flex-1 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                                    <button type="submit" disabled={uploading} className="flex-1 rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                                         {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : (editId ? "Update Employee" : "Add Employee")}
                                     </button>
                                 </div>

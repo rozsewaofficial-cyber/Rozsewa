@@ -102,7 +102,7 @@ const {
 } = require('../controllers/benefitPolicyController');
 
 const { getWithdrawals, updateWithdrawalStatus } = require('../controllers/withdrawalController');
-const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updateIncentiveSettings } = require('../controllers/commissionController');
+const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updateIncentiveSettings, settleCodBooking, updateGstRate } = require('../controllers/commissionController');
 
 const { getEnquiries, updateEnquiryStatus, deleteEnquiry } = require('../controllers/sewakEnquiryController');
 
@@ -244,6 +244,8 @@ router.patch('/withdrawals/:id', protect, admin, updateWithdrawalStatus);
 // Commission Management
 router.get('/commission', protect, admin, getCommissionData);
 router.get('/finance', protect, admin, getFinanceData);
+router.post('/finance/gst-rate', protect, admin, updateGstRate);
+router.post('/finance/settle/:id', protect, admin, settleCodBooking);
 router.get('/earnings', protect, admin, getEarningsData);
 router.get('/sewak-incentives', protect, admin, getIncentives);
 router.post('/sewak-incentive-settings', protect, admin, updateIncentiveSettings);

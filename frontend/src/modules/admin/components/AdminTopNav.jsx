@@ -275,11 +275,10 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
                                 <p className="text-sm font-bold text-gray-800 truncate">{p.shopName || p.ownerName}</p>
                                 <p className="text-xs text-gray-400 truncate">{p.vendorCode} · {p.mobile}</p>
                               </div>
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                p.status === "verified" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                p.status === "rejected" ? "bg-rose-50 text-rose-600 border-rose-100" :
-                                "bg-amber-50 text-amber-600 border-amber-100"
-                              }`}>{p.status}</span>
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${p.status === "verified" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                  p.status === "rejected" ? "bg-rose-50 text-rose-600 border-rose-100" :
+                                    "bg-amber-50 text-amber-600 border-amber-100"
+                                }`}>{p.status}</span>
                             </Link>
                           ))}
                         </section>
@@ -323,11 +322,10 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
                                 <p className="text-sm font-bold text-gray-800 truncate">{b.serviceName}</p>
                                 <p className="text-xs text-gray-400 truncate">{b.bookingId} · ₹{b.amount}</p>
                               </div>
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                b.status === "completed" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                b.status === "cancelled" ? "bg-rose-50 text-rose-600 border-rose-100" :
-                                "bg-amber-50 text-amber-600 border-amber-100"
-                              }`}>{b.status}</span>
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${b.status === "completed" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                  b.status === "cancelled" ? "bg-rose-50 text-rose-600 border-rose-100" :
+                                    "bg-amber-50 text-amber-600 border-amber-100"
+                                }`}>{b.status}</span>
                             </Link>
                           ))}
                         </section>

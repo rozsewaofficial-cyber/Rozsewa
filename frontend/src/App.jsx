@@ -104,7 +104,6 @@ import AdminZones from "./modules/admin/pages/AdminZones";
 import AdminDispatch from "./modules/admin/pages/AdminDispatch";
 import AdminEmergency from "./modules/admin/pages/AdminEmergency";
 import AdminFinance from "./modules/admin/pages/AdminFinance";
-import AdminQuality from "./modules/admin/pages/AdminQuality";
 import ProviderReports from "./modules/admin/pages/ProviderReports";
 
 
@@ -255,7 +254,6 @@ const App = () => (
                         <Route path="dispatch" element={<AdminDispatch />} />
                         <Route path="emergency" element={<AdminEmergency />} />
                         <Route path="finance" element={<AdminFinance />} />
-                        <Route path="quality" element={<AdminQuality />} />
                         <Route path="provider-reports" element={<ProviderReports />} />
                         <Route path="withdrawals" element={<AdminWithdrawals />} />
                         <Route path="bazaar" element={<AdminScrap />} />
