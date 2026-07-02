@@ -258,7 +258,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
         await NotificationLog.findOneAndUpdate(
             { notificationId },
             { userId: userId.toString(), tokens },
-            { upsert: true, new: true }
+            { upsert: true, returnDocument: 'after' }
         );
 
         // Clean up failed tokens
@@ -315,7 +315,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
             const existingLog = await NotificationLog.findOneAndUpdate(
                 { notificationId: eventKey },
                 { $setOnInsert: { userId: userId.toString(), createdAt: new Date() } },
-                { upsert: true, new: false } // Returns pre-upsert document
+                { upsert: true, returnDocument: 'before' } // Returns pre-upsert document
             );
 
             if (existingLog) {
