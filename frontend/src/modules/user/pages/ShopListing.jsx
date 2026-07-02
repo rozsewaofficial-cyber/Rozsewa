@@ -83,11 +83,12 @@ const ShopListing = () => {
         hasCombo: hasCombo ? "true" : "",
         radius
       };
-      if (userCity) {
-        params.city = userCity;
-      } else if (userLocation) {
+      if (userLocation) {
         params.lat = userLocation.lat;
         params.lng = userLocation.lng;
+      }
+      if (userCity) {
+        params.city = userCity;
       }
       let { data } = await API.get(`/public/providers`, { params });
       setProviders(data);
