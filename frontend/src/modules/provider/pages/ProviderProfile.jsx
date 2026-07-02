@@ -358,6 +358,17 @@ const ProviderProfile = () => {
         <button 
           onClick={async () => {
             try {
+              if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+                const { requestForToken } = await import("@/lib/firebase");
+                const fcmToken = await requestForToken();
+                if (fcmToken) {
+                  await API.post("/notifications/fcm-tokens/save", { token: fcmToken, platform: 'web' });
+                  toast({ title: "Notifications Enabled", description: "FCM Token generated and saved." });
+                } else {
+                  toast({ title: "Permission Denied", description: "Please allow notifications in your browser settings.", variant: "destructive" });
+                  return;
+                }
+              }
               await API.post('/notifications/fcm-tokens/test');
               toast({ title: "Test Notification Sent", description: "You should receive a push notification shortly." });
             } catch (err) {
