@@ -26,11 +26,11 @@ self.addEventListener('activate', (event) => {
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
+
   const id = payload.data?.notificationId;
   if (id && shownNotifications.has(id)) {
-      console.log('Duplicate notification ignored in background:', id);
-      return;
+    console.log('Duplicate notification ignored in background:', id);
+    return;
   }
   if (id) shownNotifications.add(id);
 
@@ -51,10 +51,10 @@ messaging.onBackgroundMessage((payload) => {
 // Handle background notification clicks
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  
+
   const data = event.notification.data;
   let targetUrl = '/';
-  
+
   if (data) {
     if (data.link) {
       targetUrl = data.link;
@@ -71,18 +71,20 @@ self.addEventListener('notificationclick', (event) => {
     }
   }
 
+  const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // Check if there is already a window open with our origin
       for (let client of windowClients) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           // Navigate the existing window and focus it
-          return client.navigate(targetUrl).then(c => c.focus());
+          return client.navigate(absoluteUrl).then(c => c.focus());
         }
       }
       // If no window is open, open a new one
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(absoluteUrl);
       }
     })
   );

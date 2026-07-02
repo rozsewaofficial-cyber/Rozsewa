@@ -69,8 +69,8 @@ const RecentBookingTracker = () => {
                     if (timeToCheck) {
                         const dateObj = new Date(timeToCheck);
                         const now = new Date();
-                        const diffMinutes = (now - dateObj) / (1000 * 60);
-                        if (diffMinutes > 1) return false;
+                        const diffMinutes = Math.abs(now - dateObj) / (1000 * 60);
+                        if (diffMinutes > 15) return false;
                     }
                 }
                 
@@ -95,7 +95,16 @@ const RecentBookingTracker = () => {
     useEffect(() => {
         fetchActiveBookings();
         const interval = setInterval(fetchActiveBookings, 15000);
-        return () => clearInterval(interval);
+
+        const handleBookingUpdate = () => fetchActiveBookings();
+        window.addEventListener('BOOKING_REJECTED', handleBookingUpdate);
+        window.addEventListener('NEW_NOTIFICATION', handleBookingUpdate);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('BOOKING_REJECTED', handleBookingUpdate);
+            window.removeEventListener('NEW_NOTIFICATION', handleBookingUpdate);
+        };
     }, [user]);
 
     useEffect(() => {
@@ -126,10 +135,17 @@ const RecentBookingTracker = () => {
                         <XCircle className="h-5 w-5 text-rose-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-black uppercase tracking-widest text-rose-500">Booking Cancelled</p>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-rose-500">
+                            {activeBooking.cancelledBy === 'provider' ? 'Cancelled by Provider' : 'Booking Cancelled'}
+                        </p>
                         <p className="text-[13px] font-bold text-slate-700 dark:text-slate-300 truncate">
                             {activeBooking.providerId?.shopName || 'Your booking'}
                         </p>
+                        {activeBooking.cancellationReason && (
+                            <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 truncate">
+                                Reason: "{activeBooking.cancellationReason}"
+                            </p>
+                        )}
                     </div>
                     <button
                         onClick={(e) => handleDismiss(e, activeBooking._id)}

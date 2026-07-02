@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   Briefcase, IndianRupee, Percent, TrendingUp, AlertTriangle, 
   CheckCircle2, Clock, Search, ChevronDown, RefreshCcw, 
   MapPin, Calendar, User, Phone, ShieldCheck, XCircle, ShieldAlert,
-  Loader2
+  Loader2, Settings
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -13,6 +13,7 @@ import API from "@/lib/api";
 
 const AdminLeads = () => {
   const { setTitle } = useOutletContext();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const confirm = useConfirm();
   const [leads, setLeads] = useState([]);
@@ -43,7 +44,7 @@ const AdminLeads = () => {
         API.get("/admin/leads/disputes"),
         API.get("/admin/leads/stats")
       ]);
-      setLeads(leadsRes.data);
+      setLeads(Array.isArray(leadsRes.data) ? leadsRes.data : (leadsRes.data.leads || []));
       setDisputes(disputesRes.data);
       setStats(statsRes.data);
     } catch (err) {
@@ -77,14 +78,18 @@ const AdminLeads = () => {
   };
 
   const filteredLeads = useMemo(() => {
-    return leads
+    return (leads || [])
       .filter(l => filter === "all" || l.status === filter)
-      .filter(l => 
-        !search || 
-        l._id.toLowerCase().includes(search.toLowerCase()) || 
-        l.service.toLowerCase().includes(search.toLowerCase()) || 
-        l.customer?.name?.toLowerCase().includes(search.toLowerCase())
-      );
+      .filter(l => {
+        const searchLower = search.toLowerCase();
+        const serviceName = l.service || l.requirementTitle || l.categoryId?.name || '';
+        return (
+          !search || 
+          l._id.toLowerCase().includes(searchLower) || 
+          serviceName.toLowerCase().includes(searchLower) || 
+          (l.customer?.name || '').toLowerCase().includes(searchLower)
+        );
+      });
   }, [leads, filter, search]);
 
   const statusConfig = {
@@ -107,9 +112,14 @@ const AdminLeads = () => {
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Leads & Requirements Dashboard</h1>
           <p className="mt-1 text-sm text-gray-500 font-medium">Monitor customer intakes, track lead unlocking, and resolve provider disputes.</p>
         </div>
-        <button onClick={fetchLeadsData} className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 px-5 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm transition-all active:scale-95">
-          <RefreshCcw className="h-4 w-4" /> Refresh Data
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate("/admin/lead-forms")} className="flex h-11 items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 border border-violet-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-violet-500/20 transition-all active:scale-95">
+            <Settings className="h-4 w-4" /> Edit Lead Form
+          </button>
+          <button onClick={fetchLeadsData} className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 px-5 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm transition-all active:scale-95">
+            <RefreshCcw className="h-4 w-4" /> Refresh Data
+          </button>
+        </div>
       </div>
 
       {/* Analytics Dashboard Grid */}
@@ -193,15 +203,24 @@ const AdminLeads = () => {
                     )}
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 leading-tight">{lead.service}</h3>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">
+                      {lead.requirementTitle || lead.service || lead.categoryId?.name || 'Service Request'}
+                    </h3>
                     <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Client: {lead.customer?.name || "Guest"} ({lead.customer?.mobile || "N/A"})</p>
                   </div>
                   <div className="text-xs font-semibold text-slate-600 bg-slate-50/80 border border-slate-200/40 p-4 rounded-2xl">
                     <p className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-1.5">Requirement Details</p>
-                    <p>{lead.requirementForm?.description || "No description provided."}</p>
+                    <p>{lead.requirementDesc || lead.requirementForm?.description || "No description provided."}</p>
                     <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-slate-200/50">
-                      <p className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> {lead.requirementForm?.preferredDate} at {lead.requirementForm?.preferredTime}</p>
-                      <p className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {lead.requirementForm?.address || "Coordinate Location"}</p>
+                      <p className="flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" /> 
+                        {lead.preferredDate || lead.requirementForm?.preferredDate || 'N/A'}
+                        { (lead.preferredTime || lead.requirementForm?.preferredTime) ? ` at ${lead.preferredTime || lead.requirementForm?.preferredTime}` : '' }
+                      </p>
+                      <p className="flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5" /> 
+                        { [lead.locationDetail?.houseNo, lead.locationDetail?.street, lead.locationDetail?.city].filter(Boolean).join(', ') || lead.requirementForm?.address || "Coordinate Location" }
+                      </p>
                     </div>
                   </div>
                 </div>

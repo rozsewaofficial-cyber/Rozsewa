@@ -12,7 +12,7 @@ import CategoryGrid from "@/modules/user/components/CategoryGrid";
 
 const ShopListing = () => {
   const navigate = useNavigate();
-  const { userLocation } = useAuth();
+  const { userLocation, userCity } = useAuth();
   const [searchParams] = useSearchParams();
   const category = searchParams.get("category") || "";
   const isEmergency = searchParams.get("emergency") === "true";
@@ -67,7 +67,7 @@ const ShopListing = () => {
     } else {
       setLoading(false);
     }
-  }, [category, isEmergency, searchQuery, mode, minRating, homeVisit, is24x7, hasCombo, radius]);
+  }, [category, isEmergency, searchQuery, mode, minRating, homeVisit, is24x7, hasCombo, radius, userCity]);
 
   const fetchProviders = async () => {
     setLoading(true);
@@ -83,12 +83,11 @@ const ShopListing = () => {
         hasCombo: hasCombo ? "true" : "",
         radius
       };
-      if (userLocation) {
+      if (userCity) {
+        params.city = userCity;
+      } else if (userLocation) {
         params.lat = userLocation.lat;
         params.lng = userLocation.lng;
-      } else {
-        const savedCity = localStorage.getItem("rozsewa_user_city");
-        if (savedCity) params.city = savedCity;
       }
       let { data } = await API.get(`/public/providers`, { params });
       setProviders(data);

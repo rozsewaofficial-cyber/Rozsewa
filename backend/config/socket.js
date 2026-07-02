@@ -39,7 +39,7 @@ const initSocket = (server) => {
         socket.on("reject_booking", async ({ providerId, bookingId, reason }) => {
             const actReason = reason || 'reject';
             console.log(`Provider ${providerId} rejected booking ${bookingId} with reason: ${actReason}`);
-            
+
             try {
                 const Booking = require('../models/Booking');
                 const booking = await Booking.findById(bookingId);
@@ -55,10 +55,10 @@ const initSocket = (server) => {
                         booking.status = 'cancelled';
                         booking.cancellationReason = actReason === 'timeout' ? 'Provider did not respond in time.' : 'Provider declined the request.';
                         await booking.save();
-                        
+
                         console.log(`[Monitoring] Direct booking ${bookingId} cancelled as specific provider ${providerId} rejected/timed out.`);
                         io.to(`user_${booking.userId}`).emit('BOOKING_STATUS_UPDATED', { bookingId, status: 'cancelled' });
-                        
+
                         try {
                             const { notifyUser } = require('../services/notificationService');
                             const User = require('../models/User');
@@ -107,14 +107,16 @@ const getIO = () => {
 };
 
 const emitToProvider = (providerId, event, data) => {
-    if (io) {
-        io.to(`provider_${providerId}`).emit(event, data);
+    if (io && providerId) {
+        const idStr = providerId._id ? providerId._id.toString() : providerId.toString();
+        io.to(`provider_${idStr}`).emit(event, data);
     }
 };
 
 const emitToUser = (userId, event, data) => {
-    if (io) {
-        io.to(`user_${userId}`).emit(event, data);
+    if (io && userId) {
+        const idStr = userId._id ? userId._id.toString() : userId.toString();
+        io.to(`user_${idStr}`).emit(event, data);
     }
 };
 

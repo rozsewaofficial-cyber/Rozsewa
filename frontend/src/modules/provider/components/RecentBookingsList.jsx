@@ -29,6 +29,7 @@ const RecentBookingsList = () => {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelBookingId, setCancelBookingId] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [cancelMode, setCancelMode] = useState("cancel");
   const [isCancelling, setIsCancelling] = useState(false);
 
   const handleCounterSubmit = async (bookingId, originalFixedPrice, customerOffer, extraCharges = []) => {
@@ -135,9 +136,8 @@ const RecentBookingsList = () => {
   }, [socket]);
 
   const handleAction = async (id, action, extraData = {}) => {
-    // If action is reject or scheduled, the API calls are already handled by socket or specific endpoints.
-    // We only need to remove the request from the local state list.
-    if (action === 'reject' || action === 'scheduled') {
+    // If action is scheduled, the API calls are handled by specific endpoints.
+    if (action === 'scheduled') {
       setRequests(prev => prev.filter(req => req._id !== id));
       return;
     }
@@ -146,13 +146,18 @@ const RecentBookingsList = () => {
     if (action === 'accept') newStatus = 'confirmed';
     if (action === 'complete' || action === 'completed') newStatus = 'completed';
     if (action === 'on_the_way') newStatus = 'on_the_way';
+    if (action === 'reject') newStatus = 'cancelled';
 
-    // Optimistically update the UI so the card instantly moves to the correct tab (or disappears)
-    setRequests(prev => prev.map(req => req._id === id ? { ...req, status: newStatus } : req));
+    // Optimistically update the UI
+    if (action === 'reject') {
+      setRequests(prev => prev.filter(req => req._id !== id));
+    } else {
+      setRequests(prev => prev.map(req => req._id === id ? { ...req, status: newStatus } : req));
+    }
 
     try {
       await API.patch(`/bookings/${id}/status`, { status: newStatus, ...extraData });
-      toast({ title: `Booking ${action === 'complete' ? 'Completed' : action + 'ed'}` });
+      toast({ title: `Booking ${action === 'complete' ? 'Completed' : action === 'reject' ? 'Rejected' : action + 'ed'}` });
       fetchBookings();
     } catch (err) {
       toast({
@@ -160,10 +165,28 @@ const RecentBookingsList = () => {
         description: err.response?.data?.message || err.message,
         variant: "destructive"
       });
+      fetchBookings();
     }
   };
 
+  const handleRejectRequest = (req) => {
+    const providerId = req.providerId?._id || req.providerId;
+    const isAssignedProvider = providerId && user?._id &&
+      providerId.toString() === user._id.toString();
+
+    if (isAssignedProvider) {
+      setCancelMode("reject");
+      setCancelBookingId(req._id);
+      setCancelReason("");
+      setCancelModalOpen(true);
+      return;
+    }
+
+    handleAction(req._id, 'reject');
+  };
+
   const handleCancelBookingByProvider = (bookingId) => {
+    setCancelMode("cancel");
     setCancelBookingId(bookingId);
     setCancelReason("");
     setCancelModalOpen(true);
@@ -186,7 +209,7 @@ const RecentBookingsList = () => {
         status: 'cancelled',
         cancellationReason: cancelReason.trim()
       });
-      toast({ title: "Booking Cancelled", description: "The booking has been cancelled and penalty has been applied." });
+      toast({ title: cancelMode === "reject" ? "Booking Rejected" : "Booking Cancelled", description: cancelMode === "reject" ? "The customer has been notified." : "The booking has been cancelled and penalty has been applied." });
       setCancelModalOpen(false);
       setCancelBookingId(null);
       setCancelReason("");
@@ -518,7 +541,7 @@ const RecentBookingsList = () => {
                       <div className="mt-5 flex flex-col gap-2 w-full">
                         <div className="grid grid-cols-2 gap-2">
                           <button
-                            onClick={() => handleAction(req._id, 'reject')}
+                            onClick={() => handleRejectRequest(req)}
                             className="rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
                           >
                             Reject
@@ -542,7 +565,7 @@ const RecentBookingsList = () => {
                     )
                   ) : (
                     <div className="mt-5 flex gap-3">
-                      <button onClick={() => handleAction(req._id, 'reject')} className="flex-1 rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600">Reject</button>
+                      <button onClick={() => handleRejectRequest(req)} className="flex-1 rounded-xl border-2 border-rose-500/10 py-2.5 text-xs font-bold text-rose-600">Reject</button>
                       <button onClick={() => handleAction(req._id, 'accept')} className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-lg">Accept</button>
                     </div>
                   )
@@ -1010,7 +1033,9 @@ const RecentBookingsList = () => {
               className="w-full max-w-sm rounded-3xl bg-background p-6 shadow-2xl"
             >
               <div className="mb-6 flex items-center justify-between">
-                <h3 className="text-xl font-black text-foreground">Cancel Booking</h3>
+                <h3 className="text-xl font-black text-foreground">
+                  {cancelMode === "reject" ? "Reject Booking" : "Cancel Booking"}
+                </h3>
                 <button
                   onClick={() => setCancelModalOpen(false)}
                   className="rounded-full bg-muted p-2 hover:bg-muted/80"
@@ -1020,12 +1045,13 @@ const RecentBookingsList = () => {
               </div>
 
               <div className="mb-6 space-y-4">
+                {cancelMode === "cancel" && (
                 <div className="rounded-xl bg-rose-50 dark:bg-rose-900/20 p-4 border border-rose-200 dark:border-rose-800">
                   <p className="text-sm text-rose-600 dark:text-rose-400 font-bold">
                     Penalty Warning: ₹100 will be deducted from your wallet (₹50 to customer, ₹50 to company).
                   </p>
                 </div>
-                
+                )}
                 <div>
                   <label className="text-sm font-bold text-foreground">
                     Cancellation Reason <span className="text-rose-500">*</span>
@@ -1054,7 +1080,7 @@ const RecentBookingsList = () => {
                   disabled={isCancelling}
                   className="flex-1 rounded-xl bg-rose-600 py-3 text-xs font-black text-white hover:bg-rose-700 shadow-lg shadow-rose-500/20 tracking-wide"
                 >
-                  {isCancelling ? "Processing..." : "Confirm Cancel"}
+                  {isCancelling ? "Processing..." : cancelMode === "reject" ? "Confirm Reject" : "Confirm Cancel"}
                 </button>
               </div>
             </motion.div>

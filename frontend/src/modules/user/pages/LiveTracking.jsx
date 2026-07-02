@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Phone, MessageCircle, AlertOctagon, Check, Clock, User, Star, Shield, CreditCard, X, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +15,12 @@ const LiveTracking = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [bookingDetails, setBookingDetails] = useState(null);
+  const bookingDetailsRef = useRef(null);
+
+  const updateBookingDetails = (details) => {
+    bookingDetailsRef.current = details;
+    setBookingDetails(details);
+  };
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -131,6 +137,12 @@ const LiveTracking = () => {
       if (!active) {
         active = data.find(b => b.status === 'completed' && (!b.rating || b.rating === 0));
       }
+      
+      // If we are currently tracking a booking, see if it is in the data list and is cancelled
+      if (!active && bookingDetailsRef.current?._id) {
+        active = data.find(b => b._id === bookingDetailsRef.current._id && b.status === 'cancelled');
+      }
+
       if (!active) {
         active = data.find(b => {
           if (b.status !== 'cancelled') return false;
@@ -139,15 +151,15 @@ const LiveTracking = () => {
           if (dl.includes(b._id)) return false;
           const timeToCheck = b.updatedAt || b.createdAt;
           if (timeToCheck) {
-            const diffMinutes = (new Date() - new Date(timeToCheck)) / (1000 * 60);
-            if (diffMinutes > 1) return false;
+            const diffMinutes = Math.abs(new Date() - new Date(timeToCheck)) / (1000 * 60);
+            if (diffMinutes > 15) return false;
           }
           return true;
         });
       }
       if (active) {
         const current = active.status;
-        setBookingDetails(active);
+        updateBookingDetails(active);
 
         if (active.proposedSchedule && active.proposedSchedule.status === 'pending') {
           setProposedSchedule(active.proposedSchedule);
@@ -187,6 +199,8 @@ const LiveTracking = () => {
           setCounterTimer(0);
         }
 
+      } else {
+        updateBookingDetails(null);
       }
     } catch (err) {
       console.error("Failed to fetch booking status", err);
@@ -289,12 +303,15 @@ const LiveTracking = () => {
 
   useEffect(() => {
     const handleRejected = (e) => {
+      const data = e.detail || {};
       toast({
-        title: "Request Rejected",
-        description: "The provider has rejected your request.",
+        title: data.cancelledBy === 'provider' ? "Booking Cancelled" : "Request Rejected",
+        description: data.cancellationReason
+          ? `Reason: "${data.cancellationReason}"`
+          : "The provider has rejected your request.",
         variant: "destructive"
       });
-      fetchBookingStatus(); // Immediately refresh to catch the cancelled status
+      fetchBookingStatus();
     };
 
     const handleScheduleProposed = (e) => {

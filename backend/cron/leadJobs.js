@@ -1,60 +1,105 @@
 const cron = require('node-cron');
 const mongoose = require('mongoose');
 const Lead = require('../models/Lead');
+const LeadActivity = require('../models/LeadActivity');
 const AuditLog = require('../models/AuditLog');
+const { notifyUser } = require('../config/notificationService');
+
+const systemActorId = new mongoose.Types.ObjectId('000000000000000000000000');
 
 const runLeadExpiryCheck = async () => {
-    console.log('Running hourly lead expiry check...');
+    console.log('[LeadJobs] Running hourly lead expiry check...');
     try {
         const now = new Date();
-        // Find all available or unlocked leads that have past their expiry time
+
+        // Find all active/partially-unlocked leads past expiry
         const expiredLeads = await Lead.find({
-            status: { $in: ['available', 'unlocked'] },
+            status: { $in: ['available', 'partially_unlocked', 'draft'] },
             expiry: { $lte: now }
+        }).lean();
+
+        if (expiredLeads.length === 0) return;
+
+        const leadIds = expiredLeads.map(l => l._id);
+        await Lead.updateMany(
+            { _id: { $in: leadIds } },
+            { $set: { status: 'expired' } }
+        );
+
+        // Audit and notify for each expired lead
+        for (const lead of expiredLeads) {
+            try {
+                // LeadActivity audit entry
+                await LeadActivity.create({
+                    leadId: lead._id,
+                    actorId: systemActorId,
+                    actorRole: 'system',
+                    event: 'LEAD_EXPIRED',
+                    detail: { expiredAt: now, previousStatus: lead.status }
+                });
+
+                // Notify customer
+                if (lead.customer) {
+                    await notifyUser({
+                        userId: lead.customer,
+                        userRole: 'customer',
+                        title: 'Your Lead Has Expired',
+                        message: 'Your service request has expired as no provider was selected. You can submit a new request anytime.',
+                        type: 'lead',
+                        data: { leadId: lead._id.toString() }
+                    });
+                }
+
+                // Notify all nearby providers
+                for (const providerId of (lead.nearbyProviders || [])) {
+                    await notifyUser({
+                        userId: providerId,
+                        userRole: 'provider',
+                        title: 'Lead Expired',
+                        message: `A lead you were eligible for has now expired.`,
+                        type: 'lead',
+                        data: { leadId: lead._id.toString() }
+                    });
+                }
+            } catch (e) {
+                console.error(`[LeadJobs] Notify error for lead ${lead._id}:`, e.message);
+            }
+        }
+
+        await AuditLog.create({
+            actionType: 'AUTO_LEAD_EXPIRY',
+            entityType: 'LEAD',
+            entityId: leadIds[0],
+            entityName: `${leadIds.length} leads expired automatically`,
+            verifiedBy: systemActorId,
+            verifiedByName: 'System Cron',
+            verifiedByRole: 'system',
+            details: { expiredLeadIds: leadIds, count: leadIds.length }
         });
 
-        if (expiredLeads.length > 0) {
-            const leadIds = expiredLeads.map(l => l._id);
-            await Lead.updateMany(
-                { _id: { $in: leadIds } },
-                { $set: { status: 'expired' } }
-            );
-
-            // Log the expiry action
-            await AuditLog.create({
-                actionType: 'AUTO_LEAD_EXPIRY',
-                entityType: 'LEAD',
-                entityId: leadIds[0], // log reference
-                entityName: `${leadIds.length} leads expired automatically`,
-                verifiedBy: new mongoose.Types.ObjectId(), // system ID
-                verifiedByName: 'System Cron',
-                verifiedByRole: 'system',
-                details: { expiredLeadIds: leadIds }
-            });
-            console.log(`Successfully expired ${expiredLeads.length} leads.`);
-        }
+        console.log(`[LeadJobs] Expired ${expiredLeads.length} leads.`);
     } catch (err) {
-        console.error('Error in lead expiry job:', err.message);
+        console.error('[LeadJobs] Error in lead expiry job:', err.message);
     }
 };
 
 const runLeadArchiveJob = async () => {
-    console.log('Running weekly lead archive/cleanup job...');
+    console.log('[LeadJobs] Running weekly lead archive/cleanup job...');
     try {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        // Find all expired/completed/cancelled leads older than 30 days and mark them closed
+        // Close old leads using new 9-status lifecycle names
         const result = await Lead.updateMany(
             {
-                status: { $in: ['expired', 'completed', 'cancelled', 'disputed'] },
+                status: { $in: ['expired', 'cancelled', 'disputed', 'refunded'] },
                 createdAt: { $lte: thirtyDaysAgo }
             },
             { $set: { status: 'closed' } }
         );
-        console.log(`Archived/Closed ${result.modifiedCount} old leads.`);
+        console.log(`[LeadJobs] Archived ${result.modifiedCount} old leads.`);
     } catch (err) {
-        console.error('Error in lead archive job:', err.message);
+        console.error('[LeadJobs] Error in lead archive job:', err.message);
     }
 };
 
@@ -65,7 +110,7 @@ const startLeadJobsCron = () => {
     // Run weekly lead cleanup on Sundays at midnight
     cron.schedule('0 0 * * 0', runLeadArchiveJob);
 
-    console.log('Lead Model background maintenance cron jobs scheduled.');
+    console.log('[LeadJobs] Lead background maintenance cron jobs scheduled.');
 };
 
 module.exports = {

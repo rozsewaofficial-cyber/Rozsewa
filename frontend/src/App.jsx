@@ -33,6 +33,7 @@ import RojsewaBazaar from "./modules/user/pages/RojsewaBazaar";
 import BazaarAdDetails from "./modules/user/pages/BazaarAdDetails";
 import BazaarOfferChat from "./modules/user/pages/BazaarOfferChat";
 import LeadRequirementForm from "./modules/user/pages/LeadRequirementForm";
+import MyLeads from "./modules/user/pages/MyLeads";
 import MyBazaarAds from "./modules/user/pages/MyBazaarAds";
 
 import HelpSupport from "./modules/user/pages/HelpSupport";
@@ -82,6 +83,7 @@ import AdminCoupons from "./modules/admin/pages/AdminCoupons";
 import AdminFeedback from "./modules/admin/pages/AdminFeedback";
 import AdminServices from "./modules/admin/pages/AdminServices";
 import AdminLeads from "./modules/admin/pages/AdminLeads";
+import AdminLeadForms from "./modules/admin/pages/AdminLeadForms";
 import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
@@ -164,6 +166,7 @@ const App = () => (
                         <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
                         <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
                         <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer"]}><LeadRequirementForm /></ProtectedRoute>} />
+                        <Route path="/my-leads" element={<ProtectedRoute allowedRoles={["customer"]}><MyLeads /></ProtectedRoute>} />
                         <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
                         <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
                         <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />
@@ -222,6 +225,7 @@ const App = () => (
                         <Route path="verify-combos" element={<AdminVerifyCombo />} />
                         <Route path="bookings" element={<AdminBookings />} />
                         <Route path="leads" element={<AdminLeads />} />
+                        <Route path="lead-forms" element={<AdminLeadForms />} />
                         <Route path="earnings" element={<AdminEarnings />} />
                         <Route path="coupons" element={<AdminCoupons />} />
                         <Route path="feedback" element={<AdminFeedback />} />

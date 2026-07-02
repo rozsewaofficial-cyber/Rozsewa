@@ -17,7 +17,7 @@ const navLinks = [
 
 const TopNav = () => {
   const [showLocationModal, setShowLocationModal] = useState(false);
-  const { user } = useAuth();
+  const { user, detectLocation } = useAuth();
   const [city, setCity] = useState(() => {
     if (user && user.city) return user.city;
     return localStorage.getItem("rozsewa_user_city") || "Lucknow";
@@ -39,7 +39,8 @@ const libraries = ['places'];
   const onMapClick = (e) => {
     const lat = e.latLng.lat();
     const lng = e.latLng.lng();
-    setSelectedCoords({ lat, lng });
+    const loc = { lat, lng };
+    setSelectedCoords(loc);
     setIsReverseGeocoding(true);
     
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
@@ -49,7 +50,7 @@ const libraries = ['places'];
         if (data?.address) {
           const detectedCity = data.address.city || data.address.town || data.address.village || data.address.county || "Unknown City";
           const cityWithLabel = `${detectedCity} (Map)`;
-          handleCitySelect(cityWithLabel);
+          handleCitySelect(cityWithLabel, loc);
           toast({ title: "Location Updated", description: `Selected ${detectedCity} from map.` });
         }
       })
@@ -128,33 +129,50 @@ const libraries = ['places'];
     };
   }, [location.pathname]);
 
-  const handleCitySelect = (selectedCity) => {
+  const handleCitySelect = async (selectedCity, coordinates = null) => {
     setCity(selectedCity);
     localStorage.setItem("rozsewa_user_city", selectedCity);
-    localStorage.removeItem("rozsewa_user_location");
+    if (coordinates) {
+      localStorage.setItem("rozsewa_user_location", JSON.stringify(coordinates));
+    } else {
+      localStorage.removeItem("rozsewa_user_location");
+    }
+
+    if (user) {
+      try {
+        const updateData = { city: selectedCity };
+        if (coordinates) {
+          updateData.location = { type: 'Point', coordinates: [coordinates.lng, coordinates.lat] };
+        }
+        await API.put("/auth/profile", updateData);
+      } catch (err) {
+        console.error("Failed to update user profile city/location on backend:", err);
+      }
+    }
+
     setShowLocationModal(false);
     window.location.reload(); 
   };
 
-  const handleUseCurrentLocation = () => {
-    if ("geolocation" in navigator) {
-      toast({ title: "Accessing Location", description: "Fetching your current city..." });
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const { latitude, longitude } = pos.coords;
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-            const data = await res.json();
-            const detectedCity = data.address.city || data.address.town || data.address.village || "Unknown City";
-            const cityWithLabel = `${detectedCity} (Detected)`;
-            handleCitySelect(cityWithLabel);
-            toast({ title: "Location Updated", description: `Successfully detected ${detectedCity}.` });
-          } catch (err) {
-            toast({ title: "Detection Failed", description: "Could not identify your city.", variant: "destructive" });
-          }
-        },
-        () => toast({ title: "Access Denied", description: "Please enable location services.", variant: "destructive" })
-      );
+  const handleUseCurrentLocation = async () => {
+    toast({ title: "Accessing Location", description: "Fetching your current location..." });
+    try {
+      const loc = await detectLocation();
+      if (loc) {
+        let detectedCity = "Unknown City";
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}`);
+          const data = await res.json();
+          detectedCity = data.address?.city || data.address?.town || data.address?.village || "Unknown City";
+        } catch (e) {
+          console.error("Reverse geocoding error:", e);
+        }
+        const cityWithLabel = `${detectedCity} (Detected)`;
+        handleCitySelect(cityWithLabel, loc);
+        toast({ title: "Location Updated", description: `Successfully detected ${detectedCity}.` });
+      }
+    } catch (err) {
+      toast({ title: "Access Denied", description: "Please enable location services.", variant: "destructive" });
     }
   };
 

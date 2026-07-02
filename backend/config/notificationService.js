@@ -160,6 +160,12 @@ const mapEventDetails = (title, type, booking, provider) => {
     return { eventName, emailSubject, emailHtml, smsText };
 };
 
+/** FCM requires all data payload values to be strings */
+const stringifyFcmData = (data = {}) =>
+    Object.fromEntries(
+        Object.entries(data).map(([key, value]) => [key, value == null ? '' : String(value)])
+    );
+
 /**
  * Send FCM push notification (direct or called via notifyUser)
  */
@@ -206,21 +212,6 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
     }
 
     try {
-        // FCM requires all data values to be strings
-        const stringifiedData = {};
-        if (payload.data) {
-            for (const key in payload.data) {
-                if (payload.data[key] !== undefined && payload.data[key] !== null) {
-                    stringifiedData[key] = String(payload.data[key]);
-                }
-            }
-        }
-        stringifiedData.userRole = String(userRole);
-        stringifiedData.notificationId = String(notificationId);
-        // Explicitly pass title and body in data for Web SDK onBackgroundMessage
-        stringifiedData.title = String(payload.title || 'RozSewa Notification');
-        stringifiedData.body = String(payload.body || '');
-
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
             notification: {
@@ -275,7 +266,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                 }
             });
             console.log(`Failed tokens to remove: ${failedTokens.length}`);
-            
+
             if (failedTokens.length > 0) {
                 if (target.fcmTokens) target.fcmTokens = target.fcmTokens.filter(t => !failedTokens.includes(t));
                 if (target.fcmTokenMobile) target.fcmTokenMobile = target.fcmTokenMobile.filter(t => !failedTokens.includes(t));
@@ -425,8 +416,8 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                             if (emailRes && emailRes.success) {
                                 emailStatus = 'success';
                             } else {
-                                const classification = emailRes?.error && (emailRes.error.includes('550') || emailRes.error.includes('553') || emailRes.error.includes('Invalid recipient')) 
-                                    ? 'Permanent Failure' 
+                                const classification = emailRes?.error && (emailRes.error.includes('550') || emailRes.error.includes('553') || emailRes.error.includes('Invalid recipient'))
+                                    ? 'Permanent Failure'
                                     : 'Transient Failure';
                                 emailStatus = `fail [${classification}: ${emailRes?.error || 'Unknown Error'}]`;
                                 hasErrors = true;
@@ -451,7 +442,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                         try {
                             const cleanMobile = provider.mobile.replace(/\D/g, '');
                             const isDummy = !cleanMobile || cleanMobile.length < 10 || /^0+$/.test(cleanMobile) || /^1+$/.test(cleanMobile) || cleanMobile === '1234567890';
-                            
+
                             if (isDummy) {
                                 smsStatus = 'fail [Permanent Failure: Invalid/Dummy phone number]';
                                 hasErrors = true;

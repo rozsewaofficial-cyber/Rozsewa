@@ -502,7 +502,11 @@ const createBooking = async (req, res) => {
                         title: 'Urgent: Service Request!',
                         message: `You received a new request for ${booking.serviceName}. Accept now!`,
                         type: 'booking',
-                        bookingId: booking._id
+                        bookingId: booking._id,
+                        data: {
+                            link: `/provider/bookings`,
+                            bookingId: booking._id.toString()
+                        }
                     });
 
                     // Send Email Notification
@@ -857,6 +861,46 @@ const getProviderBookings = async (req, res) => {
     }
 };
 
+const notifyCustomerOfProviderCancellation = async (booking, reason, creditAmount = 0) => {
+    const { notifyUser } = require('../config/notificationService');
+    const { emitToUser } = require('../config/socket');
+
+    const bookingRef = booking._id.toString().slice(-6);
+    const hasPenaltyCredit = creditAmount > 0;
+    const title = hasPenaltyCredit ? 'Booking Cancelled by Partner' : 'Booking Rejected by Partner';
+    let message = hasPenaltyCredit
+        ? `Your booking #${bookingRef} for ${booking.serviceName} has been cancelled by the partner.`
+        : `Provider rejected your booking #${bookingRef} for ${booking.serviceName}.`;
+
+    if (reason) {
+        message += ` Reason: "${reason}"`;
+    }
+    if (hasPenaltyCredit) {
+        message += ` ₹${creditAmount} has been credited to your wallet.`;
+    }
+
+    await notifyUser({
+        userId: booking.userId,
+        userRole: 'user',
+        title,
+        message,
+        type: 'booking',
+        bookingId: booking._id,
+        data: {
+            link: '/tracking',
+            cancellationReason: reason || '',
+            cancelledBy: 'provider'
+        }
+    });
+
+    emitToUser(booking.userId, 'BOOKING_REJECTED', {
+        bookingId: booking._id.toString(),
+        cancellationReason: reason || '',
+        cancelledBy: 'provider',
+        status: 'cancelled'
+    });
+};
+
 // @desc    Update booking status by provider (Accept/Started/Completed)
 // @route   PATCH /api/bookings/:id/status
 // @access  Private (Provider)
@@ -867,12 +911,43 @@ const updateBookingStatusByProvider = async (req, res) => {
         if (booking) {
             // Intercept pending booking rejection to avoid cancelling the order
             if (req.body.status === 'cancelled' && booking.status === 'pending') {
+                const isAssignedProvider = booking.providerId &&
+                    booking.providerId.toString() === req.user._id.toString();
+
+                if (isAssignedProvider) {
+                    const reason = (req.body.cancellationReason || '').trim();
+                    if (reason.length < 10) {
+                        return res.status(400).json({
+                            message: 'Cancellation reason is required (minimum 10 characters).'
+                        });
+                    }
+
+                    console.log(`[Monitoring] Assigned provider ${req.user._id} rejected/cancelled pending Booking ${booking._id}.`);
+                    booking.status = 'cancelled';
+                    booking.cancellationReason = reason;
+                    booking.cancelledBy = 'provider';
+                    await booking.save();
+
+                    try {
+                        await notifyCustomerOfProviderCancellation(booking, reason, 0);
+                    } catch (err) {
+                        console.log('Customer reject notification failed:', err.message);
+                    }
+
+                    const io = require('../config/socket').getIO();
+                    io.emit('NEW_BOOKING_REQUEST');
+                    return res.json(booking);
+                }
+
                 console.log(`[Monitoring] Booking rejection event (API): Provider ${req.user._id} rejected Booking ${booking._id}.`);
 
                 if (!booking.rejectedProviders) {
                     booking.rejectedProviders = [];
                 }
-                if (!booking.rejectedProviders.includes(req.user._id)) {
+                const alreadyRejected = booking.rejectedProviders.some(
+                    (id) => id.toString() === req.user._id.toString()
+                );
+                if (!alreadyRejected) {
                     booking.rejectedProviders.push(req.user._id);
                     await booking.save();
                 }
@@ -898,6 +973,18 @@ const updateBookingStatusByProvider = async (req, res) => {
             }
 
             const newStatus = req.body.offerDecision === 'counter' ? 'pending' : (req.body.status || booking.status);
+            const wasPending = booking.status === 'pending';
+
+            if (newStatus === 'cancelled' && booking.status !== 'pending' && req.user.role === 'provider') {
+                const reason = (req.body.cancellationReason || '').trim();
+                if (reason.length < 10) {
+                    return res.status(400).json({
+                        message: 'Cancellation reason is required (minimum 10 characters).'
+                    });
+                }
+                booking.cancellationReason = reason;
+                booking.cancelledBy = 'provider';
+            }
 
             if (newStatus === 'cancelled' && booking.status !== 'pending' && req.user.role !== 'provider') {
                 return res.status(400).json({ message: 'Once an order is approved, it cannot be cancelled.' });
@@ -1196,26 +1283,41 @@ const updateBookingStatusByProvider = async (req, res) => {
             booking.status = newStatus;
             const updatedBooking = await booking.save();
 
-            // If cancelled by provider, notify Admin, deduct penalty, credit user and admin
-            if (newStatus === 'cancelled') {
-                if (req.body.cancellationReason) {
-                    booking.cancellationReason = req.body.cancellationReason;
-                    booking.cancelledBy = req.user.role;
-                }
-                const updatedBookingWithReason = await booking.save();
+            // If cancelled by provider, notify customer first, then apply penalty
+            if (newStatus === 'cancelled' && !wasPending) {
+                const reason = booking.cancellationReason || req.body.cancellationReason || '';
+                let creditAmount = 0;
+
                 try {
                     const PartnerProgram = require('../models/PartnerProgram');
                     const partnerConfig = await PartnerProgram.findOne();
                     const penalty = (partnerConfig && partnerConfig.penalties && partnerConfig.penalties.cancellationCharge !== undefined)
                         ? partnerConfig.penalties.cancellationCharge
                         : 100;
-                    const creditAmount = penalty / 2;
+                    creditAmount = penalty / 2;
+                } catch (err) {
+                    creditAmount = 50;
+                }
+
+                try {
+                    await notifyCustomerOfProviderCancellation(booking, reason, creditAmount);
+                } catch (notifyErr) {
+                    console.log('User cancel notification failed (skipping):', notifyErr.message);
+                }
+
+                try {
+                    const PartnerProgram = require('../models/PartnerProgram');
+                    const partnerConfig = await PartnerProgram.findOne();
+                    const penalty = (partnerConfig && partnerConfig.penalties && partnerConfig.penalties.cancellationCharge !== undefined)
+                        ? partnerConfig.penalties.cancellationCharge
+                        : 100;
+                    creditAmount = penalty / 2;
 
                     const { Wallet, Transaction } = require('../models/Wallet');
                     const Provider = require('../models/Provider');
                     const User = require('../models/User');
 
-                    // 1. Deduct 100rs from provider's wallet
+                    // 1. Deduct penalty from provider's wallet
                     let wallet = await Wallet.findOne({ providerId: req.user._id });
                     if (!wallet) {
                         wallet = await Wallet.create({ providerId: req.user._id, balance: 0 });
@@ -1241,7 +1343,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                         description: 'Penalty for cancelling a booking'
                     });
 
-                    // 2. Send 50 to the user (customer)
+                    // 2. Send compensation to the user (customer)
                     let userWallet = await Wallet.findOne({ userId: booking.userId });
                     if (!userWallet) {
                         userWallet = await Wallet.create({ userId: booking.userId, balance: 0 });
@@ -1260,22 +1362,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                         description: 'Compensation for booking cancelled by partner'
                     });
 
-                    // Send notification to the user about the cancellation compensation
-                    try {
-                        const { notifyUser } = require('../config/notificationService');
-                        await notifyUser({
-                            userId: booking.userId,
-                            userRole: 'user',
-                            title: 'Booking Cancelled by Partner',
-                            message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been cancelled by the partner. ₹${creditAmount} has been credited to your wallet.`,
-                            type: 'booking',
-                            bookingId: booking._id
-                        });
-                    } catch (notifyErr) {
-                        console.log('User cancel notification failed (skipping):', notifyErr.message);
-                    }
-
-                    // 3. Send 50 to the admin
+                    // 3. Send platform share to admin
                     const adminUser = await User.findOne({ role: { $in: ['superadmin', 'admin'] } });
                     if (adminUser) {
                         let adminWallet = await Wallet.findOne({ userId: adminUser._id });
@@ -1304,11 +1391,12 @@ const updateBookingStatusByProvider = async (req, res) => {
                     for (const admin of admins) {
                         await sendNotificationToUser(admin._id, 'admin', {
                             title: 'Booking Cancelled by Provider',
-                            body: `Provider ${req.user.ownerName} cancelled booking #${booking._id.toString().slice(-6)}.`,
+                            body: `Provider ${req.user.ownerName} cancelled booking #${booking._id.toString().slice(-6)}.${reason ? ` Reason: "${reason}"` : ''}`,
                             data: {
                                 type: 'booking',
                                 id: booking._id.toString(),
-                                link: '/admin/bookings'
+                                link: '/admin/bookings',
+                                cancellationReason: reason || ''
                             }
                         });
                     }

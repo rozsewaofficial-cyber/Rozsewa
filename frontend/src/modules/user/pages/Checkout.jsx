@@ -308,12 +308,14 @@ const Checkout = () => {
       window.addEventListener("popstate", handlePopState);
 
       const handleRejected = (e) => {
-        const { bookingId: rejectedId } = e.detail;
+        const { bookingId: rejectedId, cancellationReason } = e.detail || {};
         if (rejectedId === bookingId) {
           setCurrentBookingStatus('cancelled');
           toast({
-            title: "Request Rejected",
-            description: "The provider has rejected your request.",
+            title: "Booking Cancelled",
+            description: cancellationReason
+              ? `Reason: "${cancellationReason}"`
+              : "The provider has rejected your request.",
             variant: "destructive"
           });
         }

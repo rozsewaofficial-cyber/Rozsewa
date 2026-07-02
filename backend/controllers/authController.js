@@ -311,7 +311,7 @@ const getUserProfile = async (req, res) => {
 // @route   PUT /api/auth/profile
 // @access  Private
 const updateUserProfile = async (req, res) => {
-    const { name, email, mobile, avatar, addresses, favorites } = req.body;
+    const { name, email, mobile, avatar, addresses, favorites, city, address } = req.body;
 
     try {
         let user = await User.findById(req.user._id);
@@ -336,6 +336,13 @@ const updateUserProfile = async (req, res) => {
             user.addresses = addresses !== undefined ? addresses : user.addresses;
             user.favorites = favorites !== undefined ? favorites : user.favorites;
 
+            if (city !== undefined) {
+                user.city = city;
+            }
+            if (address !== undefined) {
+                user.address = address;
+            }
+
             if (req.body.location) {
                 user.location = req.body.location;
             }
@@ -359,6 +366,8 @@ const updateUserProfile = async (req, res) => {
                 role: updatedUser.role || (isProvider ? 'provider' : 'customer'),
                 avatar: updatedUser.avatar || updatedUser.profileImage,
                 addresses: updatedUser.addresses,
+                city: updatedUser.city || "",
+                address: updatedUser.address || "",
                 favorites: updatedUser.favorites,
                 providerCategory: updatedUser.providerCategory || "partner",
                 token: generateToken(updatedUser._id),

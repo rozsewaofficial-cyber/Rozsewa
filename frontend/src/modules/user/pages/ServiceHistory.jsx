@@ -68,6 +68,18 @@ const ServiceHistory = () => {
 
   useEffect(() => {
     fetchBookings();
+
+    const handleUpdate = () => {
+      fetchBookings();
+    };
+
+    window.addEventListener('BOOKING_REJECTED', handleUpdate);
+    window.addEventListener('NEW_NOTIFICATION', handleUpdate);
+
+    return () => {
+      window.removeEventListener('BOOKING_REJECTED', handleUpdate);
+      window.removeEventListener('NEW_NOTIFICATION', handleUpdate);
+    };
   }, []);
 
   const filtered = filter === "all" ? bookings : bookings.filter(b => b.status === filter);
