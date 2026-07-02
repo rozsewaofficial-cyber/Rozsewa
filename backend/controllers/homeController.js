@@ -128,11 +128,16 @@ const getFeaturedProviders = async (req, res) => {
             query.city = { $regex: new RegExp('^' + city.split(' ')[0], 'i') };
         }
 
-        const providers = await Provider.find(query)
+        let providersQuery = Provider.find(query)
             .select('name shopName mobile profileImage vendorType vendorCode rating joinedDate reviewCount location')
             .populate('vendorType', 'name icon')
-            .limit(8)
-            .sort({ rating: -1 });
+            .limit(8);
+
+        if (!(lat && lng)) {
+            providersQuery = providersQuery.sort({ rating: -1 });
+        }
+
+        const providers = await providersQuery;
         res.json(providers);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -202,15 +207,15 @@ const getPublicProviders = async (req, res) => {
             ];
         }
 
-        let providers = Provider.find(query)
+        let providersQuery = Provider.find(query)
             .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled')
             .populate('vendorType', 'name icon services');
 
-        if (!lat || !lng) {
-            providers = providers.sort({ rating: -1 });
+        if (!(lat && lng)) {
+            providersQuery = providersQuery.sort({ rating: -1 });
         }
 
-        const providerDocs = await providers;
+        const providerDocs = await providersQuery;
 
         // Fetch starting price and combo info for each provider
         const enrichedProviders = [];

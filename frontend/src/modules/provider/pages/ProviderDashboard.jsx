@@ -203,7 +203,7 @@ const ProviderDashboard = () => {
           setIsSyncingLocation(false);
           toast({ title: "GPS Error", description: error.message, variant: "destructive" });
         },
-        { timeout: 10000, enableHighAccuracy: true }
+        { timeout: 15000, enableHighAccuracy: true }
       );
     } else {
       toast({ title: "Geolocation not supported", variant: "destructive" });
@@ -220,7 +220,7 @@ const ProviderDashboard = () => {
       try {
         if ("geolocation" in navigator) {
           const pos = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000, enableHighAccuracy: true });
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 15000, enableHighAccuracy: true });
           });
           currentCoords = [pos.coords.longitude, pos.coords.latitude];
 
