@@ -212,6 +212,20 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
     }
 
     try {
+        // FCM requires all data values to be strings
+        const stringifiedData = {};
+        if (payload.data) {
+            for (const key in payload.data) {
+                if (payload.data[key] !== undefined && payload.data[key] !== null) {
+                    stringifiedData[key] = String(payload.data[key]);
+                }
+            }
+        }
+        stringifiedData.userRole = String(userRole);
+        stringifiedData.notificationId = String(notificationId);
+        stringifiedData.title = String(payload.title || 'RozSewa Notification');
+        stringifiedData.body = String(payload.body || '');
+
         const response = await admin.messaging().sendEachForMulticast({
             tokens,
             notification: {

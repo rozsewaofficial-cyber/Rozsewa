@@ -8,7 +8,11 @@ const { sendNotificationToUser } = require('../config/notificationService');
 // @access  Private
 const getNotifications = async (req, res) => {
     try {
-        const notifications = await Notification.find({ recipientId: req.user._id })
+        const notifications = await Notification.find({ 
+            recipientId: req.user._id,
+            title: { $ne: null, $exists: true, $ne: "", $ne: "null" },
+            message: { $ne: null, $exists: true, $ne: "", $ne: "null" }
+        })
             .sort({ createdAt: -1 })
             .limit(20);
         res.json(notifications);
@@ -22,7 +26,12 @@ const getNotifications = async (req, res) => {
 // @access  Private
 const getUnreadCount = async (req, res) => {
     try {
-        const count = await Notification.countDocuments({ recipientId: req.user._id, isRead: false });
+        const count = await Notification.countDocuments({ 
+            recipientId: req.user._id, 
+            isRead: false,
+            title: { $ne: null, $exists: true, $ne: "", $ne: "null" },
+            message: { $ne: null, $exists: true, $ne: "", $ne: "null" }
+        });
         res.json({ unreadCount: count });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -107,10 +116,13 @@ const saveFCMToken = async (req, res) => {
         if (!target.fcmTokens) target.fcmTokens = [];
         if (!target.fcmTokenMobile) target.fcmTokenMobile = [];
 
+        let isNewToken = false;
+
         if (platform === 'mobile' || platform === 'app') {
             if (!target.fcmTokenMobile.includes(token)) {
                 target.fcmTokenMobile.push(token);
                 if (target.fcmTokenMobile.length > 10) target.fcmTokenMobile.shift();
+                isNewToken = true;
                 console.log(`[saveFCMToken API] Saved Mobile/App Token for ${target.ownerName || target.name} (Total mobile tokens: ${target.fcmTokenMobile.length})`);
             } else {
                 console.log(`[saveFCMToken API] Token already exists in fcmTokenMobile for ${target.ownerName || target.name}`);
@@ -119,27 +131,34 @@ const saveFCMToken = async (req, res) => {
             if (!target.fcmTokens.includes(token)) {
                 target.fcmTokens.push(token);
                 if (target.fcmTokens.length > 10) target.fcmTokens.shift();
+                isNewToken = true;
                 console.log(`[saveFCMToken API] Saved Web Token for ${target.ownerName || target.name} (Total web tokens: ${target.fcmTokens.length})`);
             } else {
                 console.log(`[saveFCMToken API] Token already exists in fcmTokens (web) for ${target.ownerName || target.name}`);
             }
         }
 
+        // Remove any duplicates that might have leaked in previously
+        target.fcmTokens = [...new Set(target.fcmTokens)];
+        target.fcmTokenMobile = [...new Set(target.fcmTokenMobile)];
+
         await target.save();
 
-        // Send login notification
-        try {
-            await sendNotificationToUser(userId, userRole, {
-                title: "Login Successful",
-                body: "You have successfully logged in!",
-                data: {
-                    type: "login",
-                    id: userId.toString(),
-                    link: "/dashboard"
-                }
-            });
-        } catch (err) {
-            console.error("Error sending login notification:", err);
+        // Send login notification ONLY ONCE per new device
+        if (isNewToken) {
+            try {
+                await sendNotificationToUser(userId, userRole, {
+                    title: "Login Successful",
+                    body: "You have successfully logged in on a new device!",
+                    data: {
+                        type: "login",
+                        id: userId.toString(),
+                        link: "/dashboard"
+                    }
+                });
+            } catch (err) {
+                console.error("Error sending login notification:", err);
+            }
         }
 
         res.json({ message: 'Token saved successfully' });

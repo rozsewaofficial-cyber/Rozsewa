@@ -6,7 +6,7 @@ import RecentBookingsList from "@/modules/provider/components/RecentBookingsList
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
   Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle,
-  Percent, ArrowRight
+  Percent, ArrowRight, MapPin, Loader2
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,6 +48,7 @@ const ProviderDashboard = () => {
   const [showEmergencyMenu, setShowEmergencyMenu] = useState(false);
   const emergencyMenuRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncingLocation, setIsSyncingLocation] = useState(false);
   const [supportNum, setSupportNum] = useState("91XXXXXXXXXX");
   const [dynamicChartData, setDynamicChartData] = useState(chartDataFallback);
   const [plans, setPlans] = useState([]);
@@ -179,6 +180,36 @@ const ProviderDashboard = () => {
     }
   };
 
+  const syncLocation = async () => {
+    if ("geolocation" in navigator) {
+      setIsSyncingLocation(true);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const newLocation = {
+              type: 'Point',
+              coordinates: [position.coords.longitude, position.coords.latitude]
+            };
+            await API.put("/provider/profile", { location: newLocation });
+            updateUser({ location: newLocation });
+            toast({ title: "Location Auto-Synced Successfully!" });
+          } catch (err) {
+            toast({ title: "Failed to sync location", variant: "destructive" });
+          } finally {
+            setIsSyncingLocation(false);
+          }
+        },
+        (error) => {
+          setIsSyncingLocation(false);
+          toast({ title: "GPS Error", description: error.message, variant: "destructive" });
+        },
+        { timeout: 15000, enableHighAccuracy: true }
+      );
+    } else {
+      toast({ title: "Geolocation not supported", variant: "destructive" });
+    }
+  };
+
   const triggerSOS = async () => {
     try {
       setIsLoading(true);
@@ -189,7 +220,7 @@ const ProviderDashboard = () => {
       try {
         if ("geolocation" in navigator) {
           const pos = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000, enableHighAccuracy: true });
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 15000, enableHighAccuracy: true });
           });
           currentCoords = [pos.coords.longitude, pos.coords.latitude];
 
@@ -493,15 +524,21 @@ const ProviderDashboard = () => {
 
           <div className="flex bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl border border-emerald-100 dark:border-white/5 rounded-2xl p-1.5 gap-2 shadow-xl shadow-emerald-900/5 w-full md:w-auto shrink-0">
             <button onClick={toggleOnline}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${isOnline ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" : "bg-emerald-50/50 dark:bg-slate-800 text-emerald-300 dark:text-slate-500 border border-emerald-100 dark:border-slate-700"
+              className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all ${isOnline ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" : "bg-emerald-50/50 dark:bg-slate-800 text-emerald-300 dark:text-slate-500 border border-emerald-100 dark:border-slate-700"
                 }`}>
               <div className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-white animate-pulse" : "bg-emerald-200"}`} />
               {isOnline ? "Online" : "Offline"}
             </button>
 
+            <button onClick={syncLocation} disabled={isSyncingLocation}
+              className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 bg-white dark:bg-slate-800 text-blue-500 dark:text-blue-400 border border-slate-100 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50`}>
+              {isSyncingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+              {isSyncingLocation ? "Syncing..." : "Sync GPS"}
+            </button>
+
             <div className="relative" ref={emergencyMenuRef}>
               <button onClick={() => setShowEmergencyMenu(!showEmergencyMenu)}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-500 relative overflow-hidden ${isEmergencyActive
+                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 relative overflow-hidden ${isEmergencyActive
                   ? "bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]"
                   : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-700"
                   }`}>

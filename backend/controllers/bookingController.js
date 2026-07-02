@@ -106,6 +106,19 @@ const createBooking = async (req, res) => {
         serviceLocation = 'home' } = req.body;
 
     try {
+        if (providerId) {
+            const specificProvider = await Provider.findById(providerId);
+            if (!specificProvider) {
+                return res.status(404).json({ message: 'Selected provider not found.' });
+            }
+            if (specificProvider.status !== 'verified') {
+                return res.status(400).json({ message: 'Selected provider is not verified.' });
+            }
+            if (!specificProvider.isOnline) {
+                return res.status(400).json({ message: 'Provider is currently offline and not accepting bookings.' });
+            }
+        }
+
         // --- 1. Compute Trusted Subtotal on Backend ---
         let subtotal = 0;
 
@@ -344,7 +357,7 @@ const createBooking = async (req, res) => {
                 }
             }
 
-            if (providersToNotify.length === 0) {
+            if (providersToNotify.length === 0 && !providerId) {
                 const targetCategory = requiredProviderCategory || 'partner';
 
                 if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {
@@ -740,7 +753,7 @@ const updateBooking = async (req, res) => {
                             userRole: 'provider',
                             title: 'Booking Cancelled',
                             message: `User has cancelled booking #${booking._id.toString().slice(-6)} for ${booking.serviceName}.`,
-                            type: 'booking',
+                            type: 'cancel',
                             bookingId: booking._id
                         });
                     } catch (err) {
@@ -754,7 +767,7 @@ const updateBooking = async (req, res) => {
                         userRole: 'user',
                         title: 'Booking Cancelled',
                         message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been cancelled.`,
-                        type: 'booking',
+                        type: 'cancel',
                         bookingId: booking._id
                     });
                 } catch (err) {
@@ -871,7 +884,7 @@ const notifyCustomerOfProviderCancellation = async (booking, reason, creditAmoun
         userRole: 'user',
         title,
         message,
-        type: 'booking',
+        type: 'cancel',
         bookingId: booking._id,
         data: {
             link: '/tracking',
@@ -1380,7 +1393,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                             title: 'Booking Cancelled by Provider',
                             body: `Provider ${req.user.ownerName} cancelled booking #${booking._id.toString().slice(-6)}.${reason ? ` Reason: "${reason}"` : ''}`,
                             data: {
-                                type: 'booking',
+                                type: 'cancel',
                                 id: booking._id.toString(),
                                 link: '/admin/bookings',
                                 cancellationReason: reason || ''

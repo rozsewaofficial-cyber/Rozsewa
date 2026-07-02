@@ -131,7 +131,7 @@ export const AuthProvider = ({ children }) => {
           resolve(loc);
         },
         (err) => reject(err),
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     });
   };

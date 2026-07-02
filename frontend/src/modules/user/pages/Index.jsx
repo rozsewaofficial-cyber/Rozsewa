@@ -50,11 +50,15 @@ const Index = () => {
   const fetchHomeData = async () => {
     setLoading(true);
     try {
-      const providersEndpoint = userCity
-        ? `/public/featured-providers?city=${encodeURIComponent(userCity)}`
-        : (userLocation
-            ? `/public/featured-providers?lat=${userLocation.lat}&lng=${userLocation.lng}&radius=15`
-            : "/public/featured-providers");
+      const params = new URLSearchParams();
+      if (userLocation) {
+        params.append("lat", userLocation.lat);
+        params.append("lng", userLocation.lng);
+        params.append("radius", 15);
+      } else if (userCity) {
+        params.append("city", userCity);
+      }
+      const providersEndpoint = `/public/featured-providers?${params.toString()}`;
 
       const [bannersRes, providersRes] = await Promise.all([
         API.get("/public/banners"),

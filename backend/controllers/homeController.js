@@ -38,10 +38,10 @@ const getPublicCategoryByName = async (req, res) => {
         console.log(`[getPublicCategoryByName] Requested: "${req.params.name}"`);
         // Use regex for case-insensitive match and to handle potential trailing/leading spaces in the DB
         const safeName = req.params.name.trim().replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
-        const category = await Category.findOne({ 
-            name: { $regex: new RegExp(`^\\s*${safeName}\\s*$`, 'i') } 
+        const category = await Category.findOne({
+            name: { $regex: new RegExp(`^\\s*${safeName}\\s*$`, 'i') }
         });
-        
+
         if (!category) {
             console.log(`[getPublicCategoryByName] Not found: "${req.params.name}"`);
             return res.status(404).json({ message: 'Category not found' });
@@ -92,7 +92,7 @@ const getPublicProviderById = async (req, res) => {
                     if (s && s.duration) {
                         duration = parseInt(s.duration) || 30;
                     }
-                } catch (err) {}
+                } catch (err) { }
             }
             bookedSlots.push({ date: b.bookingDate, time: b.bookingTime, duration });
         }
@@ -128,11 +128,16 @@ const getFeaturedProviders = async (req, res) => {
             query.city = { $regex: new RegExp('^' + city.split(' ')[0], 'i') };
         }
 
-        const providers = await Provider.find(query)
+        let providersQuery = Provider.find(query)
             .select('name shopName mobile profileImage vendorType vendorCode rating joinedDate reviewCount location')
             .populate('vendorType', 'name icon')
-            .limit(8)
-            .sort({ rating: -1 });
+            .limit(8);
+
+        if (!(lat && lng)) {
+            providersQuery = providersQuery.sort({ rating: -1 });
+        }
+
+        const providers = await providersQuery;
         res.json(providers);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -146,7 +151,7 @@ const getPublicProviders = async (req, res) => {
     try {
         const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo } = req.query;
         let query = { status: 'verified', isOnline: true };
-        
+
         if (mode === 'sewak') {
             query.providerCategory = 'sewak';
         } else if (mode === 'partner') {
@@ -202,21 +207,21 @@ const getPublicProviders = async (req, res) => {
             ];
         }
 
-        let providers = Provider.find(query)
+        let providersQuery = Provider.find(query)
             .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled')
             .populate('vendorType', 'name icon services');
 
-        if (!lat || !lng) {
-            providers = providers.sort({ rating: -1 });
+        if (!(lat && lng)) {
+            providersQuery = providersQuery.sort({ rating: -1 });
         }
 
-        const providerDocs = await providers;
-        
+        const providerDocs = await providersQuery;
+
         // Fetch starting price and combo info for each provider
         const enrichedProviders = [];
         for (const p of providerDocs) {
             const providerObj = p.toObject();
-            
+
             const isSewak = p.providerCategory === 'sewak';
             let startingPrice = 199;
             if (isSewak) {
@@ -317,8 +322,8 @@ const getPublicServiceByProvider = async (req, res) => {
             }));
         } else {
             services = await Service.find({ providerId: req.params.providerId, visible: true });
-            combos = await Combo.find({ 
-                providerId: req.params.providerId, 
+            combos = await Combo.find({
+                providerId: req.params.providerId,
                 isActive: true,
                 $or: [{ status: 'approved' }, { status: { $exists: false } }]
             }).populate('services');

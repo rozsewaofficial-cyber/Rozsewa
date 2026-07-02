@@ -91,6 +91,8 @@ export const SocketProvider = ({ children }) => {
     }, [incomingRequest]);
 
     useEffect(() => {
+        if (!user || !user.token) return;
+
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
         // Extract the base URL (protocol + host) and remove /api if present at the end
         const socketUrl = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
@@ -173,8 +175,11 @@ export const SocketProvider = ({ children }) => {
             window.dispatchEvent(new CustomEvent('NEW_NOTIFICATION', { detail: data }));
         });
 
-        return () => newSocket.close();
-    }, []);
+        return () => {
+            newSocket.close();
+            setSocket(null);
+        };
+    }, [user ? user._id : null]);
 
     useEffect(() => {
         if (socket && user) {
