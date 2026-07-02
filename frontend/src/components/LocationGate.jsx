@@ -8,12 +8,14 @@ const LocationGate = () => {
   const [status, setStatus] = useState("checking"); // 'checking' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState("");
 
-  const performDetection = async () => {
-    setStatus("checking");
+  const performDetection = async (isSilent = false) => {
+    if (!isSilent) {
+      setStatus("checking");
+    }
     setErrorMsg("");
     try {
       await detectLocation();
-      sessionStorage.setItem("location_gate_passed", "true");
+      localStorage.setItem("location_gate_passed", "true");
       setStatus("success");
     } catch (err) {
       console.error("Location detection error:", err);
@@ -31,10 +33,11 @@ const LocationGate = () => {
   };
 
   useEffect(() => {
-    if (sessionStorage.getItem("location_gate_passed") === "true") {
+    if (localStorage.getItem("location_gate_passed") === "true") {
       setStatus("success");
+      performDetection(true); // Fetch live location in the background
     } else {
-      performDetection();
+      performDetection(false);
     }
   }, []);
 

@@ -793,7 +793,7 @@ const getProviderBookings = async (req, res) => {
             Setting.findOne({ key: 'cash_limits_config' })
         ]);
         const walletBalance = wallet ? wallet.balance : 0;
-        
+
         let defaultLimit = 1500;
         let catLimitOverride = null;
         let cfg = null;
@@ -855,7 +855,7 @@ const updateBookingStatusByProvider = async (req, res) => {
             // Intercept pending booking rejection to avoid cancelling the order
             if (req.body.status === 'cancelled' && booking.status === 'pending') {
                 console.log(`[Monitoring] Booking rejection event (API): Provider ${req.user._id} rejected Booking ${booking._id}.`);
-                
+
                 if (!booking.rejectedProviders) {
                     booking.rejectedProviders = [];
                 }
@@ -863,7 +863,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                     booking.rejectedProviders.push(req.user._id);
                     await booking.save();
                 }
-                
+
                 const io = require('../config/socket').getIO();
                 io.emit('NEW_BOOKING_REQUEST');
 

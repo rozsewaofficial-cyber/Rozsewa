@@ -231,7 +231,22 @@ export const AuthProvider = ({ children }) => {
     const setup = async () => {
       try {
         const { onMessage } = await import("firebase/messaging");
-        const { messaging } = await import("@/lib/firebase");
+        const { messaging, requestForToken } = await import("@/lib/firebase");
+
+        // Sync token on startup if logged in
+        if (auth && auth.token && Notification.permission === 'granted') {
+          try {
+            const fcmToken = await requestForToken();
+            if (fcmToken) {
+              await API.post("/notifications/fcm-tokens/save",
+                { token: fcmToken, platform: 'web' },
+                { headers: { Authorization: `Bearer ${auth.token}` } }
+              );
+            }
+          } catch (e) {
+            console.error("Error syncing FCM token on load:", e);
+          }
+        }
 
         unsubscribe = onMessage(messaging, (payload) => {
           console.log('Foreground message received:', payload);
@@ -239,7 +254,7 @@ export const AuthProvider = ({ children }) => {
           if (Notification.permission === 'granted') {
             const notif = new Notification(payload.notification.title, {
               body: payload.notification.body,
-              icon: '/logo.png',
+              icon: '/RozSewa.png',
               data: payload.data
             });
 
