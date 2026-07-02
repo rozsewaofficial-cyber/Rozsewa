@@ -44,7 +44,7 @@ const LocationGate = () => {
     } else {
       performDetection(false);
     }
-  }, [userLocation]);
+  }, []); // Empty dependency array prevents infinite loop
 
   if (status === "success") {
     return <Outlet />;
