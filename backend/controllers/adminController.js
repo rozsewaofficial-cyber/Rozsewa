@@ -2679,6 +2679,87 @@ const getUserWalletByAdmin = async (req, res) => {
     }
 };
 
+// ============================================================
+// UNAUTHORIZED PAYMENT MONITORING — Admin Functions
+// ============================================================
+
+// @desc    Get all bookings with unauthorized payment flags
+// @route   GET /api/admin/bookings/unauthorized-payments
+// @access  Private/Admin
+const getUnauthorizedPayments = async (req, res) => {
+    try {
+        const { startDate, endDate, providerId, page = 1, limit = 50 } = req.query;
+        const query = { unauthorizedPaymentFlag: true };
+
+        if (startDate || endDate) {
+            query.unauthorizedPaymentAt = {};
+            if (startDate) query.unauthorizedPaymentAt.$gte = new Date(startDate);
+            if (endDate)   query.unauthorizedPaymentAt.$lte = new Date(endDate);
+        }
+        if (providerId) query.unauthorizedAttemptedBy = providerId;
+
+        const total = await Booking.countDocuments(query);
+        const bookings = await Booking.find(query)
+            .sort({ unauthorizedPaymentAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(Number(limit))
+            .populate('userId', 'name phone')
+            .populate('unauthorizedAttemptedBy', 'ownerName shopName phone');
+
+        res.json({ total, page: Number(page), limit: Number(limit), bookings });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Clear unauthorized payment flag after admin investigation
+// @route   PATCH /api/admin/bookings/:id/clear-payment-flag
+// @access  Private/Admin
+const clearUnauthorizedPaymentFlag = async (req, res) => {
+    try {
+        const PaymentAudit = require('../models/PaymentAudit');
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+        if (!booking.unauthorizedPaymentFlag) {
+            return res.status(400).json({ message: 'No unauthorized payment flag is set on this booking.' });
+        }
+
+        const { investigationNote } = req.body;
+
+        // Audit the clearance action
+        await PaymentAudit.create({
+            bookingId: booking._id,
+            adminId: req.user._id,
+            action: 'flag_cleared',
+            amount: booking.totalAmount,
+            note: investigationNote || 'Flag cleared by admin after investigation.'
+        });
+
+        booking.unauthorizedPaymentFlag = false;
+        await booking.save();
+
+        res.json({ message: 'Unauthorized payment flag cleared.', bookingId: booking._id });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get full payment audit trail for a booking
+// @route   GET /api/admin/bookings/:id/payment-audit
+// @access  Private/Admin
+const getBookingPaymentAudit = async (req, res) => {
+    try {
+        const PaymentAudit = require('../models/PaymentAudit');
+        const audit = await PaymentAudit.find({ bookingId: req.params.id })
+            .sort({ createdAt: 1 })
+            .populate('providerId', 'ownerName shopName')
+            .populate('staffId', 'name')
+            .populate('adminId', 'name');
+        res.json(audit);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 module.exports = {
     getProviders,
     getProviderReports,
@@ -2765,86 +2846,4 @@ module.exports = {
     getUnauthorizedPayments,
     clearUnauthorizedPaymentFlag,
     getBookingPaymentAudit,
-};
-
-// ============================================================
-// UNAUTHORIZED PAYMENT MONITORING — Admin Functions
-// ============================================================
-
-// @desc    Get all bookings with unauthorized payment flags
-// @route   GET /api/admin/bookings/unauthorized-payments
-// @access  Private/Admin
-const getUnauthorizedPayments = async (req, res) => {
-    try {
-        const { startDate, endDate, providerId, page = 1, limit = 50 } = req.query;
-        const query = { unauthorizedPaymentFlag: true };
-
-        if (startDate || endDate) {
-            query.unauthorizedPaymentAt = {};
-            if (startDate) query.unauthorizedPaymentAt.$gte = new Date(startDate);
-            if (endDate)   query.unauthorizedPaymentAt.$lte = new Date(endDate);
-        }
-        if (providerId) query.unauthorizedAttemptedBy = providerId;
-
-        const total = await Booking.countDocuments(query);
-        const bookings = await Booking.find(query)
-            .sort({ unauthorizedPaymentAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(Number(limit))
-            .populate('userId', 'name phone')
-            .populate('unauthorizedAttemptedBy', 'ownerName shopName phone');
-
-        res.json({ total, page: Number(page), limit: Number(limit), bookings });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// @desc    Clear unauthorized payment flag after admin investigation
-// @route   PATCH /api/admin/bookings/:id/clear-payment-flag
-// @access  Private/Admin
-const clearUnauthorizedPaymentFlag = async (req, res) => {
-    try {
-        const PaymentAudit = require('../models/PaymentAudit');
-        const booking = await Booking.findById(req.params.id);
-        if (!booking) return res.status(404).json({ message: 'Booking not found' });
-        if (!booking.unauthorizedPaymentFlag) {
-            return res.status(400).json({ message: 'No unauthorized payment flag is set on this booking.' });
-        }
-
-        const { investigationNote } = req.body;
-
-        // Audit the clearance action
-        await PaymentAudit.create({
-            bookingId: booking._id,
-            adminId: req.user._id,
-            action: 'flag_cleared',
-            amount: booking.totalAmount,
-            note: investigationNote || 'Flag cleared by admin after investigation.'
-        });
-
-        booking.unauthorizedPaymentFlag = false;
-        await booking.save();
-
-        res.json({ message: 'Unauthorized payment flag cleared.', bookingId: booking._id });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
-
-// @desc    Get full payment audit trail for a booking
-// @route   GET /api/admin/bookings/:id/payment-audit
-// @access  Private/Admin
-const getBookingPaymentAudit = async (req, res) => {
-    try {
-        const PaymentAudit = require('../models/PaymentAudit');
-        const audit = await PaymentAudit.find({ bookingId: req.params.id })
-            .sort({ createdAt: 1 })
-            .populate('providerId', 'ownerName shopName')
-            .populate('staffId', 'name')
-            .populate('adminId', 'name');
-        res.json(audit);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
 };

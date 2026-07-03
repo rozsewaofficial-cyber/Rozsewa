@@ -1043,7 +1043,7 @@ const ProviderRegister = () => {
                   if (sanitizedOwnerName.length < 3) return toast({ title: "Invalid Name", description: "Owner name must be at least 3 characters long.", variant: "destructive" });
                   setFormData(prev => ({ ...prev, ownerName: sanitizedOwnerName }));
 
-                  if (!validateEmail(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                  if (formData.email && !validateEmail(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
                   if (formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
                   if (!/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
                   if (formData.kycAadhaar && !/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
@@ -1052,9 +1052,7 @@ const ProviderRegister = () => {
                   if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
                   if (formData.password !== formData.confirmPassword) return toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
 
-                  if (!verificationStatus.email) {
-                    return toast({ title: "Verification Required", description: "Please verify your Email.", variant: "destructive" });
-                  }
+
                   if (!verificationStatus.aadhaar && !verificationStatus.pan) {
                     return toast({ title: "Verification Required", description: "Please verify EITHER Aadhaar OR PAN.", variant: "destructive" });
                   }
@@ -1081,23 +1079,8 @@ const ProviderRegister = () => {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Email Address</label>
-                        {!verificationStatus.email && (
-                          <button type="button" onClick={handleSendEmailOtp} disabled={verifying.email || showEmailOtpField} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
-                            {verifying.email ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify Email"}
-                          </button>
-                        )}
-                        {verificationStatus.email && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input type="email" required disabled={verificationStatus.email} value={formData.email} onChange={e => { setFormData({ ...formData, email: sanitizeEmail(e.target.value) }); if (showEmailOtpField) setShowEmailOtpField(false); }} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="e.g. name@example.com" />
-                      
-                      {showEmailOtpField && !verificationStatus.email && (
-                        <div className="flex items-center gap-2 mt-2">
-                          <input type="text" maxLength="6" value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\D/g, ''))} className="w-full rounded-lg border border-slate-200 bg-emerald-50/30 p-2.5 font-bold text-sm text-center tracking-widest text-emerald-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="000000" />
-                          <button type="button" onClick={handleVerifyEmailOtp} disabled={verifying.email || emailOtp.length !== 6} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50">
-                            Submit
-                          </button>
-                        </div>
-                      )}
+                      <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: sanitizeEmail(e.target.value) })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. name@example.com (Optional)" />
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>
