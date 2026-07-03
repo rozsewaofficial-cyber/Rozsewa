@@ -47,8 +47,8 @@ const getDefaultSections = () => [
     order: 1,
     isRepeatable: false,
     fields: [
-      { id: 'requirementTitle', label: 'Requirement Title', type: 'text', required: true, placeholder: 'e.g. Need plumber for bathroom leakage repair' },
-      { id: 'requirementDesc', label: 'Description', type: 'textarea', required: true, placeholder: 'Please describe details of the work required...' }
+      { id: 'requirementTitle', label: 'Requirement Title', type: 'text', required: false, placeholder: 'e.g. Need plumber for bathroom leakage repair' },
+      { id: 'requirementDesc', label: 'Description', type: 'textarea', required: false, placeholder: 'Please describe details of the work required...' }
     ]
   },
   {
@@ -237,7 +237,7 @@ const SectionRenderer = ({ section, formValues, onFieldChange, renderField }) =>
         <div key={fieldId} className="space-y-2">
           <label className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
             {field.label}
-            {field.required && <span className="text-rose-500">*</span>}
+            {field.required && !['requirementTitle', 'requirementDesc'].includes(field.id) && <span className="text-rose-500">*</span>}
           </label>
           {field.helpText && <p className="text-[10px] text-slate-400 font-medium">{field.helpText}</p>}
           {renderField(field, suffix)}
@@ -350,7 +350,7 @@ const LeadRequirementForm = () => {
         return (
           <div className="space-y-1">
             <input
-              type="text" required={field.required} value={requirementTitle} onChange={e => setRequirementTitle(e.target.value)}
+              type="text" required={false} value={requirementTitle} onChange={e => setRequirementTitle(e.target.value)}
               placeholder={field.placeholder || "e.g. Need plumber for bathroom leakage repair"}
               className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all"
             />
@@ -361,7 +361,7 @@ const LeadRequirementForm = () => {
         return (
           <div className="space-y-1">
             <textarea
-              rows={4} required={field.required} value={requirementDesc} onChange={e => setRequirementDesc(e.target.value)}
+              rows={4} required={false} value={requirementDesc} onChange={e => setRequirementDesc(e.target.value)}
               placeholder={field.placeholder || "Please describe details of the work required..."}
               className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all resize-none"
             />
@@ -691,11 +691,11 @@ const LeadRequirementForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (requirementTitle.length > 0 && requirementTitle.length < 10) {
+    if (requirementTitle && requirementTitle.length < 10) {
       toast({ title: 'Requirement title too short', description: 'Minimum length is 10 characters.', variant: 'destructive' });
       return;
     }
-    if (requirementDesc.length < 15) {
+    if (requirementDesc && requirementDesc.length < 15) {
       toast({ title: 'Description too short', description: 'Please provide at least 15 characters describing what you need.', variant: 'destructive' });
       return;
     }

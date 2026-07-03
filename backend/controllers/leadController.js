@@ -364,9 +364,9 @@ const createLead = async (req, res) => {
         const title = requirementTitle || '';
         const desc  = requirementDesc || requirementDescription || '';
 
-        if (title.length > 0 && title.length < 10)
+        if (title && title.length < 10)
             return res.status(400).json({ message: 'Requirement title must be at least 10 characters.' });
-        if (desc.length < 15)
+        if (desc && desc.length < 15)
             return res.status(400).json({ message: 'Please describe your requirement in at least 15 characters.' });
 
         const leadPrice     = category.defaultLeadPrice || 0;
