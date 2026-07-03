@@ -675,26 +675,26 @@ const ProviderDocuments = () => {
         {/* Live Video Verification Card */}
         {provider?.providerCategory === 'sewak' && (
           <div className="rounded-[24px] border border-border bg-card p-5 space-y-4 text-left shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto">
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${liveVideoDoc?.status === 'verified'
-                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20'
+                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
                     : liveVideoDoc
-                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/20'
+                      ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400'
                       : 'bg-muted text-muted-foreground'
                   }`}>
                   <Video className="h-6 w-6" />
                 </div>
-                <div className="min-w-0 text-left">
-                  <div className="flex items-center gap-1.5 leading-none mb-1.5">
-                    <h3 className="text-sm font-black text-foreground truncate uppercase tracking-tight">Live Video Verification</h3>
-                    <span className="text-[8px] font-black text-rose-500 uppercase bg-rose-50 px-1 py-0.5 rounded">Required</span>
+                <div className="min-w-0 text-left flex flex-col items-start">
+                  <div className="flex flex-wrap items-center gap-1.5 leading-none mb-1.5">
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Live Video Verification</h3>
+                    <span className="text-[8px] font-black text-rose-600 dark:text-rose-400 uppercase bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded">Required</span>
                   </div>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${!liveVideoDoc ? 'bg-slate-100 text-slate-500 dark:bg-slate-800' :
-                      liveVideoDoc.status === 'draft' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/20' :
-                        liveVideoDoc.status === 'pending' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/20' :
-                          liveVideoDoc.status === 'verified' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' :
-                            'bg-rose-50 text-rose-600 dark:bg-rose-950/20'
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${!liveVideoDoc ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300' :
+                      liveVideoDoc.status === 'draft' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' :
+                        liveVideoDoc.status === 'pending' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400' :
+                          liveVideoDoc.status === 'verified' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' :
+                            'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
                     }`}>
                     {!liveVideoDoc ? 'Not Recorded' :
                       liveVideoDoc.status === 'draft' ? 'Uploaded (Draft)' :
@@ -703,7 +703,7 @@ const ProviderDocuments = () => {
                   </span>
                 </div>
               </div>
-              <div className="shrink-0 flex items-center gap-1.5">
+              <div className="shrink-0 flex items-center gap-1.5 self-end sm:self-auto">
                 {liveVideoDoc && (
                   <button
                     onClick={() => setPreviewVideoModal(liveVideoDoc.url)}
@@ -730,9 +730,9 @@ const ProviderDocuments = () => {
               </div>
             </div>
             {liveVideoDoc?.status === 'rejected' && liveVideoDoc.rejectionReason && (
-              <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/20 p-3 rounded-xl text-xs font-medium text-rose-700">
-                <p className="font-bold text-rose-800 mb-0.5">Live Video Rejected</p>
-                <p className="text-[11px] text-rose-600 leading-relaxed">Reason: {liveVideoDoc.rejectionReason}</p>
+              <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/40 p-3 rounded-xl text-xs font-medium text-rose-700 dark:text-rose-300">
+                <p className="font-bold text-rose-800 dark:text-rose-200 mb-0.5">Live Video Rejected</p>
+                <p className="text-[11px] text-rose-600 dark:text-rose-400 leading-relaxed">Reason: {liveVideoDoc.rejectionReason}</p>
               </div>
             )}
           </div>
@@ -789,9 +789,9 @@ const ProviderDocuments = () => {
                     </div>
                   </div>
                   {uploaded?.status === 'rejected' && uploaded?.rejectionReason && (
-                    <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/20 p-3 rounded-xl text-xs font-medium text-rose-700 text-left">
-                      <p className="font-bold text-rose-800 mb-0.5">Document Rejected</p>
-                      <p className="text-[11px] text-rose-600 leading-relaxed">Reason: {uploaded.rejectionReason}</p>
+                    <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/40 p-3 rounded-xl text-xs font-medium text-rose-700 dark:text-rose-300 text-left">
+                      <p className="font-bold text-rose-800 dark:text-rose-200 mb-0.5">Document Rejected</p>
+                      <p className="text-[11px] text-rose-600 dark:text-rose-400 leading-relaxed">Reason: {uploaded.rejectionReason}</p>
                     </div>
                   )}
                 </div>
