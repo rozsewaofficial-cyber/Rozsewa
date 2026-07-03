@@ -376,6 +376,7 @@ const AdminVerifySewak = () => {
       setSewaks(prev => prev.filter(s => s._id !== id));
       toast({ title: "Sewak KYC Rejected Globally", description: "All documents marked as rejected." });
     } catch (err) {
+      console.error("Global reject error:", err.response ? err.response.data : err);
       toast({ title: "Global Action Failed", variant: "destructive" });
     } finally {
       setBulkProcessing(false);

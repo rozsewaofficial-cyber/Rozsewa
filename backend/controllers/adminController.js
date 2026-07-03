@@ -1781,7 +1781,7 @@ const rejectSewak = async (req, res) => {
         sewak.kycVerified = false;
         sewak.kycStatus = 'rejected';
         sewak.status = 'rejected';
-        // Keep kycSubmitted as-is so the sewak remains visible in the admin panel for audit
+        sewak.kycSubmitted = false;
         // Reject all documents
         if (sewak.documents) {
             sewak.documents.forEach(doc => {
@@ -1791,6 +1791,7 @@ const rejectSewak = async (req, res) => {
                     doc.reviewedAt = new Date();
                 }
             });
+            sewak.markModified('documents');
         }
 
         await sewak.save();
@@ -1821,6 +1822,7 @@ const rejectSewak = async (req, res) => {
 
         res.json({ success: true, message: 'Sewak KYC rejected' });
     } catch (error) {
+        console.error("Error in rejectSewak: ", error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -1903,7 +1905,7 @@ const verifySewakDocument = async (req, res) => {
             sewak.kycStatus = 'rejected';
             sewak.status = 'rejected';
             sewak.kycVerified = false;
-            // Keep kycSubmitted as-is so the sewak remains visible in the admin panel for audit
+            sewak.kycSubmitted = false;
 
             // Notify Sewak: Overall KYC rejected
             try {
