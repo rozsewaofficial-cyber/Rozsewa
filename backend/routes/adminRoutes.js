@@ -83,7 +83,10 @@ const {
     getDistanceChargeSettings,
     updateDistanceChargeSettings,
     getServiceRadiusLimits,
-    updateServiceRadiusLimits
+    updateServiceRadiusLimits,
+    getUnauthorizedPayments,
+    clearUnauthorizedPaymentFlag,
+    getBookingPaymentAudit
 } = require('../controllers/adminController');
 
 const {
@@ -186,6 +189,10 @@ router.post('/profile', protect, employee, updateAdminProfile);
 // Booking management
 router.get('/bookings', protect, employee, getBookings);
 router.delete('/bookings/:id', protect, admin, deleteBooking);
+// Unauthorized payment monitoring (must be before /:id routes)
+router.get('/bookings/unauthorized-payments', protect, admin, getUnauthorizedPayments);
+router.patch('/bookings/:id/clear-payment-flag', protect, admin, clearUnauthorizedPaymentFlag);
+router.get('/bookings/:id/payment-audit', protect, admin, getBookingPaymentAudit);
 
 // Promotion management
 router.get('/promotions', protect, admin, getPromotions);

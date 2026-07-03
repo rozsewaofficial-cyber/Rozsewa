@@ -1116,40 +1116,155 @@ const updateBookingStatusByProvider = async (req, res) => {
             }
 
             if (req.body.paymentStatus) {
-                booking.paymentStatus = req.body.paymentStatus;
+                const PaymentAudit = require('../models/PaymentAudit');
+                const isProvider = req.user.role === 'provider';
+                const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+                const isStaff = req.user.role === 'employee' || req.user.role === 'supervisor';
+                const requestedStatus = req.body.paymentStatus;
+                const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+                const deviceInfo = req.headers['user-agent'] || null;
 
-                // Cash Payment Settlement: When provider confirms cash collected
-                // Credit providerPayout to Available Balance
-                if (req.body.paymentStatus === 'paid' && booking.paymentMode === 'after' && booking.providerPayout > 0) {
+                // ---- PAYMENT LOCK: once paid, only admin may modify ----
+                if (booking.paymentStatus === 'paid' && !isAdmin) {
+                    return res.status(403).json({
+                        message: 'Payment has already been completed and cannot be modified.'
+                    });
+                }
+
+                // ---- ONLINE PAYMENT PROTECTION ----
+                // Providers must NEVER be able to mark an online booking as paid.
+                // Only Razorpay webhook (paymentController), Admin, or Staff may do so.
+                if (booking.paymentMode === 'now' && requestedStatus === 'paid' && isProvider) {
+                    // Log the unauthorized attempt
+                    const now = new Date();
+                    booking.unauthorizedPaymentFlag = true;
+                    booking.unauthorizedPaymentNote = `Provider attempted to mark online payment as paid via updateBooking.`;
+                    booking.unauthorizedPaymentAt = now;
+                    booking.unauthorizedAttemptedBy = req.user._id;
+                    await booking.save();
+
+                    await PaymentAudit.create({
+                        bookingId: booking._id,
+                        providerId: req.user._id,
+                        action: 'unauthorized_attempt',
+                        amount: booking.totalAmount,
+                        paymentMethod: 'razorpay',
+                        previousPaymentStatus: booking.paymentStatus,
+                        newPaymentStatus: null,
+                        previousCollectionStatus: booking.collectionStatus,
+                        newCollectionStatus: null,
+                        ipAddress,
+                        deviceInfo,
+                        note: 'Provider tried to manually set paymentStatus=paid on an online booking.'
+                    });
+
+                    // Alert admin
                     try {
-                        const { Wallet, Transaction } = require('../models/Wallet');
-                        let wallet = await Wallet.findOne({ providerId: booking.providerId });
-                        if (!wallet) {
-                            wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
-                        }
+                        const { notifyUser } = require('../config/notificationService');
+                        notifyUser({
+                            userId: null,
+                            userRole: 'admin',
+                            title: '⚠️ Unauthorized Payment Attempt',
+                            message: `Partner attempted to manually mark booking #${booking._id.toString().slice(-6)} (${booking.serviceName}) as paid. Flag set.`,
+                            type: 'payment',
+                            bookingId: booking._id
+                        }).catch(() => {});
+                    } catch (_) {}
 
-                        // Credit provider's share to Available Balance
-                        wallet.availableBalance += booking.providerPayout;
-                        wallet.updatedAt = Date.now();
-                        await wallet.save();
+                    console.warn(`[UNAUTHORIZED PAYMENT] Provider ${req.user._id} tried to set paymentStatus=paid on online booking ${booking._id}`);
+                    return res.status(403).json({
+                        message: 'Online payments are processed automatically. You are not authorized to mark this payment as paid.',
+                        code: 'UNAUTHORIZED_PAYMENT_ATTEMPT'
+                    });
+                }
 
-                        await Transaction.create({
-                            providerId: booking.providerId,
-                            title: `Cash Collected: ${booking.serviceName}`,
-                            amount: booking.providerPayout,
-                            type: 'credit',
-                            status: 'completed',
-                            bookingId: booking._id,
-                            description: `Cash payment collected from customer. Commission (₹${booking.adminCommission || 0}) already deducted separately.`
+                // ---- CASH PAYMENT CONFIRMATION (paymentMode === 'after') ----
+                // Providers may only confirm cash collection after booking is completed.
+                if (requestedStatus === 'paid' && booking.paymentMode === 'after') {
+                    if (booking.status !== 'completed') {
+                        return res.status(400).json({
+                            message: 'Cash collection can only be confirmed after the service is completed.'
                         });
-
-                        console.log(`[Cash Settlement] Provider ${booking.providerId} credited ₹${booking.providerPayout} for booking ${booking._id}`);
-                    } catch (walletErr) {
-                        console.error('[Cash Settlement] Wallet update failed:', walletErr.message);
-                        // Don't block the booking update
                     }
+                    if (booking.collectionStatus !== 'not_collected') {
+                        return res.status(400).json({
+                            message: 'Payment has already been collected for this booking.'
+                        });
+                    }
+
+                    const prevPaymentStatus = booking.paymentStatus;
+                    const prevCollectionStatus = booking.collectionStatus;
+
+                    booking.paymentStatus = 'paid';
+                    booking.collectionStatus = 'cash_collected';
+                    booking.paymentCollectedBy = 'partner_cash';
+                    booking.paymentCollectedAt = new Date();
+
+                    // Audit record
+                    await PaymentAudit.create({
+                        bookingId: booking._id,
+                        providerId: req.user._id,
+                        action: 'cash_collected',
+                        amount: booking.totalAmount,
+                        paymentMethod: 'cash',
+                        previousPaymentStatus: prevPaymentStatus,
+                        newPaymentStatus: 'paid',
+                        previousCollectionStatus: prevCollectionStatus,
+                        newCollectionStatus: 'cash_collected',
+                        ipAddress,
+                        deviceInfo,
+                        note: 'Provider confirmed cash collection after booking completion.'
+                    });
+
+                    // Credit providerPayout to Available Balance (cash settlement)
+                    if (booking.providerPayout > 0) {
+                        try {
+                            const { Wallet, Transaction } = require('../models/Wallet');
+                            let wallet = await Wallet.findOne({ providerId: booking.providerId });
+                            if (!wallet) {
+                                wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
+                            }
+                            wallet.availableBalance += booking.providerPayout;
+                            wallet.updatedAt = Date.now();
+                            await wallet.save();
+
+                            await Transaction.create({
+                                providerId: booking.providerId,
+                                title: `Cash Collected: ${booking.serviceName}`,
+                                amount: booking.providerPayout,
+                                type: 'credit',
+                                status: 'completed',
+                                bookingId: booking._id,
+                                description: `Cash payment collected from customer. Commission (₹${booking.adminCommission || 0}) already deducted separately.`
+                            });
+
+                            console.log(`[Cash Settlement] Provider ${booking.providerId} credited ₹${booking.providerPayout} for booking ${booking._id}`);
+                        } catch (walletErr) {
+                            console.error('[Cash Settlement] Wallet update failed:', walletErr.message);
+                        }
+                    }
+                } else if (requestedStatus !== 'paid') {
+                    // Admin/Staff may set other statuses (e.g. refunded, failed)
+                    if (!isAdmin && !isStaff) {
+                        return res.status(403).json({ message: 'Not authorized to update payment status.' });
+                    }
+                    const prevPaymentStatus = booking.paymentStatus;
+                    booking.paymentStatus = requestedStatus;
+
+                    await PaymentAudit.create({
+                        bookingId: booking._id,
+                        adminId: (isAdmin || isStaff) ? req.user._id : null,
+                        action: 'admin_status_update',
+                        amount: booking.totalAmount,
+                        previousPaymentStatus: prevPaymentStatus,
+                        newPaymentStatus: requestedStatus,
+                        ipAddress,
+                        deviceInfo,
+                        note: `Status updated by ${req.user.role}.`
+                    });
                 }
             }
+
 
             if (req.body.extraStatus) {
                 const previousExtraStatus = booking.extraStatus;
@@ -1516,6 +1631,15 @@ const verifyEndOTP = async (req, res) => {
             if (!isAuthorized) return res.status(401).json({ message: 'Not authorized' });
 
             if (booking.endOTP === otp) {
+                // ---- EXTRA CHARGE ENFORCEMENT (backend source of truth) ----
+                // Check before starting the transaction to fail fast
+                if (booking.extraStatus === 'pending') {
+                    return res.status(400).json({
+                        message: 'Customer has not approved the extra charges yet.',
+                        extraStatus: 'pending'
+                    });
+                }
+
                 const session = await mongoose.startSession();
                 session.startTransaction();
                 try {
@@ -1532,6 +1656,17 @@ const verifyEndOTP = async (req, res) => {
                             commission: bookingSession.adminCommission
                         });
                     }
+
+                    // ---- DECLINED EXTRA CHARGES: restore original amount ----
+                    if (bookingSession.extraStatus === 'declined') {
+                        bookingSession.extraCharges = [];
+                        if (bookingSession.originalFixedPrice != null) {
+                            bookingSession.totalAmount = bookingSession.originalFixedPrice;
+                        }
+                        bookingSession.extraStatus = 'none';
+                        console.log(`[Extra Charges] Declined charges cleared for booking ${bookingSession._id}. Amount restored to ₹${bookingSession.totalAmount}`);
+                    }
+
 
                     const provider = await Provider.findById(booking.providerId).populate('vendorType').session(session);
 
@@ -2231,6 +2366,153 @@ const rejectCounterOffer = async (req, res) => {
     }
 };
 
+// @desc    Dedicated endpoint for payment collection
+// @route   PATCH /api/bookings/:id/collect-payment
+// @access  Private (Provider for cash; Staff/Admin for any)
+const collectPayment = async (req, res) => {
+    try {
+        const PaymentAudit = require('../models/PaymentAudit');
+        const booking = await Booking.findById(req.params.id);
+        const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+        const deviceInfo = req.headers['user-agent'] || null;
+
+        const isProvider = req.user.role === 'provider';
+        const isAdmin    = req.user.role === 'admin' || req.user.role === 'superadmin';
+        const isStaff    = req.user.role === 'employee' || req.user.role === 'supervisor';
+
+        // --- Validation Checklist ---
+        // 1. Booking exists
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found.' });
+        }
+        // 2. Booking is completed
+        if (booking.status !== 'completed') {
+            return res.status(400).json({ message: 'Payment can only be collected after the service is completed.' });
+        }
+        // 3. Payment not already collected
+        if (booking.paymentStatus === 'paid' || booking.collectionStatus !== 'not_collected') {
+            return res.status(400).json({ message: 'Payment has already been collected for this booking.' });
+        }
+        // 4. Authenticated user has role-appropriate permission
+        if (isProvider) {
+            // Provider may only collect cash for their own completed bookings
+            if (booking.paymentMode !== 'after') {
+                // Log and flag as unauthorized attempt
+                booking.unauthorizedPaymentFlag = true;
+                booking.unauthorizedPaymentNote = 'Provider attempted collect-payment on an online booking.';
+                booking.unauthorizedPaymentAt = new Date();
+                booking.unauthorizedAttemptedBy = req.user._id;
+                await booking.save();
+                await PaymentAudit.create({
+                    bookingId: booking._id,
+                    providerId: req.user._id,
+                    action: 'unauthorized_attempt',
+                    amount: booking.totalAmount,
+                    paymentMethod: 'cash',
+                    previousPaymentStatus: booking.paymentStatus,
+                    newPaymentStatus: null,
+                    previousCollectionStatus: booking.collectionStatus,
+                    newCollectionStatus: null,
+                    ipAddress,
+                    deviceInfo,
+                    note: 'Provider attempted to collect payment on an online (paymentMode=now) booking via collect-payment endpoint.'
+                });
+                try {
+                    const { notifyUser } = require('../config/notificationService');
+                    notifyUser({ userId: null, userRole: 'admin', title: '⚠️ Unauthorized Payment Attempt', message: `Partner tried to collect payment on online booking #${booking._id.toString().slice(-6)}.`, type: 'payment', bookingId: booking._id }).catch(() => {});
+                } catch (_) {}
+                return res.status(403).json({ message: 'You are not authorized to collect payment for online bookings.', code: 'UNAUTHORIZED_PAYMENT_ATTEMPT' });
+            }
+            if (!booking.providerId || booking.providerId.toString() !== req.user._id.toString()) {
+                return res.status(403).json({ message: 'Not authorized for this booking.' });
+            }
+        } else if (!isAdmin && !isStaff) {
+            return res.status(403).json({ message: 'Not authorized to collect payments.' });
+        }
+
+        // 5. Amount matches expected total
+        const { amount } = req.body;
+        if (amount !== undefined && Number(amount) !== booking.totalAmount) {
+            return res.status(400).json({
+                message: `Amount mismatch. Expected ₹${booking.totalAmount}, received ₹${amount}.`
+            });
+        }
+
+        // --- All checks passed — record payment ---
+        const prevPaymentStatus    = booking.paymentStatus;
+        const prevCollectionStatus = booking.collectionStatus;
+
+        let collectionStatus, paymentCollectedBy;
+        if (isStaff || isAdmin) {
+            collectionStatus    = 'staff_verified';
+            paymentCollectedBy  = 'staff_verified';
+        } else {
+            collectionStatus    = 'cash_collected';
+            paymentCollectedBy  = 'partner_cash';
+        }
+
+        // 6. Create audit record BEFORE modifying booking state
+        await PaymentAudit.create({
+            bookingId: booking._id,
+            providerId: isProvider ? req.user._id : null,
+            staffId:    isStaff   ? req.user._id : null,
+            adminId:    isAdmin   ? req.user._id : null,
+            action:     collectionStatus === 'staff_verified' ? 'staff_verified' : 'cash_collected',
+            amount:     booking.totalAmount,
+            paymentMethod: 'cash',
+            previousPaymentStatus:    prevPaymentStatus,
+            newPaymentStatus:         'paid',
+            previousCollectionStatus: prevCollectionStatus,
+            newCollectionStatus:      collectionStatus,
+            ipAddress,
+            deviceInfo,
+            note: `Payment collected via dedicated collect-payment endpoint by ${req.user.role}.`
+        });
+
+        // 7. Update booking fields
+        booking.paymentStatus        = 'paid';
+        booking.collectionStatus     = collectionStatus;
+        booking.paymentCollectedBy   = paymentCollectedBy;
+        booking.paymentCollectedAt   = new Date();
+
+        // Credit provider wallet for cash bookings
+        if (booking.paymentMode === 'after' && booking.providerPayout > 0) {
+            try {
+                const { Wallet, Transaction } = require('../models/Wallet');
+                let wallet = await Wallet.findOne({ providerId: booking.providerId });
+                if (!wallet) wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
+                wallet.availableBalance += booking.providerPayout;
+                wallet.updatedAt = Date.now();
+                await wallet.save();
+                await Transaction.create({
+                    providerId: booking.providerId,
+                    title: `Cash Collected: ${booking.serviceName}`,
+                    amount: booking.providerPayout,
+                    type: 'credit',
+                    status: 'completed',
+                    bookingId: booking._id,
+                    description: `Cash payment collected. Commission (₹${booking.adminCommission || 0}) already deducted separately.`
+                });
+            } catch (walletErr) {
+                console.error('[Collect Payment] Wallet update failed:', walletErr.message);
+            }
+        }
+
+        await booking.save();
+
+        res.json({
+            message: 'Payment collected successfully.',
+            paymentStatus:    booking.paymentStatus,
+            collectionStatus: booking.collectionStatus,
+            paymentCollectedBy: booking.paymentCollectedBy,
+            paymentCollectedAt: booking.paymentCollectedAt
+        });
+    } catch (error) {
+        console.error('[Collect Payment Error]', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createBooking,
     getUserBookings,
@@ -2249,4 +2531,5 @@ module.exports = {
     counterOfferBooking,
     acceptCounterOffer,
     rejectCounterOffer,
+    collectPayment,
 };

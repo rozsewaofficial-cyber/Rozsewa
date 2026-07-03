@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { useOutletContext } from "react-router-dom";
-import { Search, Download, CalendarDays, IndianRupee, Loader2, Clock, Image, Filter, Users, TrendingUp, XCircle, CheckCircle2, Truck, Play, AlertCircle } from "lucide-react";
+import { useOutletContext, useNavigate } from "react-router-dom";
+import { Search, Download, CalendarDays, IndianRupee, Loader2, Clock, Image, Filter, Users, TrendingUp, XCircle, CheckCircle2, Truck, Play, AlertCircle, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -23,6 +23,7 @@ const PAYMENT_LABELS = {
 const AdminBookings = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const confirm = useConfirm();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,8 @@ const AdminBookings = () => {
     const active = all.filter(b => ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status)).length;
     const cancelled = all.filter(b => b.status === 'cancelled').length;
     const revenue = all.filter(b => b.status === 'completed').reduce((s, b) => s + (b.totalAmount || 0), 0);
-    return { total, completed, active, cancelled, revenue };
+    const unauthorized = all.filter(b => b.unauthorizedPaymentFlag).length;
+    return { total, completed, active, cancelled, revenue, unauthorized };
   }, [bookings]);
 
   // Status counts for filter tabs
@@ -124,7 +126,8 @@ const AdminBookings = () => {
       shopName.includes(searchLow) ||
       serviceName.includes(searchLow) ||
       bId.includes(searchLow);
-    const matchesFilter = filter === "all" || b.status === filter;
+    const matchesFilter = filter === "all" || b.status === filter ||
+      (filter === "unauthorized" && b.unauthorizedPaymentFlag);
     return matchesSearch && matchesFilter;
   });
 
@@ -160,15 +163,16 @@ const AdminBookings = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         {[
           { label: "Total", value: stats.total, icon: CalendarDays, cls: "text-gray-700 bg-gray-50 border-gray-200" },
           { label: "Active", value: stats.active, icon: Truck, cls: "text-blue-700 bg-blue-50 border-blue-200" },
           { label: "Completed", value: stats.completed, icon: CheckCircle2, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
           { label: "Cancelled", value: stats.cancelled, icon: XCircle, cls: "text-red-700 bg-red-50 border-red-200" },
           { label: "Revenue", value: `₹${stats.revenue.toLocaleString()}`, icon: TrendingUp, cls: "text-violet-700 bg-violet-50 border-violet-200" },
+          { label: "⚠️ Flagged", value: stats.unauthorized, icon: ShieldAlert, cls: stats.unauthorized > 0 ? "text-red-700 bg-red-50 border-red-300 ring-1 ring-red-300" : "text-gray-500 bg-gray-50 border-gray-200", onClick: () => navigate("/admin/unauthorized-payments") },
         ].map((s, i) => (
-          <div key={i} className={`rounded-xl border p-4 ${s.cls}`}>
+          <div key={i} className={`rounded-xl border p-4 ${s.cls} ${s.onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`} onClick={s.onClick}>
             <div className="flex items-center gap-1.5 mb-1.5">
               <s.icon className="h-3.5 w-3.5 opacity-70" />
               <p className="text-[10px] font-bold uppercase tracking-wider opacity-80">{s.label}</p>
@@ -181,21 +185,28 @@ const AdminBookings = () => {
       {/* Filters & Search */}
       <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center">
         <div className="flex flex-wrap gap-1.5">
-          {["all", "pending", "confirmed", "on_the_way", "started", "completed", "cancelled"].map((f) => {
+          {["all", "pending", "confirmed", "on_the_way", "started", "completed", "cancelled", "unauthorized"].map((f) => {
             const cfg = STATUS_CONFIG[f];
-            const count = statusCounts[f] || 0;
+            const count = f === "unauthorized" ? stats.unauthorized : (statusCounts[f] || 0);
+            const isUnauth = f === "unauthorized";
             return (
               <button
                 key={f}
-                onClick={() => setFilter(f)}
+                onClick={() => f === "unauthorized" ? navigate("/admin/unauthorized-payments") : setFilter(f)}
                 className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
                   filter === f
                     ? "bg-gray-900 text-white shadow-sm"
+                    : isUnauth && count > 0
+                    ? "bg-red-50 text-red-600 border border-red-200 hover:bg-red-100"
                     : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
                 }`}
               >
-                {f === 'all' ? 'All' : cfg?.label || f}
-                <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${filter === f ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{count}</span>
+                {isUnauth ? <><ShieldAlert size={10} /> Flagged</> : (f === 'all' ? 'All' : cfg?.label || f)}
+                <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${
+                  filter === f ? 'bg-white/20 text-white' :
+                  isUnauth && count > 0 ? 'bg-red-500 text-white' :
+                  'bg-gray-200 text-gray-500'
+                }`}>{count}</span>
               </button>
             );
           })}
@@ -254,9 +265,16 @@ const AdminBookings = () => {
                       >
                         {/* Booking ID */}
                         <td className="py-3.5 px-5">
-                          <p className="font-mono font-black text-emerald-700 text-xs">
-                            #{(booking._id || '').toString().slice(-6).toUpperCase()}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-mono font-black text-emerald-700 text-xs">
+                              #{(booking._id || '').toString().slice(-6).toUpperCase()}
+                            </p>
+                            {booking.unauthorizedPaymentFlag && (
+                              <span title="Unauthorized payment attempt detected" className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-full">
+                                <ShieldAlert size={9} /> FLAG
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
                             <Clock className="h-2.5 w-2.5" />
                             {new Date(booking.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}

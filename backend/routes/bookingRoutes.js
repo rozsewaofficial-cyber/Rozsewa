@@ -5,7 +5,7 @@ const {
     updateBookingStatusByProvider, verifyStartOTP, verifyEndOTP, 
     getProviderReviews, submitReview,
     proposeSchedule, acceptSchedule, rejectSchedule, checkOverlapStatus,
-    counterOfferBooking, acceptCounterOffer, rejectCounterOffer
+    counterOfferBooking, acceptCounterOffer, rejectCounterOffer, collectPayment
 } = require('../controllers/bookingController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -27,5 +27,8 @@ router.patch('/:id/reject-schedule', protect, rejectSchedule);
 router.patch('/:id/counter-offer', protect, counterOfferBooking);
 router.patch('/:id/accept-counter', protect, acceptCounterOffer);
 router.patch('/:id/reject-counter', protect, rejectCounterOffer);
+
+// Dedicated payment collection endpoint (enforces all business rules)
+router.patch('/:id/collect-payment', protect, collectPayment);
 
 module.exports = router;

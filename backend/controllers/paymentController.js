@@ -44,10 +44,30 @@ const verifyPayment = async (req, res) => {
         // If bookingId is provided, update the booking status
         if (bookingId) {
             const Booking = require('../models/Booking');
+            const PaymentAudit = require('../models/PaymentAudit');
             const booking = await Booking.findById(bookingId);
             if (booking) {
+                const prevPaymentStatus = booking.paymentStatus;
+                const prevCollectionStatus = booking.collectionStatus;
+
                 booking.paymentStatus = 'paid';
+                booking.collectionStatus = 'online_verified';
+                booking.paymentCollectedBy = 'razorpay_auto';
+                booking.paymentCollectedAt = new Date();
                 await booking.save();
+
+                // Immutable audit record — Razorpay webhook is the sole authority for online payments
+                await PaymentAudit.create({
+                    bookingId: booking._id,
+                    action: 'online_verified',
+                    amount: booking.totalAmount,
+                    paymentMethod: 'razorpay',
+                    previousPaymentStatus: prevPaymentStatus,
+                    newPaymentStatus: 'paid',
+                    previousCollectionStatus: prevCollectionStatus,
+                    newCollectionStatus: 'online_verified',
+                    note: `Razorpay payment verified. Payment ID: ${razorpay_payment_id}`
+                });
 
                 const { notifyUser } = require('../config/notificationService');
                 await notifyUser({
@@ -76,6 +96,7 @@ const verifyPayment = async (req, res) => {
             }
         }
         res.json({ message: "Payment verified successfully", success: true });
+
     } else {
         res.status(400).json({ message: "Invalid signature", success: false });
     }

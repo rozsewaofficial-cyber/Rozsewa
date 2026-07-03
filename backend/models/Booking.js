@@ -65,9 +65,26 @@ const bookingSchema = new mongoose.Schema({
     },
     paymentStatus: {
         type: String,
-        enum: ['pending', 'paid', 'refunded'],
+        enum: ['pending', 'paid', 'failed', 'refunded'],
         default: 'pending',
     },
+    // Operational collection status — separate from financial paymentStatus
+    collectionStatus: {
+        type: String,
+        enum: ['not_collected', 'cash_collected', 'online_verified', 'staff_verified'],
+        default: 'not_collected'
+    },
+    paymentCollectedBy: {
+        type: String,
+        enum: ['partner_cash', 'staff_verified', 'razorpay_auto', 'admin', null],
+        default: null
+    },
+    paymentCollectedAt: { type: Date, default: null },
+    // Unauthorized payment attempt tracking
+    unauthorizedPaymentFlag:  { type: Boolean, default: false },
+    unauthorizedPaymentNote:  { type: String,  default: null  },
+    unauthorizedPaymentAt:    { type: Date,    default: null  },
+    unauthorizedAttemptedBy:  { type: mongoose.Schema.Types.ObjectId, ref: 'Provider', default: null },
     address: {
         type: String,
         required: true,
