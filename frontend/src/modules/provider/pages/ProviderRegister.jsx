@@ -348,7 +348,7 @@ const ProviderRegister = () => {
     try {
       const { data: existData } = await API.post("/provider/check-existence", { mobile: formData.mobile });
       if (existData.exists) {
-        toast({ title: "Already Registered", description: "Use another number or login.", variant: "destructive" });
+        toast({ title: "Already Registered", description: existData.message || "Use another number or login.", variant: "destructive" });
         setIsLoading(false);
         return;
       }
@@ -1079,8 +1079,34 @@ const ProviderRegister = () => {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Email Address</label>
+                        {formData.email && !verificationStatus.email && validateEmail(formData.email) && (
+                          <button type="button" onClick={handleSendEmailOtp} disabled={verifying.email || showEmailOtpField} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                            {verifying.email ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify Email"}
+                          </button>
+                        )}
+                        {verificationStatus.email && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: sanitizeEmail(e.target.value) })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. name@example.com (Optional)" />
+                      <input type="email" disabled={verificationStatus.email || showEmailOtpField} value={formData.email} onChange={e => setFormData({ ...formData, email: sanitizeEmail(e.target.value) })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="e.g. name@example.com (Optional)" />
+                      
+                      {showEmailOtpField && !verificationStatus.email && (
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-500">OTP sent to email.</span>
+                            <button type="button" onClick={() => {
+                              setShowEmailOtpField(false);
+                              setEmailOtp("");
+                            }} className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors">
+                              Edit Email
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="text" maxLength="6" value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\D/g, ''))} className="w-full rounded-lg border border-slate-200 bg-emerald-50/30 p-2.5 font-bold text-sm text-center tracking-widest text-emerald-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="OTP" />
+                            <button type="button" onClick={handleVerifyEmailOtp} disabled={verifying.email || emailOtp.length < 6} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                              Submit
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>

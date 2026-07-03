@@ -529,7 +529,17 @@ const checkProviderExistence = async (req, res) => {
     const { mobile } = req.body;
     try {
         const provider = await Provider.findOne({ mobile });
-        res.json({ exists: !!provider });
+        if (provider) {
+            return res.json({ exists: true, message: 'Mobile number is already registered as a Provider' });
+        }
+        
+        const User = require('../models/User');
+        const user = await User.findOne({ mobile });
+        if (user) {
+            return res.json({ exists: true, message: 'Mobile number is already registered as a Customer' });
+        }
+
+        res.json({ exists: false });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
