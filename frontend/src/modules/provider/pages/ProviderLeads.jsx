@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Briefcase, MapPin, Calendar, Clock, Lock, Unlock,
   RefreshCcw, AlertTriangle, FileText, ArrowRight,
@@ -229,17 +230,31 @@ const LeadCard = ({ lead, onUnlock, onDispute }) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
+const VALID_TABS = ['available', 'unlocked', 'expired'];
+
 const ProviderLeads = () => {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [leads,         setLeads]         = useState([]);
-  const [page,          setPage]          = useState(1);
   const [totalPages,    setTotalPages]    = useState(1);
   const [loading,       setLoading]       = useState(true);
   const [walletBalance, setWalletBalance] = useState(0);
-  const [activeTab,     setActiveTab]     = useState('available');
   const [unlockModal,   setUnlockModal]   = useState(null); // { leadId, price }
   const [unlocking,     setUnlocking]     = useState(false);
+
+  // Derive activeTab and page from URL, with fallback defaults
+  const rawTab = searchParams.get('tab');
+  const activeTab = VALID_TABS.includes(rawTab) ? rawTab : 'available';
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+
+  const setActiveTab = (tab) => {
+    setSearchParams(prev => { prev.set('tab', tab); prev.set('page', '1'); return prev; });
+  };
+  const setPage = (p) => {
+    const next = typeof p === 'function' ? p(page) : p;
+    setSearchParams(prev => { prev.set('page', String(next)); return prev; });
+  };
 
   // Dispute
   const [disputingLeadId,  setDisputingLeadId]  = useState(null);
@@ -404,7 +419,7 @@ const ProviderLeads = () => {
         <div className="flex gap-2">
           {TABS.map(tab => (
             <button key={tab.id}
-              onClick={() => { setActiveTab(tab.id); setPage(1); }}
+              onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                 activeTab === tab.id
                   ? 'bg-violet-600 text-white shadow-md shadow-violet-500/20'
