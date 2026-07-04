@@ -22,12 +22,24 @@ const STATUS = {
 
 // ─── Expiry Countdown ─────────────────────────────────────────────────────────
 const ExpiryCountdown = ({ expiry }) => {
-  const diff = Math.max(0, new Date(expiry) - Date.now());
-  if (diff === 0) return <span className="text-[9px] text-rose-500 font-bold">Expired</span>;
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
+  const [timeLeft, setTimeLeft] = useState(Math.max(0, new Date(expiry) - Date.now()));
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, new Date(expiry) - Date.now());
+      setTimeLeft(remaining);
+      if (remaining === 0) {
+        clearInterval(timer);
+      }
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [expiry]);
+
+  if (timeLeft === 0) return <span className="text-[9px] text-rose-500 font-bold">Expired</span>;
+  const h = Math.floor(timeLeft / 3600000);
+  const m = Math.floor((timeLeft % 3600000) / 60000);
   const label = h > 0 ? `${h}h ${m}m left` : `${m}m left`;
-  const urgent = diff < 2 * 3600000;
+  const urgent = timeLeft < 2 * 3600000;
   return <span className={`text-[9px] font-bold flex items-center gap-1 ${urgent ? 'text-rose-500' : 'text-slate-400'}`}><Clock className="h-2.5 w-2.5" />{label}</span>;
 };
 
@@ -70,16 +82,24 @@ const LeadCard = ({ lead, onUnlock, onDispute }) => {
           <h3 className="text-base font-black text-slate-900 dark:text-white leading-tight">
             {lead.requirementTitle || lead.requirementForm?.description?.slice(0, 80) || lead.service || 'Service Request'}
           </h3>
-          <div className="flex flex-wrap gap-3 mt-1.5">
-            {(lead.preferredDate || lead.requirementForm?.preferredDate) && (
-              <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {lead.preferredDate || lead.requirementForm?.preferredDate}
-                {(lead.preferredTime || lead.requirementForm?.preferredTime) && ` · ${lead.preferredTime || lead.requirementForm?.preferredTime}`}
+          <div className="flex flex-col gap-1 mt-2">
+            <div className="flex flex-wrap gap-3 items-center">
+              {(lead.preferredDate || lead.requirementForm?.preferredDate) && (
+                <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  Schedule: {lead.preferredDate || lead.requirementForm?.preferredDate}
+                  {(lead.preferredTime || lead.requirementForm?.preferredTime) && ` · ${lead.preferredTime || lead.requirementForm?.preferredTime}`}
+                </p>
+              )}
+              {lead.expiry && ['available', 'partially_unlocked'].includes(lead.status) && (
+                <ExpiryCountdown expiry={lead.expiry} />
+              )}
+            </div>
+            {lead.createdAt && (
+              <p className="text-[9px] font-black text-violet-600 dark:text-violet-450 flex items-center gap-1 uppercase tracking-wider">
+                <Clock className="h-3 w-3" />
+                Generated: {new Date(lead.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(lead.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
               </p>
-            )}
-            {lead.expiry && ['available', 'partially_unlocked'].includes(lead.status) && (
-              <ExpiryCountdown expiry={lead.expiry} />
             )}
           </div>
         </div>
@@ -232,8 +252,8 @@ const ProviderLeads = () => {
     { id: 'expired',   label: 'Expired' },
   ];
 
-  const fetchLeadsAndWallet = useCallback(async () => {
-    setLoading(true);
+  const fetchLeadsAndWallet = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [leadsRes, walletRes] = await Promise.all([
         API.get(`/leads/nearby?page=${page}&limit=10&tab=${activeTab}`),
@@ -247,13 +267,27 @@ const ProviderLeads = () => {
           : (walletRes.data.balance || 0)
       );
     } catch (err) {
-      toast({ title: 'Fetch Failed', description: err.response?.data?.message || 'Could not sync leads.', variant: 'destructive' });
+      if (!silent) {
+        toast({ title: 'Fetch Failed', description: err.response?.data?.message || 'Could not sync leads.', variant: 'destructive' });
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, activeTab]);
 
-  useEffect(() => { fetchLeadsAndWallet(); }, [fetchLeadsAndWallet]);
+  useEffect(() => {
+    fetchLeadsAndWallet();
+
+    const handleNewNotification = (e) => {
+      const data = e.detail;
+      if (data?.type === 'lead') {
+        fetchLeadsAndWallet(true);
+      }
+    };
+
+    window.addEventListener('NEW_NOTIFICATION', handleNewNotification);
+    return () => window.removeEventListener('NEW_NOTIFICATION', handleNewNotification);
+  }, [fetchLeadsAndWallet]);
 
   const confirmUnlock = (leadId, price) => setUnlockModal({ leadId, price });
 

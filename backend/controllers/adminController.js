@@ -120,7 +120,20 @@ const updateProviderCategory = async (req, res) => {
             return res.status(400).json({ message: 'Sewak providers cannot be converted back to Partner.' });
         }
 
-        if (req.body.providerCategory !== undefined) { provider.providerCategory = req.body.providerCategory; } if (req.body.vendorType !== undefined) { provider.vendorType = req.body.vendorType; }
+        if (req.body.providerCategory !== undefined) {
+            provider.providerCategory = req.body.providerCategory;
+        }
+        if (req.body.vendorType !== undefined && req.body.vendorType !== (provider.vendorType ? provider.vendorType.toString() : '')) {
+            provider.vendorType = req.body.vendorType;
+            // Retrieve subservices of the new category and assign them to the provider
+            const Category = require('../models/Category');
+            const newCat = await Category.findById(req.body.vendorType);
+            if (newCat && newCat.services) {
+                provider.subServices = newCat.services.map(s => s._id.toString());
+            } else {
+                provider.subServices = [];
+            }
+        }
         const updatedProvider = await provider.save();
         res.json(updatedProvider);
     } catch (error) {
@@ -147,7 +160,7 @@ const getAdminStats = async (req, res) => {
                 });
             }
 
-            const employees = await Employee.find({ 
+            const employees = await Employee.find({
                 $or: [
                     { managedBy: supervisorEmp._id },
                     { supervisorCode: supervisorEmp.ownCode },
@@ -169,7 +182,7 @@ const getAdminStats = async (req, res) => {
             const pendingSewaksCount = teamSewaks.filter(s => s.status === 'pending').length;
 
             const totalBookings = await Booking.countDocuments({ providerId: { $in: sewakIds } });
-            const activeBookings = await Booking.countDocuments({ 
+            const activeBookings = await Booking.countDocuments({
                 providerId: { $in: sewakIds },
                 status: { $in: ['pending', 'active'] }
             });
@@ -269,7 +282,7 @@ const getBookings = async (req, res) => {
         if (req.user.role === 'supervisor') {
             const supervisorEmp = await Employee.findOne({ userId: req.user._id });
             if (supervisorEmp) {
-                const employees = await Employee.find({ 
+                const employees = await Employee.find({
                     $or: [
                         { managedBy: supervisorEmp._id },
                         { supervisorCode: supervisorEmp.ownCode },
@@ -807,6 +820,7 @@ const getSettings = async (req, res) => {
             max_bargain_discount_limit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20,
             // Lead Model settings
             lead_min_wallet_balance: config.lead_min_wallet_balance || 200,
+            lead_unlock_price: config.lead_unlock_price || 50,
             lead_max_unlock_count: config.lead_max_unlock_count || 3,
             lead_geofence_radius: config.lead_geofence_radius || 15,
             lead_expiry: config.lead_expiry || 24,
@@ -1001,7 +1015,7 @@ async function getEmployees(req, res) {
 
         const updatedEmployees = await Promise.all(employees.map(async (emp) => {
             let empObj = emp.toObject();
-            
+
             // Check if managedBy was set to a User ID instead of an Employee ID, or if missing and created by supervisor
             if (!empObj.managedBy || !empObj.managedBy.ownCode) {
                 const targetUserId = empObj.managedBy || (empObj.createdBy && empObj.createdBy.role === 'supervisor' ? empObj.createdBy._id : null);
@@ -1392,7 +1406,7 @@ const getAllSewaks = async (req, res) => {
         if (req.user.role === 'supervisor') {
             const supervisorEmp = await Employee.findOne({ userId: req.user._id });
             if (supervisorEmp) {
-                const employees = await Employee.find({ 
+                const employees = await Employee.find({
                     $or: [
                         { managedBy: supervisorEmp._id },
                         { supervisorCode: supervisorEmp.ownCode },
@@ -1676,7 +1690,7 @@ const getPendingSewaks = async (req, res) => {
         if (req.user.role === 'supervisor') {
             const supervisorEmp = await Employee.findOne({ userId: req.user._id });
             if (supervisorEmp) {
-                const employees = await Employee.find({ 
+                const employees = await Employee.find({
                     $or: [
                         { managedBy: supervisorEmp._id },
                         { supervisorCode: supervisorEmp.ownCode },
@@ -2452,12 +2466,15 @@ const adminGlobalSearch = async (req, res) => {
 // @access  Private/Admin
 const getAdminNotifications = async (req, res) => {
     try {
+        const Lead = require('../models/Lead');
         const [
             recentLogs,
             pendingKyc,
             pendingSewaks,
             pendingEmployees,
             pendingBookings,
+            pendingLeads,
+            recentLeads
         ] = await Promise.all([
             AuditLog.find().sort({ timestamp: -1 }).limit(5).lean(),
             Provider.countDocuments({ providerCategory: { $ne: 'sewak' }, kycVerified: false, kycSubmitted: true }),
@@ -2465,6 +2482,8 @@ const getAdminNotifications = async (req, res) => {
             // employees pending verification – use Provider model employees
             Provider.countDocuments({ providerCategory: { $ne: 'sewak' }, status: 'pending' }),
             Booking.countDocuments({ status: 'pending' }),
+            Lead.countDocuments({ status: 'available' }),
+            Lead.find({ status: 'available' }).sort({ createdAt: -1 }).limit(3).populate('categoryId', 'name').lean()
         ]);
 
         const notifications = [];
@@ -2502,6 +2521,37 @@ const getAdminNotifications = async (req, res) => {
             });
         }
 
+        if (pendingLeads > 0) {
+            notifications.push({
+                id: 'leads-pending',
+                type: 'lead',
+                title: `${pendingLeads} Pending Leads`,
+                message: 'Customer lead requests active in the system.',
+                link: '/admin/leads',
+                time: new Date(),
+            });
+        }
+
+        // Add recent available leads
+        recentLeads.forEach(l => {
+            const dateStr = l.preferredDate || '';
+            const timeStr = l.preferredTime || '';
+            const scheduleStr = dateStr ? `${dateStr}${timeStr ? ` at ${timeStr}` : ''}` : 'Anytime';
+
+            const areaStr = l.locationDetail?.area || l.locationDetail?.street || '';
+            const cityStr = l.locationDetail?.city || '';
+            const locStr = [areaStr, cityStr].filter(Boolean).join(', ') || 'Nearby';
+
+            notifications.push({
+                id: `lead-${l._id.toString()}`,
+                type: 'lead',
+                title: `New Lead: ${l.categoryId?.name || 'Request'}`,
+                message: `Scheduled for ${scheduleStr} in ${locStr}. Value: ₹${l.leadPrice || 0}`,
+                link: '/admin/leads',
+                time: l.createdAt,
+            });
+        });
+
         // Add recent audit activity
         recentLogs.forEach(log => {
             notifications.push({
@@ -2517,7 +2567,7 @@ const getAdminNotifications = async (req, res) => {
         // Sort newest first
         notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-        res.json({ notifications: notifications.slice(0, 15), counts: { pendingKyc, pendingSewaks, pendingBookings } });
+        res.json({ notifications: notifications.slice(0, 15), counts: { pendingKyc, pendingSewaks, pendingBookings, pendingLeads } });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -2671,7 +2721,7 @@ const getUserWalletByAdmin = async (req, res) => {
         const { Wallet, Transaction } = require('../models/Wallet');
         const wallet = await Wallet.findOne({ userId: req.params.id });
         const transactions = await Transaction.find({ userId: req.params.id }).sort({ createdAt: -1 }).limit(50);
-        
+
         res.json({
             balance: wallet ? wallet.balance : 0,
             transactions: transactions || []
@@ -2696,7 +2746,7 @@ const getUnauthorizedPayments = async (req, res) => {
         if (startDate || endDate) {
             query.unauthorizedPaymentAt = {};
             if (startDate) query.unauthorizedPaymentAt.$gte = new Date(startDate);
-            if (endDate)   query.unauthorizedPaymentAt.$lte = new Date(endDate);
+            if (endDate) query.unauthorizedPaymentAt.$lte = new Date(endDate);
         }
         if (providerId) query.unauthorizedAttemptedBy = providerId;
 

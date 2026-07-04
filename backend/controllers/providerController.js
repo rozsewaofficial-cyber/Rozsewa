@@ -356,7 +356,17 @@ const updateProviderProfile = async (req, res) => {
             provider.ownerName = req.body.ownerName || provider.ownerName;
             provider.shopName = req.body.shopName || provider.shopName;
             provider.email = req.body.email || provider.email;
-            provider.vendorType = req.body.category || req.body.vendorType || provider.vendorType;
+            const targetCategory = req.body.category || req.body.vendorType;
+            if (targetCategory && targetCategory !== (provider.vendorType ? provider.vendorType.toString() : '')) {
+                provider.vendorType = targetCategory;
+                const Category = require('../models/Category');
+                const newCat = await Category.findById(targetCategory);
+                if (newCat && newCat.services) {
+                    provider.subServices = newCat.services.map(s => s._id.toString());
+                } else {
+                    provider.subServices = [];
+                }
+            }
             provider.address = req.body.address || provider.address;
             provider.profileImage = req.body.profileImage || provider.profileImage;
             provider.openingTime = req.body.openingTime || provider.openingTime;

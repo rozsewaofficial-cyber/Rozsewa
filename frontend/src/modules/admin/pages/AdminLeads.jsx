@@ -3,8 +3,8 @@ import { useOutletContext, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   Briefcase, IndianRupee, Percent, TrendingUp, AlertTriangle, 
-  CheckCircle2, Clock, Search, ChevronDown, RefreshCcw, 
-  MapPin, Calendar, User, Phone, ShieldCheck, XCircle, ShieldAlert,
+  CheckCircle2, Clock, Search, ChevronDown, ChevronUp, RefreshCcw, 
+  MapPin, Calendar, User, Phone, Mail, Eye, ShieldCheck, XCircle, ShieldAlert,
   Loader2, Settings
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,16 +28,27 @@ const AdminLeads = () => {
     pendingDisputesCount: 0
   });
   const [loading, setLoading] = useState(true);
+  const [expandedLeads, setExpandedLeads] = useState({});
   const [filter, setFilter] = useState("all"); // 'all', 'pending', 'available', 'unlocked', 'completed', 'expired', 'disputed', 'closed'
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     setTitle("Leads Management");
     fetchLeadsData();
+
+    const handleNewNotification = (e) => {
+      const data = e.detail;
+      if (data?.type === 'lead') {
+        fetchLeadsData(true);
+      }
+    };
+
+    window.addEventListener('NEW_NOTIFICATION', handleNewNotification);
+    return () => window.removeEventListener('NEW_NOTIFICATION', handleNewNotification);
   }, [setTitle]);
 
-  const fetchLeadsData = async () => {
-    setLoading(true);
+  const fetchLeadsData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [leadsRes, disputesRes, statsRes] = await Promise.all([
         API.get("/admin/leads"),
@@ -49,9 +60,11 @@ const AdminLeads = () => {
       setStats(statsRes.data);
     } catch (err) {
       console.error("Failed to fetch leads data", err);
-      toast({ title: "Fetch Failed", description: "Could not sync leads database.", variant: "destructive" });
+      if (!silent) {
+        toast({ title: "Fetch Failed", description: "Could not sync leads database.", variant: "destructive" });
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -79,7 +92,12 @@ const AdminLeads = () => {
 
   const filteredLeads = useMemo(() => {
     return (leads || [])
-      .filter(l => filter === "all" || l.status === filter)
+      .filter(l => {
+        if (filter === "all") return true;
+        if (filter === "available") return l.status === "available" || l.status === "partially_unlocked";
+        if (filter === "unlocked") return l.status === "partially_unlocked" || l.status === "fully_unlocked";
+        return l.status === filter;
+      })
       .filter(l => {
         const searchLower = search.toLowerCase();
         const serviceName = l.service || l.requirementTitle || l.categoryId?.name || '';
@@ -95,6 +113,8 @@ const AdminLeads = () => {
   const statusConfig = {
     pending: { bg: "bg-slate-100 text-slate-700", label: "Pending" },
     available: { bg: "bg-emerald-50 text-emerald-700 border-emerald-100", label: "Available" },
+    partially_unlocked: { bg: "bg-blue-50 text-blue-700 border-blue-100", label: "Partially Open" },
+    fully_unlocked: { bg: "bg-slate-100 text-slate-600 border-slate-200", label: "Fully Taken" },
     unlocked: { bg: "bg-blue-50 text-blue-700 border-blue-100", label: "Unlocked" },
     completed: { bg: "bg-green-50 text-green-700 border-green-100", label: "Completed" },
     cancelled: { bg: "bg-rose-50 text-rose-700 border-rose-100", label: "Cancelled" },
@@ -192,57 +212,180 @@ const AdminLeads = () => {
               <motion.div 
                 layout
                 key={lead._id}
-                className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-xl transition-all flex flex-col md:flex-row md:items-center justify-between gap-6"
+                className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-xl transition-all flex flex-col gap-4"
               >
-                <div className="space-y-3 flex-1 text-left">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-150">ID: {lead._id.substring(lead._id.length - 8).toUpperCase()}</span>
-                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${conf.bg}`}>{conf.label}</span>
-                    {lead.disputeStatus !== 'none' && (
-                      <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border bg-red-50 text-red-700 border-red-100">Dispute: {lead.disputeStatus}</span>
-                    )}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 w-full">
+                  <div className="space-y-3 flex-1 text-left">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-150">ID: {lead._id.substring(lead._id.length - 8).toUpperCase()}</span>
+                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border ${conf.bg}`}>{conf.label}</span>
+                      {lead.categoryId?.name && (
+                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border bg-slate-50 text-slate-500 border-slate-150">{lead.categoryId.name}</span>
+                      )}
+                      {lead.disputeStatus !== 'none' && (
+                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider border bg-red-50 text-red-700 border-red-100">Dispute: {lead.disputeStatus}</span>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-slate-900 leading-tight">
+                        {lead.requirementTitle || lead.service || lead.categoryId?.name || 'Service Request'}
+                      </h3>
+                      <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Client: {lead.customer?.name || "Guest"} ({lead.customer?.mobile || "N/A"})</p>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-600 bg-slate-50/80 border border-slate-200/40 p-4 rounded-2xl">
+                      <p className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-1.5">Requirement Details</p>
+                      <p>{lead.requirementDesc || lead.requirementForm?.description || "No description provided."}</p>
+                      <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-slate-200/50">
+                        <p className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" /> 
+                          {lead.preferredDate || lead.requirementForm?.preferredDate || 'N/A'}
+                          { (lead.preferredTime || lead.requirementForm?.preferredTime) ? ` at ${lead.preferredTime || lead.requirementForm?.preferredTime}` : '' }
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5" /> 
+                          { [lead.locationDetail?.houseNo, lead.locationDetail?.street, lead.locationDetail?.city].filter(Boolean).join(', ') || lead.requirementForm?.address || "Coordinate Location" }
+                        </p>
+                        {lead.createdAt && (
+                          <p className="flex items-center gap-1.5 text-violet-600 font-bold col-span-2 mt-1.5 border-t border-slate-200/40 pt-1.5">
+                            <Clock className="h-3.5 w-3.5" />
+                            Generated: {new Date(lead.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at {new Date(lead.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-black text-slate-900 leading-tight">
-                      {lead.requirementTitle || lead.service || lead.categoryId?.name || 'Service Request'}
-                    </h3>
-                    <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Client: {lead.customer?.name || "Guest"} ({lead.customer?.mobile || "N/A"})</p>
-                  </div>
-                  <div className="text-xs font-semibold text-slate-600 bg-slate-50/80 border border-slate-200/40 p-4 rounded-2xl">
-                    <p className="font-black text-[9px] text-slate-400 uppercase tracking-widest mb-1.5">Requirement Details</p>
-                    <p>{lead.requirementDesc || lead.requirementForm?.description || "No description provided."}</p>
-                    <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-slate-200/50">
-                      <p className="flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5" /> 
-                        {lead.preferredDate || lead.requirementForm?.preferredDate || 'N/A'}
-                        { (lead.preferredTime || lead.requirementForm?.preferredTime) ? ` at ${lead.preferredTime || lead.requirementForm?.preferredTime}` : '' }
-                      </p>
-                      <p className="flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5" /> 
-                        { [lead.locationDetail?.houseNo, lead.locationDetail?.street, lead.locationDetail?.city].filter(Boolean).join(', ') || lead.requirementForm?.address || "Coordinate Location" }
-                      </p>
+
+                  <div className="flex flex-col justify-between items-end gap-4 min-w-[200px] border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Lead Value</p>
+                      <p className="text-2xl font-black text-slate-900">₹{lead.leadPrice}</p>
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Unlocks: {lead.unlockedProviders?.length || 0} / {lead.maxUnlockLimit}</p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 w-full">
+                      <button 
+                        onClick={() => setExpandedLeads(prev => ({ ...prev, [lead._id]: !prev[lead._id] }))}
+                        className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        {expandedLeads[lead._id] ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        {expandedLeads[lead._id] ? 'Hide Details' : 'View Details'}
+                      </button>
+                      {lead.status !== 'closed' && lead.status !== 'completed' && lead.status !== 'expired' && (
+                        <button 
+                          onClick={() => handleManualClose(lead._id)}
+                          className="w-full py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-[10px] font-black uppercase tracking-widest transition-all"
+                        >
+                          Force Close
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col justify-between items-end gap-4 min-w-[200px] border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Lead Value</p>
-                    <p className="text-2xl font-black text-slate-900">₹{lead.leadPrice}</p>
-                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Unlocks: {lead.unlockedProviders?.length || 0} / {lead.maxUnlockLimit}</p>
-                  </div>
+                {expandedLeads[lead._id] && (
+                  <div className="border-t border-slate-100 pt-5 mt-2 text-left space-y-6 animate-in fade-in duration-300">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Client contact info details */}
+                      <div className="bg-emerald-50/60 border border-emerald-100 p-5 rounded-2xl space-y-3">
+                        <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Customer Contact Revealed
+                        </p>
+                        <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-2.5 text-xs font-semibold text-slate-700">
+                          <span className="text-slate-400 font-bold">Name</span>
+                          <span className="font-black text-slate-800">{lead.customer?.name || "Guest"}</span>
+                          
+                          <span className="text-slate-400 font-bold">Phone</span>
+                          <span className="font-black text-emerald-700 flex items-center gap-1">
+                            <Phone className="h-3.5 w-3.5" /> {lead.customer?.mobile || "N/A"}
+                          </span>
+                          
+                          <span className="text-slate-400 font-bold">Email</span>
+                          <span className="font-black text-violet-700 flex items-center gap-1">
+                            <Mail className="h-3.5 w-3.5" /> {lead.customer?.email || "N/A"}
+                          </span>
+                          
+                          <span className="text-slate-400 font-bold">Address</span>
+                          <span className="font-bold text-slate-850">
+                            {lead.requirementForm?.address || [lead.locationDetail?.houseNo, lead.locationDetail?.apartment, lead.locationDetail?.street, lead.locationDetail?.landmark, lead.locationDetail?.area, lead.locationDetail?.city, lead.locationDetail?.state, lead.locationDetail?.pincode].filter(Boolean).join(', ') || 'N/A'}
+                          </span>
+                        </div>
+                        {lead.location?.coordinates && (
+                          <div className="pt-2">
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${lead.location.coordinates[1]},${lead.location.coordinates[0]}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 shadow-sm"
+                            >
+                              <MapPin className="h-3 w-3" /> Open in Maps
+                            </a>
+                          </div>
+                        )}
+                      </div>
 
-                  <div className="flex flex-col gap-2 w-full">
-                    {lead.status !== 'closed' && lead.status !== 'completed' && lead.status !== 'expired' && (
-                      <button 
-                        onClick={() => handleManualClose(lead._id)}
-                        className="w-full py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-[10px] font-black uppercase tracking-widest transition-all"
-                      >
-                        Force Close
-                      </button>
-                    )}
+                      {/* Questionnaire dynamic answers */}
+                      <div className="space-y-3 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Questionnaire & Details</h4>
+                        {lead.dynamicAnswers && lead.dynamicAnswers.length > 0 ? (
+                          <div className="space-y-2 text-xs leading-relaxed max-h-[160px] overflow-y-auto pr-2">
+                            {lead.dynamicAnswers.map((a, i) => (
+                              <div key={i} className="flex gap-2 items-start py-1 border-b border-slate-100 last:border-0">
+                                <span className="font-black text-slate-500 min-w-[100px] max-w-[140px] truncate">{a.label || a.question}:</span>
+                                <span className="text-slate-800 font-bold">{Array.isArray(a.value) ? a.value.join(', ') : String(a.value)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 font-bold italic py-4">No custom questionnaire answers provided for this lead.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Media Attachments & Unlocked Providers row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Media Attachments */}
+                      <div className="space-y-3 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Attached Photos</h4>
+                        {lead.attachments?.length > 0 || lead.requirementForm?.images?.length > 0 ? (
+                          <div className="flex flex-wrap gap-3 pt-1">
+                            {(lead.attachments || []).map((att, idx) => (
+                              <a key={idx} href={att.url} target="_blank" rel="noreferrer" className="block border border-slate-200 hover:border-blue-500 rounded-xl overflow-hidden hover:opacity-90 hover:scale-105 transition-all shadow-sm">
+                                <img src={att.url} alt="Attachment" className="h-16 w-16 object-cover" />
+                              </a>
+                            ))}
+                            {(lead.requirementForm?.images || []).map((imgUrl, idx) => (
+                              <a key={idx} href={imgUrl} target="_blank" rel="noreferrer" className="block border border-slate-200 hover:border-blue-500 rounded-xl overflow-hidden hover:opacity-90 hover:scale-105 transition-all shadow-sm">
+                                <img src={imgUrl} alt="Attachment" className="h-16 w-16 object-cover" />
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 font-bold italic py-4">No photos or files attached to this lead.</p>
+                        )}
+                      </div>
+
+                      {/* Unlocked Partners */}
+                      <div className="space-y-3 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">Unlocked Partners ({lead.unlockedProviders?.length || 0})</h4>
+                        {lead.unlockedProviders && lead.unlockedProviders.length > 0 ? (
+                          <div className="space-y-2 max-h-[160px] overflow-y-auto pr-2">
+                            {lead.unlockedProviders.map((p, idx) => (
+                              <div key={idx} className="bg-white border border-slate-150 p-3 rounded-xl text-xs space-y-1 shadow-sm text-left">
+                                <p className="font-black text-slate-800">{p.shopName || p.ownerName} <span className="text-[10px] text-slate-400 font-semibold">({p.ownerName})</span></p>
+                                <p className="text-slate-500 font-bold flex items-center gap-2">
+                                  <span className="font-mono">📞 {p.mobile}</span> 
+                                  {p.email && <span className="font-mono">| ✉️ {p.email}</span>}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-slate-400 font-bold italic py-4">No partners have unlocked this lead yet.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </motion.div>
             );
           })

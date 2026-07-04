@@ -102,7 +102,6 @@ const findEligibleProviders = async (lead, category) => {
     // Build base geo+DB query (Layers 1, 3, 4, 5, 6, 7 done in DB)
     const geoQuery = {
         vendorType:     lead.categoryId,
-        providerType:   { $in: ['lead', 'both'] },    // Layer 3 — commission excluded
         status:         'verified',                     // Layer 4
         isOnline:       true,                           // Layer 5
         canReceiveLead: true,                           // Layer 7
@@ -371,14 +370,18 @@ const createLead = async (req, res) => {
 
         const leadPrice     = category.defaultLeadPrice || 0;
         const maxUnlockCount= await getSettingVal('lead_max_unlock_count', 1);
-        const leadExpiryHrs = await getSettingVal('lead_expiry_duration', 24);
+        const leadExpiryHrs = await getSettingVal('lead_expiry', await getSettingVal('lead_expiry_duration', 24));
         const expiryDate    = new Date(Date.now() + Number(leadExpiryHrs) * 3600000);
 
         let lead;
         if (draftId) {
-            // Upgrade existing draft
-            lead = await Lead.findOne({ _id: draftId, customer: req.user._id, status: 'draft' });
-            if (!lead) return res.status(404).json({ message: 'Draft not found.' });
+            if (mongoose.Types.ObjectId.isValid(draftId)) {
+                // Upgrade existing draft
+                lead = await Lead.findOne({ _id: draftId, customer: req.user._id, status: 'draft' });
+            }
+            if (!lead) {
+                console.log(`[createLead] Draft ID ${draftId} not found or invalid. Creating a new lead instead.`);
+            }
         }
 
         const locDetail = locationDetail || {};
@@ -433,16 +436,28 @@ const createLead = async (req, res) => {
             categoryId: catId, serviceId, eligibleCount: eligibleProviders.length
         });
 
+        const dateStr = preferredDate || '';
+        const timeStr = preferredTime || '';
+        const scheduleStr = dateStr ? `${dateStr}${timeStr ? ` at ${timeStr}` : ''}` : 'Anytime';
+
+        const areaStr = locDetail.area || locDetail.street || '';
+        const cityStr = locDetail.city || '';
+        const locStr = [areaStr, cityStr].filter(Boolean).join(', ') || 'Nearby';
+
         // Notify eligible providers
         for (const providerId of eligibleProviders) {
             try {
                 await notifyUser({
                     userId: providerId,
                     userRole: 'provider',
-                    title: 'New Lead Available!',
-                    message: `A new ${category.name} request is available near you. Unlock details now!`,
+                    title: `New Lead: ${category.name}`,
+                    message: `A new request is available for ${scheduleStr} in ${locStr}. Value: ₹${leadPrice}. Unlock details now!`,
                     type: 'lead',
-                    data: { leadId: lead._id.toString() }
+                    data: {
+                        leadId: lead._id.toString(),
+                        link: '/provider/leads',
+                        userRole: 'provider'
+                    }
                 });
             } catch (e) {
                 console.error(`[Lead notify provider ${providerId}]:`, e.message);
@@ -455,12 +470,42 @@ const createLead = async (req, res) => {
                 userId: req.user._id,
                 userRole: 'customer',
                 title: 'Request Submitted Successfully',
-                message: 'Your service request is live. Nearby verified partners will contact you directly.',
+                message: `Your request for ${category.name} on ${scheduleStr} is live. Nearby verified partners will contact you directly.`,
                 type: 'lead',
-                data: { leadId: lead._id.toString() }
+                data: {
+                    leadId: lead._id.toString(),
+                    link: '/my-leads',
+                    userRole: 'customer'
+                }
             });
         } catch (e) {
             console.error('[Lead notify customer]:', e.message);
+        }
+
+        // Notify admins
+        try {
+            const User = require('../models/User');
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            for (const adminUser of admins) {
+                try {
+                    await notifyUser({
+                        userId: adminUser._id,
+                        userRole: 'admin',
+                        title: `New Lead: ${category.name}`,
+                        message: `A new request for ${scheduleStr} in ${locStr} has been submitted by ${req.user.name || 'a customer'}. Value: ₹${leadPrice}.`,
+                        type: 'lead',
+                        data: {
+                            leadId: lead._id.toString(),
+                            link: '/admin/leads',
+                            userRole: 'admin'
+                        }
+                    });
+                } catch (e) {
+                    console.error(`[Lead notify admin ${adminUser._id}]:`, e.message);
+                }
+            }
+        } catch (e) {
+            console.error('[Lead notify admins]:', e.message);
         }
 
         res.status(201).json({
@@ -586,12 +631,20 @@ const getNearbyLeads = async (req, res) => {
         if (!provider) return res.status(404).json({ message: 'Provider not found.' });
         if (!provider.vendorType) return res.json({ leads: [], page, pages: 0, count: 0 });
 
-        // Wallet check
+        // Query successful unlocks to determine free trial status
+        const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
+        const unlockedCount = await LeadUnlockTransaction.countDocuments({
+            provider: req.user._id,
+            status: 'success'
+        });
+        const hasFreeLeft = unlockedCount < 3;
+
+        // Wallet check - bypassed during free trial
         const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
         const wallet = await Wallet.findOne({ providerId: req.user._id });
         const walletBalance = wallet ? (wallet.availableBalance ?? wallet.balance ?? 0) : 0;
 
-        if (walletBalance < minWalletBalance) {
+        if (!hasFreeLeft && walletBalance < minWalletBalance) {
             return res.status(403).json({
                 message: `Wallet balance (₹${walletBalance}) is below the minimum required (₹${minWalletBalance}). Please recharge to view leads.`,
                 walletBalance
@@ -631,9 +684,18 @@ const getNearbyLeads = async (req, res) => {
             roadDistances = await getRoadDistances(pCoords[1], pCoords[0], destinations);
         }
 
+        const unlockPriceSetting = await getSettingVal('lead_unlock_price', 50);
+
         const leads = rawLeads.map((l, idx) => {
             const hasUnlocked = l.unlockedProviders?.some(id => id.toString() === req.user._id.toString());
             const lead = { ...l };
+
+            // Dynamic lead price for this provider
+            if (hasFreeLeft) {
+                lead.leadPrice = 0;
+            } else {
+                lead.leadPrice = l.leadPrice || Number(unlockPriceSetting);
+            }
 
             lead.distance = roadDistances[idx] !== undefined
                 ? formatDistance(roadDistances[idx])
@@ -708,20 +770,28 @@ const unlockLead = async (req, res) => {
             return res.json({ success: true, lead: full });
         }
 
-        // Wallet minimum check
+        // Query successful unlocks to determine free trial status
+        const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
+        const unlockedCount = await LeadUnlockTransaction.countDocuments({
+            provider: req.user._id,
+            status: 'success'
+        }).session(session);
+        const hasFreeLeft = unlockedCount < 3;
+
+        // Wallet minimum check - bypassed during free trial
         const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
         let wallet = await Wallet.findOne({ providerId: req.user._id }).session(session);
         if (!wallet) {
             wallet = (await Wallet.create([{ providerId: req.user._id, balance: 0, availableBalance: 0 }], { session }))[0];
         }
         const walletBalance = wallet.availableBalance ?? wallet.balance ?? 0;
-        if (walletBalance < minWalletBalance) {
+        if (!hasFreeLeft && walletBalance < minWalletBalance) {
             await session.abortTransaction();
             session.endSession();
             return res.status(403).json({ message: `Wallet balance (₹${walletBalance}) is below minimum (₹${minWalletBalance}). Please top up.`, walletBalance });
         }
 
-        // Subscription credit first, then wallet cash
+        // Subscription credit first, then wallet cash, else free trial
         const activeSub = await ProviderSubscription.findOne({
             provider: req.user._id,
             status: 'active',
@@ -730,13 +800,22 @@ const unlockLead = async (req, res) => {
         }).session(session);
 
         let unlockedVia = 'none';
+        let actualPrice = 0;
+
         if (activeSub) {
             activeSub.creditsRemaining -= 1;
             await activeSub.save({ session });
             await Provider.findByIdAndUpdate(req.user._id, { $inc: { leadCredits: -1 } }).session(session);
             unlockedVia = 'credit';
+            actualPrice = 0;
+        } else if (hasFreeLeft) {
+            unlockedVia = 'free_trial';
+            actualPrice = 0;
         } else {
-            const leadPrice = lead.leadPrice;
+            const unlockPriceSetting = await getSettingVal('lead_unlock_price', 50);
+            const leadPrice = lead.leadPrice || Number(unlockPriceSetting);
+            actualPrice = leadPrice;
+
             if (walletBalance < leadPrice) {
                 const payPerLead = await getSettingVal('lead_pay_per_lead_enabled', true);
                 await session.abortTransaction();
@@ -782,22 +861,45 @@ const unlockLead = async (req, res) => {
         await LeadUnlockTransaction.create([{
             provider: req.user._id,
             lead: lead._id,
-            unlockAmount: lead.leadPrice,
+            unlockAmount: actualPrice,
             walletUsed:   unlockedVia === 'wallet',
             creditUsed:   unlockedVia === 'credit',
-            status: 'success'
+            status: 'success',
+            notes: hasFreeLeft ? `Free trial unlock (${unlockedCount + 1}/3)` : undefined
         }], { session });
 
         await session.commitTransaction();
         session.endSession();
 
         // Audit
-        await logActivity(lead._id, req.user._id, 'provider', 'LEAD_UNLOCKED', { unlockedVia, leadPrice: lead.leadPrice });
+        await logActivity(lead._id, req.user._id, 'provider', 'LEAD_UNLOCKED', { unlockedVia, leadPrice: actualPrice });
         if (newUnlockCount === 1) {
             await logActivity(lead._id, req.user._id, 'system', 'LEAD_EDIT_LOCKED', {});
         }
 
         const populatedLead = await Lead.findById(leadId).populate('customer', 'name mobile email');
+
+        // Notify all nearby providers to sync their screen lists
+        try {
+            const { emitToProvider } = require('../config/socket');
+            for (const pId of lead.nearbyProviders) {
+                emitToProvider(pId, 'NEW_NOTIFICATION', { type: 'lead', leadId: lead._id.toString() });
+            }
+        } catch (sockErr) {
+            console.error('[Socket Broadcast Error] Provider lists refresh emit failed:', sockErr.message);
+        }
+
+        // Notify admins to sync their screen lists
+        try {
+            const { emitToUser } = require('../config/socket');
+            const User = require('../models/User');
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            for (const adminUser of admins) {
+                emitToUser(adminUser._id, 'NEW_NOTIFICATION', { type: 'lead', leadId: lead._id.toString() });
+            }
+        } catch (sockErr) {
+            console.error('[Socket Broadcast Error] Admin refresh emit failed:', sockErr.message);
+        }
 
         // Notify customer
         try {
@@ -980,6 +1082,7 @@ const getAdminLeads = async (req, res) => {
         const leads = await Lead.find(query)
             .populate('customer', 'name mobile email')
             .populate('categoryId', 'name')
+            .populate('unlockedProviders', 'ownerName shopName mobile email')
             .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
             .limit(Number(limit));

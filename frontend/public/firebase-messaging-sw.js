@@ -67,7 +67,13 @@ self.addEventListener('notificationclick', (event) => {
         targetUrl = '/my-bookings';
       }
     } else if (data.type === 'lead' || data.leadId) {
-      targetUrl = '/provider/leads';
+      if (data.userRole === 'admin') {
+        targetUrl = '/admin/leads';
+      } else if (data.userRole === 'provider') {
+        targetUrl = '/provider/leads';
+      } else {
+        targetUrl = '/my-leads';
+      }
     }
   }
 

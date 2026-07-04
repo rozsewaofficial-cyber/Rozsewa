@@ -330,6 +330,31 @@ const LeadRequirementForm = () => {
     }
   }, [selectedHour, selectedMin]);
 
+  // Reset invalid past hour/minute if date changes or time ticks
+  useEffect(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const currentTodayStr = `${yyyy}-${mm}-${dd}`;
+
+    if (preferredDate === currentTodayStr) {
+      const currentHour = today.getHours();
+      const currentMin = today.getMinutes();
+      if (selectedHour) {
+        const hNum = Number(selectedHour);
+        if (hNum < currentHour || (hNum === currentHour && currentMin >= 45)) {
+          setSelectedHour('');
+          setSelectedMin('');
+        } else if (hNum === currentHour && selectedMin) {
+          if (Number(selectedMin) <= currentMin) {
+            setSelectedMin('');
+          }
+        }
+      }
+    }
+  }, [preferredDate, selectedHour, selectedMin]);
+
   // Location Fields
   const [coordinates,    setCoordinates]    = useState(null);
   const [gettingGPS,     setGettingGPS]     = useState(false);
@@ -382,6 +407,13 @@ const LeadRequirementForm = () => {
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900" />
         );
       case 'preferredTime':
+        const todayStr = (() => {
+          const today = new Date();
+          const yyyy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}`;
+        })();
         return (
           <div className="grid grid-cols-2 gap-2">
             <select
@@ -393,7 +425,16 @@ const LeadRequirementForm = () => {
               <option value="">Hour</option>
               {Array.from({ length: 24 }).map((_, i) => {
                 const h = String(i).padStart(2, '0');
-                return <option key={h} value={h}>{h}:00 (24h)</option>;
+                const disabled = (() => {
+                  if (preferredDate === todayStr) {
+                    const currentHour = new Date().getHours();
+                    const currentMin = new Date().getMinutes();
+                    if (i < currentHour) return true;
+                    if (i === currentHour && currentMin >= 45) return true;
+                  }
+                  return false;
+                })();
+                return <option key={h} value={h} disabled={disabled}>{h}:00 (24h)</option>;
               })}
             </select>
             <select
@@ -404,7 +445,17 @@ const LeadRequirementForm = () => {
             >
               <option value="">Min</option>
               {['00', '15', '30', '45'].map(m => {
-                return <option key={m} value={m}>{m}</option>;
+                const disabled = (() => {
+                  if (preferredDate === todayStr && selectedHour) {
+                    const currentHour = new Date().getHours();
+                    const currentMin = new Date().getMinutes();
+                    if (Number(selectedHour) === currentHour && Number(m) <= currentMin) {
+                      return true;
+                    }
+                  }
+                  return false;
+                })();
+                return <option key={m} value={m} disabled={disabled}>{m}</option>;
               })}
             </select>
           </div>

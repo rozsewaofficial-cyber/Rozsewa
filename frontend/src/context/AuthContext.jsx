@@ -271,7 +271,10 @@ export const AuthProvider = ({ children }) => {
               if (data) {
                 const targetLink = data.link || data.url || 
                   (data.type === 'booking' ? (data.userRole === 'provider' ? '/provider/bookings' : '/tracking') : 
-                   (data.type === 'lead' || data.leadId) ? '/provider/leads' : '');
+                   (data.type === 'lead' || data.leadId) ? (
+                     data.userRole === 'admin' ? '/admin/leads' :
+                     data.userRole === 'provider' ? '/provider/leads' : '/my-leads'
+                   ) : '');
                 if (targetLink) {
                   navigate(targetLink);
                 }
