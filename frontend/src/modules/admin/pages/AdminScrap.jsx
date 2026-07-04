@@ -245,7 +245,7 @@ const AdminBazaarPage = () => {
         }
       }
 
-      const res = await api.post('/bazaar/categories', { name: newCatName, order: newCatOrder, icon: iconUrl });
+      const res = await api.post('/bazaar/admin/categories', { name: newCatName, order: newCatOrder, icon: iconUrl });
       if (res.data.success) {
         toast({ title: 'Category added' });
         setNewCatName('');
@@ -263,7 +263,7 @@ const AdminBazaarPage = () => {
   const handleDeleteCategory = async (id) => {
     if (!window.confirm('Are you sure you want to delete this category?')) return;
     try {
-      const res = await api.delete(`/bazaar/categories/${id}`);
+      const res = await api.delete(`/bazaar/admin/categories/${id}`);
       if (res.data.success) {
         toast({ title: 'Category deleted' });
         fetchCategories();
