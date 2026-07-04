@@ -360,7 +360,7 @@ const Index = () => {
             <section className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                  <ShoppingBag className="text-teal-500 w-5 h-5" /> Rojsewa Bazaar
+                  <ShoppingBag className="text-teal-500 w-5 h-5" /> Rozsewa Bazaar
                 </h2>
                 <Link to="/bazaar" className="text-[13px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 transition-colors">
                   Browse All

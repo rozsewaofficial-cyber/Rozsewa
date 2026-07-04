@@ -99,7 +99,7 @@ const RojsewaBazaar = () => {
                 <ShoppingBag className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-black text-white leading-tight">Rojsewa Bazaar</h1>
+                <h1 className="text-xl font-black text-white leading-tight">Rozsewa Bazaar</h1>
                 <p className="text-blue-200 text-[11px] font-medium">Verified second-hand items near you</p>
               </div>
             </div>
