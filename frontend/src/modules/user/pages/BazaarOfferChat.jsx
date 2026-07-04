@@ -33,7 +33,7 @@ const BazaarOfferChat = () => {
     if (val === 'del') {
       setNumericInput(prev => prev.slice(0, -1));
     } else {
-      if (numericInput.length < 8) setNumericInput(prev => prev + val);
+      setNumericInput(prev => prev.length < 8 ? prev + val : prev);
     }
   };
 

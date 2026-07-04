@@ -379,8 +379,12 @@ exports.makeOffer = async (req, res) => {
         offerHistory: []
       });
     } else {
-      if (offer.status === 'deal_locked' || offer.status === 'completed' || offer.status === 'rejected') {
+      if (offer.status === 'deal_locked' || offer.status === 'completed') {
         return res.status(400).json({ success: false, message: `Offer is already ${offer.status}` });
+      }
+      if (offer.status === 'rejected') {
+        // Reset counter attempts so they can negotiate again
+        offer.counterAttempts = 0;
       }
     }
 

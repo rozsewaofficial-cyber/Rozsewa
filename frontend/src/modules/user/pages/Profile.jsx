@@ -191,11 +191,24 @@ const Profile = () => {
               <ShoppingBag className="w-4 h-4 text-orange-500" />
               <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Bazaar Chat Requests</h2>
             </div>
-            {offerRequests.length > 0 && (
-              <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
-                {offerRequests.length} request{offerRequests.length > 1 ? 's' : ''}
-              </span>
-            )}
+            {offerRequests.length > 0 && (() => {
+              const receivedCount = offerRequests.filter(o => o.sellerId?._id === user?._id).length;
+              const sentCount = offerRequests.filter(o => o.buyerId?._id === user?._id).length;
+              return (
+                <div className="flex items-center gap-1.5">
+                  {receivedCount > 0 && (
+                    <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                      {receivedCount} received
+                    </span>
+                  )}
+                  {sentCount > 0 && (
+                    <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                      {sentCount} sent
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {offersLoading ? (

@@ -1085,11 +1085,8 @@ async function addEmployee(req, res) {
                 }
             }
         } else if (req.user.role === 'admin' || req.user.role === 'superadmin') {
-            if (role === 'employee' || role === 'field_staff') {
-                if (role !== 'supervisor') {
-                    return res.status(403).json({ message: 'Admin should only create Supervisors' });
-                }
-            }
+            // Admins and Superadmins have full privileges, they can create any role.
+            // No restriction needed.
         }
 
         // 2. Check if user already exists
@@ -1186,18 +1183,27 @@ async function addEmployee(req, res) {
 // @access  Private/Admin
 async function deleteEmployee(req, res) {
     try {
-        const employee = await Employee.findById(req.params.id);
-        if (!employee) return res.status(404).json({ message: 'Employee not found' });
-
-        // Delete linked User record if exists
-        if (employee.userId) {
-            await User.findByIdAndDelete(employee.userId);
+        const employeeId = req.params.id;
+        const employee = await Employee.findById(employeeId);
+        
+        if (!employee) {
+            return res.status(404).json({ message: 'Employee not found' });
         }
 
-        await Employee.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Employee and user account removed' });
+        // 1. Delete linked User record if exists
+        if (employee.userId) {
+            // Extract ObjectId if it was somehow populated
+            const uid = employee.userId._id ? employee.userId._id : employee.userId;
+            await User.deleteOne({ _id: uid });
+        }
+
+        // 2. Delete the Employee record
+        await Employee.deleteOne({ _id: employeeId });
+        
+        res.json({ success: true, message: 'Employee and user account removed completely' });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error(`[deleteEmployee Error]:`, error);
+        res.status(500).json({ message: error.message || "Failed to delete employee" });
     }
 }
 
