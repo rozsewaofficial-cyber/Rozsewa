@@ -329,13 +329,23 @@ const LiveTracking = () => {
       }
     };
 
+    const handleExtraChargesPending = (e) => {
+      const data = e.detail;
+      if (data && data.bookingId === bookingDetails?._id) {
+        fetchBookingStatus();
+      }
+    };
+
     window.addEventListener('BOOKING_REJECTED', handleRejected);
     window.addEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
     window.addEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
+    window.addEventListener('EXTRA_CHARGES_PENDING', handleExtraChargesPending);
+    
     return () => {
       window.removeEventListener('BOOKING_REJECTED', handleRejected);
       window.removeEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
       window.removeEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
+      window.removeEventListener('EXTRA_CHARGES_PENDING', handleExtraChargesPending);
     };
   }, [bookingDetails]);
 
@@ -358,6 +368,16 @@ const LiveTracking = () => {
       fetchBookingStatus();
     } catch (err) {
       toast({ title: "Error", description: "Failed to reject schedule", variant: "destructive" });
+    }
+  };
+
+  const handleExtraAction = async (status) => {
+    try {
+      await API.patch(`/bookings/${bookingDetails._id}/status`, { extraStatus: status });
+      toast({ title: status === 'approved' ? 'Extra Charges Approved' : 'Extra Charges Declined' });
+      fetchBookingStatus();
+    } catch {
+      toast({ title: "Failed to update extra charges", variant: "destructive" });
     }
   };
 
@@ -557,6 +577,57 @@ const LiveTracking = () => {
                 className="h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px] disabled:opacity-50"
               >
                 <Check className="h-4 w-4" /> Accept Counter
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Extra Charges Proposal UI */}
+        {bookingDetails?.status === 'started' && bookingDetails?.extraStatus === 'pending' && (
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="rounded-[24px] border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
+          >
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 shadow-inner">
+                <AlertOctagon className="h-6 w-6" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black text-amber-700 dark:text-amber-500">Extra Charges Added</h3>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                  Technician added extra items
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-3">
+              {bookingDetails?.extraCharges?.map((item, idx) => (
+                <div key={idx} className="flex justify-between text-[13px]">
+                  <span className="text-slate-500 dark:text-slate-400">{item.item}</span>
+                  <span className="font-bold text-slate-900 dark:text-white">₹{item.amount}</span>
+                </div>
+              ))}
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between">
+                <span className="text-[13px] font-black text-slate-900 dark:text-white">Extra Total</span>
+                <span className="text-[14px] font-black text-amber-600 dark:text-amber-500">
+                  ₹{bookingDetails?.extraCharges?.reduce((sum, item) => sum + (item.amount || 0), 0)}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <button
+                onClick={() => handleExtraAction('declined')}
+                className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
+              >
+                <X className="h-4 w-4" /> Decline
+              </button>
+              <button
+                onClick={() => handleExtraAction('approved')}
+                className="h-12 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px]"
+              >
+                <Check className="h-4 w-4" /> Approve
               </button>
             </div>
           </motion.div>

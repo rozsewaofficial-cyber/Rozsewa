@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2, Send, ShieldAlert, Unlock, Delete, Phone, MapPin, Lock } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 const BazaarOfferChat = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   
   const [ad, setAd] = useState(null);
@@ -66,9 +67,17 @@ const BazaarOfferChat = () => {
       const adRes = await api.get(`/bazaar/live/${id}`);
       if (adRes.data.success) setAd(adRes.data.data);
 
-      const historyRes = await api.get(`/bazaar/offer/${id}`);
+      const searchParams = new URLSearchParams(location.search);
+      const targetOfferId = searchParams.get('offerId');
+      
+      const historyRes = await api.get(`/bazaar/offer/${id}${targetOfferId ? `?offerId=${targetOfferId}` : ''}`);
       if (historyRes.data.success && historyRes.data.data.length > 0) {
-        setOfferThread(historyRes.data.data[0]);
+        let selectedOffer = historyRes.data.data[0];
+        if (targetOfferId) {
+          const found = historyRes.data.data.find(o => o._id === targetOfferId);
+          if (found) selectedOffer = found;
+        }
+        setOfferThread(selectedOffer);
       }
       
       const templatesRes = await api.get(`/bazaar/chat-templates`);

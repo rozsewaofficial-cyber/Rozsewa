@@ -227,7 +227,7 @@ const CustomerLogin = () => {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-primary/5 via-background to-emerald-50/30 px-4 py-8 dark:from-background dark:to-background">
+    <div className="flex min-h-[100dvh] flex-col items-center bg-gradient-to-br from-primary/5 via-background to-emerald-50/30 px-4 py-8 dark:from-background dark:to-background">
       {/* Decorative blobs */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
@@ -235,7 +235,7 @@ const CustomerLogin = () => {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-md space-y-8">
+        className="relative z-10 w-full max-w-md space-y-8 my-auto">
 
         {/* Logo + Welcome */}
         <div className="text-center">
@@ -293,9 +293,15 @@ const CustomerLogin = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Password</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                      placeholder="Create password" />
+                    <div className="relative">
+                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                        className="h-11 w-full rounded-xl border border-border bg-background px-4 pr-12 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
+                        placeholder="Create password" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   {showOtpInput && (
@@ -478,7 +484,7 @@ const CustomerLogin = () => {
 
         {/* Footer */}
         <div className="text-center space-y-2">
-          <p className="text-xs text-muted-foreground">By continuing, you agree to our <button className="font-semibold text-foreground hover:underline">Terms</button> & <button className="font-semibold text-foreground hover:underline">Privacy Policy</button></p>
+          <p className="text-xs text-muted-foreground">By continuing, you agree to our <button onClick={() => navigate('/terms')} className="font-semibold text-foreground hover:underline">Terms & Conditions</button> & <button onClick={() => navigate('/privacy')} className="font-semibold text-foreground hover:underline">Privacy Policy</button></p>
         </div>
       </motion.div>
     </div>

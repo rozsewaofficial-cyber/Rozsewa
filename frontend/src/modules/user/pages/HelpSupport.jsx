@@ -41,7 +41,7 @@ const HelpSupport = () => {
   }));
 
   const legalLinks = [
-    { label: "Terms of Service", content:policies.terms },
+    { label: "Terms & Conditions", content:policies.terms },
     { label: "Privacy Policy", content:policies.privacy },
     { label: "Cancellation & Refund", content:policies.cancellation },
   ];

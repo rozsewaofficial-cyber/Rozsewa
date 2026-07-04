@@ -1124,6 +1124,13 @@ const updateBookingStatusByProvider = async (req, res) => {
                 const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
                 const deviceInfo = req.headers['user-agent'] || null;
 
+                // ---- ALLOW USER TO SWITCH TO CASH PAYMENT ----
+                if (req.body.paymentMode && ['now', 'after'].includes(req.body.paymentMode)) {
+                    if (booking.paymentStatus !== 'paid') {
+                        booking.paymentMode = req.body.paymentMode;
+                    }
+                }
+
                 // ---- PAYMENT LOCK: once paid, only admin may modify ----
                 if (booking.paymentStatus === 'paid' && !isAdmin) {
                     return res.status(403).json({

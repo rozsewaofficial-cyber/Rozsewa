@@ -20,6 +20,8 @@ const menuItems = [
   { icon: MapPin, label: "Saved Addresses", desc: "Home, Office & more", path: "/addresses" },
   { icon: Bell, label: "Notifications", desc: "Manage alerts", path: "/notifications" },
   { icon: HelpCircle, label: "Help & Support", desc: "FAQs & tickets", path: "/help-support" },
+  { icon: Shield, label: "Privacy Policy", desc: "How we protect your data", path: "/privacy" },
+  { icon: Edit3, label: "Terms & Conditions", desc: "Platform usage rules", path: "/terms" },
 ];
 
 const Profile = () => {
@@ -254,7 +256,7 @@ const Profile = () => {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.04 }}
-                      onClick={() => navigate(`/bazaar/${offer.adId?._id}/offer`)}
+                      onClick={() => navigate(`/bazaar/${offer.adId?._id}/offer?offerId=${offer._id}`)}
                       className="w-full flex items-center gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm hover:shadow-md hover:border-orange-300 transition-all text-left relative overflow-hidden"
                     >
                       {/* Indicator for outgoing/incoming */}
@@ -271,15 +273,17 @@ const Profile = () => {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-black text-slate-900 dark:text-white truncate">{offer.adId?.title || 'Product'}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-1.5 mb-0.5">
                           <div className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${isOutgoing ? 'bg-orange-100' : 'bg-blue-100'}`}>
                             <span className={`text-[8px] font-black ${isOutgoing ? 'text-orange-600' : 'text-blue-600'}`}>{personInitial}</span>
                           </div>
-                          <span className="text-[10px] text-slate-500 font-semibold truncate">
-                            {isOutgoing ? 'To: ' : 'From: '} {personName || roleLabel}
-                          </span>
+                          <p className="text-[13px] font-black text-slate-900 dark:text-white truncate">
+                            {personName || roleLabel}
+                          </p>
                         </div>
+                        <p className="text-[11px] text-slate-500 font-semibold truncate ml-5">
+                          {offer.adId?.title || 'Product'}
+                        </p>
                       </div>
 
                       {/* Right side */}
@@ -379,7 +383,7 @@ const Profile = () => {
                     </div>
                     <label className="absolute -bottom-2 -right-2 cursor-pointer rounded-full bg-blue-600 p-3 text-white shadow-lg border-4 border-white dark:border-slate-900 hover:bg-blue-700 transition-colors">
                       <Edit3 className="h-4 w-4" />
-                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                      <input type="file" accept="image/*" capture="user" className="hidden" onChange={handleImageUpload} />
                     </label>
                   </div>
                 </div>

@@ -750,14 +750,14 @@ const ProviderDocuments = () => {
               <motion.div key={doc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                 className={`rounded-[24px] border border-border bg-card p-4 transition-all ${isVerified ? 'border-emerald-500/10' : ''}`}>
                 <div className="flex flex-col space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto">
                       <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${isVerified ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20' : 'bg-muted text-muted-foreground'}`}>
                         <FileText className="h-6 w-6" />
                       </div>
-                      <div className="min-w-0 text-left">
-                        <div className="flex items-center gap-1.5 leading-none mb-1.5">
-                          <h3 className="text-sm font-black text-foreground truncate uppercase tracking-tight">{doc.label}</h3>
+                      <div className="min-w-0 text-left flex flex-col items-start">
+                        <div className="flex flex-wrap items-center gap-1.5 leading-none mb-1.5">
+                          <h3 className="text-sm font-black text-foreground uppercase tracking-tight">{doc.label}</h3>
                           {doc.required && <span className="text-[8px] font-black text-rose-500 uppercase bg-rose-50 px-1 py-0.5 rounded">Required</span>}
                         </div>
                         {uploaded ? (
@@ -773,7 +773,7 @@ const ProviderDocuments = () => {
                       </div>
                     </div>
 
-                    <div className="shrink-0">
+                    <div className="shrink-0 self-end sm:self-auto">
                       {isUploading ? (
                         <div className="p-2"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
                       ) : !isVerified ? (

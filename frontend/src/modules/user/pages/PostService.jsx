@@ -119,10 +119,14 @@ const PostService = () => {
 
   const handlePayment = async (method) => {
     try {
-      await API.patch(`/bookings/${booking._id}/status`, { paymentStatus: 'paid', status: 'completed' });
+      if (method === 'cod') {
+        await API.patch(`/bookings/${booking._id}/status`, { paymentMode: 'after', status: 'completed' });
+      } else {
+        await API.patch(`/bookings/${booking._id}/status`, { paymentStatus: 'paid', status: 'completed' });
+      }
       setPaymentDone(true); setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
-      toast({ title: method === 'cod' ? "COD Payment Confirmed!" : "Payment Successful!" });
+      toast({ title: method === 'cod' ? "Please pay the provider in cash" : "Payment Successful!" });
     } catch { toast({ title: "Failed to update payment status", variant: "destructive" }); }
   };
 

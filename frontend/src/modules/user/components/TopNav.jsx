@@ -195,7 +195,12 @@ const libraries = ['places'];
         <div className="hidden md:block">
           <div className="max-w-7xl mx-auto px-6">
             <div className="flex h-[72px] items-center gap-6">
-              <Link to="/" className="flex items-center shrink-0 mr-2">
+              <Link to="/" onClick={(e) => {
+                if (location.pathname === "/") {
+                  e.preventDefault();
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }
+              }} className="flex items-center shrink-0 mr-2">
                 <img src="/RozSewa.png" alt="RojSewa" className="h-8 w-auto object-contain" />
               </Link>
 
@@ -263,7 +268,12 @@ const libraries = ['places'];
         {/* Mobile Navbar */}
         <div className={`md:hidden ${location.pathname === '/' ? 'hidden' : ''}`}>
           <div className="px-4 flex h-[68px] items-center justify-between">
-            <Link to="/" className="flex items-center shrink-0">
+            <Link to="/" onClick={(e) => {
+              if (location.pathname === "/") {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }
+            }} className="flex items-center shrink-0">
               <img src="/RozSewa.png" alt="RojSewa" className="h-8 w-auto object-contain" />
             </Link>
 

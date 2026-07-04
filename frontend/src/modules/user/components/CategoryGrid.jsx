@@ -100,7 +100,7 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
     );
   }
 
-  const renderCategory = (cat, i) => {
+  const renderCategory = (cat, i, isGrid = false) => {
     const theme = themes[i % themes.length];
     return (
       <motion.button
@@ -120,7 +120,7 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
             }
           }
         }}
-        className={`group snap-start flex flex-col items-center text-center gap-2 w-[85px] sm:w-[100px] p-2 bg-transparent transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
+        className={`group flex flex-col items-center text-center gap-2 ${isGrid ? 'w-full max-w-[100px]' : 'snap-start w-[85px] sm:w-[100px]'} p-2 bg-transparent transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
       >
         <div className={`flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 shadow-sm ${theme.icon} mb-1 transition-transform group-hover:scale-110 group-hover:shadow-md group-hover:border-blue-500/30`}>
           {cat.image ? (
@@ -139,15 +139,27 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
     );
   };
 
+  if (showAll) {
+    return (
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-y-6 gap-x-2 pb-4 -mx-1 px-1">
+        {displayList.map((cat, i) => (
+          <div className="flex justify-center" key={cat._id}>
+            {renderCategory(cat, i, true)}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-x-auto pb-4 snap-x scrollbar-hide -mx-1 px-1">
       <div className="flex flex-col gap-4 w-max">
         <div className="flex items-start gap-3 sm:gap-4">
-          {row1.map((cat, i) => renderCategory(cat, i))}
+          {row1.map((cat, i) => renderCategory(cat, i, false))}
         </div>
         {row2.length > 0 && (
           <div className="flex items-start gap-3 sm:gap-4">
-            {row2.map((cat, i) => renderCategory(cat, half + i))}
+            {row2.map((cat, i) => renderCategory(cat, half + i, false))}
           </div>
         )}
       </div>

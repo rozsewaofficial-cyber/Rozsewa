@@ -532,6 +532,7 @@ exports.respondToOffer = async (req, res) => {
 exports.getOfferHistory = async (req, res) => {
   try {
     const { adId } = req.params;
+    const { offerId } = req.query;
     const userId = req.user._id;
 
     // Find the offer thread for this specific user (buyer) or if seller, find all threads?
@@ -541,6 +542,10 @@ exports.getOfferHistory = async (req, res) => {
 
     let offer;
     if (ad.sellerId.toString() === userId.toString()) {
+       if (offerId) {
+         const specificOffer = await BazaarOffer.findById(offerId).populate('buyerId', 'name avatar').lean();
+         return res.json({ success: true, data: specificOffer ? [specificOffer] : [] });
+       }
        const offers = await BazaarOffer.find({ adId }).populate('buyerId', 'name avatar').lean();
        return res.json({ success: true, data: offers });
     } else {

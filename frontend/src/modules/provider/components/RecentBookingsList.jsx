@@ -802,13 +802,21 @@ const RecentBookingsList = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => handleAction(req._id, 'completed', { paymentStatus: 'paid' })}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest"
-                    >
-                      <Check className="h-4 w-4" /> Confirm Payment Collected
-                    </button>
-                    <p className="text-[10px] text-center text-muted-foreground font-bold uppercase tracking-tight">Click this after receiving cash or online transfer from customer.</p>
+                    {req.paymentMode === 'now' ? (
+                      <div className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 py-3 text-xs font-black text-blue-600 uppercase tracking-widest">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Waiting for Online Payment
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleAction(req._id, 'completed', { paymentStatus: 'paid' })}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-black text-white shadow-xl shadow-emerald-500/20 hover:bg-emerald-700 transition-all uppercase tracking-widest"
+                        >
+                          <Check className="h-4 w-4" /> Confirm Payment Collected
+                        </button>
+                        <p className="text-[10px] text-center text-muted-foreground font-bold uppercase tracking-tight mt-1">Click this after receiving cash or online transfer from customer.</p>
+                      </>
+                    )}
 
                     {!req.adminRequest || req.adminRequest.status === 'none' ? (
                       <button

@@ -16,6 +16,7 @@ const BottomNav = ({ mode = "partner" }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -36,16 +37,32 @@ const BottomNav = ({ mode = "partner" }) => {
 
     window.addEventListener('NEW_NOTIFICATION', handleNewNotif);
     window.addEventListener('focus', fetchUnread);
+
+    const handleFocusIn = (e) => {
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) {
+        setIsKeyboardOpen(true);
+      }
+    };
+
+    const handleFocusOut = () => {
+      setIsKeyboardOpen(false);
+    };
+
+    window.addEventListener('focusin', handleFocusIn);
+    window.addEventListener('focusout', handleFocusOut);
     
     return () => {
       window.removeEventListener('NEW_NOTIFICATION', handleNewNotif);
       window.removeEventListener('focus', fetchUnread);
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
     };
   }, [location.pathname]);
 
   return (
     <motion.nav
-      className="fixed bottom-6 left-4 right-4 z-50 md:hidden"
+      className={`fixed bottom-6 left-4 right-4 z-50 md:hidden transition-all duration-300 ${isKeyboardOpen ? 'translate-y-32 opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'}`}
     >
       <div className="flex items-center justify-between rounded-full bg-white dark:bg-slate-900 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-slate-100 dark:border-slate-800 px-6 py-4 backdrop-blur-xl">
         {tabs.map((tab) => {

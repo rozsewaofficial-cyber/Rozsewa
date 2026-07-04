@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -28,6 +28,7 @@ const Index = () => {
   const [featured, setFeatured] = useState([]);
   const [bazaarChats, setBazaarChats] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [direction, setDirection] = useState(0);
 
   useEffect(() => {
     const init = async () => {
@@ -85,7 +86,7 @@ const Index = () => {
           if (chatsRes.data.success) {
             setBazaarChats(chatsRes.data.data.slice(0, 3)); // Show top 3 recent chats
           }
-        } catch(e) {
+        } catch (e) {
           console.error("Failed to fetch bazaar chats", e);
         }
       }
@@ -114,13 +115,36 @@ const Index = () => {
     }
   };
 
+  const bannerScrollRef = useRef(null);
+
   useEffect(() => {
     if (banners.length <= 1) return;
     const interval = setInterval(() => {
-      setCurrentBanner((prev) => (prev + 1) % banners.length);
+      setCurrentBanner((prev) => {
+        const next = (prev + 1) % banners.length;
+        if (bannerScrollRef.current) {
+          bannerScrollRef.current.scrollTo({
+            left: next * bannerScrollRef.current.clientWidth,
+            behavior: "smooth"
+          });
+        }
+        return next;
+      });
     }, 5000);
     return () => clearInterval(interval);
   }, [banners.length]);
+
+  const handleBannerScroll = (e) => {
+    if (!e.target) return;
+    const scrollLeft = e.target.scrollLeft;
+    const width = e.target.clientWidth;
+    if (width > 0) {
+      const index = Math.round(scrollLeft / width);
+      if (index !== currentBanner) {
+        setCurrentBanner(index);
+      }
+    }
+  };
 
   const handleSearch = (query, filter) => {
     let url = `/shops?mode=${serviceMode}&`;
@@ -165,58 +189,47 @@ const Index = () => {
         {/* Banner Section */}
         {banners.length > 0 && (
           <div className="relative w-full aspect-[21/9] sm:aspect-[3/1] max-h-[220px] rounded-[20px] sm:rounded-[24px] overflow-hidden shadow-sm group bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50">
-            <AnimatePresence mode="wait">
-              <motion.img
-                key={currentBanner}
-                src={banners[currentBanner].image}
-                initial={{ opacity: 0, scale: 1.02 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-                className="absolute inset-0 w-full h-full object-cover"
-                alt="Promo Banner"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = defaultBanners[currentBanner % defaultBanners.length].image;
-                }}
-              />
-            </AnimatePresence>
-            
-            {/* Optional Title Overlay (Only if provided, and made much cleaner) */}
-            {(banners[currentBanner].title || banners[currentBanner].subtitle) && (
-              <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end">
-                {banners[currentBanner].title && (
-                  <motion.h2
-                    key={`title-${currentBanner}`}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-white text-base sm:text-xl font-black max-w-[80%] leading-tight drop-shadow-md"
-                  >
-                    {banners[currentBanner].title}
-                  </motion.h2>
-                )}
-                {banners[currentBanner].subtitle && (
-                  <motion.p
-                    key={`sub-${currentBanner}`}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 }}
-                    className="text-white/90 text-[10px] sm:text-sm font-semibold mt-0.5 max-w-[80%] leading-snug drop-shadow-md"
-                  >
-                    {banners[currentBanner].subtitle}
-                  </motion.p>
-                )}
-              </div>
-            )}
+            <div 
+              ref={bannerScrollRef}
+              onScroll={handleBannerScroll}
+              className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
+              style={{ scrollBehavior: 'smooth' }}
+            >
+              {banners.map((banner, idx) => (
+                <div key={`${banner.id}-${idx}`} className="w-full h-full shrink-0 snap-center snap-always relative">
+                  <img
+                    src={banner.image}
+                    className="w-full h-full object-cover pointer-events-none"
+                    alt="Promo Banner"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = defaultBanners[idx % defaultBanners.length].image;
+                    }}
+                  />
+                  {(banner.title || banner.subtitle) && (
+                    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
+                      {banner.title && (
+                        <h2 className="text-white text-base sm:text-xl font-black max-w-[80%] leading-tight drop-shadow-md">
+                          {banner.title}
+                        </h2>
+                      )}
+                      {banner.subtitle && (
+                        <p className="text-white/90 text-[10px] sm:text-sm font-semibold mt-0.5 max-w-[80%] leading-snug drop-shadow-md">
+                          {banner.subtitle}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
 
-            {/* Banner Pagination Dots - Modern Pill Style */}
-            <div className="absolute bottom-3 right-4 flex gap-1.5 z-20 bg-black/20 backdrop-blur-md px-2 py-1.5 rounded-full">
+            {/* Banner Pagination Dots */}
+            <div className="absolute bottom-3 right-4 flex gap-1.5 z-20 bg-black/20 backdrop-blur-md px-2 py-1.5 rounded-full pointer-events-none">
               {banners.map((_, i) => (
-                <div 
-                  key={i} 
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === currentBanner ? "w-4 bg-white" : "w-1.5 bg-white/50"
-                  }`} 
+                <div
+                  key={i}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${i === currentBanner ? "w-4 bg-white" : "w-1.5 bg-white/50"}`}
                 />
               ))}
             </div>
@@ -234,17 +247,15 @@ const Index = () => {
             />
             <button
               onClick={() => setServiceMode("partner")}
-              className={`flex-1 relative z-10 py-2.5 text-[13px] font-bold rounded-full transition-colors flex items-center justify-center gap-1.5 ${
-                serviceMode === "partner" ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
+              className={`flex-1 relative z-10 py-2.5 text-[13px] font-bold rounded-full transition-colors flex items-center justify-center gap-1.5 ${serviceMode === "partner" ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
             >
               <Briefcase className="w-4 h-4" /> Partner
             </button>
             <button
               onClick={() => setServiceMode("sewak")}
-              className={`flex-1 relative z-10 py-2.5 text-[13px] font-bold rounded-full transition-colors flex items-center justify-center gap-1.5 ${
-                serviceMode === "sewak" ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-              }`}
+              className={`flex-1 relative z-10 py-2.5 text-[13px] font-bold rounded-full transition-colors flex items-center justify-center gap-1.5 ${serviceMode === "sewak" ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
             >
               <Heart className="w-4 h-4" /> Sewak
             </button>
@@ -282,9 +293,9 @@ const Index = () => {
                     const isSeller = chat.sellerId?._id?.toString() === user?._id?.toString();
                     const otherPartyName = isSeller ? chat.buyerId?.name : chat.sellerId?.name;
                     return (
-                      <Link 
-                        key={chat._id} 
-                        to={`/bazaar/${chat.adId?._id}/offer`}
+                      <Link
+                        key={chat._id}
+                        to={`/bazaar/${chat.adId?._id}/offer?offerId=${chat._id}`}
                         className="snap-start shrink-0 w-[240px] bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-100 dark:border-slate-800 shadow-sm flex gap-3 items-center active:scale-95 transition-transform"
                       >
                         <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
@@ -327,22 +338,22 @@ const Index = () => {
             {/* Featured Professionals */}
             {(loading || featured.length > 0) && (
               <section className="space-y-4 -mt-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Explore Our Providers</h2>
-              </div>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Explore Our Providers</h2>
+                </div>
 
-              <div className="flex overflow-x-auto pb-4 -mx-1 px-1 gap-4 snap-x snap-mandatory scrollbar-hide">
-                {loading ? (
-                  [...Array(4)].map((_, i) => <div key={i} className="min-w-[240px] h-48 bg-slate-200 dark:bg-slate-800 rounded-3xl animate-pulse shrink-0"></div>)
-                ) : (
-                  featured.map((p, i) => (
-                    <motion.div key={p.id} className="snap-start shrink-0 min-w-[240px]" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}>
-                      <ServiceCard {...p} />
-                    </motion.div>
-                  ))
-                )}
-              </div>
-            </section>
+                <div className="flex overflow-x-auto pb-4 -mx-1 px-1 gap-4 snap-x snap-mandatory scrollbar-hide">
+                  {loading ? (
+                    [...Array(4)].map((_, i) => <div key={i} className="min-w-[240px] h-48 bg-slate-200 dark:bg-slate-800 rounded-3xl animate-pulse shrink-0"></div>)
+                  ) : (
+                    featured.map((p, i) => (
+                      <motion.div key={p.id} className="snap-start shrink-0 min-w-[240px]" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}>
+                        <ServiceCard {...p} />
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </section>
             )}
 
             {/* Bazaar Promo Section */}
