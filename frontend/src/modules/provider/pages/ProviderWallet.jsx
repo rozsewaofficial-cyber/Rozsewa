@@ -127,6 +127,7 @@ const ProviderWallet = () => {
             });
             toast({ title: "Debt cleared successfully!", variant: "default" });
             fetchWallet();
+            window.dispatchEvent(new CustomEvent('WALLET_UPDATED'));
           } catch (error) {
             toast({ title: "Payment verification failed", description: error.response?.data?.message || "Please contact support.", variant: "destructive" });
           }
@@ -169,6 +170,7 @@ const ProviderWallet = () => {
       setIsWithdrawing(false);
       setWithdrawAmount("");
       fetchWallet();
+      window.dispatchEvent(new CustomEvent('WALLET_UPDATED'));
     } catch (err) {
       setWithdrawError(err.response?.data?.message || "Failed to submit request. Try again.");
     }

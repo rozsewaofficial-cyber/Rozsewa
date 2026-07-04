@@ -14,6 +14,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [walletBalance, setWalletBalance] = useState(null);
+  const [walletFlash, setWalletFlash] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -32,19 +33,34 @@ const ProviderTopNav = ({ title, showBack = false }) => {
     const fetchWalletBalance = async () => {
       try {
         const { data } = await API.get("/wallet");
-        setWalletBalance(data?.balance ?? null);
+        const newBal = data?.availableBalance ?? data?.balance ?? null;
+        setWalletBalance(prev => {
+          if (prev !== null && prev !== newBal) {
+            setWalletFlash(true);
+            setTimeout(() => setWalletFlash(false), 800);
+          }
+          return newBal;
+        });
       } catch {}
     };
 
     fetchUnread();
     fetchWalletBalance();
 
-    const handleNewNotif = () => setUnreadCount(prev => prev + 1);
+    const handleNewNotif = () => {
+      fetchUnread();
+      fetchWalletBalance();
+    };
+    const handleWalletUpdate = () => {
+      fetchWalletBalance();
+    };
     const handleFocus = () => { fetchUnread(); fetchWalletBalance(); };
     window.addEventListener('NEW_NOTIFICATION', handleNewNotif);
+    window.addEventListener('WALLET_UPDATED', handleWalletUpdate);
     window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('NEW_NOTIFICATION', handleNewNotif);
+      window.removeEventListener('WALLET_UPDATED', handleWalletUpdate);
       window.removeEventListener('focus', handleFocus);
     };
   }, [user, location.pathname]);
@@ -94,7 +110,11 @@ const ProviderTopNav = ({ title, showBack = false }) => {
               {walletBalance !== null && (
                 <Link
                   to="/provider/wallet"
-                  className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black transition-colors ${
+                  className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black transition-all duration-300 ${
+                    walletFlash
+                      ? 'scale-110 ring-2 ring-offset-1 ring-emerald-400'
+                      : 'scale-100'
+                  } ${
                     walletBalance < 0
                       ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
                       : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'

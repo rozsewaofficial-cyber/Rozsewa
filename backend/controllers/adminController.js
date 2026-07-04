@@ -457,6 +457,20 @@ const updateCategory = async (req, res) => {
         }
         const updated = await category.save();
 
+        // Synchronize provider subServices for all providers in this category
+        if (req.body.services) {
+            try {
+                const serviceIds = updated.services.map(s => s._id.toString());
+                await Provider.updateMany(
+                    { vendorType: updated._id },
+                    { $set: { subServices: serviceIds } }
+                );
+                console.log(`[AdminController] Auto-synchronized subServices for providers in category ${updated.name}`);
+            } catch (err) {
+                console.error('[AdminController] Failed to sync provider subServices:', err);
+            }
+        }
+
         // If Sewak pricing fields are present in services, sync them across all Sewak providers
         if (req.body.services) {
             try {
@@ -821,6 +835,7 @@ const getSettings = async (req, res) => {
             // Lead Model settings
             lead_min_wallet_balance: config.lead_min_wallet_balance || 200,
             lead_unlock_price: config.lead_unlock_price || 50,
+            lead_free_unlock_limit: config.lead_free_unlock_limit !== undefined ? Number(config.lead_free_unlock_limit) : 3,
             lead_max_unlock_count: config.lead_max_unlock_count || 3,
             lead_geofence_radius: config.lead_geofence_radius || 15,
             lead_expiry: config.lead_expiry || 24,

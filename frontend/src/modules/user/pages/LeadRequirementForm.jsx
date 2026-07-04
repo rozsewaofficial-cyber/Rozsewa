@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, CheckCircle2, MapPin, Calendar, Clock,
   Paperclip, User, Eye, Loader2, Sparkles, FileText,
-  X, Plus, Minus, Shield, Home, Info
+  X, Plus, Minus, Shield, Home, Info, Settings
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -287,6 +287,8 @@ const LeadRequirementForm = () => {
   const { user }  = useAuth();
   const [searchParams] = useSearchParams();
 
+  const isAdmin = user && ['admin', 'superadmin', 'supervisor'].includes(user.role);
+
   const initialCategoryId = searchParams.get("category") || "";
 
   // State values
@@ -546,15 +548,19 @@ const LeadRequirementForm = () => {
   // ── Fetch Categories ────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchCategories = async () => {
+      console.log("[LeadRequirementForm] Initiating categories API fetch...");
       try {
         const { data } = await API.get("/public/categories");
+        console.log("[LeadRequirementForm] Categories fetched raw data:", data);
         const leadCats = (data || []).filter(c => c.isActive && c.businessModel === 'lead');
+        console.log("[LeadRequirementForm] Filtered lead categories:", leadCats);
         setCategories(leadCats);
         if (!selectedCategoryId && leadCats.length > 0) {
+          console.log("[LeadRequirementForm] Auto-selecting initial category:", leadCats[0]._id);
           setSelectedCategoryId(leadCats[0]._id);
         }
       } catch (err) {
-        console.error("Failed to fetch categories", err);
+        console.error("[LeadRequirementForm] Failed to fetch categories error:", err);
       }
     };
     fetchCategories();
@@ -563,10 +569,18 @@ const LeadRequirementForm = () => {
   // ── Fetch Schema ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const fetchSchema = async () => {
-      if (!selectedCategoryId) return;
+      if (!selectedCategoryId) {
+        console.log("[LeadRequirementForm] No selectedCategoryId, skipping schema fetch.");
+        return;
+      }
+      console.log(`[LeadRequirementForm] Starting schema fetch for category ${selectedCategoryId}, service: ${selectedServiceId || 'none'}`);
       setSchemaLoading(true);
       try {
-        const { data } = await API.get(`/leads/forms/${selectedCategoryId}`);
+        const queryParams = selectedServiceId ? `?serviceId=${selectedServiceId}` : '';
+        const url = `/leads/forms/${selectedCategoryId}${queryParams}`;
+        console.log(`[LeadRequirementForm] API GET Request: ${url}`);
+        const { data } = await API.get(url);
+        console.log("[LeadRequirementForm] Schema fetched successfully:", data);
         setFormSchema(data);
         setFormId(data.formId);
         setFormVersion(data.formVersion);
@@ -575,14 +589,17 @@ const LeadRequirementForm = () => {
         // Restore draft if any for this category
         const cachedDraft = localStorage.getItem(`lead_draft_id_${selectedCategoryId}`);
         setDraftId(cachedDraft || null);
-      } catch {
+        console.log(`[LeadRequirementForm] Restored draft ID: ${cachedDraft || 'none'}`);
+      } catch (err) {
+        console.error("[LeadRequirementForm] Failed to fetch form schema:", err);
         setFormSchema({ sections: [] });
       } finally {
         setSchemaLoading(false);
+        console.log("[LeadRequirementForm] Schema load sequence completed.");
       }
     };
     fetchSchema();
-  }, [selectedCategoryId]);
+  }, [selectedCategoryId, selectedServiceId]);
 
   // ── GPS setup on mount ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -944,6 +961,23 @@ const LeadRequirementForm = () => {
         </div>
 
       </form>
+
+      {/* Floating Edit Lead Form button for Admins */}
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => {
+            const query = selectedCategoryId 
+              ? `?category=${selectedCategoryId}${selectedServiceId ? `&service=${selectedServiceId}` : ''}`
+              : '';
+            navigate(`/admin/lead-forms${query}`);
+          }}
+          className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-6 py-3.5 bg-violet-600 hover:bg-violet-700 text-white font-black text-xs uppercase tracking-widest rounded-full shadow-2xl transition-all active:scale-95 border border-violet-500/30 cursor-pointer"
+        >
+          <Settings className="h-4 w-4" />
+          Edit Lead Form
+        </button>
+      )}
     </div>
   );
 };

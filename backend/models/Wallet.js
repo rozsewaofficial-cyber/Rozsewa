@@ -70,6 +70,18 @@ const walletSchema = new mongoose.Schema({
     },
 });
 
+walletSchema.post('save', function(doc) {
+    if (doc.providerId) {
+        try {
+            const { emitToProvider } = require('../config/socket');
+            emitToProvider(doc.providerId, 'WALLET_UPDATED', { balance: doc.balance });
+            console.log(`[Socket] Emitted WALLET_UPDATED for Provider ${doc.providerId} with balance ${doc.balance}`);
+        } catch (err) {
+            console.error('Failed to emit WALLET_UPDATED via socket post-save:', err);
+        }
+    }
+});
+
 const Wallet = mongoose.model('Wallet', walletSchema);
 const Transaction = mongoose.model('Transaction', transactionSchema);
 

@@ -160,6 +160,11 @@ export const SocketProvider = ({ children }) => {
             setReminderData(data);
         });
 
+        newSocket.on("WALLET_UPDATED", (data) => {
+            console.log("Global Socket: Wallet Updated", data);
+            window.dispatchEvent(new CustomEvent('WALLET_UPDATED', { detail: data }));
+        });
+
         newSocket.on("NEW_NOTIFICATION", (data) => {
             console.log("Global Socket: New Notification", data);
             

@@ -300,6 +300,7 @@ const ProviderLeads = () => {
         toast({ title: 'Lead Unlocked!', description: 'Customer contact details are now visible.' });
         setUnlockModal(null);
         fetchLeadsAndWallet();
+        window.dispatchEvent(new CustomEvent('WALLET_UPDATED'));
       }
     } catch (err) {
       setUnlockModal(null);

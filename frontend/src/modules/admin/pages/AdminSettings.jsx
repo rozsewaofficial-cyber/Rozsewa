@@ -25,6 +25,7 @@ const AdminSettings = () => {
     max_bargain_discount_limit: 20,
     lead_min_wallet_balance: 200,
     lead_unlock_price: 50,
+    lead_free_unlock_limit: 3,
     lead_max_unlock_count: 1,
     lead_geofence_radius: 15,
     lead_expiry: 24,
@@ -63,6 +64,7 @@ const AdminSettings = () => {
         max_bargain_discount_limit: data.max_bargain_discount_limit !== undefined ? data.max_bargain_discount_limit : 20,
         lead_min_wallet_balance: data.lead_min_wallet_balance || 200,
         lead_unlock_price: data.lead_unlock_price || 50,
+        lead_free_unlock_limit: data.lead_free_unlock_limit !== undefined ? Number(data.lead_free_unlock_limit) : 3,
         lead_max_unlock_count: data.lead_max_unlock_count || 1,
         lead_geofence_radius: data.lead_geofence_radius || 15,
         lead_expiry: data.lead_expiry || 24,
@@ -128,6 +130,7 @@ const AdminSettings = () => {
       const updates = [
         API.post("/admin/settings", { key: "lead_min_wallet_balance", value: platformSettings.lead_min_wallet_balance }),
         API.post("/admin/settings", { key: "lead_unlock_price", value: platformSettings.lead_unlock_price }),
+        API.post("/admin/settings", { key: "lead_free_unlock_limit", value: platformSettings.lead_free_unlock_limit }),
         API.post("/admin/settings", { key: "lead_max_unlock_count", value: platformSettings.lead_max_unlock_count }),
         API.post("/admin/settings", { key: "lead_geofence_radius", value: platformSettings.lead_geofence_radius }),
         API.post("/admin/settings", { key: "lead_expiry", value: platformSettings.lead_expiry }),
@@ -322,6 +325,10 @@ const AdminSettings = () => {
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Lead Unlock Price (₹)</label>
                 <input type="number" value={platformSettings.lead_unlock_price} onChange={e => setPlatformSettings({ ...platformSettings, lead_unlock_price: Number(e.target.value) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Free Unlocks Limit</label>
+                <input type="number" value={platformSettings.lead_free_unlock_limit} onChange={e => setPlatformSettings({ ...platformSettings, lead_free_unlock_limit: Number(e.target.value) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Max Unlock Limit</label>

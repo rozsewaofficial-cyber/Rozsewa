@@ -637,7 +637,8 @@ const getNearbyLeads = async (req, res) => {
             provider: req.user._id,
             status: 'success'
         });
-        const hasFreeLeft = unlockedCount < 3;
+        const freeLimitSetting = await getSettingVal('lead_free_unlock_limit', 3);
+        const hasFreeLeft = unlockedCount < Number(freeLimitSetting);
 
         // Wallet check - bypassed during free trial
         const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
@@ -776,7 +777,8 @@ const unlockLead = async (req, res) => {
             provider: req.user._id,
             status: 'success'
         }).session(session);
-        const hasFreeLeft = unlockedCount < 3;
+        const freeLimitSetting = await getSettingVal('lead_free_unlock_limit', 3);
+        const hasFreeLeft = unlockedCount < Number(freeLimitSetting);
 
         // Wallet minimum check - bypassed during free trial
         const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
@@ -865,7 +867,7 @@ const unlockLead = async (req, res) => {
             walletUsed:   unlockedVia === 'wallet',
             creditUsed:   unlockedVia === 'credit',
             status: 'success',
-            notes: hasFreeLeft ? `Free trial unlock (${unlockedCount + 1}/3)` : undefined
+            notes: hasFreeLeft ? `Free trial unlock (${unlockedCount + 1}/${freeLimitSetting})` : undefined
         }], { session });
 
         await session.commitTransaction();

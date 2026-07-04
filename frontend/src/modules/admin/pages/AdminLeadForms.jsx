@@ -7,7 +7,7 @@ import {
   Calendar, Clock, Paperclip, Image, MapPin, Mail, Phone, Link, Sparkles, User, FileText, Loader2
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import API from "@/lib/api";
 
 // ─── Field Type Definitions ───────────────────────────────────────────────────
@@ -152,6 +152,10 @@ const getDefaultSections = () => [
 const AdminLeadForms = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const targetCategoryId = searchParams.get("category");
+  const targetServiceId = searchParams.get("service") || null;
 
   // Listings
   const [forms,       setForms]       = useState([]);
@@ -188,7 +192,27 @@ const AdminLeadForms = () => {
       try {
         const { data } = await API.get('/leads/admin/forms');
         setForms(data);
-        if (data.length === 0) {
+        
+        if (targetCategoryId) {
+          const matchedForm = data.find(f => 
+            f.categoryId === targetCategoryId && 
+            (f.serviceId === targetServiceId || (!f.serviceId && !targetServiceId))
+          );
+          if (matchedForm) {
+            setActiveForm({ ...matchedForm });
+          } else {
+            setActiveForm({
+              _id: null,
+              categoryId: targetCategoryId,
+              serviceId: targetServiceId,
+              title: `New Lead Form`,
+              description: '',
+              sections: getDefaultSections(),
+              isPublished: false,
+              version: 1,
+            });
+          }
+        } else if (data.length === 0) {
           setActiveForm({
             _id: null,
             categoryId: cats[0]?._id || '',
@@ -208,7 +232,7 @@ const AdminLeadForms = () => {
     };
 
     init();
-  }, []);
+  }, [targetCategoryId, targetServiceId]);
 
   const fetchList = async () => {
     try {
@@ -320,7 +344,7 @@ const AdminLeadForms = () => {
     setActiveForm(f => ({ ...f, sections }));
   };
 
-  if (loadingList || !activeForm) {
+  if (loadingList) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 bg-slate-50/50">
         <Loader2 className="h-10 w-10 text-violet-600 animate-spin" />
@@ -328,6 +352,83 @@ const AdminLeadForms = () => {
       </div>
     );
   }
+
+  // ── LIST / PICKER VIEW (when no form is open) ────────────────────────────────
+  if (!activeForm) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">Lead Form Builder</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Select a form to edit or create a new one</p>
+          </div>
+          <button
+            onClick={openNewForm}
+            className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-black uppercase tracking-widest rounded-xl shadow transition-all active:scale-95"
+          >
+            <Plus className="h-4 w-4" /> New Form
+          </button>
+        </div>
+
+        {forms.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+            <FileText className="h-10 w-10 text-slate-300" />
+            <p className="text-sm font-bold text-slate-400">No lead forms yet</p>
+            <button
+              onClick={openNewForm}
+              className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all"
+            >
+              Create First Form
+            </button>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {forms.map(form => {
+              const cat = categories.find(c => c._id === form.categoryId);
+              return (
+                <div
+                  key={form._id}
+                  className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-violet-200 hover:shadow-md transition-all group cursor-pointer"
+                  onClick={() => openEditForm(form)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-5 w-5 text-violet-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-800 group-hover:text-violet-700 transition-colors">{form.title}</p>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                        {cat?.name || 'Unknown Category'}
+                        {form.serviceId && <span className="ml-1">· Service-specific</span>}
+                        <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[9px] font-black ${form.isPublished ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {form.isPublished ? 'Published' : 'Draft'}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={e => { e.stopPropagation(); openEditForm(form); }}
+                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleArchive(form._id); }}
+                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
 
   // ───────────────────────────────────────────────────────────────────────────
   // FORM EDITOR VIEW
@@ -338,6 +439,10 @@ const AdminLeadForms = () => {
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="sticky top-0 z-40 bg-white border-b border-slate-100 shadow-sm px-6 py-3 flex items-center gap-3">
+        <button onClick={() => setActiveForm(null)}
+          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors font-bold text-xs flex items-center gap-1">
+          ← All Forms
+        </button>
         <button onClick={() => navigate("/admin/leads")}
           className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors font-bold text-xs flex items-center gap-1">
           ← Back to Leads
