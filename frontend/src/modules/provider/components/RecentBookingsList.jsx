@@ -10,7 +10,7 @@ import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { ToastAction } from "@/components/ui/toast";
 
-const RecentBookingsList = () => {
+const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("pending");
@@ -353,8 +353,10 @@ const RecentBookingsList = () => {
         {[
           { id: "pending", label: "New", color: "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400" },
           { id: "active", label: "Active", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400" },
-          { id: "completed", label: "Completed", color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-800/30 dark:text-emerald-300" },
-          { id: "cancelled", label: "Rejected", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400" }
+          ...(hideCompletedAndCancelled ? [] : [
+            { id: "completed", label: "Completed", color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-800/30 dark:text-emerald-300" },
+            { id: "cancelled", label: "Rejected", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400" }
+          ])
         ].map((tab) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`relative flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-xl transition-all whitespace-nowrap ${activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Image, Loader2, MapPin, X, IndianRupee, Info } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Image, Camera, Loader2, MapPin, X, IndianRupee, Info } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { z } from "zod";
 import api from '@/lib/api';
@@ -242,8 +242,15 @@ const AddScrap = () => {
               {selectedFiles.length < 10 && !isUploading && (
                 <div onClick={() => document.getElementById('ad-photo-upload')?.click()} className="aspect-square rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   <Image className="w-5 h-5 text-slate-400" />
-                  <span className="text-[9px] font-bold text-slate-500 uppercase">Upload</span>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase">Gallery</span>
                   <input id="ad-photo-upload" type="file" className="hidden" accept="image/*" multiple onChange={handleImageSelect} />
+                </div>
+              )}
+              {selectedFiles.length < 10 && !isUploading && (
+                <div onClick={() => document.getElementById('ad-camera-upload')?.click()} className="aspect-square rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <Camera className="w-5 h-5 text-slate-400" />
+                  <span className="text-[9px] font-bold text-slate-500 uppercase">Camera</span>
+                  <input id="ad-camera-upload" type="file" className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
                 </div>
               )}
             </div>

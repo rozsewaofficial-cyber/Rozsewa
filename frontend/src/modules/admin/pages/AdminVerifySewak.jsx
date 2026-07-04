@@ -869,38 +869,88 @@ const AdminVerifySewak = () => {
                                 ) : (
                                   <div className="flex-1 w-full border border-slate-100 rounded-xl bg-slate-50 relative overflow-hidden flex items-center justify-center min-h-[280px]">
                                     
-                                    {/* Image Transforms preview container */}
-                                    <div className="absolute inset-0 flex items-center justify-center p-4">
-                                      <img
-                                        src={activeReviewItem.url}
-                                        alt={activeReviewItem.label}
-                                        style={{ 
-                                          transform: `scale(${zoomScale}) rotate(${rotationAngle}deg)`, 
-                                          transition: 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)' 
-                                        }}
-                                        className="max-h-full max-w-full object-contain rounded shadow-sm"
-                                      />
-                                    </div>
+                                    {/* API Verified — no physical image was uploaded */}
+                                    {(!activeReviewItem.url || activeReviewItem.url === 'API_Verified') ? (
+                                      <div className="flex flex-col items-center justify-center gap-4 p-6 text-center">
+                                        <div className="h-16 w-16 rounded-2xl bg-emerald-50 border-2 border-emerald-100 flex items-center justify-center">
+                                          <ShieldCheck className="h-8 w-8 text-emerald-500" />
+                                        </div>
+                                        <div>
+                                          <p className="text-sm font-black text-slate-800">Verified via Government API</p>
+                                          <p className="text-[10px] text-slate-400 font-medium mt-1">
+                                            This document was verified electronically. No physical image was submitted.
+                                          </p>
+                                        </div>
+                                        {/* Show the stored document number */}
+                                        {activeReviewItem.id === 'aadhaar' && activeSewak?.kycAadhaar && (
+                                          <div className="bg-white rounded-xl border border-emerald-100 px-4 py-2 shadow-sm">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Aadhaar Number</p>
+                                            <p className="text-sm font-black text-slate-800 font-mono tracking-widest">
+                                              XXXX XXXX {activeSewak.kycAadhaar.slice(-4)}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {activeReviewItem.id === 'pan' && activeSewak?.kycPanNumber && (
+                                          <div className="bg-white rounded-xl border border-emerald-100 px-4 py-2 shadow-sm">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">PAN Number</p>
+                                            <p className="text-sm font-black text-slate-800 font-mono tracking-widest">
+                                              {activeSewak.kycPanNumber}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {activeReviewItem.id === 'gst' && activeSewak?.gst && (
+                                          <div className="bg-white rounded-xl border border-emerald-100 px-4 py-2 shadow-sm">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">GST Number</p>
+                                            <p className="text-sm font-black text-slate-800 font-mono tracking-widest">
+                                              {activeSewak.gst}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {activeReviewItem.id === 'police' && activeSewak?.kycPoliceVerification && (
+                                          <div className="bg-white rounded-xl border border-emerald-100 px-4 py-2 shadow-sm">
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Police Verification ID</p>
+                                            <p className="text-sm font-black text-slate-800 font-mono tracking-widest">
+                                              {activeSewak.kycPoliceVerification}
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      /* Image Transforms preview container */
+                                      <div className="absolute inset-0 flex items-center justify-center p-4">
+                                        <img
+                                          src={activeReviewItem.url}
+                                          alt={activeReviewItem.label}
+                                          style={{ 
+                                            transform: `scale(${zoomScale}) rotate(${rotationAngle}deg)`, 
+                                            transition: 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)' 
+                                          }}
+                                          className="max-h-full max-w-full object-contain rounded shadow-sm"
+                                        />
+                                      </div>
+                                    )}
 
-                                    {/* Overlay Canvas Viewport Tools bar */}
-                                    <div className="absolute bottom-3 right-3 bg-white/90 border border-slate-200/80 rounded-xl shadow-lg px-2 py-1 flex items-center gap-1.5 backdrop-blur-sm z-10">
-                                      <button onClick={handleZoomIn} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="Zoom In">
-                                        <ZoomIn className="h-3.5 w-3.5" />
-                                      </button>
-                                      <button onClick={handleZoomOut} disabled={zoomScale <= 1} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors disabled:opacity-50" title="Zoom Out">
-                                        <ZoomOut className="h-3.5 w-3.5" />
-                                      </button>
-                                      <button onClick={handleRotateCw} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="Rotate 90°">
-                                        <RotateCw className="h-3.5 w-3.5" />
-                                      </button>
-                                      <div className="w-[1px] h-4 bg-slate-200 mx-0.5" />
-                                      <button onClick={handleResetView} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="Reset Layout">
-                                        <RefreshCw className="h-3 w-3" />
-                                      </button>
-                                      <button onClick={() => setIsFullscreenPreview(true)} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="View Fullscreen">
-                                        <Maximize2 className="h-3.5 w-3.5" />
-                                      </button>
-                                    </div>
+                                     {/* Overlay Canvas Viewport Tools bar — only for real images */}
+                                    {activeReviewItem.url && activeReviewItem.url !== 'API_Verified' && (
+                                     <div className="absolute bottom-3 right-3 bg-white/90 border border-slate-200/80 rounded-xl shadow-lg px-2 py-1 flex items-center gap-1.5 backdrop-blur-sm z-10">
+                                       <button onClick={handleZoomIn} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="Zoom In">
+                                         <ZoomIn className="h-3.5 w-3.5" />
+                                       </button>
+                                       <button onClick={handleZoomOut} disabled={zoomScale <= 1} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors disabled:opacity-50" title="Zoom Out">
+                                         <ZoomOut className="h-3.5 w-3.5" />
+                                       </button>
+                                       <button onClick={handleRotateCw} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="Rotate 90°">
+                                         <RotateCw className="h-3.5 w-3.5" />
+                                       </button>
+                                       <div className="w-[1px] h-4 bg-slate-200 mx-0.5" />
+                                       <button onClick={handleResetView} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="Reset Layout">
+                                         <RefreshCw className="h-3 w-3" />
+                                       </button>
+                                       <button onClick={() => setIsFullscreenPreview(true)} className="h-7 w-7 text-slate-600 hover:bg-slate-100 rounded flex items-center justify-center transition-colors" title="View Fullscreen">
+                                         <Maximize2 className="h-3.5 w-3.5" />
+                                       </button>
+                                     </div>
+                                    )}
                                   </div>
                                 )}
 
