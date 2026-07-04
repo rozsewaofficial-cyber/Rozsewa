@@ -599,6 +599,11 @@ const ProviderDashboard = () => {
           </div>
         </section>
 
+        {/* Activity Stream */}
+        <section className="animate-in slide-in-from-bottom-3 duration-700 delay-100">
+          <RecentBookingsList hideCompletedAndCancelled={true} />
+        </section>
+
         {/* Global Stats */}
         <section className="animate-in slide-in-from-bottom-5 duration-700 delay-150">
           <EarningsWidget />
@@ -856,10 +861,6 @@ const ProviderDashboard = () => {
           </div>
         </section>
 
-        {/* Activity Stream */}
-        <section className="pb-10 md:pb-0">
-          <RecentBookingsList />
-        </section>
       </main>
       <ProviderBottomNav />
 

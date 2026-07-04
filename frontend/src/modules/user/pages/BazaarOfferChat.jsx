@@ -103,52 +103,106 @@ const BazaarOfferChat = () => {
   const handleSendOffer = async (e) => {
     e.preventDefault();
     if (!numericInput || isNaN(numericInput) || Number(numericInput) <= 0) return;
+    
+    const amount = Number(numericInput);
+    
+    // Optimistic UI Update
+    const tempMsg = {
+      senderId: currentUserId,
+      actionType: 'numeric_offer',
+      numericAmount: amount,
+      createdAt: new Date().toISOString()
+    };
+    
+    setOfferThread(prev => prev ? {
+      ...prev,
+      offerHistory: [...(prev.offerHistory || []), tempMsg]
+    } : {
+      offerHistory: [tempMsg]
+    });
+    
+    setNumericInput(''); 
+    setShowKeypad(false);
+
     try {
       setIsSubmitting(true);
       const res = await api.post('/bazaar/offer', {
         adId: id,
         actionType: 'numeric_offer',
-        numericAmount: Number(numericInput)
+        numericAmount: amount
       });
       if (res.data.success) { 
-        setNumericInput(''); 
-        setShowKeypad(false);
         fetchData(); 
       }
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to send offer', true);
+      fetchData(); // Rollback
     } finally { setIsSubmitting(false); }
   };
 
   const handleQuickReply = async (msg) => {
+    // Optimistic UI Update
+    const tempMsg = {
+      senderId: currentUserId,
+      actionType: 'predefined_query',
+      predefinedMessage: msg,
+      createdAt: new Date().toISOString()
+    };
+    
+    setOfferThread(prev => prev ? {
+      ...prev,
+      offerHistory: [...(prev.offerHistory || []), tempMsg]
+    } : {
+      offerHistory: [tempMsg]
+    });
+
     try {
       setIsSubmitting(true);
       const res = await api.post('/bazaar/offer', { adId: id, actionType: 'predefined_query', predefinedMessage: msg });
       if (res.data.success) fetchData();
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to send query', true);
+      fetchData(); // Rollback
     } finally { setIsSubmitting(false); }
   };
 
   const handleSellerResponse = async (action) => {
     if (!offerThread) return;
+    
+    const amount = Number(numericInput);
+    
+    // Optimistic UI Update
+    if (action === 'counter') {
+      const tempMsg = {
+        senderId: currentUserId,
+        actionType: 'numeric_offer',
+        numericAmount: amount,
+        createdAt: new Date().toISOString()
+      };
+      
+      setOfferThread(prev => prev ? {
+        ...prev,
+        offerHistory: [...(prev.offerHistory || []), tempMsg]
+      } : prev);
+      
+      setNumericInput('');
+      setShowKeypad(false);
+    }
+
     try {
       setIsSubmitting(true);
       const res = await api.put('/bazaar/offer/respond', {
         offerId: offerThread._id,
         action,
-        numericAmount: action === 'counter' ? Number(numericInput) : undefined
+        numericAmount: action === 'counter' ? amount : undefined
       });
       if (res.data.success) {
-        if (action === 'counter') {
-          setNumericInput('');
-          setShowKeypad(false);
-        }
         fetchData();
         showToast(`Offer ${action}ed!`);
       }
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to respond', true);
+      fetchData(); // Rollback
     } finally { setIsSubmitting(false); }
   };
 

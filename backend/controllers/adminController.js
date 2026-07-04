@@ -7,6 +7,7 @@ const SubscriptionPlan = require('../models/SubscriptionPlan');
 const Category = require('../models/Category');
 const AuditLog = require('../models/AuditLog');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
+const Employee = require('../models/Employee');
 const axios = require('axios');
 // Trigger restart
 
@@ -1003,7 +1004,6 @@ async function deleteZone(req, res) {
     }
 }
 
-const Employee = require('../models/Employee');
 
 // @desc    Get all employees
 // @route   GET /api/admin/employees
@@ -1488,6 +1488,16 @@ const createSewak = async (req, res) => {
         // Find Category to set vendorType
         const category = await Category.findOne({ name: businessType });
 
+        // Resolve who is creating this Sewak
+        // If a supervisor is creating, stamp their employee code so the Sewak appears in their panel
+        let onboardedByStaff = null;
+        if (req.user && (req.user.role === 'supervisor' || req.user.role === 'admin')) {
+            const creatorEmployee = await Employee.findOne({ userId: req.user._id });
+            if (creatorEmployee && creatorEmployee.ownCode) {
+                onboardedByStaff = creatorEmployee.ownCode;
+            }
+        }
+
         const sewak = await Provider.create({
             ownerName,
             shopName: `${ownerName} (Sewak)`,
@@ -1510,7 +1520,8 @@ const createSewak = async (req, res) => {
             kycVerified: false,
             commissionRate: 100, // 100% to Admin
             isOnline: false, // Wait until verified
-            documents: [] // Documents will be uploaded by Sewak
+            documents: [], // Documents will be uploaded by Sewak
+            onboardedByStaff: onboardedByStaff // Track who registered this Sewak
         });
 
         // Auto-assign category services to the new Sewak

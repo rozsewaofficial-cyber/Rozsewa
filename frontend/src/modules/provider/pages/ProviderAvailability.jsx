@@ -2,8 +2,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Clock, Save, ToggleLeft, ToggleRight, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import TopNav from "@/modules/user/components/TopNav";
-import BottomNav from "@/modules/user/components/BottomNav";
+import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
+import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import { useEffect } from "react";
@@ -72,7 +72,7 @@ const ProviderAvailability = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
-      <TopNav />
+      <ProviderTopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
           <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
@@ -145,7 +145,7 @@ const ProviderAvailability = () => {
           )}
         </motion.button>
       </main>
-      <BottomNav />
+      <ProviderBottomNav />
     </div>
   );
 };
