@@ -394,45 +394,47 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
         ))}
       </div>
 
-      {/* Filters Section */}
-      <div className="flex flex-col sm:flex-row gap-3 bg-card p-3 rounded-2xl border border-border">
-        <div className="flex-1">
-          <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">Search City/Address</label>
-          <input
-            type="text"
-            placeholder="e.g. Delhi, Mumbai..."
-            value={filterCity}
-            onChange={(e) => setFilterCity(e.target.value)}
-            className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-          />
+      {/* Filters Section - Only for Partner (Provider), not for Sewak */}
+      {user?.role === 'provider' && (
+        <div className="flex flex-col sm:flex-row gap-3 bg-card p-3 rounded-2xl border border-border">
+          <div className="flex-1">
+            <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">Search City/Address</label>
+            <input
+              type="text"
+              placeholder="e.g. Delhi, Mumbai..."
+              value={filterCity}
+              onChange={(e) => setFilterCity(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">From Date</label>
+            <input
+              type="date"
+              value={filterFromDate}
+              onChange={(e) => setFilterFromDate(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">To Date</label>
+            <input
+              type="date"
+              value={filterToDate}
+              onChange={(e) => setFilterToDate(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
+            />
+          </div>
+          <div className="flex items-end">
+            <button 
+              onClick={() => { setFilterCity(""); setFilterFromDate(""); setFilterToDate(""); }}
+              className="w-full sm:w-auto px-4 py-2 bg-muted text-foreground text-xs font-bold rounded-lg hover:bg-muted/80"
+            >
+              Clear
+            </button>
+          </div>
         </div>
-        <div className="flex-1">
-          <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">From Date</label>
-          <input
-            type="date"
-            value={filterFromDate}
-            onChange={(e) => setFilterFromDate(e.target.value)}
-            className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">To Date</label>
-          <input
-            type="date"
-            value={filterToDate}
-            onChange={(e) => setFilterToDate(e.target.value)}
-            className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-          />
-        </div>
-        <div className="flex items-end">
-          <button 
-            onClick={() => { setFilterCity(""); setFilterFromDate(""); setFilterToDate(""); }}
-            className="w-full sm:w-auto px-4 py-2 bg-muted text-foreground text-xs font-bold rounded-lg hover:bg-muted/80"
-          >
-            Clear
-          </button>
-        </div>
-      </div>
+      )}
 
       <AnimatePresence mode="wait">
         {loading ? (
