@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar, Trash2 } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar, Trash2, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -1277,7 +1277,7 @@ const Checkout = () => {
       {(availableSlots.length > 0 || isExpress) && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-50 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-700 p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
           <motion.button whileTap={{ scale: 0.98 }} onClick={handleConfirmBooking} disabled={isProcessing}
-            className="flex w-full items-center justify-between rounded-[20px] py-4 px-6 shadow-2xl transition-all bg-blue-600 text-white shadow-blue-600/30">
+            className={`flex w-full items-center justify-between rounded-[20px] py-4 px-6 shadow-2xl transition-all ${isProcessing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600'} text-white shadow-blue-600/30`}>
             <div className="flex flex-col items-start">
               <span className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
                 Grand Total
@@ -1287,7 +1287,16 @@ const Checkout = () => {
               </span>
             </div>
             <div className="flex items-center gap-2 font-black text-lg">
-              Send Request <ArrowLeft className="h-4 w-4 rotate-180" />
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  Send Request <ArrowLeft className="h-4 w-4 rotate-180" />
+                </>
+              )}
             </div>
           </motion.button>
         </div>

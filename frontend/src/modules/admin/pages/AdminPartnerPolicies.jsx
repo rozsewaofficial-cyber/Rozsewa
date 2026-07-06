@@ -24,9 +24,7 @@ export default function AdminPartnerPolicies() {
     surakshaNidhi: { enabled: true, minDeduction: 1, maxDeduction: 2 },
     noWorkProtectionMonths: 3,
     referralBonus: { firstOrderBonus: 200, milestoneOrders: 20, milestoneBonus: 300 },
-    repeatCustomerReward: { repeatBookings: 10, bonusAmount: 200 },
-    cancellationCharges: { thresholdValue: 500, belowPenalty: 50, abovePenalty: 100 },
-    minimumWalletBalance: 200
+    repeatCustomerReward: { repeatBookings: 10, bonusAmount: 200 }
   });
 
   useEffect(() => {
@@ -49,9 +47,7 @@ export default function AdminPartnerPolicies() {
         surakshaNidhi: { enabled: true, minDeduction: 1, maxDeduction: 2 },
         noWorkProtectionMonths: 3,
         referralBonus: { firstOrderBonus: 200, milestoneOrders: 20, milestoneBonus: 300 },
-        repeatCustomerReward: { repeatBookings: 10, bonusAmount: 200 },
-        cancellationCharges: { thresholdValue: 500, belowPenalty: 50, abovePenalty: 100 },
-        minimumWalletBalance: 200
+        repeatCustomerReward: { repeatBookings: 10, bonusAmount: 200 }
       });
     }
   }, [selectedCategories]);
@@ -95,9 +91,7 @@ export default function AdminPartnerPolicies() {
             surakshaNidhi: { enabled: true, minDeduction: 1, maxDeduction: 2 },
             noWorkProtectionMonths: 3,
             referralBonus: { firstOrderBonus: 200, milestoneOrders: 20, milestoneBonus: 300 },
-            repeatCustomerReward: { repeatBookings: 10, bonusAmount: 200 },
-            cancellationCharges: { thresholdValue: 500, belowPenalty: 50, abovePenalty: 100 },
-            minimumWalletBalance: 200
+            repeatCustomerReward: { repeatBookings: 10, bonusAmount: 200 }
         });
       }
     } catch (err) {
@@ -350,55 +344,6 @@ export default function AdminPartnerPolicies() {
                 </div>
             </div>
             
-            {/* Penalties & Operations */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4"><AlertTriangle className="h-5 w-5 text-red-500" /> Operational Rules</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        <h3 className="text-sm font-bold text-slate-700 border-b pb-2">Cancellation Penalties</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="text-xs font-bold text-slate-500">Threshold Booking Value (₹)</label>
-                                <input 
-                                    type="text" inputMode="numeric"
-                                    value={policy.cancellationCharges?.thresholdValue || 0}
-                                    onChange={e => handleNestedChange('cancellationCharges', 'thresholdValue', normalizeNonNegativeNumber(e.target.value))}
-                                    className="w-full border p-2 rounded-lg mt-1 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs font-bold text-slate-500">Below Threshold Penalty (₹)</label>
-                                <input 
-                                    type="text" inputMode="numeric"
-                                    value={policy.cancellationCharges?.belowPenalty || 0}
-                                    onChange={e => handleNestedChange('cancellationCharges', 'belowPenalty', normalizeNonNegativeNumber(e.target.value))}
-                                    className="w-full border p-2 rounded-lg mt-1 text-sm"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="text-xs font-bold text-slate-500">Above Threshold Penalty (₹)</label>
-                                <input 
-                                    type="text" inputMode="numeric"
-                                    value={policy.cancellationCharges?.abovePenalty || 0}
-                                    onChange={e => handleNestedChange('cancellationCharges', 'abovePenalty', normalizeNonNegativeNumber(e.target.value))}
-                                    className="w-full border p-2 rounded-lg mt-1 text-sm"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-slate-500">Minimum Wallet Balance (₹)</label>
-                        <input 
-                            type="text" inputMode="numeric"
-                            value={policy.minimumWalletBalance || 0}
-                            onChange={e => setPolicy({...policy, minimumWalletBalance: normalizeNonNegativeNumber(e.target.value)})}
-                            className="w-full border p-2 rounded-lg mt-1 outline-emerald-500 text-sm"
-                        />
-                        <p className="text-[10px] text-slate-400 mt-1">Providers cannot accept new bookings if wallet balance falls below this amount.</p>
-                    </div>
-                </div>
-            </div>
-
           </div>
       )}
     </div>

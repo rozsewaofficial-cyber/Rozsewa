@@ -190,11 +190,11 @@ const AdminHRM = ({ view }) => {
         let filtered = allEmployees;
         if (view === 'supervisor') filtered = allEmployees.filter(e => e.role === 'supervisor');
         else if (view === 'employee') filtered = allEmployees.filter(e => e.role !== 'supervisor');
-        
+
         if (cityFilter !== "all") {
             filtered = filtered.filter(e => e.city === cityFilter || e.userId?.city === cityFilter);
         }
-        
+
         if (supervisorFilter !== "all") {
             filtered = filtered.filter(e => (e.managedBy?.ownCode === supervisorFilter) || (e.supervisorCode === supervisorFilter));
         }
@@ -511,7 +511,7 @@ const AdminHRM = ({ view }) => {
                                 ))}
                             </select>
                         )}
-                        
+
                         {uniqueSupervisors.length > 0 && (
                             <select
                                 value={supervisorFilter}
@@ -753,7 +753,7 @@ const AdminHRM = ({ view }) => {
                                                 onChange={(e) => setFormData({ ...formData, allowedCreationScope: e.target.value })}
                                                 className={inputCls}>
                                                 <option value="employee_only">Employee Only</option>
-                                                <option value="all">Employee & Supervisor</option>
+                                                <option value="all">Employee & Sewak</option>
                                             </select>
                                         </InputField>
                                         <div /> {/* Spacer */}

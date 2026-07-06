@@ -861,6 +861,39 @@ const ProviderDashboard = () => {
           </div>
         </section>
 
+        {/* Vendor Welfare */}
+        <section className="space-y-4 pt-4">
+          <div className="flex items-center gap-2 px-2">
+            <ShieldCheck className="h-5 w-5 text-emerald-500" />
+            <h2 className="text-lg md:text-xl font-black tracking-tight text-slate-900 dark:text-white italic">Vendor Welfare</h2>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-sm font-black text-slate-900 dark:text-white">Rozsewa Suraksha Nidhi</span>
+              <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-1 max-w-[200px] leading-tight">Opt-in for emergency micro-fund. A small deduction applies per booking.</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={user?.surakshaNidhiOptIn || false}
+                onChange={async (e) => {
+                  const val = e.target.checked;
+                  updateUser({ surakshaNidhiOptIn: val });
+                  try {
+                    await API.put("/provider/profile", { surakshaNidhiOptIn: val });
+                    toast({ title: "Updated", description: `Suraksha Nidhi is now ${val ? 'Enabled' : 'Disabled'}.` });
+                  } catch (err) {
+                    updateUser({ surakshaNidhiOptIn: !val });
+                    toast({ title: "Update Failed", description: "Could not save preference.", variant: "destructive" });
+                  }
+                }}
+              />
+              <div className="w-11 h-6 bg-slate-200 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+        </section>
+
       </main>
       <ProviderBottomNav />
 

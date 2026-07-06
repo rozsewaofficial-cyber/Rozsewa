@@ -205,7 +205,7 @@ const createBooking = async (req, res) => {
         if (couponCode) {
             const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), isActive: true }).populate('targetCategory');
             if (coupon && new Date() <= coupon.expiryDate && coupon.usageCount < coupon.maxUsage && subtotal >= coupon.minOrderAmount) {
-                
+
                 let belongsToCategory = true;
                 if (coupon.targetCategory && serviceId) {
                     belongsToCategory = false;
@@ -218,7 +218,7 @@ const createBooking = async (req, res) => {
                                 belongsToCategory = true;
                             }
                         }
-        
+
                         // 2. Check if it's a combo
                         if (!belongsToCategory) {
                             const combo = await Combo.findById(serviceId);
@@ -229,7 +229,7 @@ const createBooking = async (req, res) => {
                                 }
                             }
                         }
-        
+
                         // 3. Check if it's a category sub-service (Sewak)
                         if (!belongsToCategory) {
                             const category = await Category.findOne({
@@ -256,7 +256,7 @@ const createBooking = async (req, res) => {
                         couponDiscount = Math.min(couponDiscount, coupon.maxDiscountAmount);
                     }
                     couponDiscount = Math.max(0, Math.min(couponDiscount, subtotal));
-                    
+
                     // Increment usage count
                     coupon.usageCount += 1;
                     await coupon.save();
@@ -1152,7 +1152,7 @@ const updateBookingStatusByProvider = async (req, res) => {
 
                 // Apply Distance Charge upon acceptance
                 await DistanceChargeService.applyTravelChargeToBooking(claimedBooking._id, req.user._id);
-                
+
                 // Re-fetch the booking to sync version (__v) and state with DB 
                 // before doing any further modifications in this controller
                 booking = await Booking.findById(booking._id);
@@ -1222,8 +1222,8 @@ const updateBookingStatusByProvider = async (req, res) => {
                             message: `Partner attempted to manually mark booking #${booking._id.toString().slice(-6)} (${booking.serviceName}) as paid. Flag set.`,
                             type: 'payment',
                             bookingId: booking._id
-                        }).catch(() => {});
-                    } catch (_) {}
+                        }).catch(() => { });
+                    } catch (_) { }
 
                     console.warn(`[UNAUTHORIZED PAYMENT] Provider ${req.user._id} tried to set paymentStatus=paid on online booking ${booking._id}`);
                     return res.status(403).json({
@@ -2431,8 +2431,8 @@ const collectPayment = async (req, res) => {
         const deviceInfo = req.headers['user-agent'] || null;
 
         const isProvider = req.user.role === 'provider';
-        const isAdmin    = req.user.role === 'admin' || req.user.role === 'superadmin';
-        const isStaff    = req.user.role === 'employee' || req.user.role === 'supervisor';
+        const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+        const isStaff = req.user.role === 'employee' || req.user.role === 'supervisor';
 
         // --- Validation Checklist ---
         // 1. Booking exists
@@ -2473,8 +2473,8 @@ const collectPayment = async (req, res) => {
                 });
                 try {
                     const { notifyUser } = require('../config/notificationService');
-                    notifyUser({ userId: null, userRole: 'admin', title: '⚠️ Unauthorized Payment Attempt', message: `Partner tried to collect payment on online booking #${booking._id.toString().slice(-6)}.`, type: 'payment', bookingId: booking._id }).catch(() => {});
-                } catch (_) {}
+                    notifyUser({ userId: null, userRole: 'admin', title: '⚠️ Unauthorized Payment Attempt', message: `Partner tried to collect payment on online booking #${booking._id.toString().slice(-6)}.`, type: 'payment', bookingId: booking._id }).catch(() => { });
+                } catch (_) { }
                 return res.status(403).json({ message: 'You are not authorized to collect payment for online bookings.', code: 'UNAUTHORIZED_PAYMENT_ATTEMPT' });
             }
             if (!booking.providerId || booking.providerId.toString() !== req.user._id.toString()) {
@@ -2493,41 +2493,41 @@ const collectPayment = async (req, res) => {
         }
 
         // --- All checks passed — record payment ---
-        const prevPaymentStatus    = booking.paymentStatus;
+        const prevPaymentStatus = booking.paymentStatus;
         const prevCollectionStatus = booking.collectionStatus;
 
         let collectionStatus, paymentCollectedBy;
         if (isStaff || isAdmin) {
-            collectionStatus    = 'staff_verified';
-            paymentCollectedBy  = 'staff_verified';
+            collectionStatus = 'staff_verified';
+            paymentCollectedBy = 'staff_verified';
         } else {
-            collectionStatus    = 'cash_collected';
-            paymentCollectedBy  = 'partner_cash';
+            collectionStatus = 'cash_collected';
+            paymentCollectedBy = 'partner_cash';
         }
 
         // 6. Create audit record BEFORE modifying booking state
         await PaymentAudit.create({
             bookingId: booking._id,
             providerId: isProvider ? req.user._id : null,
-            staffId:    isStaff   ? req.user._id : null,
-            adminId:    isAdmin   ? req.user._id : null,
-            action:     collectionStatus === 'staff_verified' ? 'staff_verified' : 'cash_collected',
-            amount:     booking.totalAmount,
+            staffId: isStaff ? req.user._id : null,
+            adminId: isAdmin ? req.user._id : null,
+            action: collectionStatus === 'staff_verified' ? 'staff_verified' : 'cash_collected',
+            amount: booking.totalAmount,
             paymentMethod: 'cash',
-            previousPaymentStatus:    prevPaymentStatus,
-            newPaymentStatus:         'paid',
+            previousPaymentStatus: prevPaymentStatus,
+            newPaymentStatus: 'paid',
             previousCollectionStatus: prevCollectionStatus,
-            newCollectionStatus:      collectionStatus,
+            newCollectionStatus: collectionStatus,
             ipAddress,
             deviceInfo,
             note: `Payment collected via dedicated collect-payment endpoint by ${req.user.role}.`
         });
 
         // 7. Update booking fields
-        booking.paymentStatus        = 'paid';
-        booking.collectionStatus     = collectionStatus;
-        booking.paymentCollectedBy   = paymentCollectedBy;
-        booking.paymentCollectedAt   = new Date();
+        booking.paymentStatus = 'paid';
+        booking.collectionStatus = collectionStatus;
+        booking.paymentCollectedBy = paymentCollectedBy;
+        booking.paymentCollectedAt = new Date();
 
         // Credit provider wallet for cash bookings
         if (booking.paymentMode === 'after' && booking.providerPayout > 0) {
@@ -2556,7 +2556,7 @@ const collectPayment = async (req, res) => {
 
         res.json({
             message: 'Payment collected successfully.',
-            paymentStatus:    booking.paymentStatus,
+            paymentStatus: booking.paymentStatus,
             collectionStatus: booking.collectionStatus,
             paymentCollectedBy: booking.paymentCollectedBy,
             paymentCollectedAt: booking.paymentCollectedAt

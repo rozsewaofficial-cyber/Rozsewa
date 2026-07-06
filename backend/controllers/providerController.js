@@ -387,6 +387,10 @@ const updateProviderProfile = async (req, res) => {
                 provider.location = req.body.location;
             }
 
+            if (req.body.surakshaNidhiOptIn !== undefined) {
+                provider.surakshaNidhiOptIn = req.body.surakshaNidhiOptIn;
+            }
+
             // Admin Control: If shop name changes, profile needs re-verification
             if (nameChanged && provider.status === 'verified') {
                 provider.status = 'pending';

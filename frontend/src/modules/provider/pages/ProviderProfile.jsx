@@ -23,7 +23,8 @@ const ProviderProfile = () => {
     mobile: "",
     address: "",
     profileImage: null,
-    location: null
+    location: null,
+    surakshaNidhiOptIn: false
   });
 
   // Service radius state
@@ -43,7 +44,8 @@ const ProviderProfile = () => {
         location: user.location || null,
         openingTime: user.openingTime || "09:00 AM",
         closingTime: user.closingTime || "09:00 PM",
-        bankDetails: user.bankDetails || { accountNumber: "", ifscCode: "", bankName: "", accountHolderName: "" }
+        bankDetails: user.bankDetails || { accountNumber: "", ifscCode: "", bankName: "", accountHolderName: "" },
+        surakshaNidhiOptIn: user.surakshaNidhiOptIn || false
       });
       if (typeof user.serviceRadius === 'number') {
         setServiceRadius(user.serviceRadius);
@@ -338,6 +340,39 @@ const ProviderProfile = () => {
               </div>
               <p className="text-[9px] font-bold text-muted-foreground mt-1">After free services exhausted</p>
             </div>
+          </div>
+        </section>
+
+        {/* ── Vendor Welfare ─────────────────────────────────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Vendor Welfare</h2>
+          </div>
+          <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-sm font-black text-foreground">Rozsewa Suraksha Nidhi</span>
+              <p className="text-[10px] font-bold text-muted-foreground mt-1 max-w-[200px]">Opt-in for emergency micro-fund. A small deduction applies per booking.</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                className="sr-only peer" 
+                checked={profileData.surakshaNidhiOptIn}
+                onChange={async (e) => {
+                  const val = e.target.checked;
+                  setProfileData(prev => ({...prev, surakshaNidhiOptIn: val}));
+                  try {
+                    await API.put("/provider/profile", { surakshaNidhiOptIn: val });
+                    toast({ title: "Updated", description: `Suraksha Nidhi is now ${val ? 'Enabled' : 'Disabled'}.` });
+                  } catch (err) {
+                    setProfileData(prev => ({...prev, surakshaNidhiOptIn: !val}));
+                    toast({ title: "Update Failed", description: "Could not save preference.", variant: "destructive" });
+                  }
+                }}
+              />
+              <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
           </div>
         </section>
 
