@@ -151,7 +151,7 @@ const ProviderSubscriptions = () => {
 
   const handleRenew = async () => {
     if (!activePlan) return;
-    const plan = plans.find(p => p.offeredCommissionRate === activePlan.rate) || plans[0];
+    const plan = plans.find(p => (p.commissionRate || p.offeredCommissionRate) === activePlan.rate) || plans[0];
     if (!plan) return;
 
     setPaymentModalPlan(plan); // Let user choose payment method for renewal too
@@ -215,7 +215,7 @@ const ProviderSubscriptions = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {plans.map((plan) => {
-                  const isCurrent = activePlan && activePlan.rate === plan.offeredCommissionRate;
+                  const isCurrent = activePlan && activePlan.rate === (plan.commissionRate || plan.offeredCommissionRate);
                   return (
                     <div 
                       key={plan._id} 
@@ -243,7 +243,7 @@ const ProviderSubscriptions = () => {
                             <span className="text-xs text-muted-foreground font-bold">/{plan.duration} Days</span>
                           </div>
                           <div className="text-xs font-black text-emerald-600">
-                            Commission drops to {plan.offeredCommissionRate}%
+                            Commission drops to {plan.commissionRate || plan.offeredCommissionRate}%
                           </div>
                         </div>
 

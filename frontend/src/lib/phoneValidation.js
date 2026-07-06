@@ -43,6 +43,12 @@ export const validatePhone = (phone) => {
       message: "Mobile number must be exactly 10 digits."
     };
   }
+  if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+    return {
+      isValid: false,
+      message: "Please enter a valid Indian mobile number starting with 6-9."
+    };
+  }
   return {
     isValid: true,
     message: ""

@@ -136,6 +136,11 @@ const providerSchema = mongoose.Schema({
         type: Number,
         default: 10 // Percentage, can be set by admin
     },
+    settlementType: {
+        type: String,
+        enum: ['monday', '24_hours', 'weekly', 'daily'],
+        default: 'monday'
+    },
     planType: {
         type: String,
         enum: ['basic', 'standard', 'premium', 'pro'],
@@ -208,7 +213,13 @@ const providerSchema = mongoose.Schema({
         type: [String],
         enum: ['home', 'shop'],
         default: ['home']
-    }
+    },
+    // Partner Policy Tracking Fields
+    surakshaNidhiOptIn: { type: Boolean, default: false },
+    badges: [{ type: String }],
+    performanceDiscount: { type: Number, default: 0 },
+    lastOrderDate: { type: Date, default: null },
+    completedBookingsCount: { type: Number, default: 0 },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

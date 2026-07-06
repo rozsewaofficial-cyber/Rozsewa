@@ -28,7 +28,9 @@ const subscriptionPlanSchema = mongoose.Schema({
     features: [{ type: String }],
     isActive: { type: Boolean, default: true },
     leadCredits: { type: Number, default: 0 },
-    validity: { type: Number, default: 365 }
+    validity: { type: Number, default: 365 },
+    settlementType: { type: String, enum: ['weekly', 'daily', '24_hours', 'monday'], default: 'monday' },
+    displayOrder: { type: Number, default: 0 }
 }, {
     timestamps: true
 });

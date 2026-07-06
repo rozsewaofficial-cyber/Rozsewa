@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const partnerConfigController = require('../controllers/partnerConfigController');
+const partnerPolicyController = require('../controllers/partnerPolicyController');
 const {
     getProviders,
     getProviderReports,
@@ -272,5 +273,21 @@ router.get('/leads/disputes', protect, admin, getAdminDisputes);
 router.post('/leads/disputes/:id/resolve', protect, admin, resolveDispute);
 router.post('/leads/:id/close', protect, admin, forceCloseLead);
 router.get('/leads/stats', protect, admin, getAdminLeadStats);
+
+// Coupons
+const { 
+    getAdminCoupons, 
+    createCoupon, 
+    toggleCouponStatus, 
+    deleteCoupon 
+} = require('../controllers/adminController');
+router.get('/coupons', protect, admin, getAdminCoupons);
+router.post('/coupons', protect, admin, createCoupon);
+router.put('/coupons/:id/toggle', protect, admin, toggleCouponStatus);
+router.delete('/coupons/:id', protect, admin, deleteCoupon);
+
+// Partner Policy Management
+router.get('/partner-policies', protect, admin, partnerPolicyController.getPolicies);
+router.post('/partner-policies', protect, admin, partnerPolicyController.savePolicy);
 
 module.exports = router;

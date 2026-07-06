@@ -159,6 +159,7 @@ const verifySubscriptionPayment = async (req, res) => {
 
         // Update the actual commission rate used for bookings (legacy)
         provider.commissionRate = plan.commissionRate !== undefined ? plan.commissionRate : plan.offeredCommissionRate;
+        provider.settlementType = plan.settlementType || 'monday';
 
         await provider.save();
 

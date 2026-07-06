@@ -9,6 +9,7 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeNonNegativeNumber, validateNonNegativeNumber } from '@/lib/numberValidation';
+import AdminPartnerPolicies from './AdminPartnerPolicies';
 
 // Slab contiguity checker
 const validateFrontendSlabs = (slabs) => {
@@ -348,7 +349,8 @@ export default function PartnerProgramConfig() {
         {[
           { id: 'rules', label: 'Onboarding & Rules' },
           { id: 'slabs', label: 'Commission Slabs' },
-          { id: 'subscriptions', label: 'Subscription Plans' }
+          { id: 'subscriptions', label: 'Subscription Plans' },
+          { id: 'category_policies', label: 'Category Rules & Rewards' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -564,6 +566,12 @@ export default function PartnerProgramConfig() {
       )}
 
       {/* Plans Modal */}
+      {activeTab === 'category_policies' && (
+        <div className="animate-in fade-in duration-300">
+          <AdminPartnerPolicies />
+        </div>
+      )}
+
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">

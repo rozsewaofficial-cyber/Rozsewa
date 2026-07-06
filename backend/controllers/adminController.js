@@ -8,6 +8,7 @@ const Category = require('../models/Category');
 const AuditLog = require('../models/AuditLog');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Employee = require('../models/Employee');
+const Coupon = require('../models/Coupon');
 const axios = require('axios');
 // Trigger restart
 
@@ -74,16 +75,32 @@ const updateProviderStatus = async (req, res) => {
 
         // Log Verification Action
         if (req.body.status) {
+            let actionType = req.body.status === 'verified' ? "VERIFY" : "REJECT";
+            if (req.body.status === 'suspended') actionType = "SUSPEND";
+            
             await AuditLog.create({
-                actionType: req.body.status === 'verified' ? "VERIFY" : "REJECT",
+                actionType,
                 entityType: provider.providerCategory === 'sewak' ? "SEWAK" : "VENDOR",
                 entityId: provider._id,
                 entityName: provider.shopName,
                 verifiedBy: req.user._id,
                 verifiedByName: req.user.name,
                 verifiedByRole: req.user.role,
-                details: { status: req.body.status, action: 'status_update' }
+                details: { status: req.body.status, action: 'status_update', reason: req.body.reason }
             });
+            
+            if (req.body.status === 'suspended' && req.body.reason) {
+                try {
+                    const { sendNotificationToUser } = require('../config/notificationService');
+                    await sendNotificationToUser(provider._id, 'provider', {
+                        title: 'Account Suspended',
+                        body: `Your account has been suspended by Admin. Reason: ${req.body.reason}`,
+                        data: { type: 'system', link: '/provider/profile' }
+                    });
+                } catch (err) {
+                    console.log('Push notification for suspension failed:', err.message);
+                }
+            }
 
             // If it's a verification, also log a KYC event
             if (req.body.status === 'verified') {
@@ -2844,6 +2861,91 @@ const getBookingPaymentAudit = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// @desc    Get all coupons for admin
+// @route   GET /api/admin/coupons
+// @access  Private/Admin
+const getAdminCoupons = async (req, res) => {
+    try {
+        const coupons = await Coupon.find().populate('targetCategory', 'name').sort({ createdAt: -1 });
+        res.json(coupons);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Create new coupon
+// @route   POST /api/admin/coupons
+// @access  Private/Admin
+const createCoupon = async (req, res) => {
+    try {
+        const { code, discount, description, expiryDate, maxUsage, minOrderAmount, maxDiscountAmount, targetCategory } = req.body;
+        
+        const existing = await Coupon.findOne({ code: code.toUpperCase() });
+        if (existing) {
+            return res.status(400).json({ message: 'Coupon code already exists' });
+        }
+
+        const newCoupon = new Coupon({
+            code: code.toUpperCase(),
+            discount,
+            description,
+            expiryDate,
+            maxUsage,
+            minOrderAmount,
+            maxDiscountAmount,
+            targetCategory: targetCategory || null
+        });
+
+        await newCoupon.save();
+        const savedCoupon = await Coupon.findById(newCoupon._id).populate('targetCategory', 'name');
+        res.status(201).json(savedCoupon);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Toggle coupon status
+// @route   PUT /api/admin/coupons/:id/toggle
+// @access  Private/Admin
+const toggleCouponStatus = async (req, res) => {
+    try {
+        const coupon = await Coupon.findById(req.params.id);
+        if (!coupon) {
+            return res.status(404).json({ message: 'Coupon not found' });
+        }
+        
+        if (coupon.expiryDate < new Date()) {
+            return res.status(400).json({ message: 'Cannot enable an expired coupon' });
+        }
+
+        coupon.isActive = !coupon.isActive;
+        await coupon.save();
+        
+        const updatedCoupon = await Coupon.findById(coupon._id).populate('targetCategory', 'name');
+        res.json(updatedCoupon);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Delete a coupon
+// @route   DELETE /api/admin/coupons/:id
+// @access  Private/Admin
+const deleteCoupon = async (req, res) => {
+    try {
+        const coupon = await Coupon.findById(req.params.id);
+        if (!coupon) {
+            return res.status(404).json({ message: 'Coupon not found' });
+        }
+        
+        await Coupon.deleteOne({ _id: coupon._id });
+        res.json({ message: 'Coupon removed' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     getProviderReports,
@@ -2930,4 +3032,8 @@ module.exports = {
     getUnauthorizedPayments,
     clearUnauthorizedPaymentFlag,
     getBookingPaymentAudit,
+    getAdminCoupons,
+    createCoupon,
+    toggleCouponStatus,
+    deleteCoupon,
 };

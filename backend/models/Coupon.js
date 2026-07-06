@@ -10,6 +10,7 @@ const couponSchema = mongoose.Schema({
     maxUsage: { type: Number, default: 100 },
     minOrderAmount: { type: Number, default: 0 },
     maxDiscountAmount: { type: Number },
+    targetCategory: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null }, // Null means global
     createdAt: { type: Date, default: Date.now }
 }, {
     timestamps: true

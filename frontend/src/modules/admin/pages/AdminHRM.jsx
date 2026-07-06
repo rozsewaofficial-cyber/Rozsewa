@@ -54,6 +54,8 @@ const AdminHRM = ({ view }) => {
     const [editId, setEditId] = useState(null);
     const [search, setSearch] = useState("");
     const [roleFilter, setRoleFilter] = useState("all");
+    const [cityFilter, setCityFilter] = useState("all");
+    const [supervisorFilter, setSupervisorFilter] = useState("all");
     const { toast } = useToast();
     const { user } = useAuth();
 
@@ -188,18 +190,39 @@ const AdminHRM = ({ view }) => {
         let filtered = allEmployees;
         if (view === 'supervisor') filtered = allEmployees.filter(e => e.role === 'supervisor');
         else if (view === 'employee') filtered = allEmployees.filter(e => e.role !== 'supervisor');
+        
+        if (cityFilter !== "all") {
+            filtered = filtered.filter(e => e.city === cityFilter || e.userId?.city === cityFilter);
+        }
+        
+        if (supervisorFilter !== "all") {
+            filtered = filtered.filter(e => (e.managedBy?.ownCode === supervisorFilter) || (e.supervisorCode === supervisorFilter));
+        }
+
         if (search) {
             const s = search.toLowerCase();
             filtered = filtered.filter(e =>
                 e.name.toLowerCase().includes(s) ||
                 (e.email || "").toLowerCase().includes(s) ||
                 (e.mobile || "").includes(s) ||
-                (e.ownCode || "").toLowerCase().includes(s)
+                (e.ownCode || "").toLowerCase().includes(s) ||
+                (e.city || e.userId?.city || "").toLowerCase().includes(s) ||
+                (e.supervisorCode || e.managedBy?.ownCode || "").toLowerCase().includes(s)
             );
         }
         if (roleFilter !== "all") filtered = filtered.filter(e => e.role === roleFilter);
         setEmployees(filtered);
-    }, [allEmployees, view, search, roleFilter, user]);
+    }, [allEmployees, view, search, roleFilter, cityFilter, supervisorFilter, user]);
+
+    const uniqueCities = useMemo(() => {
+        const cities = allEmployees.map(e => e.city || e.userId?.city).filter(Boolean);
+        return [...new Set(cities)].sort();
+    }, [allEmployees]);
+
+    const uniqueSupervisors = useMemo(() => {
+        const sups = allEmployees.map(e => e.managedBy?.ownCode || e.supervisorCode).filter(Boolean);
+        return [...new Set(sups)].sort();
+    }, [allEmployees]);
 
     // Stats
     const stats = useMemo(() => {
@@ -390,7 +413,7 @@ const AdminHRM = ({ view }) => {
                     onClick={() => setShowAddModal(true)}
                     className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-emerald-700 transition-all shadow-sm active:scale-95"
                 >
-                    <Plus className="h-3.5 w-3.5" /> Add Employee
+                    <Plus className="h-3.5 w-3.5" /> {view === 'supervisor' ? 'Add Supervisor' : 'Add Employee'}
                 </button>
             </div>
 
@@ -455,25 +478,56 @@ const AdminHRM = ({ view }) => {
             </div>
 
             {/* Filters & Search */}
-            <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center">
-                <div className="flex flex-wrap gap-1.5">
-                    {view !== 'supervisor' && [
-                        { key: "all", label: "All", count: stats.total },
-                        { key: "field_staff", label: "Field Staff", count: stats.fieldStaff },
-                        { key: "employee", label: "Employees", count: stats.employees },
-                    ].map(f => (
-                        <button
-                            key={f.key}
-                            onClick={() => setRoleFilter(f.key)}
-                            className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${roleFilter === f.key ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                                }`}
-                        >
-                            {f.label}
-                            <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${roleFilter === f.key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{f.count}</span>
-                        </button>
-                    ))}
+            <div className="flex flex-col xl:flex-row gap-3 justify-between items-stretch xl:items-center">
+                <div className="flex flex-col lg:flex-row gap-3 flex-grow">
+                    <div className="flex flex-wrap gap-1.5">
+                        {view !== 'supervisor' && [
+                            { key: "all", label: "All", count: stats.total },
+                            { key: "field_staff", label: "Field Staff", count: stats.fieldStaff },
+                            { key: "employee", label: "Employees", count: stats.employees },
+                        ].map(f => (
+                            <button
+                                key={f.key}
+                                onClick={() => setRoleFilter(f.key)}
+                                className={`rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${roleFilter === f.key ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                    }`}
+                            >
+                                {f.label}
+                                <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${roleFilter === f.key ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{f.count}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {uniqueCities.length > 0 && (
+                            <select
+                                value={cityFilter}
+                                onChange={(e) => setCityFilter(e.target.value)}
+                                className="rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-8 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm"
+                            >
+                                <option value="all">All Cities</option>
+                                {uniqueCities.map(city => (
+                                    <option key={city} value={city}>{city}</option>
+                                ))}
+                            </select>
+                        )}
+                        
+                        {uniqueSupervisors.length > 0 && (
+                            <select
+                                value={supervisorFilter}
+                                onChange={(e) => setSupervisorFilter(e.target.value)}
+                                className="rounded-xl border border-gray-200 bg-white py-2 pl-3 pr-8 text-xs font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm"
+                            >
+                                <option value="all">All Supervisors</option>
+                                {uniqueSupervisors.map(sup => (
+                                    <option key={sup} value={sup}>{sup}</option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
                 </div>
-                <div className="relative w-full lg:w-72">
+
+                <div className="relative w-full xl:w-72 shrink-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                         type="text"
@@ -651,7 +705,7 @@ const AdminHRM = ({ view }) => {
                             {/* Modal Header */}
                             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                                 <div>
-                                    <h3 className="text-lg font-black text-gray-900">{editId ? "Edit Employee Details" : "Add Employee"}</h3>
+                                    <h3 className="text-lg font-black text-gray-900">{editId ? (view === 'supervisor' ? "Edit Supervisor Details" : "Edit Employee Details") : (view === 'supervisor' ? "Add Supervisor" : "Add Employee")}</h3>
                                     <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest mt-0.5">Admin → Supervisor → Field Staff</p>
                                 </div>
                                 <button onClick={() => { setShowAddModal(false); resetForm(); }} className="h-8 w-8 flex items-center justify-center rounded-xl bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
@@ -667,7 +721,6 @@ const AdminHRM = ({ view }) => {
                                                 <>
                                                     <option value="supervisor">Supervisor</option>
                                                     <option value="employee">Employee</option>
-                                                    <option value="field_staff">Field Staff</option>
                                                 </>
                                             )}
                                             {user?.role === 'supervisor' && (
@@ -682,7 +735,6 @@ const AdminHRM = ({ view }) => {
                                                 <>
                                                     <option value="supervisor">Supervisor</option>
                                                     <option value="employee">Employee</option>
-                                                    <option value="field_staff">Field Staff</option>
                                                 </>
                                             )}
                                         </select>
@@ -891,7 +943,7 @@ const AdminHRM = ({ view }) => {
                                         Cancel
                                     </button>
                                     <button type="submit" disabled={uploading} className="flex-1 rounded-xl bg-emerald-700 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                                        {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : (editId ? "Update Employee" : "Add Employee")}
+                                        {uploading ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</> : (editId ? (view === 'supervisor' ? "Update Supervisor" : "Update Employee") : (view === 'supervisor' ? "Add Supervisor" : "Add Employee"))}
                                     </button>
                                 </div>
                             </form>

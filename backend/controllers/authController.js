@@ -106,7 +106,7 @@ const registerUser = async (req, res) => {
             // Create user wallet
             await Wallet.create({
                 userId: user._id,
-                balance: 250, // Initial balance for demo
+                balance: 0, 
             });
 
             res.status(201).json({

@@ -199,10 +199,28 @@ const FieldRenderer = ({ field, value, onChange }) => {
       return <input type="date" className={base} value={value || ''} onChange={e => onChange(e.target.value)} min={new Date().toISOString().split('T')[0]} />;
 
     case 'time':
-      return <input type="time" className={base} value={value || ''} onChange={e => onChange(e.target.value)} />;
+      const handleTimeChange = (e) => {
+        const val = e.target.value;
+        if (preferredDate) {
+          const today = new Date();
+          const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+          if (preferredDate === todayStr && val) {
+            const currentHour = today.getHours();
+            const currentMin = today.getMinutes();
+            const [h, m] = val.split(':').map(Number);
+            if (h < currentHour || (h === currentHour && m < currentMin)) {
+              toast({ title: "Invalid Time", description: "Cannot select a past time for today.", variant: "destructive" });
+              onChange('');
+              return;
+            }
+          }
+        }
+        onChange(val);
+      };
+      return <input type="time" className={base} value={value || ''} onChange={handleTimeChange} />;
 
     case 'datetime':
-      return <input type="datetime-local" className={base} value={value || ''} onChange={e => onChange(e.target.value)} />;
+      return <input type="datetime-local" className={base} value={value || ''} onChange={e => onChange(e.target.value)} min={new Date().toISOString().slice(0, 16)} />;
 
     case 'gps':
       return (

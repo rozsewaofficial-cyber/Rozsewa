@@ -272,9 +272,13 @@ const CustomerLogin = () => {
                   onSubmit={handleSignup} className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Full Name</label>
-                    <input type="text" value={name} onChange={(e) => setName(sanitizeNameOnChange(e.target.value))}
-                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                      placeholder="Enter your name" />
+                    <input type="text" value={name} onChange={(e) => {
+                        const val = sanitizeNameOnChange(e.target.value);
+                        setName(val);
+                        e.target.value = val;
+                      }}
+                        className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
+                        placeholder="Enter your name" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Email</label>
@@ -351,13 +355,21 @@ const CustomerLogin = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">State</label>
-                        <input type="text" value={state} onChange={(e) => setState(e.target.value)}
+                        <input type="text" value={state} onChange={(e) => {
+                            const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                            setState(val);
+                            e.target.value = val;
+                          }}
                           className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                           placeholder="e.g. Maharashtra" />
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">City</label>
-                        <input type="text" value={city} onChange={(e) => setCity(e.target.value)}
+                        <input type="text" value={city} onChange={(e) => {
+                            const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                            setCity(val);
+                            e.target.value = val;
+                          }}
                           className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                           placeholder="e.g. Mumbai" />
                       </div>
@@ -484,7 +496,7 @@ const CustomerLogin = () => {
 
         {/* Footer */}
         <div className="text-center space-y-2">
-          <p className="text-xs text-muted-foreground">By continuing, you agree to our <button onClick={() => navigate('/terms')} className="font-semibold text-foreground hover:underline">Terms & Conditions</button> & <button onClick={() => navigate('/privacy')} className="font-semibold text-foreground hover:underline">Privacy Policy</button></p>
+          <p className="text-xs text-muted-foreground">By continuing, you agree to our <button onClick={() => { window.scrollTo(0, 0); navigate('/terms'); }} className="font-semibold text-foreground hover:underline">Terms & Conditions</button> & <button onClick={() => { window.scrollTo(0, 0); navigate('/privacy'); }} className="font-semibold text-foreground hover:underline">Privacy Policy</button></p>
         </div>
       </motion.div>
     </div>

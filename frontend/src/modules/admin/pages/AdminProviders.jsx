@@ -27,6 +27,9 @@ const AdminProviders = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [filter, setFilter] = useState("all");
+    const [cityFilter, setCityFilter] = useState("all");
+    const [fromDate, setFromDate] = useState("");
+    const [toDate, setToDate] = useState("");
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [categories, setCategories] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
@@ -214,8 +217,18 @@ const AdminProviders = () => {
     };
 
     const handleUpdateStatus = async (id, newStatus) => {
+        let reason = "";
+        if (newStatus === "suspended") {
+            reason = window.prompt("Please enter the reason for suspending this provider:");
+            if (reason === null) return;
+            if (!reason.trim()) {
+                toast({ title: "Reason Required", description: "You must provide a reason to suspend.", variant: "destructive" });
+                return;
+            }
+        }
+        
         try {
-            const { data } = await API.put(`/admin/providers/${id}/status`, { status: newStatus });
+            const { data } = await API.put(`/admin/providers/${id}/status`, { status: newStatus, reason });
             setProviders(providers.map(p => p._id === id ? data : p));
             toast({ title: "Status Updated", description: `Provider is now ${newStatus}.` });
         } catch (err) {
@@ -269,17 +282,44 @@ const AdminProviders = () => {
         };
     }, [providers]);
 
+    const uniqueCities = useMemo(() => {
+        const cities = providers.map(p => p.city).filter(Boolean);
+        return [...new Set(cities)].sort();
+    }, [providers]);
+
     const filteredProviders = (providers || []).filter(p => {
         const sName = p?.shopName || "";
         const oName = p?.ownerName || "";
         const pId = p?.vendorCode || p?._id || "";
+        const pCity = p?.city || "";
         const search = (searchTerm || "").toLowerCase();
 
         const matchesSearch = sName.toLowerCase().includes(search) ||
             oName.toLowerCase().includes(search) ||
-            pId.toLowerCase().includes(search);
-        const matchesFilter = filter === "all" || p.status === filter;
-        return matchesSearch && matchesFilter;
+            pId.toLowerCase().includes(search) ||
+            pCity.toLowerCase().includes(search);
+        
+        const matchesStatus = filter === "all" || p.status === filter;
+        const matchesCity = cityFilter === "all" || p.city === cityFilter;
+        
+        let matchesDate = true;
+        if (fromDate || toDate) {
+            const joinedDate = new Date(p.createdAt);
+            joinedDate.setHours(0, 0, 0, 0);
+            
+            if (fromDate) {
+                const fDate = new Date(fromDate);
+                fDate.setHours(0, 0, 0, 0);
+                if (joinedDate < fDate) matchesDate = false;
+            }
+            if (toDate) {
+                const tDate = new Date(toDate);
+                tDate.setHours(23, 59, 59, 999);
+                if (joinedDate > tDate) matchesDate = false;
+            }
+        }
+
+        return matchesSearch && matchesStatus && matchesCity && matchesDate;
     });
 
     if (loading && providers.length === 0) return (
@@ -337,17 +377,60 @@ const AdminProviders = () => {
             )}
 
             {/* Filters */}
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search shop, owner, code..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm font-bold placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm outline-none"
-                    />
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col xl:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search shop, owner, code, city..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm font-bold placeholder:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm outline-none"
+                        />
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {uniqueCities.length > 0 && (
+                            <select
+                                value={cityFilter}
+                                onChange={(e) => setCityFilter(e.target.value)}
+                                className="h-[46px] rounded-xl border border-gray-200 bg-white px-4 text-xs font-bold text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-sm outline-none"
+                            >
+                                <option value="all">All Cities</option>
+                                {uniqueCities.map(city => (
+                                    <option key={city} value={city}>{city}</option>
+                                ))}
+                            </select>
+                        )}
+                        
+                        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 h-[46px] shadow-sm">
+                            <span className="text-[10px] font-black uppercase text-gray-400">From</span>
+                            <input
+                                type="date"
+                                value={fromDate}
+                                onChange={(e) => setFromDate(e.target.value)}
+                                className="text-xs font-bold text-gray-700 outline-none bg-transparent"
+                            />
+                            <span className="text-[10px] font-black uppercase text-gray-400 ml-1">To</span>
+                            <input
+                                type="date"
+                                value={toDate}
+                                onChange={(e) => setToDate(e.target.value)}
+                                className="text-xs font-bold text-gray-700 outline-none bg-transparent"
+                            />
+                            {(fromDate || toDate) && (
+                                <button 
+                                    onClick={() => { setFromDate(""); setToDate(""); }}
+                                    className="ml-1 text-gray-400 hover:text-red-500"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
+                
                 <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm overflow-x-auto">
                     {["all", "pending", "verified", "rejected", "suspended"].map((f) => (
                         <button
@@ -632,7 +715,7 @@ const AdminProviders = () => {
                                             <div>
                                                 <span className="text-[8px] font-black uppercase text-gray-400">Effective Rate</span>
                                                 <p className="text-xs font-black text-emerald-600 mt-0.5">
-                                                    {selectedProvider.commissionWaiver?.enabled ? '0%' : `${selectedProvider.commissionRate || 10}%`}
+                                                    {selectedProvider.commissionWaiver?.enabled ? '0%' : (selectedProvider.commissionRate ? `${selectedProvider.commissionRate}%` : 'Standard')}
                                                 </p>
                                             </div>
                                         </div>

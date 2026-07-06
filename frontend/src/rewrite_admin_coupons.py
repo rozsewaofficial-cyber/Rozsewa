@@ -1,4 +1,8 @@
-import { useState, useEffect } from "react";
+import os
+
+file_path = r"d:\Rojsewa-main\frontend\src\modules\admin\pages\AdminCoupons.jsx"
+
+content = """import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { Search, Tag, Plus, CheckCircle2, XCircle, Clock, Trash2, Tag as TagIcon } from "lucide-react";
@@ -7,12 +11,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { normalizeNonNegativeNumber, validateNonNegativeNumber } from "@/lib/numberValidation";
 import { validateDate } from "@/lib/dateValidation";
 import axios from 'axios';
+import { useSelector } from 'react-redux';
 
 const AdminCoupons = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
   
-  const auth = JSON.parse(localStorage.getItem("rozsewa_auth_admin") || "{}");
+  const { adminInfo } = useSelector((state) => state.adminAuth);
   
   const [coupons, setCoupons] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -39,7 +44,7 @@ const AdminCoupons = () => {
 
   const config = {
       headers: {
-          Authorization: `Bearer ${auth?.token}`
+          Authorization: `Bearer ${adminInfo?.token}`
       }
   };
 
@@ -320,3 +325,8 @@ const AdminCoupons = () => {
 };
 
 export default AdminCoupons;
+"""
+
+with open(file_path, "w", encoding="utf-8") as f:
+    f.write(content)
+print("Rewrote AdminCoupons.jsx")

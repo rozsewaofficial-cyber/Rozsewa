@@ -109,6 +109,11 @@ const AdminProviderSubscriptions = () => {
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight">Provider Subscriptions</h2>
                     <p className="mt-1 text-sm text-gray-500 font-medium">Manage and track vendor membership plans and expiry dates.</p>
                 </div>
+                <div className="flex items-center gap-3">
+                    <a href="/admin/subscriptions" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2">
+                        Create / Manage Plans
+                    </a>
+                </div>
             </div>
 
             {/* Stats Cards */}
@@ -229,7 +234,7 @@ const AdminProviderSubscriptions = () => {
                                                     <div className="flex items-center gap-1.5">
                                                         <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest w-12">Fee</span>
                                                         <span className="text-xs font-bold text-gray-900">
-                                                            {provider.commissionRate || (isSubscribed ? '5' : '15')}% Commission
+                                                            {provider.commissionRate ? `${provider.commissionRate}% Commission` : (isSubscribed ? 'Custom Plan' : 'Standard')}
                                                         </span>
                                                     </div>
                                                 </div>

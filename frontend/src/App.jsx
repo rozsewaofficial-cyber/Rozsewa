@@ -94,6 +94,7 @@ import AdminBanners from "./modules/admin/pages/AdminBanners";
 import AdminNotifications from "./modules/admin/pages/AdminNotifications";
 import AdminActivityLog from "./modules/admin/pages/AdminActivityLog";
 import AdminProviderSubscriptions from "./modules/admin/pages/AdminProviderSubscriptions";
+import AdminSubscriptions from "./modules/admin/pages/AdminSubscriptions";
 import AdminKYC from "./modules/admin/pages/AdminKYC";
 import Admin99Card from "./modules/admin/pages/Admin99Card";
 import AdminCommission from "./modules/admin/pages/AdminCommission";
@@ -230,6 +231,7 @@ const App = () => (
                         <Route path="feedback" element={<AdminFeedback />} />
                         <Route path="services" element={<AdminServices />} />
                         <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
+                        <Route path="subscriptions" element={<AdminSubscriptions />} />
                         <Route path="sewak-pricing" element={<SewakPricing />} />
                         <Route path="settings" element={<AdminSettings />} />
                         <Route path="settings/cash-limits" element={<AdminCashLimits />} />

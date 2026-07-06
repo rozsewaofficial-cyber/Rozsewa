@@ -672,7 +672,7 @@ const getSubscriptionPlans = async (req, res) => {
         const plans = await SubscriptionPlan.find({ 
             status: 'active', 
             $or: queryOr
-        });
+        }).sort({ displayOrder: 1 });
         res.json(plans);
     } catch (error) {
         res.status(500).json({ message: error.message });
