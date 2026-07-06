@@ -992,32 +992,34 @@ const Checkout = () => {
         </div>
 
         {/* Service Preference Toggle */}
-        <section className="bg-white dark:bg-slate-800 rounded-[20px] p-4 border border-slate-200 dark:border-slate-700">
-          <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Where would you like your service?
-          </h3>
-          <div className="grid grid-cols-2 gap-3">
-            <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("home")}
-              className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "home" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
-                }`}>
-              <div className="flex items-center gap-2 mb-1">
-                <Home className={`h-4 w-4 ${serviceLocation === "home" ? "text-blue-600" : "text-slate-400"}`} />
-                <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Home</h3>
-              </div>
-              <p className="text-[10px] font-bold text-slate-500 leading-tight">Provider visits you</p>
-            </motion.div>
-            
-            <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("shop")}
-              className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "shop" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
-                }`}>
-              <div className="flex items-center gap-2 mb-1">
-                <Briefcase className={`h-4 w-4 ${serviceLocation === "shop" ? "text-blue-600" : "text-slate-400"}`} />
-                <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Shop</h3>
-              </div>
-              <p className="text-[10px] font-bold text-slate-500 leading-tight">You visit provider</p>
-            </motion.div>
-          </div>
-        </section>
+        {checkoutData.requiredProviderCategory !== 'sewak' && (
+          <section className="bg-white dark:bg-slate-800 rounded-[20px] p-4 border border-slate-200 dark:border-slate-700">
+            <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Where would you like your service?
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("home")}
+                className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "home" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
+                  }`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Home className={`h-4 w-4 ${serviceLocation === "home" ? "text-blue-600" : "text-slate-400"}`} />
+                  <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Home</h3>
+                </div>
+                <p className="text-[10px] font-bold text-slate-500 leading-tight">Provider visits you</p>
+              </motion.div>
+              
+              <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("shop")}
+                className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "shop" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
+                  }`}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Briefcase className={`h-4 w-4 ${serviceLocation === "shop" ? "text-blue-600" : "text-slate-400"}`} />
+                  <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Shop</h3>
+                </div>
+                <p className="text-[10px] font-bold text-slate-500 leading-tight">You visit provider</p>
+              </motion.div>
+            </div>
+          </section>
+        )}
 
         {/* Feature Toggles */}
         {EXPRESS_FEE > 0 && (
