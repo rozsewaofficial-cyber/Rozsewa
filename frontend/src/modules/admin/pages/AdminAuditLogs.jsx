@@ -166,6 +166,7 @@ const AdminAuditLogs = () => {
                     <div className="flex items-center gap-3">
                         <Input 
                             type="date" 
+                            min={new Date().toISOString().split('T')[0]}
                             className="rounded-2xl border-gray-100 bg-gray-50/50 text-xs font-bold h-12"
                             value={filters.startDate}
                             onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
@@ -173,6 +174,7 @@ const AdminAuditLogs = () => {
                         <span className="text-gray-300 font-black px-1">→</span>
                         <Input 
                             type="date" 
+                            max={new Date().toISOString().split('T')[0]}
                             className="rounded-2xl border-gray-100 bg-gray-50/50 text-xs font-bold h-12"
                             value={filters.endDate}
                             onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}

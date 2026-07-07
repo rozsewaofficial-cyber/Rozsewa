@@ -193,16 +193,14 @@ const AdminVerifySewak = () => {
 
   // Client Side Filtering & Sorting
   const filteredSewaks = sewaks.filter(s => {
-    if (s._id === selectedSewakId) return true;
-
     const query = searchTerm.toLowerCase();
     const matchesSearch = 
-      s.ownerName?.toLowerCase().includes(query) ||
-      s.vendorCode?.toLowerCase().includes(query) ||
-      s.mobile?.toLowerCase().includes(query) ||
-      s.city?.toLowerCase().includes(query);
+      (s.ownerName && s.ownerName.toLowerCase().includes(query)) ||
+      (s.vendorCode && s.vendorCode.toLowerCase().includes(query)) ||
+      (s.mobile && String(s.mobile).toLowerCase().includes(query)) ||
+      (s.city && s.city.toLowerCase().includes(query));
 
-    if (!matchesSearch) return false;
+    if (query && !matchesSearch) return false;
 
     if (filterStatus === 'all') return true;
     if (filterStatus === 'pending') {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion } from "framer-motion";
+import { useSearchParams } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { Wallet, ArrowDownRight, ArrowUpRight, History, Download, Link as LinkIcon, Building2, CheckCircle, Loader2, Landmark } from "lucide-react";
@@ -53,9 +54,18 @@ const ProviderWallet = () => {
     }
   };
 
-  const [isAddingBank, setIsAddingBank] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const isAddingBank = searchParams.get('modal') === 'bank';
+
+  const openBankModal = () => setSearchParams({ modal: 'bank' });
+  const closeBankModal = () => { setSearchParams({}); setBankErrors({ accountNumber: '', ifscCode: '' }); };
+
   const [bankData, setBankData] = useState({ accountHolderName: "", accountNumber: "", bankName: "", ifscCode: "" });
-  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [bankErrors, setBankErrors] = useState({ accountNumber: "", ifscCode: "" });
+  const isWithdrawing = searchParams.get('modal') === 'withdraw';
+  const openWithdrawModal = () => setSearchParams({ modal: 'withdraw' });
+  const closeWithdrawModal = () => { setSearchParams({}); setWithdrawAmount(''); setWithdrawError(''); };
+
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
 
@@ -77,7 +87,7 @@ const ProviderWallet = () => {
       return;
     }
 
-    setIsWithdrawing(true);
+    openWithdrawModal();
   };
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -167,8 +177,7 @@ const ProviderWallet = () => {
     try {
       await API.post("/provider/withdraw", { amount });
       toast({ title: "Withdrawal Requested", description: "Your request has been submitted successfully." });
-      setIsWithdrawing(false);
-      setWithdrawAmount("");
+      closeWithdrawModal();
       fetchWallet();
       window.dispatchEvent(new CustomEvent('WALLET_UPDATED'));
     } catch (err) {
@@ -178,10 +187,24 @@ const ProviderWallet = () => {
 
   const saveBank = async (e) => {
     e.preventDefault();
+    const errors = { accountNumber: "", ifscCode: "" };
+    // Account number: digits only, 9-18 characters
+    if (!/^\d{9,18}$/.test(bankData.accountNumber)) {
+      errors.accountNumber = "Account number must be 9–18 digits (numbers only).";
+    }
+    // IFSC: 4 letters + '0' + 6 alphanumeric
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bankData.ifscCode)) {
+      errors.ifscCode = "Invalid IFSC code. Format: 4 letters + 0 + 6 alphanumeric (e.g. HDFC0001234).";
+    }
+    if (errors.accountNumber || errors.ifscCode) {
+      setBankErrors(errors);
+      return;
+    }
+    setBankErrors({ accountNumber: "", ifscCode: "" });
     try {
       await API.put('/provider/profile', { bankDetails: bankData });
       toast({ title: "Bank Details Saved", description: "Your payout information has been updated successfully." });
-      setIsAddingBank(false);
+      closeBankModal();
       fetchProfile();
     } catch (err) {
       toast({ title: "Failed to save bank details", variant: "destructive" });
@@ -195,7 +218,7 @@ const ProviderWallet = () => {
       bankName: provider?.bankDetails?.bankName || "",
       ifscCode: provider?.bankDetails?.ifscCode || ""
     });
-    setIsAddingBank(true);
+    openBankModal();
   };
 
   return (
@@ -316,7 +339,7 @@ const ProviderWallet = () => {
             ) : (
               <motion.div
                 whileHover={{ scale: 0.99 }}
-                onClick={() => setIsAddingBank(true)}
+                onClick={() => openBankModal()}
                 className="rounded-2xl border-2 border-dashed border-border p-4 flex items-center gap-4 cursor-pointer hover:bg-muted/50 transition-all group"
               >
                 <div className="h-11 w-11 rounded-xl bg-muted flex items-center justify-center shrink-0">
@@ -419,27 +442,56 @@ const ProviderWallet = () => {
             {isAddingBank && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                 <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md rounded-[40px] bg-card p-8 border border-border shadow-2xl relative">
-                  <button onClick={() => setIsAddingBank(false)} className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"><ArrowDownRight className="h-5 w-5 rotate-45" /></button>
+                  <button onClick={() => closeBankModal()} className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"><ArrowDownRight className="h-5 w-5 rotate-45" /></button>
                   <h2 className="text-2xl font-black tracking-tighter mb-1">Add Bank Account</h2>
                   <p className="text-sm text-muted-foreground mb-8">Payouts will be sent to this account securely.</p>
 
                   <form onSubmit={saveBank} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Account Holder Name</label>
-                      <input required value={bankData.accountHolderName} onChange={e => setBankData({ ...bankData, accountHolderName: e.target.value })} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="John Doe" />
+                      <input required value={bankData.accountHolderName} onChange={e => { const val = e.target.value.replace(/[^a-zA-Z\s]/g, ''); setBankData({ ...bankData, accountHolderName: val }); }} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="John Doe" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Account Number</label>
-                      <input required value={bankData.accountNumber} onChange={e => setBankData({ ...bankData, accountNumber: e.target.value })} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="0000 0000 0000 0000" />
+                      <input
+                        required
+                        value={bankData.accountNumber}
+                        onChange={e => {
+                          const val = e.target.value.replace(/\D/g, '').slice(0, 18);
+                          setBankData({ ...bankData, accountNumber: val });
+                          setBankErrors(prev => ({ ...prev, accountNumber: '' }));
+                        }}
+                        inputMode="numeric"
+                        maxLength={18}
+                        className={`w-full h-14 px-5 rounded-2xl bg-muted border focus:bg-background transition-all outline-none font-bold text-sm ${
+                          bankErrors.accountNumber ? 'border-rose-400 focus:border-rose-500' : 'border-transparent focus:border-emerald-500/50'
+                        }`}
+                        placeholder="e.g. 123456789012"
+                      />
+                      {bankErrors.accountNumber && <p className="text-[10px] font-bold text-rose-500 ml-1">{bankErrors.accountNumber}</p>}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">IFSC Code</label>
-                        <input required value={bankData.ifscCode} onChange={e => setBankData({ ...bankData, ifscCode: e.target.value })} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="HDFC0001234" />
+                        <input
+                          required
+                          value={bankData.ifscCode}
+                          onChange={e => {
+                            const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11);
+                            setBankData({ ...bankData, ifscCode: val });
+                            setBankErrors(prev => ({ ...prev, ifscCode: '' }));
+                          }}
+                          maxLength={11}
+                          className={`w-full h-14 px-5 rounded-2xl bg-muted border focus:bg-background transition-all outline-none font-bold text-sm ${
+                            bankErrors.ifscCode ? 'border-rose-400 focus:border-rose-500' : 'border-transparent focus:border-emerald-500/50'
+                          }`}
+                          placeholder="HDFC0001234"
+                        />
+                        {bankErrors.ifscCode && <p className="text-[10px] font-bold text-rose-500 ml-1">{bankErrors.ifscCode}</p>}
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Bank Name</label>
-                        <input required value={bankData.bankName} onChange={e => setBankData({ ...bankData, bankName: e.target.value })} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="HDFC Bank" />
+                        <input required value={bankData.bankName} onChange={e => { const val = e.target.value.replace(/[^a-zA-Z\s]/g, ''); setBankData({ ...bankData, bankName: val }); }} className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm" placeholder="HDFC Bank" />
                       </div>
                     </div>
                     <button type="submit" className="w-full h-16 mt-4 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all">Save Bank Details</button>
@@ -452,7 +504,7 @@ const ProviderWallet = () => {
             {isWithdrawing && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                 <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md rounded-[40px] bg-card p-8 border border-border shadow-2xl relative">
-                  <button onClick={() => setIsWithdrawing(false)} className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"><ArrowDownRight className="h-5 w-5 rotate-45" /></button>
+                  <button onClick={() => closeWithdrawModal()} className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"><ArrowDownRight className="h-5 w-5 rotate-45" /></button>
                   <h2 className="text-2xl font-black tracking-tighter mb-1">Request Withdrawal</h2>
                   <p className="text-sm text-muted-foreground mb-8">Enter the amount you want to withdraw.</p>
 

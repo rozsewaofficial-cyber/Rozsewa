@@ -247,6 +247,8 @@ const AdminEarnings = () => {
                 isLoading={isLoading}
                 onOpenFilters={() => setIsFiltersOpen(true)}
                 activeFiltersCount={activeFiltersCount}
+                globalSearch={globalSearch}
+                setGlobalSearch={setGlobalSearch}
             />
 
             {/* Slide-out Filters Drawer */}

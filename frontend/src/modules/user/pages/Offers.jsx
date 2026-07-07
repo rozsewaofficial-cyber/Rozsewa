@@ -93,6 +93,19 @@ const Offers = () => {
                       <span className="text-lg font-black text-emerald-600 tracking-tight">{coupon.discount} OFF</span>
                     </div>
                     <h3 className="text-sm font-black text-slate-900 dark:text-white font-mono bg-slate-50 dark:bg-slate-900/50 px-2 py-1 rounded w-fit">{coupon.code}</h3>
+                    
+                    {coupon.targetCategory ? (
+                        <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg text-[10px] font-bold w-max">
+                            <Tag className="h-3 w-3" />
+                            {coupon.targetCategory.name} Only
+                        </div>
+                    ) : (
+                        <div className="mt-2 flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 rounded-lg text-[10px] font-bold w-max">
+                            <Tag className="h-3 w-3" />
+                            Global (All Categories)
+                        </div>
+                    )}
+
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
                       {coupon.description || `Get ${coupon.discount} discount on your order.`}
                     </p>

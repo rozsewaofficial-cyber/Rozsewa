@@ -217,7 +217,7 @@ const AdminUsers = () => {
                                                     <Phone className="h-3 w-3 text-gray-400" /> +91 {user.mobile}
                                                 </div>
                                                 <div className="flex items-center gap-2 text-[10px] font-black text-gray-500 uppercase tracking-wider">
-                                                    <Mail className="h-3 w-3 text-gray-400" /> {user.email || 'No Email Added'}
+                                                    <Mail className="h-3 w-3 text-gray-400" /> <span className={user.email ? "lowercase" : ""}>{user.email || 'No Email Added'}</span>
                                                 </div>
                                             </div>
                                         </td>

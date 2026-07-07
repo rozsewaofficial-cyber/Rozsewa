@@ -396,7 +396,7 @@ const AdminSuper = () => {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <p className="font-bold text-gray-900">{admin.mobile}</p>
+                                        <p className="font-bold text-gray-900">+91 {admin.mobile}</p>
                                         <p className="text-[10px] font-bold text-gray-400 mt-0.5">{admin.email}</p>
                                     </td>
                                     <td className="px-6 py-4">
@@ -540,7 +540,7 @@ const AdminSuper = () => {
                                                     <p className="font-black text-gray-900">{sewak.ownerName}</p>
                                                     <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[9px] font-black">{sewak.vendorCode}</span>
                                                 </div>
-                                                <p className="text-[10px] font-bold text-gray-400 mt-0.5">{sewak.mobile}</p>
+                                                <p className="text-[10px] font-bold text-gray-400 mt-0.5">+91 {sewak.mobile}</p>
                                             </div>
                                         </div>
                                     </td>
@@ -661,7 +661,7 @@ const AdminSuper = () => {
                                 </div>
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100"><Mail className="h-4 w-4 text-gray-400" /><div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Email</p><p className="text-sm font-bold text-gray-900">{selectedAdmin.email}</p></div></div>
-                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100"><Phone className="h-4 w-4 text-gray-400" /><div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Mobile</p><p className="text-sm font-bold text-gray-900">{selectedAdmin.mobile}</p></div></div>
+                                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100"><Phone className="h-4 w-4 text-gray-400" /><div><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Mobile</p><p className="text-sm font-bold text-gray-900">+91 {selectedAdmin.mobile}</p></div></div>
                                 </div>
                                 {selectedAdmin.role !== 'superadmin' && (
                                     <div className="space-y-4">

@@ -97,8 +97,14 @@ const AdminSewakIncentives = () => {
                                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Daily Threshold</label>
                                 <Input 
                                     type="number"
+                                    min="0"
                                     value={config.threshold}
-                                    onChange={(e) => setConfig({...config, threshold: e.target.value})}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '' || Number(val) >= 0) {
+                                            setConfig({...config, threshold: val});
+                                        }
+                                    }}
                                     className="h-11 rounded-xl font-black text-sm border-gray-100"
                                 />
                             </div>
@@ -106,8 +112,14 @@ const AdminSewakIncentives = () => {
                                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Bonus per Extra (₹)</label>
                                 <Input 
                                     type="number"
+                                    min="0"
                                     value={config.bonusAmount}
-                                    onChange={(e) => setConfig({...config, bonusAmount: e.target.value})}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '' || Number(val) >= 0) {
+                                            setConfig({...config, bonusAmount: val});
+                                        }
+                                    }}
                                     className="h-11 rounded-xl font-black text-sm border-gray-100"
                                 />
                             </div>

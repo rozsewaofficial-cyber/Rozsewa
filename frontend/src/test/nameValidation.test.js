@@ -11,8 +11,8 @@ describe("nameValidation utility", () => {
       expect(sanitizeNameOnChange("John   Doe")).toBe("John Doe");
     });
 
-    it("should preserve special characters and numbers while typing", () => {
-      expect(sanitizeNameOnChange("John123 @")).toBe("John123 @");
+    it("should strip numbers and special characters", () => {
+      expect(sanitizeNameOnChange("John123 @")).toBe("John ");
     });
 
     it("should allow typing trailing space", () => {

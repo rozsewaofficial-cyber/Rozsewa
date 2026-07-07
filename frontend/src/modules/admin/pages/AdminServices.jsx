@@ -81,11 +81,27 @@ const AdminServices = () => {
         e.preventDefault();
         if (!newCat.name) return;
 
-        for (const [idx, service] of newCat.services.entries()) {
-            const priceValidation = validateNonNegativeNumber(service.basePrice, { fieldName: `Service ${idx + 1} Base Price`, min: 0 });
+        if (newCat.businessModel === 'lead') {
+            const priceValidation = validateNonNegativeNumber(newCat.defaultLeadPrice, { fieldName: "Default Lead Price", min: 1 });
             if (!priceValidation.isValid) {
                 toast({ title: "Invalid Input", description: priceValidation.error, variant: "destructive" });
                 return;
+            }
+        }
+
+        for (const [idx, service] of newCat.services.entries()) {
+            if (newCat.businessModel === 'commission') {
+                const priceValidation = validateNonNegativeNumber(service.basePrice, { fieldName: `Service ${idx + 1} Base Price`, min: 1 });
+                if (!priceValidation.isValid) {
+                    toast({ title: "Invalid Input", description: priceValidation.error, variant: "destructive" });
+                    return;
+                }
+            } else if (newCat.businessModel === 'lead' && !service.useCategoryLeadPrice) {
+                const priceValidation = validateNonNegativeNumber(service.customLeadPrice, { fieldName: `Service ${idx + 1} Custom Lead Price`, min: 1 });
+                if (!priceValidation.isValid) {
+                    toast({ title: "Invalid Input", description: priceValidation.error, variant: "destructive" });
+                    return;
+                }
             }
         }
 
@@ -424,7 +440,7 @@ const AdminServices = () => {
                                                 <InputField label="Default Lead Price (₹)">
                                                     <input
                                                         type="number"
-                                                        min="0"
+                                                        min="1"
                                                         value={newCat.defaultLeadPrice}
                                                         onChange={e => setNewCat({ ...newCat, defaultLeadPrice: Number(e.target.value) })}
                                                         className={inputCls}
@@ -484,7 +500,7 @@ const AdminServices = () => {
                                                                             <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
                                                                             <input 
                                                                                 type="number" 
-                                                                                min="0" 
+                                                                                min="1" 
                                                                                 placeholder="Lead Price" 
                                                                                 value={s.customLeadPrice || 0} 
                                                                                 onChange={e => updateServiceRow(idx, 'customLeadPrice', normalizeNonNegativeNumber(e.target.value))} 
@@ -496,7 +512,7 @@ const AdminServices = () => {
                                                             ) : (
                                                                 <>
                                                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
-                                                                    <input type="number" min="0" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', normalizeNonNegativeNumber(e.target.value))} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
+                                                                    <input type="number" min="1" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', normalizeNonNegativeNumber(e.target.value))} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
                                                                 </>
                                                             )}
                                                         </div>

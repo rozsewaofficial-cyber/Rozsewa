@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
-import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Clock, Navigation } from "lucide-react";
+import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Navigation } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -106,6 +106,17 @@ const ProviderProfile = () => {
         }
       }
 
+      if (profileData.bankDetails) {
+        if (profileData.bankDetails.accountNumber && !/^\d{9,18}$/.test(profileData.bankDetails.accountNumber)) {
+          toast({ title: "Invalid Account Number", description: "Account number must be 9–18 digits.", variant: "destructive" });
+          return;
+        }
+        if (profileData.bankDetails.ifscCode && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(profileData.bankDetails.ifscCode)) {
+          toast({ title: "Invalid IFSC Code", description: "Format must be 4 letters + 0 + 6 alphanumeric (e.g. HDFC0001234).", variant: "destructive" });
+          return;
+        }
+      }
+
       const updatedProfile = {
         ...profileData,
         ownerName: sanitizedOwnerName,
@@ -165,9 +176,10 @@ const ProviderProfile = () => {
   };
 
   const [uploading, setUploading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-6">
+    <div className={`min-h-screen bg-background ${isEditing ? 'pb-64' : 'pb-24'} md:pb-6`}>
       <ProviderTopNav />
       <main className="container max-w-3xl px-4 py-8 space-y-8">
         <div className="flex flex-col items-center justify-center space-y-4 rounded-3xl bg-emerald-600 p-8 text-center shadow-lg">
@@ -191,8 +203,6 @@ const ProviderProfile = () => {
               { icon: Store, label: "Shop Name", field: "shopName", type: "text", warning: "Changing this resets verification!" },
               { icon: Phone, label: "Mobile Number", field: "mobile", type: "tel", disabled: true },
               { icon: MapPin, label: "Shop Address", field: "address", type: "textarea" },
-              { icon: Clock, label: "Opening Time", field: "openingTime", type: "text" },
-              { icon: Clock, label: "Closing Time", field: "closingTime", type: "text" }
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-4 border-b border-border/50 pb-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted"><item.icon className="h-5 w-5 text-muted-foreground" /></div>
@@ -201,8 +211,8 @@ const ProviderProfile = () => {
                   {isEditing && !item.disabled ? (
                     <div className="space-y-1">
                       {item.type === "textarea"
-                        ? <textarea rows={2} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => setProfileData({ ...profileData, [item.field]: e.target.value })} />
-                        : <input type={item.type} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => { const val = item.field === "ownerName" ? sanitizeNameOnChange(e.target.value) : e.target.value; setProfileData({ ...profileData, [item.field]: val }); }} />
+                        ? <textarea rows={2} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => { const val = e.target.value.replace(/[^a-zA-Z0-9\s,.\-/#]/g, ''); setProfileData({ ...profileData, [item.field]: val }); }} onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)} />
+                        : <input type={item.type} className="w-full mt-1 rounded border border-emerald-500 p-2 text-sm bg-background" value={profileData[item.field]} onChange={(e) => { const val = item.field === "ownerName" ? e.target.value.replace(/[^a-zA-Z\s]/g, '') : e.target.value; setProfileData({ ...profileData, [item.field]: val }); }} onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)} />
                       }
                       {item.warning && <p className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">{item.warning}</p>}
                     </div>
@@ -215,28 +225,51 @@ const ProviderProfile = () => {
               <div className="space-y-4 mt-6 pt-4 border-t border-border text-left">
                 <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Bank Payout Info</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <input placeholder="Account Number" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountNumber} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountNumber: e.target.value } })} />
-                  <input placeholder="IFSC Code" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.ifscCode} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, ifscCode: e.target.value } })} />
-                  <input placeholder="Bank Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.bankName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, bankName: e.target.value } })} />
-                  <input placeholder="Holder Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountHolderName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountHolderName: sanitizeNameOnChange(e.target.value) } })} />
+                  <input placeholder="Account Number" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountNumber} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '').slice(0, 18) } })} />
+                  <input placeholder="IFSC Code" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.ifscCode} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, ifscCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 11) } })} />
+                  <input placeholder="Bank Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.bankName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, bankName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} />
+                  <input placeholder="Holder Name" className="rounded-xl border border-border p-3 text-sm bg-background" value={profileData.bankDetails.accountHolderName} onChange={(e) => setProfileData({ ...profileData, bankDetails: { ...profileData.bankDetails, accountHolderName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} />
                 </div>
               </div>
             )}
             {isEditing && (
               <button
                 type="button"
+                disabled={locationLoading}
                 onClick={() => {
-                  if ("geolocation" in navigator) {
-                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                  if (!("geolocation" in navigator)) {
+                    toast({ title: "Not Supported", description: "Geolocation is not supported by your browser.", variant: "destructive" });
+                    return;
+                  }
+                  setLocationLoading(true);
+                  navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
                       const { latitude, longitude } = pos.coords;
                       setProfileData(prev => ({ ...prev, location: { type: 'Point', coordinates: [longitude, latitude] } }));
                       toast({ title: "Shop Coordinates Captured", description: "Save profile to update location." });
-                    });
-                  }
+                      setLocationLoading(false);
+                    },
+                    (err) => {
+                      setLocationLoading(false);
+                      const msg = err.code === 1
+                        ? "Location permission denied. Please allow location access in your browser settings."
+                        : err.code === 2
+                        ? "Location unavailable. Please check your device GPS."
+                        : "Location request timed out. Please try again.";
+                      toast({ title: "Location Error", description: msg, variant: "destructive" });
+                    },
+                    { timeout: 10000, enableHighAccuracy: true }
+                  );
                 }}
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 py-3 text-xs font-black text-emerald-600 uppercase tracking-widest hover:bg-emerald-500/10 transition-all"
+                className={`w-full flex items-center justify-center gap-2 rounded-xl border py-3 text-xs font-black uppercase tracking-widest transition-all ${
+                  locationLoading
+                    ? 'border-emerald-300 bg-emerald-500/10 text-emerald-400 cursor-not-allowed'
+                    : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-600 hover:bg-emerald-500/10'
+                }`}
               >
-                <MapPin className="h-4 w-4" /> Update Shop Location
+                {locationLoading
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Detecting Location...</>
+                  : <><MapPin className="h-4 w-4" /> Update Shop Location</>}
               </button>
             )}
           </div>
@@ -389,31 +422,6 @@ const ProviderProfile = () => {
             </div>
           </section>
         )}
-
-        <button 
-          onClick={async () => {
-            try {
-              if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-                const { requestForToken } = await import("@/lib/firebase");
-                const fcmToken = await requestForToken();
-                if (fcmToken) {
-                  await API.post("/notifications/fcm-tokens/save", { token: fcmToken, platform: 'web' });
-                  toast({ title: "Notifications Enabled", description: "FCM Token generated and saved." });
-                } else {
-                  toast({ title: "Permission Denied", description: "Please allow notifications in your browser settings.", variant: "destructive" });
-                  return;
-                }
-              }
-              await API.post('/notifications/fcm-tokens/test');
-              toast({ title: "Test Notification Sent", description: "You should receive a push notification shortly." });
-            } catch (err) {
-              toast({ title: "Test Failed", description: err.response?.data?.message || "Failed to send test notification", variant: "destructive" });
-            }
-          }}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-500/20 bg-blue-500/10 py-4 font-bold text-blue-600 hover:bg-blue-600 hover:text-white transition-all"
-        >
-          Test Notification
-        </button>
 
         <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 py-4 font-bold text-destructive hover:bg-destructive hover:text-white transition-all"><LogOut className="h-5 w-5" /> Sign Out</button>
       </main>

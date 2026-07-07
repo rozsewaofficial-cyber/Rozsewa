@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
-import { Landmark, ArrowRightLeft, CalendarCheck, TrendingUp, IndianRupee, Percent, CreditCard, AlertTriangle, CheckCircle, Clock, XCircle, ShieldAlert, ArrowDownToLine } from "lucide-react";
+import { Landmark, ArrowRightLeft, CalendarCheck, TrendingUp, IndianRupee, Percent, CreditCard, AlertTriangle, CheckCircle, Clock, XCircle, ShieldAlert, ArrowDownToLine, RefreshCw } from "lucide-react";
 import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -49,6 +49,7 @@ const AdminCommission = () => {
     }, [setTitle]);
 
     const fetchData = async () => {
+        setLoading(true);
         try {
             const { data } = await API.get('/admin/commission');
             setStats(data.stats);
@@ -104,8 +105,16 @@ const AdminCommission = () => {
                     <h1 className="text-2xl font-black text-foreground">Commission & Settlements</h1>
                     <p className="text-sm text-muted-foreground mt-1">Track platform commission, cash debts, and payout requests.</p>
                 </div>
-                <button onClick={() => { fetchData(); fetchWithdrawals(); }} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-emerald-700 transition active:scale-95">
-                    Refresh Data
+                <button 
+                    onClick={async () => { 
+                        await Promise.all([fetchData(), fetchWithdrawals()]);
+                        toast({ title: "Refreshed", description: "Data has been updated." });
+                    }} 
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-emerald-700 transition active:scale-95 disabled:opacity-50"
+                >
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    {loading ? 'Refreshing...' : 'Refresh Data'}
                 </button>
             </div>
 

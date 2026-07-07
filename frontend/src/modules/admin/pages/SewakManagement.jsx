@@ -575,14 +575,14 @@ const SewakManagement = () => {
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <InputField label="Full Address">
-                                            <input required type="text" value={newSewak.address} onChange={(e) => setNewSewak({ ...newSewak, address: e.target.value })} className={inputCls} placeholder="Complete address" />
+                                            <input required type="text" value={newSewak.address} onChange={(e) => setNewSewak({ ...newSewak, address: e.target.value.replace(/[^\p{L}\p{N}\s,.-]/gu, "") })} className={inputCls} placeholder="Complete address" />
                                         </InputField>
                                         <div className="grid grid-cols-2 gap-4">
                                             <InputField label="City">
-                                                <input required type="text" value={newSewak.city} onChange={(e) => setNewSewak({ ...newSewak, city: e.target.value })} className={inputCls} placeholder="City" />
+                                                <input required type="text" value={newSewak.city} onChange={(e) => setNewSewak({ ...newSewak, city: sanitizeNameOnChange(e.target.value) })} className={inputCls} placeholder="City" />
                                             </InputField>
                                             <InputField label="State">
-                                                <input required type="text" value={newSewak.state} onChange={(e) => setNewSewak({ ...newSewak, state: e.target.value })} className={inputCls} placeholder="State" />
+                                                <input required type="text" value={newSewak.state} onChange={(e) => setNewSewak({ ...newSewak, state: sanitizeNameOnChange(e.target.value) })} className={inputCls} placeholder="State" />
                                             </InputField>
                                         </div>
                                     </div>

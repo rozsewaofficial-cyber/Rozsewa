@@ -77,7 +77,7 @@ const updateProviderStatus = async (req, res) => {
         if (req.body.status) {
             let actionType = req.body.status === 'verified' ? "VERIFY" : "REJECT";
             if (req.body.status === 'suspended') actionType = "SUSPEND";
-            
+
             await AuditLog.create({
                 actionType,
                 entityType: provider.providerCategory === 'sewak' ? "SEWAK" : "VENDOR",
@@ -88,7 +88,7 @@ const updateProviderStatus = async (req, res) => {
                 verifiedByRole: req.user.role,
                 details: { status: req.body.status, action: 'status_update', reason: req.body.reason }
             });
-            
+
             if (req.body.status === 'suspended' && req.body.reason) {
                 try {
                     const { sendNotificationToUser } = require('../config/notificationService');
@@ -1202,7 +1202,7 @@ async function deleteEmployee(req, res) {
     try {
         const employeeId = req.params.id;
         const employee = await Employee.findById(employeeId);
-        
+
         if (!employee) {
             return res.status(404).json({ message: 'Employee not found' });
         }
@@ -1216,7 +1216,7 @@ async function deleteEmployee(req, res) {
 
         // 2. Delete the Employee record
         await Employee.deleteOne({ _id: employeeId });
-        
+
         res.json({ success: true, message: 'Employee and user account removed completely' });
     } catch (error) {
         console.error(`[deleteEmployee Error]:`, error);
@@ -2880,7 +2880,7 @@ const getAdminCoupons = async (req, res) => {
 const createCoupon = async (req, res) => {
     try {
         const { code, discount, description, expiryDate, maxUsage, minOrderAmount, maxDiscountAmount, targetCategory } = req.body;
-        
+
         const existing = await Coupon.findOne({ code: code.toUpperCase() });
         if (existing) {
             return res.status(400).json({ message: 'Coupon code already exists' });
@@ -2914,14 +2914,14 @@ const toggleCouponStatus = async (req, res) => {
         if (!coupon) {
             return res.status(404).json({ message: 'Coupon not found' });
         }
-        
+
         if (coupon.expiryDate < new Date()) {
             return res.status(400).json({ message: 'Cannot enable an expired coupon' });
         }
 
         coupon.isActive = !coupon.isActive;
         await coupon.save();
-        
+
         const updatedCoupon = await Coupon.findById(coupon._id).populate('targetCategory', 'name');
         res.json(updatedCoupon);
     } catch (error) {
@@ -2938,7 +2938,7 @@ const deleteCoupon = async (req, res) => {
         if (!coupon) {
             return res.status(404).json({ message: 'Coupon not found' });
         }
-        
+
         await Coupon.deleteOne({ _id: coupon._id });
         res.json({ message: 'Coupon removed' });
     } catch (error) {

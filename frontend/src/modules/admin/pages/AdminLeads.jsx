@@ -169,7 +169,7 @@ const AdminLeads = () => {
           <button onClick={() => navigate("/admin/lead-forms")} className="flex h-11 items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 border border-violet-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-violet-500/20 transition-all active:scale-95">
             <Settings className="h-4 w-4" /> Edit Lead Form
           </button>
-          <button onClick={fetchLeadsData} className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 px-5 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm transition-all active:scale-95">
+          <button onClick={() => fetchLeadsData(false)} className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 px-5 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm transition-all active:scale-95">
             <RefreshCcw className="h-4 w-4" /> Refresh Data
           </button>
         </div>

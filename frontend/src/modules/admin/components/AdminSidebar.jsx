@@ -31,7 +31,7 @@ export const adminSidebarLinks = [
   { path: "/admin/emergency", label: "24x7 Emergency", icon: ShieldAlert },
   { path: "/admin/99cards", label: "Registration / 99 Cards", icon: CreditCard },
   { path: "/admin/commission", label: "Settlements", icon: Landmark },
-  { path: "/admin/finance", label: "Finance & GST", icon: Wallet },
+  // { path: "/admin/finance", label: "Finance & GST", icon: Wallet },
   { path: "/admin/earnings", label: "Earnings", icon: IndianRupee },
   { path: "/admin/withdrawals", label: "Withdrawal Requests", icon: Landmark },
 

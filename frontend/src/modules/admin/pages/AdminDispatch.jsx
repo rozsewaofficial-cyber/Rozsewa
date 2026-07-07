@@ -74,10 +74,10 @@ const AdminDispatch = () => {
                   </div>
                 </div>
                 <button
-                  onClick={() => navigate('/admin/bookings')}
+                  onClick={() => navigate('/admin/bookings', { state: { searchId: job._id } })}
                   className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition shadow-md active:scale-95 transition-all"
                 >
-                  Dispatch <ArrowRight className="h-3.5 w-3.5" />
+                  View Details <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))

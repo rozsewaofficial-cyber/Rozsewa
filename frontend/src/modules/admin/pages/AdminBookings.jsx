@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { useOutletContext, useNavigate } from "react-router-dom";
-import { Search, Download, CalendarDays, IndianRupee, Loader2, Clock, Image, Filter, Users, TrendingUp, XCircle, CheckCircle2, Truck, Play, AlertCircle, ShieldAlert } from "lucide-react";
+import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
+import { Search, Download, CalendarDays, IndianRupee, Loader2, Clock, Image, Filter, Users, TrendingUp, XCircle, CheckCircle2, Truck, Play, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -24,16 +24,27 @@ const AdminBookings = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const confirm = useConfirm();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Reset pagination when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filter]);
 
   useEffect(() => {
     setTitle("Platform Bookings");
     fetchBookings();
-  }, [setTitle]);
+    if (location.state?.searchId) {
+      setSearchTerm(location.state.searchId.toString().slice(-6).toUpperCase());
+    }
+  }, [setTitle, location.state]);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -130,6 +141,10 @@ const AdminBookings = () => {
       (filter === "unauthorized" && b.unauthorizedPaymentFlag);
     return matchesSearch && matchesFilter;
   });
+
+  const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedBookings = filteredBookings.slice(startIndex, startIndex + itemsPerPage);
 
   if (loading) return (
     <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -253,7 +268,7 @@ const AdminBookings = () => {
                 </tr>
               ) : (
                 <AnimatePresence>
-                  {filteredBookings.map((booking, idx) => {
+                  {paginatedBookings.map((booking, idx) => {
                     const sc = STATUS_CONFIG[booking.status] || STATUS_CONFIG.pending;
                     return (
                       <motion.tr
@@ -385,11 +400,28 @@ const AdminBookings = () => {
 
         {/* Footer */}
         {filteredBookings.length > 0 && (
-          <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex items-center justify-between">
+          <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Showing {filteredBookings.length} of {(bookings || []).length} bookings
+              Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredBookings.length)} of {filteredBookings.length} bookings
             </p>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="text-xs font-bold text-gray-600">Page {currentPage} of {totalPages || 1}</span>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="p-1.5 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider hidden sm:block">
               Total Value: ₹{filteredBookings.reduce((s, b) => s + (b.totalAmount || 0), 0).toLocaleString()}
             </p>
           </div>

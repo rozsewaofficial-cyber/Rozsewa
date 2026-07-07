@@ -340,7 +340,8 @@ const getPublicServiceByProvider = async (req, res) => {
 // @access  Public
 const getPublicCoupons = async (req, res) => {
     try {
-        const coupons = await Coupon.find({ isActive: true, expiryDate: { $gt: new Date() } });
+        const coupons = await Coupon.find({ isActive: true, expiryDate: { $gt: new Date() } })
+            .populate('targetCategory', 'name');
         res.json(coupons);
     } catch (error) {
         res.status(500).json({ message: error.message });

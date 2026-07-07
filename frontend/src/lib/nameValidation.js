@@ -3,15 +3,18 @@
  */
 
 /**
- * Normalizes whitespace (trims leading space and collapses multiple spaces).
- * Used during typing to keep inputs clean without aggressively stripping characters.
+ * Normalizes whitespace (trims leading space and collapses multiple spaces)
+ * and strips numbers and special characters. Allows only alphabetic characters and spaces.
+ * Used during typing to keep inputs clean.
  * 
  * @param {string} name - The raw name input.
  * @returns {string} - Normalized name.
  */
 export const sanitizeNameOnChange = (name) => {
   if (!name) return "";
-  return name.replace(/^\s+/, "").replace(/\s{2,}/g, " ");
+  // Allow only Unicode letters, marks, and spaces. Strip everything else.
+  let cleaned = name.replace(/[^\p{L}\p{M}\s]/gu, "");
+  return cleaned.replace(/^\s+/, "").replace(/\s{2,}/g, " ");
 };
 
 /**

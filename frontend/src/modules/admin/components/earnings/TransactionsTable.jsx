@@ -21,9 +21,10 @@ const TransactionsTable = ({
     transactions = [],
     isLoading = false,
     onOpenFilters,
-    activeFiltersCount = 0
+    activeFiltersCount = 0,
+    globalSearch = "",
+    setGlobalSearch
 }) => {
-    const [searchTerm, setSearchTerm] = useState("");
     const [sortField, setSortField] = useState("rawDate");
     const [sortAsc, setSortAsc] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
@@ -45,14 +46,14 @@ const TransactionsTable = ({
     const filteredTransactions = useMemo(() => {
         return transactions.filter((txn) => {
             const matchesSearch =
-                (txn.id || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (txn.bookingId || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (txn.partner?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (txn.customer?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (txn.category || "").toLowerCase().includes(searchTerm.toLowerCase());
+                (txn.id || "").toLowerCase().includes(globalSearch.toLowerCase()) ||
+                (txn.bookingId || "").toLowerCase().includes(globalSearch.toLowerCase()) ||
+                (txn.partner?.name || "").toLowerCase().includes(globalSearch.toLowerCase()) ||
+                (txn.customer?.name || "").toLowerCase().includes(globalSearch.toLowerCase()) ||
+                (txn.category || "").toLowerCase().includes(globalSearch.toLowerCase());
             return matchesSearch;
         });
-    }, [transactions, searchTerm]);
+    }, [transactions, globalSearch]);
 
     // Sorting logic
     const sortedTransactions = useMemo(() => {
@@ -153,9 +154,9 @@ const TransactionsTable = ({
                         <input
                             type="text"
                             placeholder="Filter table..."
-                            value={searchTerm}
+                            value={globalSearch}
                             onChange={(e) => {
-                                setSearchTerm(e.target.value);
+                                setGlobalSearch?.(e.target.value);
                                 setCurrentPage(1);
                             }}
                             className="w-full sm:w-60 rounded-xl border border-gray-200 bg-white py-1.5 pl-9 pr-4 text-xs font-semibold text-gray-700 placeholder-gray-400 shadow-xs focus:border-blue-500 focus:outline-none"
@@ -378,10 +379,28 @@ const TransactionsTable = ({
             {/* Pagination Controls */}
             {sortedTransactions.length > 0 && (
                 <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/20 text-xs">
-                    <span className="font-bold text-gray-400">
-                        Showing {Math.min(sortedTransactions.length, (currentPage - 1) * pageSize + 1)} to{" "}
-                        {Math.min(sortedTransactions.length, currentPage * pageSize)} of {sortedTransactions.length} entries
-                    </span>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2 text-gray-500 font-semibold">
+                            <span>Rows per page:</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                                className="border border-gray-200 rounded-lg px-2 py-1 bg-white outline-none focus:border-blue-500 font-black text-gray-700 shadow-sm"
+                            >
+                                <option value={10}>10</option>
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
+                        <span className="font-bold text-gray-400">
+                            Showing {Math.min(sortedTransactions.length, (currentPage - 1) * pageSize + 1)} to{" "}
+                            {Math.min(sortedTransactions.length, currentPage * pageSize)} of {sortedTransactions.length} entries
+                        </span>
+                    </div>
                     <div className="flex items-center gap-1.5">
                         <button
                             onClick={() => handlePageChange(currentPage - 1)}

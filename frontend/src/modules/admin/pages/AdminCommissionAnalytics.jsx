@@ -117,8 +117,8 @@ export default function AdminCommissionAnalytics() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">Audit Gross Marketplace Value, platform commission, and subscription recurring earnings.</p>
         </div>
-        <button onClick={fetchAnalytics} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-slate-50 transition text-sm font-bold text-slate-600">
-          <RefreshCw className="h-4 w-4" /> Refresh
+        <button onClick={fetchAnalytics} disabled={loading} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-slate-50 transition text-sm font-bold text-slate-600 disabled:opacity-50">
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
