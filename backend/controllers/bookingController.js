@@ -544,7 +544,7 @@ const createBooking = async (req, res) => {
                 // Use unified notifyUser for persistence, socket, and push
                 try {
                     const { notifyUser } = require('../config/notificationService');
-                    await notifyUser({
+                    notifyUser({
                         userId: provider._id,
                         userRole: 'provider',
                         title: 'Urgent: Service Request!',
@@ -555,7 +555,7 @@ const createBooking = async (req, res) => {
                             link: `/provider/bookings`,
                             bookingId: booking._id.toString()
                         }
-                    });
+                    }).catch(err => console.log('Notification persistence failed (skipping):', err.message));
 
                     // Send Email Notification
                     if (provider.email) {
@@ -572,14 +572,10 @@ const createBooking = async (req, res) => {
                             <br>
                             <p>Thank you,<br>RozSewa Team</p>
                         `;
-                        try {
-                            await sendEmail(provider.email, emailSubject, emailHtml);
-                        } catch (emailErr) {
-                            console.log('Failed to send email to provider:', emailErr.message);
-                        }
+                        sendEmail(provider.email, emailSubject, emailHtml).catch(emailErr => console.log('Failed to send email to provider:', emailErr.message));
                     }
                 } catch (err) {
-                    console.log('Notification persistence failed (skipping):', err.message);
+                    console.log('Error triggering notifications:', err.message);
                 }
             }
 
@@ -588,16 +584,16 @@ const createBooking = async (req, res) => {
             // Notify user (booking confirmation)
             try {
                 const { notifyUser } = require('../config/notificationService');
-                await notifyUser({
+                notifyUser({
                     userId: booking.userId,
                     userRole: 'user',
                     title: 'Booking Confirmed! ✓',
                     message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been placed.`,
                     type: 'booking',
                     bookingId: booking._id
-                });
+                }).catch(err => console.log('User booking confirmation notification failed (skipping):', err.message));
             } catch (err) {
-                console.log('User booking confirmation notification failed (skipping):', err.message);
+                console.log('Error triggering user notification:', err.message);
             }
 
             res.status(201).json({

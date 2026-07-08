@@ -123,14 +123,20 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
 
   useEffect(() => {
     if (socket) {
-      const handleExtraUpdate = () => {
+      const handleSocketUpdate = () => {
         fetchBookings();
       };
       
-      socket.on("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
+      socket.on("EXTRA_CHARGES_UPDATE", handleSocketUpdate);
+      socket.on("PAYMENT_COMPLETED", handleSocketUpdate);
+      socket.on("NEW_NOTIFICATION", handleSocketUpdate);
+      socket.on("BOOKING_UPDATE", handleSocketUpdate);
       
       return () => {
-        socket.off("EXTRA_CHARGES_UPDATE", handleExtraUpdate);
+        socket.off("EXTRA_CHARGES_UPDATE", handleSocketUpdate);
+        socket.off("PAYMENT_COMPLETED", handleSocketUpdate);
+        socket.off("NEW_NOTIFICATION", handleSocketUpdate);
+        socket.off("BOOKING_UPDATE", handleSocketUpdate);
       };
     }
   }, [socket]);

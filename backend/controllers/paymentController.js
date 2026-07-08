@@ -81,6 +81,10 @@ const verifyPayment = async (req, res) => {
 
                 if (booking.providerId) {
                     try {
+                        const { emitToProvider, emitToUser } = require('../config/socket');
+                        emitToProvider(booking.providerId, 'PAYMENT_COMPLETED', { bookingId: booking._id });
+                        emitToUser(booking.userId, 'PAYMENT_COMPLETED', { bookingId: booking._id });
+                        
                         await notifyUser({
                             userId: booking.providerId,
                             userRole: 'provider',
