@@ -26,6 +26,12 @@ exports.savePolicy = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Category is required' });
         }
         
+        // Remove MongoDB metadata fields to prevent update/create errors
+        delete policyData._id;
+        delete policyData.createdAt;
+        delete policyData.updatedAt;
+        delete policyData.__v;
+        
         let savedPolicies = [];
         for (const catId of targetCategories) {
             let policy = await PartnerPolicy.findOne({ category: catId });

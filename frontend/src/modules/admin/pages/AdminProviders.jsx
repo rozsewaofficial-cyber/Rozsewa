@@ -34,6 +34,8 @@ const AdminProviders = () => {
     const [categories, setCategories] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
 
+    const todayDate = new Date().toISOString().split('T')[0];
+
     // Manual Commission & Subscription configurations states
     const [subPlans, setSubPlans] = useState([]);
     const [overrideEnabled, setOverrideEnabled] = useState(false);
@@ -408,6 +410,7 @@ const AdminProviders = () => {
                             <span className="text-[10px] font-black uppercase text-gray-400">From</span>
                             <input
                                 type="date"
+                                max={todayDate}
                                 value={fromDate}
                                 onChange={(e) => setFromDate(e.target.value)}
                                 className="text-xs font-bold text-gray-700 outline-none bg-transparent"
@@ -415,6 +418,8 @@ const AdminProviders = () => {
                             <span className="text-[10px] font-black uppercase text-gray-400 ml-1">To</span>
                             <input
                                 type="date"
+                                min={todayDate}
+                                max={todayDate}
                                 value={toDate}
                                 onChange={(e) => setToDate(e.target.value)}
                                 className="text-xs font-bold text-gray-700 outline-none bg-transparent"

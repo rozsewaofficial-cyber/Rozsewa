@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { useScrollLock } from '@/lib/scrollLock';
 import {
     Users, Plus, Shield, Lock, Trash2, CheckCircle2, XCircle,
-    ChevronRight, Save, UserPlus, Fingerprint, CreditCard, Percent, Zap,
+    ChevronRight, ChevronLeft, Save, UserPlus, Fingerprint, CreditCard, Percent, Zap,
     MoreVertical, Mail, Phone, Calendar, Info, X, Edit3, Navigation
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,6 +28,11 @@ const AdminSuper = () => {
     const [admins, setAdmins] = useState([]);
     const [sewaks, setSewaks] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+    
     const [newPin, setNewPin] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showDrawer, setShowDrawer] = useState(false);
@@ -253,6 +258,9 @@ const AdminSuper = () => {
         };
     }, [admins, sewaks, settings]);
 
+    // Pagination logic
+    const totalPages = Math.ceil(admins.length / itemsPerPage);
+    const paginatedAdmins = admins.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     if (loading) return (
         <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -382,7 +390,7 @@ const AdminSuper = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {admins.map((admin) => (
+                            {paginatedAdmins.map((admin) => (
                                 <tr key={admin._id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
@@ -445,136 +453,52 @@ const AdminSuper = () => {
                         </tbody>
                     </table>
                 </div>
-            </div>
 
-            {/* Sewak Management */}
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-                    <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
-                            <Users className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h3 className="text-sm font-black text-gray-900">Internal Sewaks</h3>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Direct platform employees</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => {
-                            if (showSewakForm) {
-                                setEditingSewakId(null);
-                                setNewSewak({
-                                    ownerName: '', mobile: '', password: '', email: '',
-                                    address: '', city: '', state: '', latitude: '', longitude: '',
-                                    businessType: 'Internal Service'
-                                });
-                            }
-                            setShowSewakForm(!showSewakForm);
-                        }}
-                        className="flex h-9 items-center gap-2 rounded-lg bg-orange-600 px-4 text-[10px] font-black uppercase tracking-widest text-white hover:bg-orange-700 transition-all"
-                    >
-                        {showSewakForm ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />} {showSewakForm ? "Cancel" : "Add Sewak"}
-                    </button>
-                </div>
-                
-                {showSewakForm && (
-                    <div className="p-6 bg-orange-50/30 border-b border-gray-100">
-                        <form onSubmit={handleCreateSewak} className="space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <InputField label="Full Name"><input required value={newSewak.ownerName} onChange={e => setNewSewak({ ...newSewak, ownerName: sanitizeNameOnChange(e.target.value) })} className={inputCls} /></InputField>
-                                <InputField label="Mobile"><input required value={newSewak.mobile} onChange={e => setNewSewak({ ...newSewak, mobile: sanitizePhone(e.target.value) })} maxLength="10" className={inputCls} /></InputField>
-                                <InputField label="Password"><input required type="password" value={newSewak.password} onChange={e => setNewSewak({ ...newSewak, password: e.target.value })} className={inputCls} /></InputField>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <InputField label="Address"><input required value={newSewak.address} onChange={e => setNewSewak({ ...newSewak, address: e.target.value })} className={inputCls} /></InputField>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <InputField label="City"><input required value={newSewak.city} onChange={e => setNewSewak({ ...newSewak, city: e.target.value })} className={inputCls} /></InputField>
-                                    <InputField label="State"><input required value={newSewak.state} onChange={e => setNewSewak({ ...newSewak, state: e.target.value })} className={inputCls} /></InputField>
-                                </div>
-                            </div>
-                            <div className="p-4 bg-white rounded-xl border border-gray-200 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500">Location Settings</h4>
-                                    <button type="button" onClick={() => {
-                                        if (navigator.geolocation) {
-                                            navigator.geolocation.getCurrentPosition(pos => {
-                                                setNewSewak(p => ({ ...p, latitude: pos.coords.latitude.toString(), longitude: pos.coords.longitude.toString() }));
-                                            });
-                                        }
-                                    }} className="flex items-center gap-1.5 h-8 px-3 rounded bg-orange-100 text-orange-700 text-[9px] font-black uppercase tracking-widest hover:bg-orange-200 transition-colors"><Navigation className="h-3 w-3" /> Fetch Auto</button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <InputField label="Latitude"><input value={newSewak.latitude} onChange={e => setNewSewak({ ...newSewak, latitude: e.target.value })} className={inputCls} placeholder="28.7041" /></InputField>
-                                    <InputField label="Longitude"><input value={newSewak.longitude} onChange={e => setNewSewak({ ...newSewak, longitude: e.target.value })} className={inputCls} placeholder="77.1025" /></InputField>
-                                </div>
-                            </div>
-                            <div className="flex justify-end pt-2">
-                                <button type="submit" className="h-11 px-8 rounded-xl bg-gray-900 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-black transition-all">
-                                    {editingSewakId ? "Update Sewak" : "Register Sewak"}
+                {/* Pagination Footer */}
+                {totalPages > 1 && (
+                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-4">
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                            Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
+                            <span className="text-gray-900 font-black">
+                                {Math.min(currentPage * itemsPerPage, admins.length)}
+                            </span>{" "}
+                            of <span className="text-gray-900 font-black">{admins.length}</span> admins
+                        </p>
+
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                <button
+                                    key={page}
+                                    onClick={() => setCurrentPage(page)}
+                                    className={`h-8 min-w-8 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-black transition-all shadow-sm ${
+                                        page === currentPage
+                                            ? "bg-blue-600 text-white border border-blue-600"
+                                            : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                                    }`}
+                                >
+                                    {page}
                                 </button>
-                            </div>
-                        </form>
+                            ))}
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
                 )}
-
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className="bg-gray-50 border-b border-gray-100">
-                            <tr>
-                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-gray-400">Sewak Profile</th>
-                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-gray-400">Location</th>
-                                <th className="px-6 py-4 text-right text-[9px] font-black uppercase tracking-widest text-gray-400">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {sewaks.length === 0 && (
-                                <tr><td colSpan="3" className="px-6 py-8 text-center text-xs font-bold text-gray-400 italic">No sewaks registered.</td></tr>
-                            )}
-                            {sewaks.map(sewak => (
-                                <tr key={sewak._id} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center font-black border border-orange-100">{sewak.ownerName.charAt(0)}</div>
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-black text-gray-900">{sewak.ownerName}</p>
-                                                    <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[9px] font-black">{sewak.vendorCode}</span>
-                                                </div>
-                                                <p className="text-[10px] font-bold text-gray-400 mt-0.5">+91 {sewak.mobile}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <p className="font-bold text-gray-900">{sewak.city}, {sewak.state}</p>
-                                        <p className="text-[10px] font-bold text-gray-400 mt-0.5">{sewak.address}</p>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button onClick={() => {
-                                                setNewSewak({
-                                                    ownerName: sewak.ownerName || '',
-                                                    mobile: sewak.mobile || '',
-                                                    password: '',
-                                                    email: sewak.email || '',
-                                                    address: sewak.address || '',
-                                                    city: sewak.city || '',
-                                                    state: sewak.state || '',
-                                                    latitude: sewak.location?.coordinates?.[1] || '',
-                                                    longitude: sewak.location?.coordinates?.[0] || '',
-                                                    businessType: sewak.businessType || 'Internal Service'
-                                                });
-                                                setEditingSewakId(sewak._id);
-                                                setShowSewakForm(true);
-                                            }} className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-gray-50 text-blue-500 hover:bg-blue-50 transition-colors" title="Edit Sewak"><Edit3 className="h-3.5 w-3.5" /></button>
-                                            <button onClick={() => { if (window.confirm("Remove?")) API.delete(`/admin/providers/${sewak._id}`).then(() => fetchSewaks()); }} className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-gray-50 text-red-500 hover:bg-red-50 transition-colors" title="Delete Sewak"><Trash2 className="h-3.5 w-3.5" /></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
             </div>
+
+
 
             {/* Creation/Edit Admin Modal */}
             <AnimatePresence>

@@ -98,7 +98,7 @@ const AdminEarnings = () => {
         });
     };
 
-    // Export complete aggregated data
+    // Export complete aggregated data as CSV
     const handleExportReport = () => {
         if (!analyticsData) return;
         setIsExporting(true);
@@ -108,17 +108,61 @@ const AdminEarnings = () => {
         });
 
         setTimeout(() => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(analyticsData, null, 2));
+            // Build CSV rows from analyticsData
+            const rows = [];
+
+            // Summary section
+            rows.push(["ROZSEWA EARNINGS REPORT", `Range: ${range}`]);
+            rows.push([]);
+            rows.push(["--- SUMMARY ---"]);
+            rows.push(["Metric", "Value"]);
+            rows.push(["Total Revenue (₹)", analyticsData.totalRevenue ?? ""]);
+            rows.push(["Total Commission (₹)", analyticsData.totalCommission ?? ""]);
+            rows.push(["Total Settlements (₹)", analyticsData.totalSettlements ?? ""]);
+            rows.push(["Total Bookings", analyticsData.totalBookings ?? ""]);
+            rows.push([]);
+
+            // Transactions section
+            if (Array.isArray(analyticsData.transactions) && analyticsData.transactions.length > 0) {
+                rows.push(["--- TRANSACTIONS ---"]);
+                const txKeys = Object.keys(analyticsData.transactions[0]);
+                rows.push(txKeys);
+                analyticsData.transactions.forEach(tx => {
+                    rows.push(txKeys.map(k => tx[k] ?? ""));
+                });
+                rows.push([]);
+            }
+
+            // Settlements section
+            if (Array.isArray(analyticsData.settlements) && analyticsData.settlements.length > 0) {
+                rows.push(["--- SETTLEMENTS ---"]);
+                const sKeys = Object.keys(analyticsData.settlements[0]);
+                rows.push(sKeys);
+                analyticsData.settlements.forEach(s => {
+                    rows.push(sKeys.map(k => s[k] ?? ""));
+                });
+                rows.push([]);
+            }
+
+            // Convert rows to CSV string
+            const csvContent = rows.map(row =>
+                row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+            ).join("\n");
+
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
             const downloadAnchorNode = document.createElement("a");
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", `rozsewa_earnings_report_${range}.json`);
+            downloadAnchorNode.setAttribute("href", url);
+            downloadAnchorNode.setAttribute("download", `rozsewa_earnings_report_${range}.csv`);
             document.body.appendChild(downloadAnchorNode);
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
+            URL.revokeObjectURL(url);
+
             setIsExporting(false);
             toast({
                 title: "Report Exported",
-                description: "JSON file downloaded successfully."
+                description: "CSV file downloaded successfully. Open with Excel or Google Sheets."
             });
         }, 1200);
     };

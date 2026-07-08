@@ -136,6 +136,13 @@ export default function PartnerProgramConfig() {
   const handleSave = async () => {
     // Validate slabs contiguity
     const slabsByCategory = {};
+    for (const slab of config.commissionSlabs) {
+        if (!slab.categoryId) {
+            toast({ title: 'Validation Error', description: 'Please select a category for all commission slabs.', variant: 'destructive' });
+            return;
+        }
+    }
+    
     config.commissionSlabs.forEach(s => {
       const key = s.categoryId || 'global';
       if (!slabsByCategory[key]) slabsByCategory[key] = [];
@@ -192,6 +199,10 @@ export default function PartnerProgramConfig() {
   };
 
   const addSlab = () => {
+    if (config.commissionSlabs.some(s => !s.categoryId || s.min === '' || s.max === '' || s.rate === '' || (Number(s.min) === 0 && Number(s.max) === 0))) {
+        toast({ title: 'Validation Error', description: 'Please complete all fields (including Category) for the existing slab before adding a new one.', variant: 'destructive' });
+        return;
+    }
     setConfig({
       ...config,
       commissionSlabs: [...config.commissionSlabs, { categoryId: '', min: 0, max: 0, rate: 0 }]
@@ -484,7 +495,7 @@ export default function PartnerProgramConfig() {
                 <div className="w-full md:flex-[1.5]">
                   <label className="text-[10px] uppercase font-bold text-slate-400">Category</label>
                   <select value={slab.categoryId || ''} onChange={e => updateSlab(i, 'categoryId', e.target.value)} className="w-full border p-2 rounded-lg text-sm bg-white outline-emerald-500">
-                    <option value="">Global Default</option>
+                    <option value="">-- Select Category --</option>
                     {categories.map(cat => (
                       <option key={cat._id} value={cat._id}>{cat.name}</option>
                     ))}

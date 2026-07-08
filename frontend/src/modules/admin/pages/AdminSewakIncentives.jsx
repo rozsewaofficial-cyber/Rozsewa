@@ -26,6 +26,8 @@ const AdminSewakIncentives = () => {
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
+    const todayDate = new Date().toISOString().split('T')[0];
+
     useScrollLock(!!selectedProvider);
 
     const fetchIncentiveData = async () => {
@@ -185,6 +187,7 @@ const AdminSewakIncentives = () => {
                             <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <Input 
                                 type="date"
+                                max={todayDate}
                                 className="pl-11 h-12 rounded-2xl border-gray-100 font-bold min-w-[180px]"
                                 value={dateFilter}
                                 onChange={(e) => setDateFilter(e.target.value)}

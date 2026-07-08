@@ -62,6 +62,15 @@ const AdminCashLimits = () => {
     };
 
     const handleSave = async () => {
+        if (config.categoryLimits.some(c => !c.categoryId)) {
+            toast({ title: 'Validation Error', description: 'Please select a category for all Category Overrides.', variant: 'destructive' });
+            return;
+        }
+        if (config.serviceLimits.some(s => !s.serviceId)) {
+            toast({ title: 'Validation Error', description: 'Please select a service for all Service Overrides.', variant: 'destructive' });
+            return;
+        }
+
         setSaving(true);
         try {
             await API.put('/admin/settings/cash-limits', config);
@@ -75,6 +84,10 @@ const AdminCashLimits = () => {
     };
 
     const addCategoryLimit = () => {
+        if (config.categoryLimits.some(c => !c.categoryId)) {
+            toast({ title: 'Validation Error', description: 'Please select a category for the current override before adding a new one.', variant: 'destructive' });
+            return;
+        }
         setConfig({
             ...config,
             categoryLimits: [...config.categoryLimits, { categoryId: '', limit: 2000 }]
@@ -94,6 +107,10 @@ const AdminCashLimits = () => {
     };
 
     const addServiceLimit = () => {
+        if (config.serviceLimits.some(s => !s.serviceId)) {
+            toast({ title: 'Validation Error', description: 'Please select a service for the current override before adding a new one.', variant: 'destructive' });
+            return;
+        }
         setConfig({
             ...config,
             serviceLimits: [...config.serviceLimits, { serviceId: '', limit: 2500 }]

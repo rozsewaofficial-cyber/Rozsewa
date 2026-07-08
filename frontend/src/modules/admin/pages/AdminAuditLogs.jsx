@@ -186,8 +186,12 @@ const AdminAuditLogs = () => {
                     <Button 
                         variant="outline" 
                         onClick={() => {
+                            if (!search && !filters.entityType && !filters.startDate && !filters.endDate && !filters.adminId) {
+                                return;
+                            }
                             setFilters({ entityType: '', adminId: '', startDate: '', endDate: '' });
                             setSearch('');
+                            setPage(1);
                         }}
                         className="w-full rounded-2xl border-gray-200 font-black uppercase text-[10px] h-12 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all"
                     >
@@ -284,7 +288,13 @@ const AdminAuditLogs = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-8 py-7 text-right">
-                                                            <button className="h-10 w-10 rounded-2xl border border-gray-100 bg-gray-50 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-95 group/btn">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(log.entityId);
+                                                                    toast.success("Reference ID copied to clipboard!");
+                                                                }}
+                                                                title="Copy Reference ID"
+                                                                className="h-10 w-10 rounded-2xl border border-gray-100 bg-gray-50 flex items-center justify-center hover:bg-slate-900 hover:text-white transition-all shadow-sm active:scale-95 group/btn">
                                                                 <ArrowUpRight className="h-5 w-5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
                                                             </button>
                                                         </td>

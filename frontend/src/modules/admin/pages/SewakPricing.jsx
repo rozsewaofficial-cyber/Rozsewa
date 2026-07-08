@@ -371,8 +371,13 @@ const SewakPricing = () => {
                                                                                 <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-600" />
                                                                                 <input
                                                                                     type="number"
-                                                                                    value={combo.sewakPrice || 0}
-                                                                                    onChange={(e) => updateComboPrice(catIdx, comboIdx, e.target.value)}
+                                                                                    min="0"
+                                                                                    placeholder="0"
+                                                                                    value={combo.sewakPrice ?? ''}
+                                                                                    onChange={(e) => {
+                                                                                        const val = e.target.value;
+                                                                                        updateComboPrice(catIdx, comboIdx, val === '' ? '' : Math.max(0, Number(val)));
+                                                                                    }}
                                                                                     className={`${inputCls} pl-9 font-black text-emerald-700 bg-emerald-50/50 border-emerald-200 focus:ring-emerald-500/20 focus:border-emerald-500`}
                                                                                 />
                                                                             </div>
@@ -443,11 +448,14 @@ const SewakPricing = () => {
                                                 <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                                                 <input
                                                     type="number"
-                                                    value={selectedService.basePrice || 0}
+                                                    min="0"
+                                                    placeholder="0"
+                                                    value={selectedService.basePrice ?? ''}
                                                     onChange={(e) => {
                                                         const val = e.target.value;
-                                                        updatePrice(selectedCatIdx, selectedSvcIdx, 'basePrice', val);
-                                                        setSelectedService(prev => ({ ...prev, basePrice: val }));
+                                                        const normalizedVal = val === '' ? '' : Math.max(0, Number(val));
+                                                        updatePrice(selectedCatIdx, selectedSvcIdx, 'basePrice', normalizedVal);
+                                                        setSelectedService(prev => ({ ...prev, basePrice: normalizedVal }));
                                                     }}
                                                     className="w-full h-14 pl-11 rounded-xl border border-gray-200 bg-gray-50 font-black text-2xl text-gray-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
                                                 />

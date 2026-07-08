@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Trash2, Edit2, ShoppingBag, CheckCircle, XCircle, Plus, Tag, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
+import { useScrollLock } from '@/lib/scrollLock';
 
 const AdminBazaarPage = () => {
   const { toast } = useToast();
@@ -26,6 +27,8 @@ const AdminBazaarPage = () => {
   const [newCatOrder, setNewCatOrder] = useState(0);
   const [newCatIcon, setNewCatIcon] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  
+  useScrollLock(!!editingAd);
 
   useEffect(() => {
     if (activeTab === 'pending') {
@@ -651,9 +654,14 @@ const AdminBazaarPage = () => {
                 <p className="text-[10px] text-slate-500 mb-1">Fee paid by buyer to unlock seller contact after deal is locked.</p>
                 <input
                   type="number"
+                  min="0"
                   value={bazaarRules.bazaarCommissionFee}
-                  onChange={(e) => setBazaarRules({ ...bazaarRules, bazaarCommissionFee: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 bg-slate-50 border rounded-xl text-sm outline-none focus:border-blue-500"
+                  onChange={(e) => {
+                      const val = e.target.value;
+                      setBazaarRules({ ...bazaarRules, bazaarCommissionFee: val === '' ? '' : Math.max(0, parseInt(val) || 0) })
+                  }}
+                  className="w-full px-4 py-3 bg-slate-50 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  required
                 />
               </div>
               

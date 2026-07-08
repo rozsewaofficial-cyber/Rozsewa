@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { CreditCard, TrendingUp, Users, IndianRupee, Loader2 } from "lucide-react";
+import { CreditCard, TrendingUp, Users, IndianRupee, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import API from "@/lib/api";
 
 const Admin99Card = () => {
@@ -12,6 +12,10 @@ const Admin99Card = () => {
         recentActivations: []
     });
     const [loading, setLoading] = useState(true);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
 
     useEffect(() => {
         setTitle("Vendor Registration Card");
@@ -28,6 +32,11 @@ const Admin99Card = () => {
             setLoading(false);
         }
     };
+
+    const totalPages = Math.ceil(stats.recentActivations.length / itemsPerPage);
+    const paginatedActivations = useMemo(() => {
+        return stats.recentActivations.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    }, [stats.recentActivations, currentPage]);
 
     if (loading) return (
         <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -86,7 +95,7 @@ const Admin99Card = () => {
                                     <td colSpan="6" className="px-6 py-8 text-center text-gray-400 font-bold">No card activations yet.</td>
                                 </tr>
                             ) : (
-                                stats.recentActivations.map((item, i) => (
+                                paginatedActivations.map((item, i) => (
                                     <tr key={item._id} className="hover:bg-gray-50/50 transition">
                                         <td className="px-6 py-4 font-mono font-bold text-emerald-700">{item.vendorCode || 'N/A'}</td>
                                         <td className="px-6 py-4 font-bold text-gray-900">{item.shopName}</td>
@@ -115,6 +124,55 @@ const Admin99Card = () => {
                         </tbody>
                     </table>
                 </div>
+                
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between bg-white px-6 py-4 border-t border-gray-100">
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                            Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
+                            <span className="text-gray-900 font-black">
+                                {Math.min(currentPage * itemsPerPage, stats.recentActivations.length)}
+                            </span>{" "}
+                            of <span className="text-gray-900 font-black">{stats.recentActivations.length}</span> activations
+                        </p>
+
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                                if (totalPages > 5 && Math.abs(page - currentPage) > 2 && page !== 1 && page !== totalPages) {
+                                    if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                                    return null;
+                                }
+                                return (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`h-8 min-w-8 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-black transition-all shadow-sm ${
+                                            page === currentPage
+                                                ? "bg-blue-600 text-white border border-blue-600"
+                                                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                                        }`}
+                                    >
+                                        {page}
+                                    </button>
+                                );
+                            })}
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

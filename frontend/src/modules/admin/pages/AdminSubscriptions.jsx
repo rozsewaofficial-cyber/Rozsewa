@@ -42,6 +42,7 @@ const AdminSubscriptions = () => {
     features: [],
     isActive: true
   });
+  const [customBenefitsText, setCustomBenefitsText] = useState("");
 
   useEffect(() => {
     setTitle("Subscription Management");
@@ -75,12 +76,16 @@ const AdminSubscriptions = () => {
       return;
     }
 
+    const customFeatures = customBenefitsText.split(",").map(f => f.trim()).filter(f => f);
+    const existingPredefined = (newPlan.features || []).filter(f => PREDEFINED_BENEFITS.includes(f));
+    const planToSave = { ...newPlan, features: [...existingPredefined, ...customFeatures] };
+
     try {
       if (editingPlan) {
-        const { data } = await API.put(`/admin/subscriptions/${editingPlan._id}`, newPlan);
+        const { data } = await API.put(`/admin/subscriptions/${editingPlan._id}`, planToSave);
         toast({ title: "Plan Updated Successfully" });
       } else {
-        const { data } = await API.post("/admin/subscriptions", newPlan);
+        const { data } = await API.post("/admin/subscriptions", planToSave);
         toast({ title: "Plan Created Successfully" });
       }
       fetchPlans();
@@ -118,6 +123,7 @@ const AdminSubscriptions = () => {
       features: [],
       isActive: true
     });
+    setCustomBenefitsText("");
   };
 
   const handleEdit = (plan) => {
@@ -126,6 +132,7 @@ const AdminSubscriptions = () => {
       ...plan,
       category: plan.category?._id || plan.category
     });
+    setCustomBenefitsText((plan.features || []).filter(f => !PREDEFINED_BENEFITS.includes(f)).join(", "));
     setShowModal(true);
   };
 
@@ -296,9 +303,13 @@ const AdminSubscriptions = () => {
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Price (₹)</label>
                       <input
                         type="number"
+                        min="0"
                         required
                         value={newPlan.price}
-                        onChange={(e) => setNewPlan({ ...newPlan, price: e.target.value })}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setNewPlan({ ...newPlan, price: val === '' ? '' : Math.max(0, Number(val)) });
+                        }}
                         className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
                         placeholder="e.g. 999"
                       />
@@ -325,9 +336,13 @@ const AdminSubscriptions = () => {
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Plan Duration (Days)</label>
                           <input
                             type="number"
+                            min="0"
                             required
                             value={newPlan.duration || ''}
-                            onChange={(e) => setNewPlan({ ...newPlan, duration: e.target.value })}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setNewPlan({ ...newPlan, duration: val === '' ? '' : Math.max(0, Number(val)) });
+                            }}
                             className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
                             placeholder="e.g. 365"
                           />
@@ -336,8 +351,12 @@ const AdminSubscriptions = () => {
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Commission Rate (%)</label>
                           <input
                             type="number"
+                            min="0"
                             value={newPlan.commissionRate || ''}
-                            onChange={(e) => setNewPlan({ ...newPlan, commissionRate: e.target.value })}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setNewPlan({ ...newPlan, commissionRate: val === '' ? '' : Math.max(0, Number(val)) });
+                            }}
                             className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
                             placeholder="e.g. 5"
                           />
@@ -359,8 +378,12 @@ const AdminSubscriptions = () => {
                           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Display Order</label>
                           <input
                             type="number"
+                            min="0"
                             value={newPlan.displayOrder || 0}
-                            onChange={(e) => setNewPlan({ ...newPlan, displayOrder: e.target.value })}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setNewPlan({ ...newPlan, displayOrder: val === '' ? 0 : Math.max(0, Number(val)) });
+                            }}
                             className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
                             placeholder="e.g. 1"
                           />
@@ -414,12 +437,8 @@ const AdminSubscriptions = () => {
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Other Custom Benefits (Comma Separated)</label>
                     <textarea
-                      value={(newPlan.features || []).filter(f => !PREDEFINED_BENEFITS.includes(f)).join(", ")}
-                      onChange={(e) => {
-                        const customFeatures = e.target.value.split(",").map(f => f.trim()).filter(f => f);
-                        const existingPredefined = (newPlan.features || []).filter(f => PREDEFINED_BENEFITS.includes(f));
-                        setNewPlan({ ...newPlan, features: [...existingPredefined, ...customFeatures] });
-                      }}
+                      value={customBenefitsText}
+                      onChange={(e) => setCustomBenefitsText(e.target.value)}
                       className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none"
                       placeholder="e.g. Dedicated RM, 24/7 Support"
                     />

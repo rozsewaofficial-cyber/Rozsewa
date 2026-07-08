@@ -5,7 +5,7 @@ import {
   Briefcase, IndianRupee, Percent, TrendingUp, AlertTriangle, 
   CheckCircle2, Clock, Search, ChevronDown, ChevronUp, RefreshCcw, 
   MapPin, Calendar, User, Phone, Mail, Eye, ShieldCheck, XCircle, ShieldAlert,
-  Loader2, Settings
+  Loader2, Settings, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -34,6 +34,15 @@ const AdminLeads = () => {
   const [filterCity, setFilterCity] = useState("");
   const [filterFromDate, setFilterFromDate] = useState("");
   const [filterToDate, setFilterToDate] = useState("");
+  
+  const todayDate = new Date().toISOString().split('T')[0];
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, search, filterCity, filterFromDate, filterToDate]);
 
   useEffect(() => {
     setTitle("Leads Management");
@@ -143,6 +152,11 @@ const AdminLeads = () => {
       });
   }, [leads, filter, search, filterCity, filterFromDate, filterToDate]);
 
+  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
+  const paginatedLeads = useMemo(() => {
+      return filteredLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [filteredLeads, currentPage]);
+
   const statusConfig = {
     pending: { bg: "bg-slate-100 text-slate-700", label: "Pending" },
     available: { bg: "bg-emerald-50 text-emerald-700 border-emerald-100", label: "Available" },
@@ -166,11 +180,8 @@ const AdminLeads = () => {
           <p className="mt-1 text-sm text-gray-500 font-medium">Monitor customer intakes, track lead unlocking, and resolve provider disputes.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate("/admin/lead-forms")} className="flex h-11 items-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 border border-violet-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-violet-500/20 transition-all active:scale-95">
-            <Settings className="h-4 w-4" /> Edit Lead Form
-          </button>
-          <button onClick={() => fetchLeadsData(false)} className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 px-5 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm transition-all active:scale-95">
-            <RefreshCcw className="h-4 w-4" /> Refresh Data
+          <button onClick={() => fetchLeadsData(false)} disabled={loading} className="flex h-11 items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/60 px-5 text-[10px] font-black uppercase tracking-widest text-slate-700 shadow-sm transition-all active:scale-95 disabled:opacity-50">
+            <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> {loading ? "Refreshing..." : "Refresh Data"}
           </button>
         </div>
       </div>
@@ -226,6 +237,7 @@ const AdminLeads = () => {
                 type="date" 
                 value={filterFromDate} 
                 onChange={e => setFilterFromDate(e.target.value)}
+                max={todayDate}
                 title="From Date"
                 className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none text-slate-500" 
             />
@@ -235,6 +247,8 @@ const AdminLeads = () => {
                 type="date" 
                 value={filterToDate} 
                 onChange={e => setFilterToDate(e.target.value)}
+                min={filterFromDate || undefined}
+                max={todayDate}
                 title="To Date"
                 className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none text-slate-500" 
             />
@@ -270,7 +284,7 @@ const AdminLeads = () => {
             <p className="text-sm font-bold text-slate-400 mt-1">There are no leads matching your current criteria.</p>
           </div>
         ) : (
-          filteredLeads.map((lead) => {
+          paginatedLeads.map((lead) => {
             const conf = statusConfig[lead.status] || statusConfig.pending;
             return (
               <motion.div 
@@ -455,6 +469,56 @@ const AdminLeads = () => {
           })
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white px-6 py-4 rounded-3xl border border-slate-100 shadow-sm mt-2">
+            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
+                <span className="text-gray-900 font-black">
+                    {Math.min(currentPage * itemsPerPage, filteredLeads.length)}
+                </span>{" "}
+                of <span className="text-gray-900 font-black">{filteredLeads.length}</span> leads
+            </p>
+
+            <div className="flex items-center gap-1">
+                <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                >
+                    <ChevronLeft className="h-4 w-4" />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    // Only show 5 pages max around current page
+                    if (totalPages > 5 && Math.abs(page - currentPage) > 2 && page !== 1 && page !== totalPages) {
+                        if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                        return null;
+                    }
+                    return (
+                        <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`h-8 min-w-8 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-black transition-all shadow-sm ${
+                                page === currentPage
+                                    ? "bg-blue-600 text-white border border-blue-600"
+                                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            }`}
+                        >
+                            {page}
+                        </button>
+                    )
+                })}
+                <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                >
+                    <ChevronRight className="h-4 w-4" />
+                </button>
+            </div>
+        </div>
+      )}
 
       {/* Disputes Resolution Desk */}
       <div className="space-y-6 pt-6 border-t border-slate-100 text-left">

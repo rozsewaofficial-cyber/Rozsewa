@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from "react-router-dom";
-import { 
-    Moon, Sun, Percent, Save, RefreshCw, 
-    ChevronRight, Loader2, AlertCircle, 
+import {
+    Moon, Sun, Percent, Save, RefreshCw,
+    ChevronRight, Loader2, AlertCircle,
     Clock, CheckCircle2, LayoutGrid, Zap
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -58,7 +58,7 @@ const AdminNightCharge = () => {
 
     const handleApplyAll = async () => {
         if (!window.confirm("Are you sure you want to apply global settings to all categories? This will overwrite individual settings.")) return;
-        
+
         setSaving(true);
         try {
             await API.post('/admin/night-charge/apply-all');
@@ -130,7 +130,7 @@ const AdminNightCharge = () => {
                                 <p className="font-black text-slate-900">Enable Night Charges</p>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase">Apply globally</p>
                             </div>
-                            <Switch 
+                            <Switch
                                 checked={globalConfig.enabled}
                                 onCheckedChange={(val) => setGlobalConfig(prev => ({ ...prev, enabled: val }))}
                             />
@@ -140,10 +140,15 @@ const AdminNightCharge = () => {
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Default Percentage (%)</label>
                             <div className="relative">
                                 <Percent className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input 
+                                <Input
                                     type="number"
+                                    min="0"
+                                    max="100"
                                     value={globalConfig.defaultPercent}
-                                    onChange={(e) => setGlobalConfig(prev => ({ ...prev, defaultPercent: Number(e.target.value) }))}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setGlobalConfig(prev => ({ ...prev, defaultPercent: val === '' ? '' : Math.min(100, Math.max(0, Number(val))) }))
+                                    }}
                                     className="pl-11 rounded-2xl border-gray-100 bg-gray-50/50 h-14 text-sm font-black"
                                     placeholder="0"
                                 />
@@ -155,7 +160,7 @@ const AdminNightCharge = () => {
                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Start Time</label>
                                 <div className="flex items-center gap-3 bg-slate-50/50 rounded-xl border border-slate-100 px-4 h-12 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition-all group">
                                     <Clock className="h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none shrink-0" />
-                                    <Input 
+                                    <Input
                                         type="time"
                                         value={globalConfig.startTime}
                                         onChange={(e) => setGlobalConfig(prev => ({ ...prev, startTime: e.target.value }))}
@@ -168,7 +173,7 @@ const AdminNightCharge = () => {
                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">End Time</label>
                                 <div className="flex items-center gap-3 bg-slate-50/50 rounded-xl border border-slate-100 px-4 h-12 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition-all group">
                                     <Clock className="h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none shrink-0" />
-                                    <Input 
+                                    <Input
                                         type="time"
                                         value={globalConfig.endTime}
                                         onChange={(e) => setGlobalConfig(prev => ({ ...prev, endTime: e.target.value }))}
@@ -180,7 +185,7 @@ const AdminNightCharge = () => {
                         </div>
 
                         <div className="space-y-3 pt-2">
-                            <Button 
+                            <Button
                                 onClick={handleGlobalSave}
                                 disabled={saving}
                                 className="w-full rounded-xl h-12 bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest hover:bg-slate-800 shadow-lg shadow-slate-900/10 active:scale-95 transition-all"
@@ -188,8 +193,8 @@ const AdminNightCharge = () => {
                                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                                 Update Global Settings
                             </Button>
-                            
-                            <Button 
+
+                            <Button
                                 variant="outline"
                                 onClick={handleApplyAll}
                                 disabled={saving}
@@ -227,7 +232,6 @@ const AdminNightCharge = () => {
                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Service Category</th>
                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Status</th>
                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Night Charge (%)</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
@@ -243,7 +247,7 @@ const AdminNightCharge = () => {
                                             </td>
                                             <td className="px-8 py-6">
                                                 <div className="flex items-center gap-2">
-                                                    <Switch 
+                                                    <Switch
                                                         checked={cat.hasNightCharge}
                                                         onCheckedChange={(val) => handleCategoryUpdate(cat._id, val, cat.nightChargePercent)}
                                                     />
@@ -254,18 +258,21 @@ const AdminNightCharge = () => {
                                             </td>
                                             <td className="px-8 py-6">
                                                 {editingCategory === cat._id ? (
-                                                    <div className="flex items-center gap-2 max-w-[100px]">
-                                                        <Input 
+                                                    <div className="flex items-center gap-2 max-w-[150px]">
+                                                        <Input
                                                             type="number"
-                                                            defaultValue={cat.nightChargePercent}
-                                                            onBlur={(e) => handleCategoryUpdate(cat._id, cat.hasNightCharge, Number(e.target.value))}
-                                                            className="h-8 rounded-lg font-black text-xs px-2"
+                                                            min="0"
+                                                            max="100"
+                                                            placeholder="0"
+                                                            defaultValue={cat.nightChargePercent === 0 ? '' : cat.nightChargePercent}
+                                                            onBlur={(e) => handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, Number(e.target.value))))}
+                                                            className="h-10 rounded-lg font-black text-sm px-3"
                                                             autoFocus
                                                         />
                                                         <span className="text-xs font-black text-gray-400">%</span>
                                                     </div>
                                                 ) : (
-                                                    <div 
+                                                    <div
                                                         onClick={() => setEditingCategory(cat._id)}
                                                         className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg cursor-pointer hover:bg-blue-600 hover:text-white transition-all group/val"
                                                     >
@@ -273,16 +280,6 @@ const AdminNightCharge = () => {
                                                         <span className="text-[10px] font-bold opacity-50 group-hover/val:opacity-100">%</span>
                                                     </div>
                                                 )}
-                                            </td>
-                                            <td className="px-8 py-6 text-right">
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="sm"
-                                                    onClick={() => setEditingCategory(cat._id === editingCategory ? null : cat._id)}
-                                                    className="h-9 w-9 rounded-xl hover:bg-slate-900 hover:text-white transition-all"
-                                                >
-                                                    <RefreshCw className={`h-4 w-4 ${editingCategory === cat._id ? 'animate-spin' : ''}`} />
-                                                </Button>
                                             </td>
                                         </tr>
                                     ))}
