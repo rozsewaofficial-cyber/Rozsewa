@@ -191,8 +191,8 @@ const AdminSettings = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     toast({ title: "Logged Out", description: "You have been securely signed out." });
     navigate("/admin/login");
   };
@@ -320,27 +320,51 @@ const AdminSettings = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left mb-6">
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Min. Wallet Balance (₹)</label>
-                <input type="number" min="0" value={platformSettings.lead_min_wallet_balance} onChange={e => setPlatformSettings({ ...platformSettings, lead_min_wallet_balance: Math.max(0, Number(e.target.value)) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+                <input type="number" min="0" value={platformSettings.lead_min_wallet_balance} onChange={e => {
+                  let val = e.target.value;
+                  if (val === '') setPlatformSettings({ ...platformSettings, lead_min_wallet_balance: '' });
+                  else if (!isNaN(Number(val))) setPlatformSettings({ ...platformSettings, lead_min_wallet_balance: Math.max(0, Number(val)) });
+                }} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Lead Unlock Price (₹)</label>
-                <input type="number" min="0" value={platformSettings.lead_unlock_price} onChange={e => setPlatformSettings({ ...platformSettings, lead_unlock_price: Math.max(0, Number(e.target.value)) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+                <input type="number" min="0" value={platformSettings.lead_unlock_price} onChange={e => {
+                  let val = e.target.value;
+                  if (val === '') setPlatformSettings({ ...platformSettings, lead_unlock_price: '' });
+                  else if (!isNaN(Number(val))) setPlatformSettings({ ...platformSettings, lead_unlock_price: Math.max(0, Number(val)) });
+                }} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Free Unlocks Limit</label>
-                <input type="number" min="0" value={platformSettings.lead_free_unlock_limit} onChange={e => setPlatformSettings({ ...platformSettings, lead_free_unlock_limit: Math.max(0, Number(e.target.value)) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+                <input type="number" min="0" value={platformSettings.lead_free_unlock_limit} onChange={e => {
+                  let val = e.target.value;
+                  if (val === '') setPlatformSettings({ ...platformSettings, lead_free_unlock_limit: '' });
+                  else if (!isNaN(Number(val))) setPlatformSettings({ ...platformSettings, lead_free_unlock_limit: Math.max(0, Number(val)) });
+                }} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Max Unlock Limit</label>
-                <input type="number" min="0" value={platformSettings.lead_max_unlock_count} onChange={e => setPlatformSettings({ ...platformSettings, lead_max_unlock_count: Math.max(0, Number(e.target.value)) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+                <input type="number" min="0" value={platformSettings.lead_max_unlock_count} onChange={e => {
+                  let val = e.target.value;
+                  if (val === '') setPlatformSettings({ ...platformSettings, lead_max_unlock_count: '' });
+                  else if (!isNaN(Number(val))) setPlatformSettings({ ...platformSettings, lead_max_unlock_count: Math.max(0, Number(val)) });
+                }} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Geofence Radius (KM)</label>
-                <input type="number" min="0" value={platformSettings.lead_geofence_radius} onChange={e => setPlatformSettings({ ...platformSettings, lead_geofence_radius: Math.max(0, Number(e.target.value)) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+                <input type="number" min="0" value={platformSettings.lead_geofence_radius} onChange={e => {
+                  let val = e.target.value;
+                  if (val === '') setPlatformSettings({ ...platformSettings, lead_geofence_radius: '' });
+                  else if (!isNaN(Number(val))) setPlatformSettings({ ...platformSettings, lead_geofence_radius: Math.max(0, Number(val)) });
+                }} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">Lead Expiry (Hours)</label>
-                <input type="number" min="0" value={platformSettings.lead_expiry} onChange={e => setPlatformSettings({ ...platformSettings, lead_expiry: Math.max(0, Number(e.target.value)) })} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
+                <input type="number" min="0" value={platformSettings.lead_expiry} onChange={e => {
+                  let val = e.target.value;
+                  if (val === '') setPlatformSettings({ ...platformSettings, lead_expiry: '' });
+                  else if (!isNaN(Number(val))) setPlatformSettings({ ...platformSettings, lead_expiry: Math.max(0, Number(val)) });
+                }} className="block w-full rounded-xl border border-gray-200 bg-gray-50/50 py-3 px-4 text-sm font-bold focus:border-blue-500" />
               </div>
             </div>
 

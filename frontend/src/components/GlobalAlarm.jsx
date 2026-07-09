@@ -2,6 +2,7 @@ import React from 'react';
 import { useSocket } from '@/context/SocketContext';
 import { useAuth } from '@/context/AuthContext';
 import IncomingRequestModal from '@/modules/provider/components/IncomingRequestModal';
+import IncomingLeadModal from '@/modules/provider/components/IncomingLeadModal';
 import ScheduleAcceptedModal from '@/modules/provider/components/ScheduleAcceptedModal';
 import BookingReminderModal from '@/modules/provider/components/BookingReminderModal';
 
@@ -21,6 +22,7 @@ const GlobalAlarm = () => {
 
     const {
         incomingRequest, setIncomingRequest,
+        incomingLeadRequest, setIncomingLeadRequest,
         scheduleAcceptedData, setScheduleAcceptedData,
         reminderData, setReminderData
     } = socketData;
@@ -39,6 +41,15 @@ const GlobalAlarm = () => {
             <ScheduleAcceptedModal
                 data={scheduleAcceptedData}
                 onDismiss={() => setScheduleAcceptedData(null)}
+            />
+        );
+    }
+
+    if (incomingLeadRequest) {
+        return (
+            <IncomingLeadModal
+                request={incomingLeadRequest}
+                onAction={() => setIncomingLeadRequest(null)}
             />
         );
     }

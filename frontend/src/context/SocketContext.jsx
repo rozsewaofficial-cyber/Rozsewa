@@ -17,6 +17,14 @@ export const SocketProvider = ({ children }) => {
             return null;
         }
     });
+    const [incomingLeadRequest, setIncomingLeadRequest] = useState(() => {
+        try {
+            const saved = sessionStorage.getItem('activeLeadRequest');
+            return saved && saved !== "undefined" ? JSON.parse(saved) : null;
+        } catch (e) {
+            return null;
+        }
+    });
     const [scheduleAcceptedData, setScheduleAcceptedData] = useState(null);
     const [reminderData, setReminderData] = useState(null);
     const { user } = useAuth();
@@ -114,6 +122,17 @@ export const SocketProvider = ({ children }) => {
             }
         });
 
+        newSocket.on("NEW_LEAD_REQUEST", (data) => {
+            console.log("Global Socket: New lead received", data);
+            sessionStorage.setItem('activeLeadRequest', JSON.stringify(data));
+            setIncomingLeadRequest(data);
+            
+            const path = window.location.pathname;
+            if (path.startsWith('/provider') || path.startsWith('/sewak')) {
+                playAlarmSound();
+            }
+        });
+
         newSocket.on("BOOKING_TAKEN", (data) => {
             setIncomingRequest(prev => {
                 if (prev && prev.bookingId === data.bookingId) {
@@ -189,7 +208,8 @@ export const SocketProvider = ({ children }) => {
     useEffect(() => {
         if (socket && user) {
             const joinRooms = () => {
-                if (user.role === 'provider' || user.role === 'sewak' || user.providerCategory) {
+                const isProviderApp = user.role === 'provider' || user.role === 'sewak';
+                if (isProviderApp) {
                     socket.emit('join_provider', user._id);
                     console.log('Provider joined socket room:', user._id);
                 } else {
@@ -217,6 +237,8 @@ export const SocketProvider = ({ children }) => {
             socket,
             incomingRequest,
             setIncomingRequest,
+            incomingLeadRequest,
+            setIncomingLeadRequest,
             scheduleAcceptedData,
             setScheduleAcceptedData,
             reminderData,

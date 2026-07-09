@@ -593,23 +593,18 @@ const AdminSuper = () => {
                                             <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Module Access</h4>
                                             <button disabled={!selectedAdmin.isModified} onClick={() => savePermissions(selectedAdmin)} className={`h-7 px-3 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors ${selectedAdmin.isModified ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'}`}>Save Access</button>
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className="flex flex-wrap gap-2">
                                             {adminSidebarLinks.map(link => (
-                                                <div key={link.path} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${selectedAdmin.permissions?.includes(link.path) ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-100 hover:bg-gray-50'}`}>
-                                                    <div className="flex items-center gap-3">
-                                                        <link.icon className={`h-4 w-4 ${selectedAdmin.permissions?.includes(link.path) ? 'text-blue-600' : 'text-gray-400'}`} />
-                                                        <span className={`text-xs font-bold ${selectedAdmin.permissions?.includes(link.path) ? 'text-blue-900' : 'text-gray-600'}`}>{link.label}</span>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input type="checkbox" className="sr-only peer" checked={selectedAdmin.permissions?.includes(link.path) || false} onChange={() => {
-                                                            const current = selectedAdmin.permissions || [];
-                                                            const next = current.includes(link.path) ? current.filter(p => p !== link.path) : [...current, link.path];
-                                                            const updated = { ...selectedAdmin, permissions: next, isModified: true };
-                                                            setSelectedAdmin(updated);
-                                                            setAdmins(admins.map(a => a._id === updated._id ? updated : a));
-                                                        }} />
-                                                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                                                    </label>
+                                                <div key={link.path} className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all cursor-pointer ${selectedAdmin.permissions?.includes(link.path) ? 'bg-blue-50/50 border-blue-200' : 'bg-white border-gray-100 hover:bg-gray-50'}`}
+                                                    onClick={() => {
+                                                        const current = selectedAdmin.permissions || [];
+                                                        const next = current.includes(link.path) ? current.filter(p => p !== link.path) : [...current, link.path];
+                                                        const updated = { ...selectedAdmin, permissions: next, isModified: true };
+                                                        setSelectedAdmin(updated);
+                                                        setAdmins(admins.map(a => a._id === updated._id ? updated : a));
+                                                    }}>
+                                                    <link.icon className={`h-4 w-4 shrink-0 ${selectedAdmin.permissions?.includes(link.path) ? 'text-blue-600' : 'text-gray-400'}`} />
+                                                    <span className={`text-[11px] font-bold whitespace-nowrap ${selectedAdmin.permissions?.includes(link.path) ? 'text-blue-900' : 'text-gray-600'}`}>{link.label}</span>
                                                 </div>
                                             ))}
                                         </div>

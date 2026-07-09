@@ -695,12 +695,16 @@ const AdminHRM = ({ view }) => {
             {/* Add/Edit Modal */}
             <AnimatePresence>
                 {showAddModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div 
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                        onClick={() => { setShowAddModal(false); resetForm(); }}
+                    >
                         <motion.div
                             initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.95, opacity: 0 }}
                             className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto"
+                            onClick={(e) => e.stopPropagation()}
                         >
                             {/* Modal Header */}
                             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
@@ -742,6 +746,13 @@ const AdminHRM = ({ view }) => {
                                     <InputField label="Full Name" required>
                                         <input required type="text" value={formData.name}
                                             onChange={(e) => setFormData({ ...formData, name: sanitizeNameOnChange(e.target.value) })}
+                                            onKeyDown={(e) => {
+                                                if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                    e.preventDefault();
+                                                }
+                                            }}
+                                            pattern="^[\p{L}\p{M}\s]+$"
+                                            title="Full name should not accept special characters and numbers"
                                             maxLength={50} className={inputCls} placeholder="Rahul Verma" />
                                     </InputField>
                                 </div>
@@ -778,7 +789,14 @@ const AdminHRM = ({ view }) => {
                                     <InputField label="State" required>
                                         <div className="relative">
                                             <input required type="text" value={formData.state}
-                                                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                                                onChange={(e) => setFormData({ ...formData, state: sanitizeNameOnChange(e.target.value) })}
+                                                onKeyDown={(e) => {
+                                                    if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                pattern="^[\p{L}\p{M}\s]+$"
+                                                title="State should not accept special characters and numbers"
                                                 onFocus={() => setShowStateSuggestions(true)}
                                                 onBlur={() => setTimeout(() => setShowStateSuggestions(false), 200)}
                                                 className={inputCls} placeholder="State (e.g. Maharashtra)" />
@@ -805,7 +823,14 @@ const AdminHRM = ({ view }) => {
                                     <InputField label="City" required>
                                         <div className="relative">
                                             <input required type="text" value={formData.city}
-                                                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                                onChange={(e) => setFormData({ ...formData, city: sanitizeNameOnChange(e.target.value) })}
+                                                onKeyDown={(e) => {
+                                                    if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                pattern="^[\p{L}\p{M}\s]+$"
+                                                title="City should not accept special characters and numbers"
                                                 onFocus={() => setShowCitySuggestions(true)}
                                                 onBlur={() => setTimeout(() => setShowCitySuggestions(false), 200)}
                                                 className={inputCls} placeholder="City (e.g. Mumbai)" />

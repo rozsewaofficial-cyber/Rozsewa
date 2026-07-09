@@ -176,7 +176,7 @@ const ShopListing = () => {
               </motion.button>
               <div>
                 <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white line-clamp-1">
-                  {mode === "sewak" ? "Select a Service Category" : (isEmergency ? "🚨 Emergency Providers" : category || "All Services")}
+                  {mode === "sewak" ? "Select a Service Category" : (isEmergency ? "🚨 Emergency Providers" : (searchQuery ? `Search: "${searchQuery}"` : (category || "All Services")))}
                 </h1>
                 {mode !== "sewak" && (
                   <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{sorted.length} providers found</p>
@@ -202,7 +202,7 @@ const ShopListing = () => {
             )}
           </div>
           
-          <SearchBar onSearch={(val) => {
+          <SearchBar initialValue={searchQuery} onSearch={(val) => {
             setSearchQuery(val);
           }} onFilterClick={() => setIsFilterOpen(true)} hideFilterIcon={true} />
           

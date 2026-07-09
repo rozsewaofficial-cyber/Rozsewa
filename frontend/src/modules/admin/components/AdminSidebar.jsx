@@ -213,9 +213,9 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
             </p>
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
               if (window.confirm("Are you sure you want to logout?")) {
-                logout();
+                await logout();
                 window.location.replace("/admin/login");
               }
             }}

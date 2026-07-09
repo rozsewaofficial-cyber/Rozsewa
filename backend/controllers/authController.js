@@ -177,7 +177,7 @@ const loginWithOTP = async (req, res) => {
                     city: user.city || "",
                     address: user.address || "",
                     avatar: user.avatar || user.profileImage,
-                    providerCategory: user.providerCategory || "partner"
+                    providerCategory: isProvider ? (user.providerCategory || "partner") : undefined
                 }
             }
         });

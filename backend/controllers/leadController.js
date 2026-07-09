@@ -444,6 +444,8 @@ const createLead = async (req, res) => {
         const cityStr = locDetail.city || '';
         const locStr = [areaStr, cityStr].filter(Boolean).join(', ') || 'Nearby';
 
+        const io = require('../config/socket').getIO();
+
         // Notify eligible providers
         for (const providerId of eligibleProviders) {
             try {
@@ -458,6 +460,14 @@ const createLead = async (req, res) => {
                         link: '/provider/leads',
                         userRole: 'provider'
                     }
+                });
+                
+                io.to(`provider_${providerId}`).emit('NEW_LEAD_REQUEST', {
+                    leadId: lead._id,
+                    serviceName: category.name,
+                    schedule: scheduleStr,
+                    location: locStr,
+                    leadPrice: leadPrice,
                 });
             } catch (e) {
                 console.error(`[Lead notify provider ${providerId}]:`, e.message);

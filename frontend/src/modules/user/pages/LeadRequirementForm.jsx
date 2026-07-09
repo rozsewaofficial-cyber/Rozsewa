@@ -358,7 +358,7 @@ const LeadRequirementForm = () => {
     const dd = String(today.getDate()).padStart(2, '0');
     const currentTodayStr = `${yyyy}-${mm}-${dd}`;
 
-    if (preferredDate === currentTodayStr) {
+    if (!preferredDate || preferredDate === currentTodayStr) {
       const currentHour = today.getHours();
       const currentMin = today.getMinutes();
       if (selectedHour) {
@@ -446,7 +446,7 @@ const LeadRequirementForm = () => {
               {Array.from({ length: 24 }).map((_, i) => {
                 const h = String(i).padStart(2, '0');
                 const disabled = (() => {
-                  if (preferredDate === todayStr) {
+                  if (!preferredDate || preferredDate === todayStr) {
                     const currentHour = new Date().getHours();
                     const currentMin = new Date().getMinutes();
                     if (i < currentHour) return true;
@@ -466,7 +466,7 @@ const LeadRequirementForm = () => {
               <option value="">Min</option>
               {['00', '15', '30', '45'].map(m => {
                 const disabled = (() => {
-                  if (preferredDate === todayStr && selectedHour) {
+                  if ((!preferredDate || preferredDate === todayStr) && selectedHour) {
                     const currentHour = new Date().getHours();
                     const currentMin = new Date().getMinutes();
                     if (Number(selectedHour) === currentHour && Number(m) <= currentMin) {
@@ -494,7 +494,14 @@ const LeadRequirementForm = () => {
           <div className="relative w-full">
             <input type="text" required={field.required} value={locationDetail.city} placeholder={field.placeholder || "e.g. Noida"}
               list="city-suggestions"
-              onChange={e => setLocationDetail(prev => ({ ...prev, city: e.target.value }))}
+              onChange={e => setLocationDetail(prev => ({ ...prev, city: e.target.value.replace(/[^\p{L}\p{M}\s]/gu, '') }))}
+              onKeyDown={(e) => {
+                if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                  e.preventDefault();
+                }
+              }}
+              pattern="^[\p{L}\p{M}\s]+$"
+              title="City should not accept special characters and numbers"
               className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all" />
             <datalist id="city-suggestions">
               {(STATE_CITIES[locationDetail.state] || []).map(city => (
@@ -507,37 +514,81 @@ const LeadRequirementForm = () => {
       case 'houseNo':
         return (
           <input type="text" value={locationDetail.houseNo || ''} placeholder={field.placeholder || "e.g. 104"}
-            onChange={e => setLocationDetail(prev => ({ ...prev, houseNo: e.target.value }))}
+            onChange={e => setLocationDetail(prev => ({ ...prev, houseNo: e.target.value.replace(/[^\p{L}\p{N}\s,.-]/gu, '') }))}
+            onKeyDown={(e) => {
+              if (/[^\p{L}\p{N}\s,.-]/u.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+              }
+            }}
+            pattern="^[\p{L}\p{N}\s,.-]*$"
+            title="Special characters are not allowed"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
         );
       case 'apartment':
         return (
           <input type="text" value={locationDetail.apartment || ''} placeholder={field.placeholder || "e.g. Maple Heights"}
-            onChange={e => setLocationDetail(prev => ({ ...prev, apartment: e.target.value }))}
+            onChange={e => setLocationDetail(prev => ({ ...prev, apartment: e.target.value.replace(/[^\p{L}\p{N}\s,.-]/gu, '') }))}
+            onKeyDown={(e) => {
+              if (/[^\p{L}\p{N}\s,.-]/u.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+              }
+            }}
+            pattern="^[\p{L}\p{N}\s,.-]*$"
+            title="Special characters are not allowed"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
         );
       case 'street':
         return (
           <input type="text" required={field.required} value={locationDetail.street || ''} placeholder={field.placeholder || "e.g. Main Market Road"}
-            onChange={e => setLocationDetail(prev => ({ ...prev, street: e.target.value }))}
+            onChange={e => setLocationDetail(prev => ({ ...prev, street: e.target.value.replace(/[^\p{L}\p{N}\s,.-]/gu, '') }))}
+            onKeyDown={(e) => {
+              if (/[^\p{L}\p{N}\s,.-]/u.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+              }
+            }}
+            pattern="^[\p{L}\p{N}\s,.-]*$"
+            title="Special characters are not allowed"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
         );
       case 'landmark':
         return (
           <input type="text" value={locationDetail.landmark || ''} placeholder={field.placeholder || "e.g. Near HDFC Bank"}
-            onChange={e => setLocationDetail(prev => ({ ...prev, landmark: e.target.value }))}
+            onChange={e => setLocationDetail(prev => ({ ...prev, landmark: e.target.value.replace(/[^\p{L}\p{N}\s,.-]/gu, '') }))}
+            onKeyDown={(e) => {
+              if (/[^\p{L}\p{N}\s,.-]/u.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+              }
+            }}
+            pattern="^[\p{L}\p{N}\s,.-]*$"
+            title="Special characters are not allowed"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
         );
       case 'pincode':
         return (
           <input type="text" required={field.required} value={locationDetail.pincode || ''} placeholder={field.placeholder || "e.g. 201301"}
-            onChange={e => setLocationDetail(prev => ({ ...prev, pincode: e.target.value }))}
+            maxLength={6}
+            onChange={e => setLocationDetail(prev => ({ ...prev, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+            onKeyDown={(e) => {
+              if (!/[0-9]/.test(e.key) && e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+              }
+            }}
+            pattern="[0-9]{6}"
+            title="Pincode must be exactly 6 digits"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
         );
 
       case 'contactName':
         return (
-          <input type="text" required={field.required} value={contactName} onChange={e => setContactName(e.target.value)}
+          <input type="text" required={field.required} value={contactName} 
+            onChange={e => setContactName(e.target.value.replace(/[^\p{L}\p{M}\s]/gu, ''))}
+            onKeyDown={(e) => {
+              if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                e.preventDefault();
+              }
+            }}
+            pattern="^[\p{L}\p{M}\s]+$"
+            title="Contact name should not accept special characters and numbers"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
         );
       case 'contactPhone':
@@ -548,7 +599,15 @@ const LeadRequirementForm = () => {
         );
       case 'contactEmail':
         return (
-          <input type="email" required={field.required} value={contactEmail} onChange={e => setContactEmail(e.target.value)}
+          <input type="email" required={field.required} value={contactEmail} 
+            onChange={e => setContactEmail(e.target.value.toLowerCase())}
+            onKeyDown={(e) => {
+              if (/[A-Z]/.test(e.key) && e.key.length === 1) {
+                e.preventDefault();
+              }
+            }}
+            pattern="^[^A-Z]*$"
+            title="Email address should not contain capital letters"
             className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
         );
 

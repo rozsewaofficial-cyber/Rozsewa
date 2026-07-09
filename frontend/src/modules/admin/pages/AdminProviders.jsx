@@ -668,8 +668,8 @@ const AdminProviders = () => {
                                     <div className="space-y-3">
                                         <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Contact Info</h4>
                                         <div className="space-y-2 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                            <div className="flex justify-between"><span className="text-[9px] font-black uppercase text-gray-500">Mobile</span><span className="text-xs font-bold text-gray-900">{selectedProvider.mobile}</span></div>
-                                            <div className="flex justify-between"><span className="text-[9px] font-black uppercase text-gray-500">Email</span><span className="text-xs font-bold text-gray-900 truncate max-w-[100px]">{selectedProvider.email || 'N/A'}</span></div>
+                                            <div className="flex justify-between gap-2"><span className="text-[9px] font-black uppercase text-gray-500 shrink-0">Mobile</span><span className="text-xs font-bold text-gray-900 text-right">{selectedProvider.mobile}</span></div>
+                                            <div className="flex justify-between gap-2"><span className="text-[9px] font-black uppercase text-gray-500 shrink-0">Email</span><span className="text-xs font-bold text-gray-900 break-all text-right">{selectedProvider.email || 'N/A'}</span></div>
                                         </div>
                                     </div>
                                     <div className="space-y-3">

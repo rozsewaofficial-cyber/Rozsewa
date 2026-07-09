@@ -19,7 +19,7 @@ const getCommissionData = async (req, res) => {
         const totalJobValue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
         const totalProviderPayout = completedBookings.reduce((sum, b) => {
             // For legacy bookings where providerPayout was never set, use totalAmount - adminCommission
-            const payout = b.providerPayout > 0 ? b.providerPayout : (b.totalAmount - (b.adminCommission || 0));
+            const payout = b.providerPayout != null ? b.providerPayout : (b.totalAmount - (b.adminCommission || 0));
             return sum + payout;
         }, 0);
         
@@ -34,13 +34,12 @@ const getCommissionData = async (req, res) => {
         // Queue (Recent completed bookings with actual data)
         const queue = await Booking.find({ status: 'completed' })
             .populate('providerId', 'shopName ownerName bankDetails planType providerCategory')
-            .sort({ createdAt: -1 })
-            .limit(20);
+            .sort({ createdAt: -1 });
 
         const formattedQueue = queue.map(b => {
             const commission = b.adminCommission || 0;
             // For legacy bookings, payout = totalAmount - commission
-            const payout = b.providerPayout > 0 ? b.providerPayout : (b.totalAmount - commission);
+            const payout = b.providerPayout != null ? b.providerPayout : (b.totalAmount - commission);
             const commissionRate = b.totalAmount > 0 ? ((commission / b.totalAmount) * 100).toFixed(1) : '0';
             
             return {

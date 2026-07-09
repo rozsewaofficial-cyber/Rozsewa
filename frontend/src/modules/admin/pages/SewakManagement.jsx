@@ -516,6 +516,13 @@ const SewakManagement = () => {
                                         <InputField label="Full Name">
                                             <input required type="text" value={newSewak.ownerName}
                                                 onChange={(e) => setNewSewak({ ...newSewak, ownerName: sanitizeNameOnChange(e.target.value) })}
+                                                onKeyDown={(e) => {
+                                                    if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                pattern="^[\p{L}\p{M}\s]+$"
+                                                title="Full name should not accept special characters and numbers"
                                                 className={inputCls} placeholder="Sewak Name" />
                                         </InputField>
                                         <InputField label="Mobile Number">
@@ -579,10 +586,26 @@ const SewakManagement = () => {
                                         </InputField>
                                         <div className="grid grid-cols-2 gap-4">
                                             <InputField label="City">
-                                                <input required type="text" value={newSewak.city} onChange={(e) => setNewSewak({ ...newSewak, city: sanitizeNameOnChange(e.target.value) })} className={inputCls} placeholder="City" />
+                                                <input required type="text" value={newSewak.city} onChange={(e) => setNewSewak({ ...newSewak, city: sanitizeNameOnChange(e.target.value) })} 
+                                                onKeyDown={(e) => {
+                                                    if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                pattern="^[\p{L}\p{M}\s]+$"
+                                                title="City should not accept special characters and numbers"
+                                                className={inputCls} placeholder="City" />
                                             </InputField>
                                             <InputField label="State">
-                                                <input required type="text" value={newSewak.state} onChange={(e) => setNewSewak({ ...newSewak, state: sanitizeNameOnChange(e.target.value) })} className={inputCls} placeholder="State" />
+                                                <input required type="text" value={newSewak.state} onChange={(e) => setNewSewak({ ...newSewak, state: sanitizeNameOnChange(e.target.value) })} 
+                                                onKeyDown={(e) => {
+                                                    if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                pattern="^[\p{L}\p{M}\s]+$"
+                                                title="State should not accept special characters and numbers"
+                                                className={inputCls} placeholder="State" />
                                             </InputField>
                                         </div>
                                     </div>
@@ -594,11 +617,25 @@ const SewakManagement = () => {
                                         <InputField label="Account Name">
                                             <input type="text" value={newSewak.bankDetails.accountHolderName}
                                                 onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, accountHolderName: sanitizeNameOnChange(e.target.value) } })}
+                                                onKeyDown={(e) => {
+                                                    if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                pattern="^[\p{L}\p{M}\s]*$"
+                                                title="Account name should not accept special characters and numbers"
                                                 className={inputCls} placeholder="As per passbook" />
                                         </InputField>
                                         <InputField label="Bank Name">
                                             <input type="text" value={newSewak.bankDetails.bankName}
-                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, bankName: e.target.value } })}
+                                                onChange={(e) => setNewSewak({ ...newSewak, bankDetails: { ...newSewak.bankDetails, bankName: sanitizeNameOnChange(e.target.value) } })}
+                                                onKeyDown={(e) => {
+                                                    if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
+                                                        e.preventDefault();
+                                                    }
+                                                }}
+                                                pattern="^[\p{L}\p{M}\s]*$"
+                                                title="Bank name should not accept special characters and numbers"
                                                 className={inputCls} placeholder="e.g. SBI, HDFC" />
                                         </InputField>
                                         <InputField label="Account Number">

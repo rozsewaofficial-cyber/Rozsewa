@@ -146,8 +146,15 @@ const AdminNightCharge = () => {
                                     max="100"
                                     value={globalConfig.defaultPercent}
                                     onChange={(e) => {
-                                        const val = e.target.value;
-                                        setGlobalConfig(prev => ({ ...prev, defaultPercent: val === '' ? '' : Math.min(100, Math.max(0, Number(val))) }))
+                                        let val = e.target.value;
+                                        if (val === '') {
+                                            setGlobalConfig(prev => ({ ...prev, defaultPercent: '' }));
+                                            return;
+                                        }
+                                        let num = Number(val);
+                                        if (!isNaN(num)) {
+                                            setGlobalConfig(prev => ({ ...prev, defaultPercent: Math.min(100, Math.max(0, num)) }));
+                                        }
                                     }}
                                     className="pl-11 rounded-2xl border-gray-100 bg-gray-50/50 h-14 text-sm font-black"
                                     placeholder="0"
@@ -258,15 +265,23 @@ const AdminNightCharge = () => {
                                             </td>
                                             <td className="px-8 py-6">
                                                 {editingCategory === cat._id ? (
-                                                    <div className="flex items-center gap-2 max-w-[150px]">
+                                                    <div className="flex items-center gap-2 w-full max-w-[200px]">
                                                         <Input
                                                             type="number"
                                                             min="0"
                                                             max="100"
                                                             placeholder="0"
                                                             defaultValue={cat.nightChargePercent === 0 ? '' : cat.nightChargePercent}
-                                                            onBlur={(e) => handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, Number(e.target.value))))}
-                                                            className="h-10 rounded-lg font-black text-sm px-3"
+                                                            onBlur={(e) => {
+                                                                const val = e.target.value === '' ? 0 : Number(e.target.value);
+                                                                handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, val)));
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.target.blur();
+                                                                }
+                                                            }}
+                                                            className="h-10 rounded-lg font-black text-sm px-3 w-full"
                                                             autoFocus
                                                         />
                                                         <span className="text-xs font-black text-gray-400">%</span>
@@ -274,10 +289,10 @@ const AdminNightCharge = () => {
                                                 ) : (
                                                     <div
                                                         onClick={() => setEditingCategory(cat._id)}
-                                                        className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg cursor-pointer hover:bg-blue-600 hover:text-white transition-all group/val"
+                                                        className="inline-flex items-center gap-2 px-6 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-blue-600 hover:text-white transition-all group/val min-w-[80px] justify-center"
                                                     >
-                                                        <span className="text-xs font-black">{cat.nightChargePercent}</span>
-                                                        <span className="text-[10px] font-bold opacity-50 group-hover/val:opacity-100">%</span>
+                                                        <span className="text-sm font-black">{cat.nightChargePercent}</span>
+                                                        <span className="text-xs font-bold opacity-50 group-hover/val:opacity-100">%</span>
                                                     </div>
                                                 )}
                                             </td>
