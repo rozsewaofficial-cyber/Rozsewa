@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown, MessageCircle, ShoppingBag, Loader2 } from "lucide-react";
+import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown, MessageCircle, ShoppingBag, Loader2, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -37,6 +37,7 @@ const Profile = () => {
   });
 
   const [showEdit, setShowEdit] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editForm, setEditForm] = useState(profile);
   const [isSaving, setIsSaving] = useState(false);
   const [offerRequests, setOfferRequests] = useState([]);
@@ -84,6 +85,19 @@ const Profile = () => {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setIsSaving(true);
+      await API.delete("/auth/profile");
+      toast({ title: "Account Deleted", description: "Your account has been deleted successfully." });
+      logout();
+      navigate("/login");
+    } catch (err) {
+      toast({ title: "Delete Failed", description: err.response?.data?.message || "Something went wrong", variant: "destructive" });
+      setIsSaving(false);
+    }
   };
 
   const handleSaveProfile = async (e) => {
@@ -362,6 +376,12 @@ const Profile = () => {
           className="flex w-full items-center justify-center gap-2 rounded-[20px] border border-rose-200 dark:border-rose-900/30 bg-rose-50 dark:bg-rose-900/10 py-4 text-[15px] font-extrabold text-rose-600 dark:text-rose-400 transition-colors hover:bg-rose-100 dark:hover:bg-rose-900/20 shadow-sm">
           <LogOut className="h-5 w-5" /> Sign Out
         </motion.button>
+
+        {/* Delete Account Button */}
+        <motion.button whileTap={{ scale: 0.97 }} onClick={() => setShowDeleteConfirm(true)} disabled={isSaving}
+          className="flex w-full items-center justify-center gap-2 rounded-[20px] border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 py-4 text-[15px] font-extrabold text-red-600 dark:text-red-400 transition-colors hover:bg-red-100 dark:hover:bg-red-900/20 shadow-sm mt-3">
+          <Trash2 className="h-5 w-5" /> Delete Account
+        </motion.button>
       </main>
       <BottomNav />
 
@@ -446,6 +466,35 @@ const Profile = () => {
                   <Save className="h-5 w-5" /> Save Changes
                 </motion.button>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Account Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-sm rounded-[24px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 text-center">
+              <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+                <Trash2 className="h-8 w-8 text-red-600 dark:text-red-500" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2">Delete Account?</h3>
+              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mb-6">
+                Are you sure you want to delete your account? This action cannot be undone and you will lose all your data permanently.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteConfirm(false)} disabled={isSaving}
+                  className="flex-1 py-3.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleDeleteAccount} disabled={isSaving}
+                  className="flex-1 py-3.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 transition-colors flex items-center justify-center">
+                  {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Delete"}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

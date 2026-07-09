@@ -165,8 +165,8 @@ const App = () => (
                         <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
                         <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
                         <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
-                        <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer"]}><LeadRequirementForm /></ProtectedRoute>} />
-                        <Route path="/my-leads" element={<ProtectedRoute allowedRoles={["customer"]}><MyLeads /></ProtectedRoute>} />
+                        <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><LeadRequirementForm /></ProtectedRoute>} />
+                        <Route path="/my-leads" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><MyLeads /></ProtectedRoute>} />
                         <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
                         <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
                         <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />

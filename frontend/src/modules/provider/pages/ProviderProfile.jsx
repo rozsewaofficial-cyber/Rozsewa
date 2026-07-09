@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
-import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Navigation } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Navigation, Trash2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -26,6 +27,8 @@ const ProviderProfile = () => {
     location: null,
     surakshaNidhiOptIn: false
   });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Service radius state
   const [serviceRadius, setServiceRadius] = useState(15);
@@ -152,6 +155,19 @@ const ProviderProfile = () => {
   const handleLogout = () => {
     logout();
     navigate("/provider/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setIsDeleting(true);
+      await API.delete("/auth/profile");
+      toast({ title: "Account Deleted", description: "Your provider account has been deleted successfully." });
+      logout();
+      navigate("/provider/login");
+    } catch (err) {
+      toast({ title: "Delete Failed", description: err.response?.data?.message || "Something went wrong", variant: "destructive" });
+      setIsDeleting(false);
+    }
   };
 
   const handleImageChange = async (e) => {
@@ -423,9 +439,38 @@ const ProviderProfile = () => {
           </section>
         )}
 
-        <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 py-4 font-bold text-destructive hover:bg-destructive hover:text-white transition-all"><LogOut className="h-5 w-5" /> Sign Out</button>
+        <button onClick={handleLogout} className="flex w-full items-center justify-center gap-2 rounded-xl border border-border/20 bg-muted/50 py-4 font-bold text-muted-foreground hover:bg-muted hover:text-foreground transition-all"><LogOut className="h-5 w-5" /> Sign Out</button>
+        <button onClick={() => setShowDeleteConfirm(true)} className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/20 bg-destructive/5 py-4 font-bold text-destructive hover:bg-destructive hover:text-white transition-all"><Trash2 className="h-5 w-5" /> Delete Account</button>
       </main>
       <ProviderBottomNav />
+
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-sm rounded-[24px] bg-background border border-border shadow-2xl p-6 text-center">
+              <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                <Trash2 className="h-8 w-8 text-destructive" />
+              </div>
+              <h3 className="text-xl font-black text-foreground mb-2">Delete Account?</h3>
+              <p className="text-[13px] font-medium text-muted-foreground mb-6">
+                Are you sure you want to delete your provider account? This action cannot be undone and you will lose all your data permanently.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteConfirm(false)} disabled={isDeleting}
+                  className="flex-1 py-3.5 rounded-xl font-bold text-foreground bg-muted hover:bg-muted/80 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleDeleteAccount} disabled={isDeleting}
+                  className="flex-1 py-3.5 rounded-xl font-bold text-white bg-destructive hover:bg-destructive/90 transition-colors flex items-center justify-center">
+                  {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Delete"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

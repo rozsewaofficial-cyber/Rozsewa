@@ -407,17 +407,30 @@ const updatePassword = async (req, res) => {
 // @access  Private
 const deleteUserAccount = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
+        let user = await User.findById(req.user._id);
+        let isProvider = false;
+
+        if (!user) {
+            user = await Provider.findById(req.user._id);
+            isProvider = !!user;
+        }
+
         if (user) {
-            // Delete user wallet as well
+            // Delete wallet as well
             await Wallet.deleteOne({ userId: user._id });
-            await User.deleteOne({ _id: user._id });
+
+            if (isProvider) {
+                await Provider.deleteOne({ _id: user._id });
+            } else {
+                await User.deleteOne({ _id: user._id });
+            }
+            
             res.json({ message: 'Account deleted successfully' });
         } else {
-            res.status(404).json({ message: 'User not found' });
+            res.status(404).json({ message: 'User or Provider not found' });
         }
     } catch (error) {
-        console.error("Profile Update Error:", error);
+        console.error("Profile Delete Error:", error);
         res.status(500).json({ message: error.message });
     }
 };
