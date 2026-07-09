@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Home, ClipboardList, ShoppingBag, MessageSquare, MoreHorizontal } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 
 const tabs = [
@@ -15,10 +16,16 @@ const tabs = [
 const BottomNav = ({ mode = "partner" }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+
     const fetchUnread = async () => {
       try {
         const { data } = await API.get('/notifications/unread-count');
@@ -58,7 +65,7 @@ const BottomNav = ({ mode = "partner" }) => {
       window.removeEventListener('focusin', handleFocusIn);
       window.removeEventListener('focusout', handleFocusOut);
     };
-  }, [location.pathname]);
+  }, [user, location.pathname]);
 
   return (
     <motion.nav

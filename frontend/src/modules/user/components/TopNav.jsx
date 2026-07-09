@@ -106,6 +106,10 @@ const libraries = ['places'];
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
     const fetchUnread = async () => {
       try {
         const { data } = await API.get('/notifications/unread-count');
@@ -127,7 +131,7 @@ const libraries = ['places'];
       window.removeEventListener('NEW_NOTIFICATION', handleNewNotif);
       window.removeEventListener('focus', fetchUnread);
     };
-  }, [location.pathname]);
+  }, [user, location.pathname]);
 
   const handleCitySelect = async (selectedCity, coordinates = null) => {
     setCity(selectedCity);
