@@ -298,7 +298,13 @@ const ProviderLogin = () => {
             </div>
           )}
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-[11px] font-bold text-slate-400">
+              Having trouble logging in?{" "}
+              <Link to="/provider/support" className={`${loginType === 'sewak' ? 'text-blue-600 hover:text-blue-700' : 'text-emerald-600 hover:text-emerald-700'} font-black hover:underline transition-all`}>
+                Contact Support
+              </Link>
+            </p>
             <p className="text-[10px] font-bold text-slate-400">
               By continuing, you agree to our{" "}
               <Link to="/terms" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>

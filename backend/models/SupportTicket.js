@@ -38,6 +38,12 @@ const supportTicketSchema = new mongoose.Schema({
         type: String,
         default: '',
     },
+    contactInfo: {
+        name: { type: String, required: false },
+        mobile: { type: String, required: false },
+        email: { type: String, required: false },
+        role: { type: String, enum: ['provider', 'sewak', 'customer'], required: false }
+    },
     createdAt: {
         type: Date,
         default: Date.now,

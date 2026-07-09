@@ -110,8 +110,56 @@ const replyTicket = async (req, res) => {
     }
 };
 
+const createPublicTicket = async (req, res) => {
+    try {
+        const { subject, description, category, priority, name, mobile, email, role } = req.body;
+        
+        const ticketData = {
+            subject,
+            description,
+            category: category || 'other',
+            priority: priority || 'low',
+            contactInfo: {
+                name,
+                mobile,
+                email,
+                role
+            }
+        };
+
+        const ticket = await SupportTicket.create(ticketData);
+
+        // Push Notification for Admins (High Priority Ticket or General Support)
+        try {
+            const User = require('../models/User');
+            const { sendNotificationToUser } = require('../config/notificationService');
+            
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            
+            for (const admin of admins) {
+                await sendNotificationToUser(admin._id, 'admin', {
+                    title: `New Public Ticket (${role || 'Partner'})`,
+                    body: `New support request from ${name || 'Anonymous'}: "${subject}".`,
+                    data: {
+                        type: 'support',
+                        id: ticket._id.toString(),
+                        link: '/admin/support'
+                    }
+                });
+            }
+        } catch (err) {
+            console.log('Admin push notification failed (skipping):', err.message);
+        }
+
+        res.status(201).json(ticket);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     createTicket,
     getProviderTickets,
-    replyTicket
+    replyTicket,
+    createPublicTicket
 };

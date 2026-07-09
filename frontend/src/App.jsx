@@ -204,7 +204,7 @@ const App = () => (
                       <Route path="/provider/99card" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><Provider99Card /></ProtectedRoute>} />
                       <Route path="/provider/benefit-policy" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBenefitPolicy /></ProtectedRoute>} />
                       <Route path="/provider/settings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSettings /></ProtectedRoute>} />
-                      <Route path="/provider/support" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSupport /></ProtectedRoute>} />
+                      <Route path="/provider/support" element={<ProviderSupport />} />
                       <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
                       <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
                       <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />

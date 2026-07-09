@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { LifeBuoy, FileQuestion, MessageSquare, PhoneCall, ChevronRight, Loader2, Send, Plus, X, AlertCircle } from "lucide-react";
@@ -12,13 +13,36 @@ const ProviderSupport = () => {
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
   const [isRaisingTicket, setIsRaisingTicket] = useState(false);
-  const [newTicket, setNewTicket] = useState({ subject: "", category: "payment", priority: "low", description: "" });
+  const [newTicket, setNewTicket] = useState({ 
+    subject: "", 
+    category: "payment", 
+    priority: "low", 
+    description: "",
+    name: "",
+    mobile: "",
+    email: "",
+    role: "provider"
+  });
 
   useScrollLock(isRaisingTicket);
   const [submitting, setSubmitting] = useState(false);
 
+  const getAuthProviderToken = () => {
+    try {
+      const auth = JSON.parse(localStorage.getItem("rozsewa_auth_provider"));
+      return auth?.token;
+    } catch (e) {
+      return null;
+    }
+  };
+
   useEffect(() => {
-    fetchTickets();
+    const token = getAuthProviderToken();
+    if (token) {
+      fetchTickets();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const fetchTickets = async () => {
@@ -35,12 +59,31 @@ const ProviderSupport = () => {
   const handleCreateTicket = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    const token = getAuthProviderToken();
     try {
-      await API.post("/support/tickets", newTicket);
-      toast({ title: "Ticket Raised", description: "Our team will look into your issue shortly." });
+      if (token) {
+        await API.post("/support/tickets", {
+          subject: newTicket.subject,
+          description: newTicket.description,
+          category: newTicket.category,
+          priority: newTicket.priority
+        });
+      } else {
+        await API.post("/support/public-tickets", newTicket);
+      }
+      toast({ title: "Ticket Raised ✓", description: "Our team will look into your issue shortly." });
       setIsRaisingTicket(false);
-      setNewTicket({ subject: "", description: "", category: "other", priority: "low" });
-      fetchTickets();
+      setNewTicket({ 
+        subject: "", 
+        description: "", 
+        category: "other", 
+        priority: "low",
+        name: "",
+        mobile: "",
+        email: "",
+        role: "provider"
+      });
+      if (token) fetchTickets();
     } catch (err) {
       toast({ title: "Error", description: err.response?.data?.message || "Could not create ticket. Try again later.", variant: "destructive" });
     } finally {
@@ -48,16 +91,10 @@ const ProviderSupport = () => {
     }
   };
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-background">
-      <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
-    </div>
-  );
-
   return (
     <div className="min-h-[100dvh] bg-background pb-20 md:pb-8">
       <ProviderTopNav />
-      <main className="container max-w-4xl px-4 py-6 md:py-8 space-y-6 md:space-y-8">
+      <main className="container max-w-4xl px-4 py-6 md:py-8 space-y-6 md:space-y-8 mx-auto">
         <div className="flex justify-between items-center">
           <div className="text-left space-y-1">
             <h1 className="text-xl md:text-3xl font-black tracking-tight text-foreground uppercase">RozSewa Support</h1>
@@ -94,10 +131,30 @@ const ProviderSupport = () => {
         <section className="rounded-[32px] border border-border bg-card shadow-sm overflow-hidden text-left">
           <div className="bg-muted/30 px-6 py-4 border-b border-border flex items-center justify-between">
             <h3 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2"><LifeBuoy className="h-4 w-4 text-emerald-600" /> Ticket History</h3>
-            <span className="text-[9px] font-black uppercase tracking-tighter bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{tickets.filter(t => t.status === 'pending' || t.status === 'open').length} Active</span>
+            <span className="text-[9px] font-black uppercase tracking-tighter bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+              {getAuthProviderToken() ? `${tickets.filter(t => t.status === 'pending' || t.status === 'open').length} Active` : 'Login Required'}
+            </span>
           </div>
           <div className="divide-y divide-border">
-            {tickets.length === 0 ? (
+            {!getAuthProviderToken() ? (
+              <div className="p-10 text-center space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-50 dark:bg-slate-800">
+                  <LifeBuoy className="h-8 w-8 text-emerald-600 animate-pulse" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground uppercase tracking-tight">Access Ticket History</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 max-w-xs mx-auto">Please login to view your raised tickets, active resolutions, and chat history with support specialists.</p>
+                </div>
+                <div className="flex justify-center gap-3 pt-2">
+                  <Link to="/provider/login" className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs uppercase shadow-md shadow-emerald-600/10 hover:bg-emerald-700 transition-all">
+                    Login
+                  </Link>
+                  <Link to="/provider/register" className="px-5 py-2.5 rounded-xl border border-border bg-card text-foreground font-black text-xs uppercase hover:bg-muted transition-all">
+                    Register
+                  </Link>
+                </div>
+              </div>
+            ) : tickets.length === 0 ? (
               <div className="p-12 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-gray-50 mb-4">
                   <FileQuestion className="h-8 w-8 text-gray-300" />
@@ -157,13 +214,67 @@ const ProviderSupport = () => {
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
-              className="w-full max-w-lg rounded-[40px] bg-card p-8 border border-border shadow-2xl relative"
+              className="w-full max-w-lg rounded-[40px] bg-card p-8 border border-border shadow-2xl relative overflow-y-auto max-h-[90vh]"
             >
               <button onClick={() => setIsRaisingTicket(false)} className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted transition-all active:scale-95"><X className="h-5 w-5" /></button>
               <h2 className="text-2xl font-black tracking-tighter mb-1 text-left uppercase">Support Ticket</h2>
               <p className="text-xs text-muted-foreground mb-8 text-left font-medium">Explain your issue and we'll resolve it ASAP.</p>
 
               <form onSubmit={handleCreateTicket} className="space-y-4 text-left">
+                {!getAuthProviderToken() && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">You Are A</label>
+                        <select
+                          required
+                          value={newTicket.role}
+                          onChange={(e) => setNewTicket({ ...newTicket, role: e.target.value })}
+                          className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 outline-none font-bold text-xs appearance-none"
+                        >
+                          <option value="provider">Partner (Provider)</option>
+                          <option value="sewak">Sewak</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Full Name / Shop Name</label>
+                        <input
+                          required
+                          value={newTicket.name}
+                          onChange={(e) => setNewTicket({ ...newTicket, name: e.target.value })}
+                          placeholder="Enter your name"
+                          className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 outline-none font-bold text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Mobile Number</label>
+                        <input
+                          required
+                          type="tel"
+                          pattern="[0-9]{10}"
+                          value={newTicket.mobile}
+                          onChange={(e) => setNewTicket({ ...newTicket, mobile: e.target.value.replace(/\D/g, '').slice(0,10) })}
+                          placeholder="10-digit number"
+                          className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 outline-none font-bold text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Email Address</label>
+                        <input
+                          type="email"
+                          value={newTicket.email}
+                          onChange={(e) => setNewTicket({ ...newTicket, email: e.target.value })}
+                          placeholder="name@example.com (optional)"
+                          className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 outline-none font-bold text-xs"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase text-muted-foreground ml-1 mb-2">Category</label>
@@ -228,7 +339,7 @@ const ProviderSupport = () => {
         )}
       </AnimatePresence>
 
-      <ProviderBottomNav />
+      {getAuthProviderToken() && <ProviderBottomNav />}
     </div>
   );
 };

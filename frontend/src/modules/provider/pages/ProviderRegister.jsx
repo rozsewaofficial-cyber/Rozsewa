@@ -1701,7 +1701,13 @@ const ProviderRegister = () => {
           </AnimatePresence>
         </motion.div>
 
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center space-y-2">
+          <p className="text-[11px] font-bold text-slate-400">
+            Need help with registration?{" "}
+            <Link to="/provider/support" className="text-emerald-600 font-black hover:underline transition-all">
+              Contact Support
+            </Link>
+          </p>
           <p className="text-[10px] font-bold text-slate-400">
             By registering, you agree to our{" "}
             <Link to="/terms" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
