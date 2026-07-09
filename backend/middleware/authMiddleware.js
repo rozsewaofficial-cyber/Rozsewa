@@ -30,8 +30,12 @@ const protect = async (req, res, next) => {
 
             next();
         } catch (error) {
-            console.error(error);
-            res.status(401).json({ message: 'Not authorized, token failed' });
+            console.error('Auth middleware error:', error);
+            if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+                return res.status(401).json({ message: 'Not authorized, token failed' });
+            }
+            // For DB errors (e.g., timeout), return 500 so frontend doesn't log the user out
+            res.status(500).json({ message: 'Internal server error during authentication' });
         }
     } else {
         res.status(401).json({ message: 'Not authorized, no token' });

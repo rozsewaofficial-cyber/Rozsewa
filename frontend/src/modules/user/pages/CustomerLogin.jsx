@@ -14,9 +14,9 @@ const CustomerLogin = () => {
   const location = useLocation();
   const from = (location.state?.from?.pathname || "/") + (location.state?.from?.search || "");
   const { login, signup, loginWithOTP, detectLocation, isAuthenticated } = useAuth();
-  
+
   const draft = JSON.parse(sessionStorage.getItem("customer-signup-draft") || "{}");
-  
+
   const [mode, setMode] = useState(draft.mode || "email"); // email | signup
   const [loginMethod, setLoginMethod] = useState(draft.loginMethod || "password"); // password | otp
   const [countdown, setCountdown] = useState(0);
@@ -86,7 +86,7 @@ const CustomerLogin = () => {
       try {
         const loc = await detectLocation();
         if (loc && result.data?.token) {
-          await API.put("/auth/profile", 
+          await API.put("/auth/profile",
             { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } },
             { headers: { Authorization: `Bearer ${result.data.token}` } }
           );
@@ -104,7 +104,7 @@ const CustomerLogin = () => {
   const handleOtpLogin = async (e) => {
     e.preventDefault();
     if (!email) { setError("Enter mobile number"); return; }
-    
+
     if (!showOtpInput) {
       const phoneValidation = validatePhone(email);
       if (!phoneValidation.isValid) {
@@ -132,7 +132,7 @@ const CustomerLogin = () => {
         try {
           const loc = await detectLocation();
           if (loc && result.data?.token) {
-            await API.put("/auth/profile", 
+            await API.put("/auth/profile",
               { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } },
               { headers: { Authorization: `Bearer ${result.data.token}` } }
             );
@@ -151,7 +151,7 @@ const CustomerLogin = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     if (!name || !email || !password || !phone) { setError("Fill all fields"); return; }
-    
+
     const nameSanitized = sanitizeName(name);
     setName(nameSanitized);
     const nameValidation = validateName(nameSanitized);
@@ -161,13 +161,13 @@ const CustomerLogin = () => {
     }
 
     if (!validateEmail(email)) { setError("Please enter a valid email address."); return; }
-    
+
     const phoneValidation = validatePhone(phone);
     if (!phoneValidation.isValid) {
       setError(phoneValidation.message);
       return;
     }
-    
+
     if (!showOtpInput) {
       setIsVerifying(true);
       setError("");
@@ -273,12 +273,12 @@ const CustomerLogin = () => {
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Full Name</label>
                     <input type="text" value={name} onChange={(e) => {
-                        const val = sanitizeNameOnChange(e.target.value);
-                        setName(val);
-                        e.target.value = val;
-                      }}
-                        className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                        placeholder="Enter your name" />
+                      const val = sanitizeNameOnChange(e.target.value);
+                      setName(val);
+                      e.target.value = val;
+                    }}
+                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
+                      placeholder="Enter your name" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Email</label>
@@ -288,7 +288,7 @@ const CustomerLogin = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Mobile Number</label>
-                    <input type="tel" value={phone} 
+                    <input type="tel" value={phone}
                       onChange={(e) => setPhone(sanitizePhone(e.target.value))}
                       maxLength="10"
                       inputMode="numeric"
@@ -311,7 +311,7 @@ const CustomerLogin = () => {
                   {showOtpInput && (
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Authentication Code</label>
-                      <input type="text" value={otp} 
+                      <input type="text" value={otp}
                         onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         maxLength="6"
                         inputMode="numeric"
@@ -356,20 +356,20 @@ const CustomerLogin = () => {
                       <div>
                         <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">State</label>
                         <input type="text" value={state} onChange={(e) => {
-                            const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-                            setState(val);
-                            e.target.value = val;
-                          }}
+                          const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                          setState(val);
+                          e.target.value = val;
+                        }}
                           className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                           placeholder="e.g. Maharashtra" />
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">City</label>
                         <input type="text" value={city} onChange={(e) => {
-                            const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-                            setCity(val);
-                            e.target.value = val;
-                          }}
+                          const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                          setCity(val);
+                          e.target.value = val;
+                        }}
                           className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                           placeholder="e.g. Mumbai" />
                       </div>
@@ -399,15 +399,15 @@ const CustomerLogin = () => {
                 <motion.form key="email-form" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }}
                   onSubmit={loginMethod === "password" ? handleEmailLogin : handleOtpLogin} className="space-y-5">
                   <div>
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Email or Mobile Number</label>
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Mobile Number</label>
                     <input type="text" value={email} onChange={(e) => {
                       const val = e.target.value;
                       setEmail(val.includes('@') ? sanitizeEmail(val) : val);
                     }}
                       className="h-12 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                      placeholder="Enter email or phone number" autoFocus />
+                      placeholder="Enter phone number" autoFocus />
                   </div>
-                  
+
                   {loginMethod === "password" ? (
                     <div>
                       <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Password</label>
@@ -425,7 +425,7 @@ const CustomerLogin = () => {
                     showOtpInput && (
                       <div className="space-y-2">
                         <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Authentication Code</label>
-                        <input type="text" value={otp} 
+                        <input type="text" value={otp}
                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                           maxLength="6"
                           inputMode="numeric"
@@ -447,18 +447,18 @@ const CustomerLogin = () => {
                   <motion.button whileTap={{ scale: 0.97 }} type="submit" disabled={isVerifying}
                     className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-4 text-sm font-extrabold text-white shadow-xl shadow-primary/20 disabled:opacity-60">
                     {isVerifying ? "Processing..." : (
-                      loginMethod === "password" ? 
-                      <>Login <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></> :
-                      (showOtpInput ? "Verify & Login" : "Send OTP")
+                      loginMethod === "password" ?
+                        <>Login <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></> :
+                        (showOtpInput ? "Verify & Login" : "Send OTP")
                     )}
                   </motion.button>
 
                   <div className="text-center pt-2">
                     <button type="button" onClick={() => {
-                        setLoginMethod(loginMethod === "password" ? "otp" : "password");
-                        setShowOtpInput(false);
-                        setError("");
-                      }} 
+                      setLoginMethod(loginMethod === "password" ? "otp" : "password");
+                      setShowOtpInput(false);
+                      setError("");
+                    }}
                       className="text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
                       {loginMethod === "password" ? "Login with OTP instead" : "Login with Password instead"}
                     </button>
@@ -468,29 +468,29 @@ const CustomerLogin = () => {
             </AnimatePresence>
 
             {/* Social Logins */}
-            <div className="mt-6 space-y-3">
-              <div className="relative">
+            {/* <div className="mt-6 space-y-3"> */}
+            {/* <div className="relative">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
                 <div className="relative flex justify-center text-xs"><span className="bg-card px-3 font-semibold text-muted-foreground">Or continue with</span></div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
+              </div> */}
+            {/* <div className="grid grid-cols-2 gap-3"> */}
+            {/* <button
                   onClick={() => setError("Google Login is coming soon! Please use email/password.")}
                   className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-bold text-foreground hover:bg-muted transition-all active:scale-95"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
                   Google
-                </button>
-                <button
+                </button> */}
+            {/* <button
                   onClick={() => setError("Apple Login is coming soon!")}
                   className="relative flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-bold text-foreground hover:bg-muted transition-all active:scale-95 overflow-hidden"
                 >
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" /></svg>
                   Apple
                   <span className="absolute -right-7 top-0.5 rotate-45 bg-primary/80 px-7 py-0.5 text-[8px] font-black uppercase text-white">Soon</span>
-                </button>
-              </div>
-            </div>
+                </button> */}
+            {/* </div> */}
+            {/* </div> */}
           </div>
         </motion.div>
 
