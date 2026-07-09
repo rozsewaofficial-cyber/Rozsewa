@@ -1710,9 +1710,9 @@ const ProviderRegister = () => {
           </p>
           <p className="text-[10px] font-bold text-slate-400">
             By registering, you agree to our{" "}
-            <Link to="/terms" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
+            <Link to="/provider/profile/terms" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
             {" "}and{" "}
-            <Link to="/privacy" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Privacy Policy</Link>
+            <Link to="/provider/profile/privacy" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Privacy Policy</Link>
           </p>
         </div>
       </div>

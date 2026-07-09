@@ -307,9 +307,9 @@ const ProviderLogin = () => {
             </p>
             <p className="text-[10px] font-bold text-slate-400">
               By continuing, you agree to our{" "}
-              <Link to="/terms" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
+              <Link to="/provider/profile/terms" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
               {" "}and{" "}
-              <Link to="/privacy" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Privacy Policy</Link>
+              <Link to="/provider/profile/privacy" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Privacy Policy</Link>
             </p>
           </div>
         </motion.div>
