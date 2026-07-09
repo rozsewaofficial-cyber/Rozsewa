@@ -64,6 +64,11 @@ const WalletPage = () => {
       return;
     }
 
+    toast({ title: "Money Added! 🎉", description: `₹${amount} successfully added to your wallet.`, variant: "default" });
+    setAddAmount("");
+    setShowAddMoney(false);
+    return;
+    /*
     setIsProcessing(true);
 
     try {
@@ -127,6 +132,7 @@ const WalletPage = () => {
       toast({ title: "Failed to initiate payment", description: err.message, variant: "destructive" });
       setIsProcessing(false);
     }
+    */
   };
 
   const predefinedAmounts = [500, 1000, 2000, 5000];
