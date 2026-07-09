@@ -185,6 +185,9 @@ const App = () => (
                       <Route path="/terms" element={<Terms />} />
                       <Route path="/privacy" element={<Privacy />} />
                       <Route path="/help-support" element={<HelpSupport />} />
+                      <Route path="/user/auth/support" element={<HelpSupport />} />
+                      <Route path="/profile/terms" element={<Terms />} />
+                      <Route path="/profile/privacy" element={<Privacy />} />
 
                       {/* Provider Routes */}
                       <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />
@@ -205,6 +208,9 @@ const App = () => (
                       <Route path="/provider/benefit-policy" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBenefitPolicy /></ProtectedRoute>} />
                       <Route path="/provider/settings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSettings /></ProtectedRoute>} />
                       <Route path="/provider/support" element={<ProviderSupport />} />
+                      <Route path="/provider/auth/support" element={<ProviderSupport />} />
+                      <Route path="/provider/profile/terms" element={<Terms />} />
+                      <Route path="/provider/profile/privacy" element={<Privacy />} />
                       <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
                       <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
                       <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
