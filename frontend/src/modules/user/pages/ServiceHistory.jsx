@@ -142,6 +142,26 @@ const ServiceHistory = () => {
     }
   };
 
+  const handleAcceptProposedSchedule = async (id) => {
+    try {
+      await API.patch(`/bookings/${id}/accept-schedule`);
+      toast({ title: "Schedule Accepted", description: "Your booking is now confirmed." });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to accept schedule", variant: "destructive" });
+    }
+  };
+
+  const handleRejectProposedSchedule = async (id) => {
+    try {
+      await API.patch(`/bookings/${id}/reject-schedule`);
+      toast({ title: "Schedule Rejected", description: "The provider has been notified." });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to reject schedule", variant: "destructive" });
+    }
+  };
+
   const openDetails = (booking) => {
     setSelectedBooking(booking);
   };
@@ -193,8 +213,16 @@ const ServiceHistory = () => {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${statusColors[booking.status]}`}>
-                      {booking.status === 'provider_countered' ? 'COUNTER-OFFER RECEIVED' : booking.status}
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                      (booking.status === 'pending' && booking.proposedSchedule && booking.proposedSchedule.status === 'pending') 
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30' 
+                        : statusColors[booking.status]
+                    }`}>
+                      {(booking.status === 'pending' && booking.proposedSchedule && booking.proposedSchedule.status === 'pending') 
+                        ? 'RESCHEDULE PROPOSED' 
+                        : booking.status === 'provider_countered' 
+                          ? 'COUNTER-OFFER RECEIVED' 
+                          : booking.status}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{booking.id}</span>
                   </div>
@@ -218,31 +246,54 @@ const ServiceHistory = () => {
                 <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-700 pl-5"><Clock className="h-4 w-4 text-emerald-500" /> {booking.time}</div>
               </div>
 
+              {booking.status === "pending" && booking.proposedSchedule && booking.proposedSchedule.status === 'pending' && (
+                <div className="mt-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 p-3.5 rounded-2xl text-left text-xs text-amber-700 dark:text-amber-400">
+                  <div className="font-black uppercase tracking-wider mb-1 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Proposed New Time</div>
+                  <div className="font-bold">{booking.proposedSchedule.date} at {booking.proposedSchedule.time}</div>
+                  {booking.proposedSchedule.message && <p className="italic text-[11px] mt-1 text-amber-600 dark:text-amber-500/80">"{booking.proposedSchedule.message}"</p>}
+                </div>
+              )}
+
               {/* Quick Actions */}
               <div className="mt-4 flex gap-3" onClick={e => e.stopPropagation()}>
-                {booking.status === "completed" && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/checkout")}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 py-3 text-[13px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
-                    <RotateCcw className="h-4 w-4" /> Re-Book
-                  </motion.button>
-                )}
-                {booking.status === "confirmed" && (
-                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/tracking")}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-[13px] font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all">
-                    Track Service <ChevronRight className="h-4 w-4" />
-                  </motion.button>
-                )}
-                {booking.status === "provider_countered" && (
-                  <div className="flex w-full gap-2 mt-2">
-                    <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleRejectCounter(booking.id); }}
+                {booking.status === "pending" && booking.proposedSchedule && booking.proposedSchedule.status === 'pending' ? (
+                  <div className="flex w-full gap-2">
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleRejectProposedSchedule(booking.id); }}
                       className="flex-1 rounded-xl border-2 border-red-200 bg-red-50 py-3 text-[13px] font-bold text-red-600 hover:bg-red-100 transition-all">
-                      Reject Price
+                      Decline Time
                     </motion.button>
-                    <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleAcceptCounter(booking.id); }}
-                      className="flex-1 rounded-xl border-2 border-blue-600 bg-blue-600 py-3 text-[13px] font-bold text-white hover:bg-blue-700 transition-all">
-                      Accept ₹{booking.negotiation?.providerCounterAmount}
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleAcceptProposedSchedule(booking.id); }}
+                      className="flex-1 rounded-xl border-2 border-amber-500 bg-amber-500 py-3 text-[13px] font-bold text-white hover:bg-amber-600 transition-all">
+                      Accept Time
                     </motion.button>
                   </div>
+                ) : (
+                  <>
+                    {booking.status === "completed" && (
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/checkout")}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 py-3 text-[13px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+                        <RotateCcw className="h-4 w-4" /> Re-Book
+                      </motion.button>
+                    )}
+                    {booking.status === "confirmed" && (
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/tracking")}
+                        className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-[13px] font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all">
+                        Track Service <ChevronRight className="h-4 w-4" />
+                      </motion.button>
+                    )}
+                    {booking.status === "provider_countered" && (
+                      <div className="flex w-full gap-2">
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleRejectCounter(booking.id); }}
+                          className="flex-1 rounded-xl border-2 border-red-200 bg-red-50 py-3 text-[13px] font-bold text-red-600 hover:bg-red-100 transition-all">
+                          Reject Price
+                        </motion.button>
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleAcceptCounter(booking.id); }}
+                          className="flex-1 rounded-xl border-2 border-blue-600 bg-blue-600 py-3 text-[13px] font-bold text-white hover:bg-blue-700 transition-all">
+                          Accept ₹{booking.negotiation?.providerCounterAmount}
+                        </motion.button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </motion.div>
@@ -374,6 +425,17 @@ const ServiceHistory = () => {
                       </button>
                       <button onClick={() => setIsChatOpen(true)} className="flex items-center justify-center gap-2 rounded-xl border border-blue-600 bg-blue-50 py-3 text-xs font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50">
                         <MessageCircle className="h-4 w-4" /> Chat
+                      </button>
+                    </div>
+                  )}
+
+                  {selectedBooking.status === "pending" && selectedBooking.proposedSchedule && selectedBooking.proposedSchedule.status === 'pending' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => { handleRejectProposedSchedule(selectedBooking.id); setSelectedBooking(null); }} className="flex items-center justify-center gap-2 rounded-xl border-2 border-red-200 bg-red-50 py-3 text-xs font-bold text-red-600 hover:bg-red-100 transition-all">
+                        <X className="h-4 w-4" /> Decline Time
+                      </button>
+                      <button onClick={() => { handleAcceptProposedSchedule(selectedBooking.id); setSelectedBooking(null); }} className="flex items-center justify-center gap-2 rounded-xl border-2 border-amber-500 bg-amber-500 py-3 text-xs font-bold text-white hover:bg-amber-600 transition-all">
+                        Accept Time
                       </button>
                     </div>
                   )}

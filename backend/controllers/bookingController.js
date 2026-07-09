@@ -2181,10 +2181,32 @@ const proposeSchedule = async (req, res) => {
 
         await booking.save();
 
-        // Notify User
+        // Notify User via Socket
         const { getIO } = require('../config/socket');
         const io = getIO();
         io.to(`user_${booking.userId}`).emit('SCHEDULE_PROPOSED', { bookingId: booking._id, proposedSchedule: booking.proposedSchedule });
+
+        // Push Notification & DB Notification for User (in background)
+        (async () => {
+            try {
+                const { sendNotificationToUser } = require('../config/notificationService');
+                const Provider = require('../models/Provider');
+                const provider = await Provider.findById(providerId);
+                const providerName = provider ? (provider.shopName || provider.ownerName) : 'Partner';
+
+                await sendNotificationToUser(booking.userId, 'user', {
+                    title: 'Reschedule Proposed',
+                    body: `${providerName} proposed a new schedule: ${date} at ${time}.`,
+                    data: {
+                        type: 'reschedule_proposed',
+                        bookingId: booking._id.toString(),
+                        link: `/tracking`
+                    }
+                });
+            } catch (notifErr) {
+                console.error('Error sending schedule proposed notification:', notifErr.message);
+            }
+        })();
 
         res.json({ message: 'Schedule proposed successfully', booking });
     } catch (error) {
@@ -2223,11 +2245,33 @@ const acceptSchedule = async (req, res) => {
 
         await booking.save();
 
-        // Notify Provider
+        // Notify Provider via Socket
         const { getIO } = require('../config/socket');
         const io = getIO();
         io.to(`provider_${booking.providerId}`).emit('SCHEDULE_ACCEPTED', { bookingId: booking._id, booking });
         io.emit('NEW_BOOKING_REQUEST'); // broadcast change to refresh lists
+
+        // Push Notification & DB Notification for Provider (in background)
+        (async () => {
+            try {
+                const { sendNotificationToUser } = require('../config/notificationService');
+                const User = require('../models/User');
+                const user = await User.findById(booking.userId);
+                const userName = user ? user.name : 'Customer';
+
+                await sendNotificationToUser(providerId, 'provider', {
+                    title: 'Reschedule Accepted ✓',
+                    body: `${userName} accepted your proposed schedule for ${proposedDate} at ${proposedTime}.`,
+                    data: {
+                        type: 'reschedule_accepted',
+                        bookingId: booking._id.toString(),
+                        link: `/provider/bookings`
+                    }
+                });
+            } catch (notifErr) {
+                console.error('Error sending schedule accepted notification:', notifErr.message);
+            }
+        })();
 
         res.json({ message: 'Schedule accepted successfully', booking });
     } catch (error) {
@@ -2251,10 +2295,32 @@ const rejectSchedule = async (req, res) => {
 
         await booking.save();
 
-        // Notify Provider
+        // Notify Provider via Socket
         const { getIO } = require('../config/socket');
         const io = getIO();
         io.to(`provider_${providerId}`).emit('SCHEDULE_REJECTED', { bookingId: booking._id });
+
+        // Push Notification & DB Notification for Provider (in background)
+        (async () => {
+            try {
+                const { sendNotificationToUser } = require('../config/notificationService');
+                const User = require('../models/User');
+                const user = await User.findById(booking.userId);
+                const userName = user ? user.name : 'Customer';
+
+                await sendNotificationToUser(providerId, 'provider', {
+                    title: 'Reschedule Declined ✗',
+                    body: `${userName} declined your proposed schedule for ${booking.proposedSchedule.date} at ${booking.proposedSchedule.time}.`,
+                    data: {
+                        type: 'reschedule_rejected',
+                        bookingId: booking._id.toString(),
+                        link: `/provider/bookings`
+                    }
+                });
+            } catch (notifErr) {
+                console.error('Error sending schedule rejected notification:', notifErr.message);
+            }
+        })();
 
         res.json({ message: 'Schedule rejected successfully', booking });
     } catch (error) {

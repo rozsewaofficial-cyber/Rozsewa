@@ -77,6 +77,40 @@ const sendMessage = async (req, res) => {
         const io = getIO();
         io.to(`booking_${bookingId}`).emit('receive_message', enhancedMessage);
 
+        // Fetch booking to find recipient and send push/DB notification
+        (async () => {
+            try {
+                const booking = await Booking.findById(bookingId);
+                if (booking) {
+                    let recipientId, recipientRole, notifLink;
+                    if (senderModel === 'User') {
+                        recipientId = booking.providerId;
+                        recipientRole = 'provider';
+                        notifLink = `/provider/bookings`;
+                    } else {
+                        recipientId = booking.userId;
+                        recipientRole = 'user';
+                        notifLink = `/tracking`;
+                    }
+
+                    if (recipientId) {
+                        const { sendNotificationToUser } = require('../config/notificationService');
+                        await sendNotificationToUser(recipientId, recipientRole, {
+                            title: `New Message from ${senderName}`,
+                            body: text || 'Sent an attachment',
+                            data: {
+                                type: 'chat',
+                                bookingId: bookingId,
+                                link: notifLink
+                            }
+                        });
+                    }
+                }
+            } catch (notifErr) {
+                console.error('Error sending chat push notification:', notifErr.message);
+            }
+        })();
+
         res.status(201).json(enhancedMessage);
     } catch (error) {
         console.error('Error sending message:', error);
