@@ -48,10 +48,55 @@ const ProviderAvailability = () => {
   };
 
   const updateTime = (day, field, value) => {
-    setSchedule(s => ({ ...s, [day]: { ...s[day], [field]: value } }));
+    setSchedule(s => {
+      const current = s[day];
+      let newStart = current.start;
+      let newEnd = current.end;
+
+      if (field === "start") {
+        newStart = value;
+        if (newStart >= newEnd) {
+          const startIndex = timeSlots.indexOf(newStart);
+          if (startIndex !== -1 && startIndex < timeSlots.length - 1) {
+            newEnd = timeSlots[startIndex + 1];
+          } else {
+            newEnd = newStart;
+          }
+        }
+      } else if (field === "end") {
+        newEnd = value;
+        if (newEnd <= newStart) {
+          const endIndex = timeSlots.indexOf(newEnd);
+          if (endIndex > 0) {
+            newStart = timeSlots[endIndex - 1];
+          } else {
+            newStart = newEnd;
+          }
+        }
+      }
+
+      return {
+        ...s,
+        [day]: { ...current, start: newStart, end: newEnd }
+      };
+    });
   };
 
   const handleSave = async () => {
+    // Validate all enabled days: closing time must be strictly after opening time
+    for (const day of Object.keys(schedule)) {
+      if (schedule[day].enabled) {
+        if (schedule[day].end <= schedule[day].start) {
+          toast({
+            title: "Invalid Hours",
+            description: `Closing time for ${day} must be after opening time.`,
+            variant: "destructive"
+          });
+          return;
+        }
+      }
+    }
+
     setSaving(true);
     try {
       const availabilityArray = Object.keys(schedule).map(day => ({

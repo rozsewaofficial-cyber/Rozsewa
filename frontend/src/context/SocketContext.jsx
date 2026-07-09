@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { toast } from '@/hooks/use-toast';
+import API from '@/lib/api';
 
 const SocketContext = createContext();
 
@@ -27,6 +28,10 @@ export const SocketProvider = ({ children }) => {
     });
     const [scheduleAcceptedData, setScheduleAcceptedData] = useState(null);
     const [reminderData, setReminderData] = useState(null);
+    const [activeSosAlert, setActiveSosAlert] = useState(null);
+    const [activeSosAlerts, setActiveSosAlerts] = useState([]);
+    const [unreadSosCount, setUnreadSosCount] = useState(0);
+    const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0);
     const { user } = useAuth();
 
     // Alarm Sound Player Management
@@ -199,11 +204,98 @@ export const SocketProvider = ({ children }) => {
             window.dispatchEvent(new CustomEvent('NEW_NOTIFICATION', { detail: data }));
         });
 
+        newSocket.on("NEW_SOS_ALERT", (data) => {
+            console.log("Global Socket: New SOS Alert received", data);
+            const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'supervisor');
+            if (isAdmin) {
+                setActiveSosAlerts(prev => {
+                    if (prev.some(alert => alert._id === data._id)) return prev;
+                    return [data, ...prev];
+                });
+                setUnreadSosCount(prev => prev + 1);
+                setActiveSosAlert(data);
+                playAlarmSound();
+
+                // Dispatch global event to force-refresh notification list/count
+                window.dispatchEvent(new CustomEvent('NEW_NOTIFICATION', { detail: data }));
+            }
+        });
+
+        newSocket.on("NEW_WITHDRAWAL_REQUEST", (data) => {
+            console.log("Global Socket: New Withdrawal Request received", data);
+            const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'supervisor');
+            if (isAdmin) {
+                // Only increment if not currently viewing withdrawals page
+                if (window.location.pathname !== "/admin/withdrawals") {
+                    setPendingWithdrawalsCount(prev => prev + 1);
+                }
+                import('sonner').then(({ toast }) => {
+                    toast.success("💰 New Payout Request", {
+                        description: `${data.providerName || 'Partner'} requested a withdrawal of ₹${data.amount}`,
+                        duration: 7000,
+                    });
+                });
+                playAlarmSound();
+
+                // Dispatch global event to force-refresh notification list/count
+                window.dispatchEvent(new CustomEvent('NEW_NOTIFICATION', { detail: data }));
+            }
+        });
+
+        newSocket.on("WITHDRAWAL_STATUS_UPDATED", (data) => {
+            console.log("Global Socket: Withdrawal status updated", data);
+            const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'supervisor');
+            if (isAdmin) {
+                // Refresh updated count
+                const fetchPendingWithdrawals = async () => {
+                    try {
+                        const res = await API.get("/admin/withdrawals");
+                        const count = res.data.filter(w => w.status === 'pending').length;
+                        setPendingWithdrawalsCount(count);
+                    } catch (err) {
+                        console.error("Error updating pending withdrawals count:", err);
+                    }
+                };
+                fetchPendingWithdrawals();
+
+                // Dispatch global event to force-refresh notification list/count
+                window.dispatchEvent(new CustomEvent('NEW_NOTIFICATION', { detail: data }));
+            }
+        });
+
         return () => {
             newSocket.close();
             setSocket(null);
         };
-    }, [user ? user._id : null]);
+    }, [user ? user._id : null, user ? user.role : null]);
+
+    useEffect(() => {
+        const isAdmin = user && (user.role === 'admin' || user.role === 'superadmin' || user.role === 'supervisor');
+        if (isAdmin && user.token) {
+            const fetchPendingSOS = async () => {
+                try {
+                    const res = await API.get("/admin/emergency");
+                    setActiveSosAlerts(res.data.sosQueue || []);
+                } catch (err) {
+                    console.error("Error fetching initial SOS alerts:", err);
+                }
+            };
+            const fetchPendingWithdrawals = async () => {
+                try {
+                    const res = await API.get("/admin/withdrawals");
+                    const count = res.data.filter(w => w.status === 'pending').length;
+                    setPendingWithdrawalsCount(count);
+                } catch (err) {
+                    console.error("Error fetching initial pending withdrawals:", err);
+                }
+            };
+            fetchPendingSOS();
+            fetchPendingWithdrawals();
+        } else {
+            setActiveSosAlerts([]);
+            setPendingWithdrawalsCount(0);
+        }
+    }, [user ? user.token : null, user ? user.role : null]);
 
     useEffect(() => {
         if (socket && user) {
@@ -243,6 +335,14 @@ export const SocketProvider = ({ children }) => {
             setScheduleAcceptedData,
             reminderData,
             setReminderData,
+            activeSosAlert,
+            setActiveSosAlert,
+            activeSosAlerts,
+            setActiveSosAlerts,
+            unreadSosCount,
+            clearUnreadSos: () => setUnreadSosCount(0),
+            pendingWithdrawalsCount,
+            clearWithdrawalsCount: () => setPendingWithdrawalsCount(0),
             playAlarmSound,
             stopAlarmSound,
             alarmSoundPlaying

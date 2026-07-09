@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useSocket } from "@/context/SocketContext";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 
@@ -234,11 +235,13 @@ const VALID_TABS = ['available', 'unlocked', 'expired'];
 
 const ProviderLeads = () => {
   const { toast } = useToast();
+  const { socket } = useSocket();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [leads,         setLeads]         = useState([]);
   const [totalPages,    setTotalPages]    = useState(1);
   const [loading,       setLoading]       = useState(true);
+  const [tabLoading,    setTabLoading]    = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [unlockModal,   setUnlockModal]   = useState(null); // { leadId, price }
   const [unlocking,     setUnlocking]     = useState(false);
@@ -259,6 +262,7 @@ const ProviderLeads = () => {
   // Dispute
   const [disputingLeadId,  setDisputingLeadId]  = useState(null);
   const [disputeReason,    setDisputeReason]    = useState('');
+  const [disputeError,     setDisputeError]     = useState('');
   const [submittingDispute, setSubmittingDispute] = useState(false);
 
   const TABS = [
@@ -269,6 +273,7 @@ const ProviderLeads = () => {
 
   const fetchLeadsAndWallet = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
+    else setTabLoading(true);
     try {
       const [leadsRes, walletRes] = await Promise.all([
         API.get(`/leads/nearby?page=${page}&limit=10&tab=${activeTab}`),
@@ -286,13 +291,22 @@ const ProviderLeads = () => {
         toast({ title: 'Fetch Failed', description: err.response?.data?.message || 'Could not sync leads.', variant: 'destructive' });
       }
     } finally {
-      if (!silent) setLoading(false);
+      setLoading(false);
+      setTabLoading(false);
     }
   }, [page, activeTab]);
 
   useEffect(() => {
-    fetchLeadsAndWallet();
+    // Initial load
+    const isInitial = leads.length === 0 && loading;
+    fetchLeadsAndWallet(isInitial ? false : true);
 
+    // ── Real-time: socket event when new lead is broadcast ──
+    const handleNewLeadSocket = () => {
+      fetchLeadsAndWallet(true);
+    };
+
+    // ── Fallback: window notification event ──
     const handleNewNotification = (e) => {
       const data = e.detail;
       if (data?.type === 'lead') {
@@ -300,9 +314,20 @@ const ProviderLeads = () => {
       }
     };
 
+    // ── Polling: silent refresh every 30 seconds ──
+    const pollInterval = setInterval(() => {
+      fetchLeadsAndWallet(true);
+    }, 30000);
+
+    if (socket) socket.on('NEW_LEAD_REQUEST', handleNewLeadSocket);
     window.addEventListener('NEW_NOTIFICATION', handleNewNotification);
-    return () => window.removeEventListener('NEW_NOTIFICATION', handleNewNotification);
-  }, [fetchLeadsAndWallet]);
+
+    return () => {
+      if (socket) socket.off('NEW_LEAD_REQUEST', handleNewLeadSocket);
+      window.removeEventListener('NEW_NOTIFICATION', handleNewNotification);
+      clearInterval(pollInterval);
+    };
+  }, [fetchLeadsAndWallet, socket]);
 
   const confirmUnlock = (leadId, price) => setUnlockModal({ leadId, price });
 
@@ -359,16 +384,29 @@ const ProviderLeads = () => {
 
   const handleDisputeSubmit = async (e) => {
     e.preventDefault();
-    if (!disputeReason.trim()) return;
+    if (!disputeReason.trim()) {
+      setDisputeError('Please describe your reason before submitting a claim.');
+      toast({
+        title: '⚠️ Reason Required',
+        description: 'Please describe why this lead was invalid before submitting.',
+        variant: 'destructive',
+        duration: 4000,
+      });
+      return;
+    }
+    setDisputeError('');
     setSubmittingDispute(true);
     try {
       await API.post(`/leads/${disputingLeadId}/dispute`, { reason: disputeReason });
-      toast({ title: 'Dispute Raised', description: 'Admin will review your claim.' });
+      toast({ title: '✅ Dispute Raised', description: 'Admin will review your claim within 24 hours.' });
       setDisputingLeadId(null);
       setDisputeReason('');
+      setDisputeError('');
       fetchLeadsAndWallet();
     } catch (err) {
-      toast({ title: 'Failed', description: err.response?.data?.message || 'Error', variant: 'destructive' });
+      const errMsg = err.response?.data?.message || 'Could not submit claim. Try again.';
+      setDisputeError(errMsg);
+      toast({ title: 'Submission Failed', description: errMsg, variant: 'destructive' });
     } finally {
       setSubmittingDispute(false);
     }
@@ -388,9 +426,9 @@ const ProviderLeads = () => {
             </p>
             <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Available Leads</h1>
           </div>
-          <button onClick={fetchLeadsAndWallet}
+          <button onClick={() => fetchLeadsAndWallet(false)}
             className="flex items-center gap-2 h-10 px-4 rounded-xl bg-white dark:bg-slate-900 border border-border shadow-sm hover:shadow-md text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 transition-all active:scale-95">
-            <RefreshCcw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-violet-600' : ''}`} /> Refresh
+            <RefreshCcw className={`h-3.5 w-3.5 ${(loading || tabLoading) ? 'animate-spin text-violet-600' : ''}`} /> Refresh
           </button>
         </div>
 
@@ -426,12 +464,15 @@ const ProviderLeads = () => {
                   : 'bg-white dark:bg-slate-900 border border-border text-slate-500 hover:text-slate-900'
               }`}>
               {tab.label}
+              {tabLoading && activeTab === tab.id && (
+                <span className="inline-block ml-1.5 h-1.5 w-1.5 rounded-full bg-white/70 animate-pulse" />
+              )}
             </button>
           ))}
         </div>
 
         {/* Lead Cards */}
-        <div className="space-y-4">
+        <div className={`space-y-4 transition-opacity duration-200 ${tabLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
           {loading ? (
             <div className="space-y-4">
               {[1,2].map(i => <div key={i} className="h-64 bg-white dark:bg-slate-900/50 border border-border rounded-2xl animate-pulse" />)}
@@ -506,8 +547,8 @@ const ProviderLeads = () => {
 
       {/* Dispute Modal */}
       {disputingLeadId && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setDisputingLeadId(null)} />
+        <div className="fixed inset-0 z-[1000] flex items-start justify-center pt-16 p-4">
+          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => { setDisputingLeadId(null); setDisputeError(''); }} />
           <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl space-y-4 border border-border">
             <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-rose-500" /> Raise Refund Dispute
@@ -516,16 +557,31 @@ const ProviderLeads = () => {
               Describe why this lead was invalid. False claims may restrict your account.
             </p>
             <form onSubmit={handleDisputeSubmit} className="space-y-4">
-              <textarea required rows={4} value={disputeReason} onChange={e => setDisputeReason(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-rose-500/20 outline-none text-slate-800 dark:text-white resize-none"
-                placeholder="e.g. Phone number was incorrect. Customer refused the work immediately." />
+              <div className="space-y-1.5">
+                <textarea
+                  rows={4}
+                  value={disputeReason}
+                  onChange={e => { setDisputeReason(e.target.value); if (e.target.value.trim()) setDisputeError(''); }}
+                  className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border rounded-xl text-sm font-medium focus:ring-2 outline-none text-slate-800 dark:text-white resize-none transition-colors ${
+                    disputeError
+                      ? 'border-rose-400 focus:ring-rose-500/20 bg-rose-50 dark:bg-rose-900/10'
+                      : 'border-slate-200 dark:border-slate-700 focus:ring-rose-500/20'
+                  }`}
+                  placeholder="e.g. Phone number was incorrect. Customer refused the work immediately." />
+                {disputeError && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-lg">
+                    <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                    <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400">{disputeError}</p>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
-                <button type="button" onClick={() => setDisputingLeadId(null)}
+                <button type="button" onClick={() => { setDisputingLeadId(null); setDisputeError(''); }}
                   className="flex-1 py-3 border border-border rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">
                   Cancel
                 </button>
                 <button type="submit" disabled={submittingDispute}
-                  className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95">
+                  className="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-60">
                   {submittingDispute ? 'Submitting...' : 'Submit Claim'}
                 </button>
               </div>

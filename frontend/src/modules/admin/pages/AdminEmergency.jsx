@@ -3,13 +3,13 @@ import { useOutletContext } from "react-router-dom";
 import { ShieldAlert, PhoneIncoming, AlertTriangle, CheckCircle, ArrowRight, Loader2, MapPin, Navigation, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useSocket } from "@/context/SocketContext";
 
 const AdminEmergency = () => {
    const { setTitle } = useOutletContext();
+   const { activeSosAlerts, setActiveSosAlerts, clearUnreadSos, stopAlarmSound } = useSocket();
    const [data, setData] = useState({
-      incomingSOS: "00",
       activeResponders: "00",
-      sosQueue: [],
       responderStatus: []
    });
    const [loading, setLoading] = useState(true);
@@ -19,12 +19,21 @@ const AdminEmergency = () => {
    useEffect(() => {
       setTitle("24x7 Emergency");
       fetchEmergencyData();
+      // Mark all SOS alerts as read — clear sidebar badge & stop alarm
+      clearUnreadSos();
+      stopAlarmSound();
    }, [setTitle]);
 
    const fetchEmergencyData = async () => {
       try {
          const res = await API.get("/admin/emergency");
-         setData(res.data);
+         setData({
+            activeResponders: res.data.activeResponders || "00",
+            responderStatus: res.data.responderStatus || []
+         });
+         if (res.data.sosQueue) {
+            setActiveSosAlerts(res.data.sosQueue);
+         }
       } catch (err) {
          console.error("SOS Sync Error:", err);
       } finally {
@@ -44,19 +53,11 @@ const AdminEmergency = () => {
       }
    };
 
-   const handleCall = (user) => {
-      toast({ title: "Connecting Call", description: `Dialing register number for ${user}...` });
-   };
-
    const handleDeleteAlert = async (id) => {
       if (!window.confirm("Are you sure you want to remove this alert?")) return;
       try {
          await API.delete(`/admin/emergency/${id}`);
-         setData(prev => ({
-            ...prev,
-            incomingSOS: prev.incomingSOS - 1,
-            sosQueue: prev.sosQueue.filter(alert => alert._id !== id)
-         }));
+         setActiveSosAlerts(prev => prev.filter(alert => alert._id !== id));
          toast({ title: "Alert Removed", description: "The emergency record has been deleted." });
       } catch (err) {
          toast({ title: "Delete Failed", description: "Failed to remove alert record.", variant: "destructive" });
@@ -67,7 +68,11 @@ const AdminEmergency = () => {
       const diff = Math.floor((new Date() - new Date(date)) / 60000);
       if (diff < 1) return "Just now";
       if (diff < 60) return `${diff}m ago`;
-      return `${Math.floor(diff / 60)}h ago`;
+      const hrs = Math.floor(diff / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      const days = Math.floor(hrs / 24);
+      if (days < 7) return `${days}d ago`;
+      return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
    };
 
    if (loading) return (
@@ -92,7 +97,7 @@ const AdminEmergency = () => {
             <div className="flex gap-3 w-full md:w-auto">
                <div className="flex-1 md:flex-none bg-white border border-red-200 px-5 py-3 rounded-2xl text-center shadow-sm">
                   <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Incoming SOS</p>
-                  <h2 className="text-2xl font-black text-red-700">{data.incomingSOS.toString().padStart(2, '0')}</h2>
+                  <h2 className="text-2xl font-black text-red-700">{activeSosAlerts.length.toString().padStart(2, '0')}</h2>
                </div>
                <div className="flex-1 md:flex-none bg-white border border-red-200 px-5 py-3 rounded-2xl text-center shadow-sm">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active Responders</p>
@@ -104,13 +109,13 @@ const AdminEmergency = () => {
          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-4">
                <h3 className="font-bold text-xs uppercase tracking-widest px-1 text-muted-foreground">CRITICAL SOS QUEUE</h3>
-               {data.sosQueue.length === 0 ? (
+               {activeSosAlerts.length === 0 ? (
                   <div className="p-8 text-center bg-white rounded-2xl border border-gray-100">
                      <CheckCircle className="h-8 w-8 text-emerald-200 mx-auto mb-2" />
                      <p className="text-gray-400 font-bold text-sm uppercase tracking-widest">No Active SOS Alerts</p>
                   </div>
                ) : (
-                  data.sosQueue.map(sos => (
+                  activeSosAlerts.map(sos => (
                      <div key={sos._id} className="p-4 border border-red-100 bg-white rounded-2xl shadow-sm hover:shadow-md transition group overflow-hidden relative text-left">
                         <div className="absolute right-0 top-0 h-full w-1 bg-red-500 opacity-20 group-hover:opacity-100 mt-0"></div>
                         <div className="flex justify-between items-start">
@@ -159,7 +164,7 @@ const AdminEmergency = () => {
                   <div className="space-y-3">
                      {data.responderStatus.length === 0 ? (
                         <p className="text-xs text-gray-400 italic">No responders in vicinity...</p>
-                     ) : (
+                      ) : (
                         data.responderStatus.map((rep, i) => (
                            <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-gray-100 group">
                               <div className="flex gap-3 items-center">

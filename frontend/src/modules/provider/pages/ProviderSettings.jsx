@@ -146,7 +146,7 @@ const ProviderSettings = () => {
           <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
             <h3 className="bg-muted/30 px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground border-b border-border text-left">Preferences</h3>
             <div className="divide-y divide-border">
-              <button disabled className="w-full flex items-center justify-between p-5 hover:bg-muted/30 transition-colors group">
+              <Link to="/provider/notifications" className="w-full flex items-center justify-between p-5 hover:bg-muted/30 transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/30 text-amber-600"><Bell className="h-5 w-5" /></div>
                   <div className="text-left">
@@ -155,7 +155,7 @@ const ProviderSettings = () => {
                   </div>
                 </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-emerald-600 transition" />
-              </button>
+              </Link>
             </div>
           </div>
 

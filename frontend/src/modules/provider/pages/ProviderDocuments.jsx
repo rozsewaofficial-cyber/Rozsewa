@@ -9,6 +9,7 @@ import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useScrollLock } from "@/lib/scrollLock";
 
 const docTypes = [
   { id: "aadhaar", label: "Aadhaar Card", required: true },
@@ -70,6 +71,8 @@ const ProviderDocuments = () => {
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [dobInput, setDobInput] = useState("");
+
+  useScrollLock(isModalOpen || recorderOpen || !!previewVideoModal);
 
   useEffect(() => {
     fetchProfile();

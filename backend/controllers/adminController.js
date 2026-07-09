@@ -2516,6 +2516,7 @@ const adminGlobalSearch = async (req, res) => {
 const getAdminNotifications = async (req, res) => {
     try {
         const Lead = require('../models/Lead');
+        const Withdrawal = require('../models/Withdrawal');
         const [
             recentLogs,
             pendingKyc,
@@ -2523,7 +2524,8 @@ const getAdminNotifications = async (req, res) => {
             pendingEmployees,
             pendingBookings,
             pendingLeads,
-            recentLeads
+            recentLeads,
+            pendingWithdrawals
         ] = await Promise.all([
             AuditLog.find().sort({ timestamp: -1 }).limit(5).lean(),
             Provider.countDocuments({ providerCategory: { $ne: 'sewak' }, kycVerified: false, kycSubmitted: true }),
@@ -2532,7 +2534,8 @@ const getAdminNotifications = async (req, res) => {
             Provider.countDocuments({ providerCategory: { $ne: 'sewak' }, status: 'pending' }),
             Booking.countDocuments({ status: 'pending' }),
             Lead.countDocuments({ status: 'available' }),
-            Lead.find({ status: 'available' }).sort({ createdAt: -1 }).limit(3).populate('categoryId', 'name').lean()
+            Lead.find({ status: 'available' }).sort({ createdAt: -1 }).limit(3).populate('categoryId', 'name').lean(),
+            Withdrawal.countDocuments({ status: 'pending' })
         ]);
 
         const notifications = [];
@@ -2566,6 +2569,17 @@ const getAdminNotifications = async (req, res) => {
                 title: `${pendingBookings} Pending Bookings`,
                 message: 'Bookings awaiting provider assignment.',
                 link: '/admin/bookings',
+                time: new Date(),
+            });
+        }
+
+        if (pendingWithdrawals > 0) {
+            notifications.push({
+                id: 'withdrawals-pending',
+                type: 'withdrawal',
+                title: `${pendingWithdrawals} Payout Requests Pending`,
+                message: 'Withdrawal requests awaiting admin processing.',
+                link: '/admin/withdrawals',
                 time: new Date(),
             });
         }
@@ -2616,7 +2630,7 @@ const getAdminNotifications = async (req, res) => {
         // Sort newest first
         notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
 
-        res.json({ notifications: notifications.slice(0, 15), counts: { pendingKyc, pendingSewaks, pendingBookings, pendingLeads } });
+        res.json({ notifications: notifications.slice(0, 15), counts: { pendingKyc, pendingSewaks, pendingBookings, pendingLeads, pendingWithdrawals } });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

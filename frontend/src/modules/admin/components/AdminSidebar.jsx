@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import React, { useState } from 'react';
 import { useAuth } from "@/context/AuthContext";
 import PinModal from "./PinModal";
+import { useSocket } from "@/context/SocketContext";
 import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
@@ -57,6 +58,7 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { unreadSosCount, pendingWithdrawalsCount } = useSocket();
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Filter links based on admin permissions
@@ -116,13 +118,25 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
               key={link.path}
               to={link.path}
               onClick={() => setIsOpen(false)}
-              className={`flex items-center gap-3 rounded-2xl px-4 py-2.5 text-sm font-bold transition-all duration-200 ${isActive
+              className={`flex items-center justify-between rounded-2xl px-4 py-2.5 text-sm font-bold transition-all duration-200 ${isActive
                 ? "bg-blue-600 text-white shadow-lg border border-transparent"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-white"
                 }`}
             >
-              <link.icon className={`h-4.5 w-4.5 ${isActive ? "text-white" : "text-slate-500 group-hover:text-white"}`} />
-              {label}
+              <div className="flex items-center gap-3">
+                <link.icon className={`h-4.5 w-4.5 ${isActive ? "text-white" : "text-slate-500 group-hover:text-white"}`} />
+                <span>{label}</span>
+              </div>
+              {link.path === "/admin/emergency" && unreadSosCount > 0 && (
+                <span className="flex h-5 min-w-5 px-1 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white animate-pulse">
+                  {unreadSosCount > 9 ? '9+' : unreadSosCount}
+                </span>
+              )}
+              {link.path === "/admin/withdrawals" && pendingWithdrawalsCount > 0 && (
+                <span className="flex h-5 min-w-5 px-1 shrink-0 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black text-white">
+                  {pendingWithdrawalsCount}
+                </span>
+              )}
             </Link>
           );
         })}

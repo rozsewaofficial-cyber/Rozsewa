@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Search, Menu, X, User, UserCheck, Briefcase, ShoppingBag, Shield, Clock, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { Bell, Search, Menu, X, User, UserCheck, Briefcase, ShoppingBag, Shield, Clock, ChevronRight, Loader2, AlertCircle, Landmark } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import API from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -19,6 +19,7 @@ const timeAgo = (date) => {
 const notifIcon = (type) => {
   if (type === "kyc") return <Shield className="h-4 w-4 text-blue-500" />;
   if (type === "booking") return <Briefcase className="h-4 w-4 text-amber-500" />;
+  if (type === "withdrawal") return <Landmark className="h-4 w-4 text-emerald-500" />;
   return <Clock className="h-4 w-4 text-gray-400" />;
 };
 
@@ -46,12 +47,12 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
   // Notification state
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [notifCounts, setNotifCounts] = useState({ pendingKyc: 0, pendingSewaks: 0, pendingBookings: 0 });
+  const [notifCounts, setNotifCounts] = useState({ pendingKyc: 0, pendingSewaks: 0, pendingBookings: 0, pendingLeads: 0, pendingWithdrawals: 0 });
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifLoaded, setNotifLoaded] = useState(false);
   const notifRef = useRef(null);
 
-  const totalBadge = notifCounts.pendingKyc + notifCounts.pendingSewaks + notifCounts.pendingBookings;
+  const totalBadge = (notifCounts.pendingKyc || 0) + (notifCounts.pendingSewaks || 0) + (notifCounts.pendingBookings || 0) + (notifCounts.pendingLeads || 0) + (notifCounts.pendingWithdrawals || 0);
 
   // ── Search debounce ──────────────────────────────────────────────────────
   const doSearch = useCallback(async (q) => {
@@ -108,8 +109,8 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
   }, []);
 
   // ── Fetch notifications ───────────────────────────────────────────────────
-  const fetchNotifications = useCallback(async () => {
-    if (notifLoaded) return;
+  const fetchNotifications = useCallback(async (force = false) => {
+    if (notifLoaded && !force) return;
     setNotifLoading(true);
     try {
       const { data } = await API.get("/admin/notifications");
@@ -126,6 +127,15 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
   // Fetch on mount for badge count
   useEffect(() => {
     fetchNotifications();
+  }, [fetchNotifications]);
+
+  // Listen for socket-driven live notifications to refresh list in real-time
+  useEffect(() => {
+    const handleLiveNotification = () => {
+      fetchNotifications(true);
+    };
+    window.addEventListener('NEW_NOTIFICATION', handleLiveNotification);
+    return () => window.removeEventListener('NEW_NOTIFICATION', handleLiveNotification);
   }, [fetchNotifications]);
 
   const handleNotifOpen = () => {

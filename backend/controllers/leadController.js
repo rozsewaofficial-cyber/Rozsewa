@@ -1062,7 +1062,10 @@ const raiseDispute = async (req, res) => {
         res.status(201).json({ message: 'Dispute raised. Admin will review your claim.', dispute });
     } catch (err) {
         console.error('[raiseDispute]', err);
-        res.status(500).json({ message: err.message });
+        if (err.code === 11000) {
+            return res.status(400).json({ message: 'You have already raised a dispute for this lead.' });
+        }
+        res.status(500).json({ message: err.message || 'Failed to raise dispute.' });
     }
 };
 

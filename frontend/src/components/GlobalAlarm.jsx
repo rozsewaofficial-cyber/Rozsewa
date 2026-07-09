@@ -5,6 +5,7 @@ import IncomingRequestModal from '@/modules/provider/components/IncomingRequestM
 import IncomingLeadModal from '@/modules/provider/components/IncomingLeadModal';
 import ScheduleAcceptedModal from '@/modules/provider/components/ScheduleAcceptedModal';
 import BookingReminderModal from '@/modules/provider/components/BookingReminderModal';
+import AdminSosModal from './AdminSosModal';
 
 const GlobalAlarm = () => {
     const socketData = useSocket();
@@ -13,9 +14,20 @@ const GlobalAlarm = () => {
     // Safety fallback for Vite HMR issues where context might be temporarily lost
     if (!socketData || !user) return null;
 
-    // Only show provider alarms on the provider or sewak dashboard routes
-    // Even if user.role is 'provider', if they are browsing the customer site (/), do not interrupt them
     const path = window.location.pathname;
+
+    // 1. For Admins: Show critical SOS alarm overlay on any admin page
+    const isAdmin = user.role === 'admin' || user.role === 'superadmin' || user.role === 'supervisor';
+    if (path.startsWith('/admin') && isAdmin && socketData.activeSosAlert) {
+        return (
+            <AdminSosModal
+                alertData={socketData.activeSosAlert}
+                onDismiss={() => socketData.setActiveSosAlert(null)}
+            />
+        );
+    }
+
+    // 2. For Providers/Sewaks: Only show alarms on their dashboard routes
     if (!path.startsWith('/provider') && !path.startsWith('/sewak')) {
         return null;
     }

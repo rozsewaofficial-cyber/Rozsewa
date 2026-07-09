@@ -508,31 +508,55 @@ const sendEmergencyAlert = async (req, res) => {
             status: 'pending'
         });
 
-        // Push Notification for Admins (Emergency SOS)
-        try {
-            const User = require('../models/User');
-            const { sendNotificationToUser } = require('../config/notificationService');
-            
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
-            
-            for (const admin of admins) {
-                await sendNotificationToUser(admin._id, 'admin', {
-                    title: '⚠️ Emergency SOS Triggered!',
-                    body: `Provider ${provider.ownerName} (${provider.shopName}) has triggered an SOS emergency!`,
-                    data: {
-                        type: 'sos',
-                        id: provider._id.toString(),
-                        link: '/admin/live-map'
-                    }
-                });
-            }
-        } catch (err) {
-            console.log('Admin push notification failed (skipping):', err.message);
-        }
-
+        // Respond to the provider immediately to prevent UI blocking
         res.status(201).json({ success: true, alert });
+
+        // Process admin notifications and socket emits in the background
+        (async () => {
+            try {
+                const User = require('../models/User');
+                const { notifyUser } = require('../config/notificationService');
+                const { getIO } = require('../config/socket');
+
+                const populatedAlert = await EmergencyAlert.findById(alert._id)
+                    .populate('providerId', 'name shopName ownerName mobile address location');
+
+                const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+                const io = getIO();
+
+                for (const admin of admins) {
+                    try {
+                        // 1. Emit socket event for real-time list update on AdminEmergency dashboard
+                        io.to(`user_${admin._id.toString()}`).emit('NEW_SOS_ALERT', populatedAlert);
+
+                        // 2. Call notifyUser to handle In-App Notification (DB record), Socket (toast notification), and FCM push notification
+                        notifyUser({
+                            userId: admin._id,
+                            userRole: 'admin',
+                            title: '⚠️ Emergency SOS Triggered!',
+                            message: `Provider ${provider.ownerName} (${provider.shopName}) has triggered an SOS emergency!`,
+                            type: 'sos',
+                            data: {
+                                type: 'sos',
+                                id: provider._id.toString(),
+                                link: '/admin/live-map'
+                            }
+                        });
+                    } catch (adminErr) {
+                        console.error(`Failed to send SOS notification to admin ${admin._id}:`, adminErr.message);
+                    }
+                }
+            } catch (err) {
+                console.error('Background admin push notification failed:', err.message);
+            }
+        })();
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        // Only call res.status if headers have not been sent yet
+        if (!res.headersSent) {
+            res.status(500).json({ message: error.message });
+        } else {
+            console.error("Error after headers sent in sendEmergencyAlert:", error);
+        }
     }
 };
 

@@ -16,6 +16,8 @@ const ProviderWallet = () => {
   const [withdrawals, setWithdrawals] = useState([]);
   const [provider, setProvider] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [withdrawalsPage, setWithdrawalsPage] = useState(1);
 
   const fetchWithdrawals = async () => {
     try {
@@ -179,6 +181,7 @@ const ProviderWallet = () => {
       toast({ title: "Withdrawal Requested", description: "Your request has been submitted successfully." });
       closeWithdrawModal();
       fetchWallet();
+      fetchWithdrawals();
       window.dispatchEvent(new CustomEvent('WALLET_UPDATED'));
     } catch (err) {
       setWithdrawError(err.response?.data?.message || "Failed to submit request. Try again.");
@@ -362,34 +365,68 @@ const ProviderWallet = () => {
                 </h3>
               </div>
               <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border mb-6">
-                {withdrawals.map((req) => (
-                  <div key={req._id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-600' :
-                        req.status === 'rejected' ? 'bg-rose-50 text-rose-600' :
-                          'bg-amber-50 text-amber-600'
-                        }`}>
-                        <ArrowUpRight className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-bold text-foreground">Withdrawal Request</p>
-                          <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                            req.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
-                              'bg-amber-100 text-amber-700'
-                            }`}>
-                            {req.status}
-                          </span>
+                {(() => {
+                  const itemsPerPage = 10;
+                  const totalPages = Math.ceil(withdrawals.length / itemsPerPage);
+                  const startIndex = (withdrawalsPage - 1) * itemsPerPage;
+                  const paginated = withdrawals.slice(startIndex, startIndex + itemsPerPage);
+
+                  return (
+                    <>
+                      {paginated.map((req) => (
+                        <div key={req._id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${req.status === 'approved' ? 'bg-emerald-50 text-emerald-600' :
+                              req.status === 'rejected' ? 'bg-rose-50 text-rose-600' :
+                                'bg-amber-50 text-amber-600'
+                              }`}>
+                              <ArrowUpRight className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-foreground">Withdrawal Request</p>
+                                <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                                  req.status === 'rejected' ? 'bg-rose-100 text-rose-700' :
+                                    'bg-amber-100 text-amber-700'
+                                  }`}>
+                                  {req.status}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{new Date(req.createdAt).toLocaleDateString()} • {req._id.slice(-6).toUpperCase()}</p>
+                              {req.reason && <p className="text-[9px] text-rose-600 mt-1 italic">Reason: {req.reason}</p>}
+                            </div>
+                          </div>
+                          <div className={`font-black text-sm text-right text-rose-600`}>
+                            - ₹{req.amount.toLocaleString()}
+                          </div>
                         </div>
-                        <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{new Date(req.createdAt).toLocaleDateString()} • {req._id.slice(-6).toUpperCase()}</p>
-                        {req.reason && <p className="text-[9px] text-rose-600 mt-1 italic">Reason: {req.reason}</p>}
-                      </div>
-                    </div>
-                    <div className={`font-black text-sm text-right text-rose-600`}>
-                      - ₹{req.amount.toLocaleString()}
-                    </div>
-                  </div>
-                ))}
+                      ))}
+
+                      {/* Pagination Controls */}
+                      {totalPages > 1 && (
+                        <div className="flex justify-center gap-3 p-4 bg-muted/10 border-t border-border">
+                          <button
+                            disabled={withdrawalsPage <= 1}
+                            onClick={() => setWithdrawalsPage(p => p - 1)}
+                            className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
+                          >
+                            ← Prev
+                          </button>
+                          <span className="flex items-center px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            {withdrawalsPage} / {totalPages}
+                          </span>
+                          <button
+                            disabled={withdrawalsPage >= totalPages}
+                            onClick={() => setWithdrawalsPage(p => p + 1)}
+                            className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
+                          >
+                            Next →
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </section>
           )}
@@ -401,40 +438,76 @@ const ProviderWallet = () => {
               </h3>
             </div>
             <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border">
-              {transactions.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-40 italic">No Activity Yet</div>
-              ) : transactions.map((txn) => (
-                <div key={txn._id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${txn.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                      {txn.type === 'credit' ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-xs font-bold text-foreground">{txn.title}</p>
-                        {(() => {
-                          const t = txn.title || '';
-                          const d = txn.description || '';
-                          if (t.includes('Cash Collected')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">💵 Cash</span>;
-                          if (t.includes('Commission Deducted')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">🏛 Commission</span>;
-                          if (t.includes('Service Earnings')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">💳 Online</span>;
-                          if (d.includes('Free') || t.includes('Free')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40">Free Service</span>;
-                          if (t.includes('Penalty')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">Penalty</span>;
-                          if (t.includes('Bonus')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">Bonus</span>;
-                          return null;
-                        })()}
+              {(() => {
+                const itemsPerPage = 10;
+                const totalPages = Math.ceil(transactions.length / itemsPerPage);
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const paginated = transactions.slice(startIndex, startIndex + itemsPerPage);
+
+                if (transactions.length === 0) {
+                  return <div className="p-8 text-center text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-40 italic">No Activity Yet</div>;
+                }
+
+                return (
+                  <>
+                    {paginated.map((txn) => (
+                      <div key={txn._id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${txn.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                            {txn.type === 'credit' ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-xs font-bold text-foreground">{txn.title}</p>
+                              {(() => {
+                                const t = txn.title || '';
+                                const d = txn.description || '';
+                                if (t.includes('Cash Collected')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">💵 Cash</span>;
+                                if (t.includes('Commission Deducted')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">🏛 Commission</span>;
+                                if (t.includes('Service Earnings')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">💳 Online</span>;
+                                if (d.includes('Free') || t.includes('Free')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40">Free Service</span>;
+                                if (t.includes('Penalty')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">Penalty</span>;
+                                if (t.includes('Bonus')) return <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">Bonus</span>;
+                                return null;
+                              })()}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{new Date(txn.createdAt).toLocaleDateString()} • {txn._id.slice(-6).toUpperCase()}</p>
+                            {txn.description && <p className="text-[9px] text-muted-foreground mt-1 italic">{txn.description}</p>}
+                          </div>
+                        </div>
+                        <div className={`font-black text-sm text-right ${txn.type === 'credit' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {txn.type === 'credit' ? '+' : '-'} ₹{txn.amount.toLocaleString()}
+                        </div>
                       </div>
-                      <p className="text-[10px] text-muted-foreground font-medium mt-0.5">{new Date(txn.createdAt).toLocaleDateString()} • {txn._id.slice(-6).toUpperCase()}</p>
-                      {txn.description && <p className="text-[9px] text-muted-foreground mt-1 italic">{txn.description}</p>}
-                    </div>
-                      <div className={`font-black text-sm text-right ${txn.type === 'credit' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {txn.type === 'credit' ? '+' : '-'} ₹{txn.amount.toLocaleString()}
+                    ))}
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                      <div className="flex justify-center gap-3 p-4 bg-muted/10 border-t border-border">
+                        <button
+                          disabled={currentPage <= 1}
+                          onClick={() => setCurrentPage(p => p - 1)}
+                          className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
+                        >
+                          ← Prev
+                        </button>
+                        <span className="flex items-center px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          {currentPage} / {totalPages}
+                        </span>
+                        <button
+                          disabled={currentPage >= totalPages}
+                          onClick={() => setCurrentPage(p => p + 1)}
+                          className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
+                        >
+                          Next →
+                        </button>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </section>
         </main>
       )}
 

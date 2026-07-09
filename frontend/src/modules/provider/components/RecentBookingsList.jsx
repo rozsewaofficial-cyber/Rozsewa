@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink, MessageCircle } from "lucide-react";
+import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink, MessageCircle, CalendarDays } from "lucide-react";
 import LiveTrackingView from "./LiveTrackingView";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
@@ -242,8 +242,58 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   };
 
   const [filterCity, setFilterCity] = useState("");
-  const [filterFromDate, setFilterFromDate] = useState("");
-  const [filterToDate, setFilterToDate] = useState("");
+  const [filterFromDate, setFilterFromDate] = useState("");      // YYYY-MM-DD
+  const [filterToDate, setFilterToDate] = useState("");          // YYYY-MM-DD
+  const [fromDateDisplay, setFromDateDisplay] = useState("");    // DD/MM/YYYY display
+  const [toDateDisplay, setToDateDisplay] = useState("");        // DD/MM/YYYY display
+  const today = new Date().toISOString().split('T')[0];          // YYYY-MM-DD
+
+  // Convert DD/MM/YYYY → YYYY-MM-DD (returns '' if invalid)
+  const toISO = (ddmmyyyy) => {
+    const parts = ddmmyyyy.split('/');
+    if (parts.length !== 3 || parts[2].length !== 4) return '';
+    const [dd, mm, yyyy] = parts;
+    if (!dd || !mm || !yyyy) return '';
+    const iso = `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return iso;
+  };
+
+  // Auto-format typed input as DD/MM/YYYY
+  const maskDate = (raw) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
+    let out = digits;
+    if (digits.length > 2) out = digits.slice(0,2) + '/' + digits.slice(2);
+    if (digits.length > 4) out = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
+    return out;
+  };
+
+  const handleFromDateChange = (raw) => {
+    const masked = maskDate(raw);
+    setFromDateDisplay(masked);
+    if (masked.length === 10) {
+      let iso = toISO(masked);
+      if (iso > today) { iso = today; setFromDateDisplay(today.split('-').reverse().join('/')); }
+      setFilterFromDate(iso);
+      if (filterToDate && iso && iso > filterToDate) { setFilterToDate(''); setToDateDisplay(''); }
+    } else {
+      setFilterFromDate('');
+    }
+  };
+
+  const handleToDateChange = (raw) => {
+    const masked = maskDate(raw);
+    setToDateDisplay(masked);
+    if (masked.length === 10) {
+      let iso = toISO(masked);
+      if (iso > today) { iso = today; setToDateDisplay(today.split('-').reverse().join('/')); }
+      if (filterFromDate && iso && iso < filterFromDate) { iso = filterFromDate; setToDateDisplay(filterFromDate.split('-').reverse().join('/')); }
+      setFilterToDate(iso);
+    } else {
+      setFilterToDate('');
+    }
+  };
 
   const filteredRequests = requests.filter(req => {
     if (activeTab === "pending" && req.status !== "pending") return false;
@@ -251,10 +301,22 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
     if (activeTab === "completed" && !(req.status === "completed" && req.paymentStatus === 'paid')) return false;
     if (activeTab === "cancelled" && req.status !== "cancelled") return false;
 
-    // Filter by city/address
+    // Filter by city/address/customer/service
     if (filterCity) {
-        const address = (req.address || "").toLowerCase();
-        if (!address.includes(filterCity.toLowerCase())) {
+        const query = filterCity.toLowerCase();
+        const bookingAddress = (req.address || "").toLowerCase();
+        const customerName = (req.userId?.name || "").toLowerCase();
+        const customerCity = (req.userId?.city || "").toLowerCase();
+        const customerAddress = (req.userId?.address || "").toLowerCase();
+        const serviceName = (req.serviceName || "").toLowerCase();
+
+        if (
+            !bookingAddress.includes(query) &&
+            !customerName.includes(query) &&
+            !customerCity.includes(query) &&
+            !customerAddress.includes(query) &&
+            !serviceName.includes(query)
+        ) {
             return false;
         }
     }
@@ -415,25 +477,64 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
           </div>
           <div className="flex-1">
             <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">From Date</label>
-            <input
-              type="date"
-              value={filterFromDate}
-              onChange={(e) => setFilterFromDate(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="DD/MM/YYYY"
+                value={fromDateDisplay}
+                maxLength={10}
+                onChange={(e) => handleFromDateChange(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg p-2 pr-8 text-xs focus:ring-2 focus:ring-primary outline-none"
+              />
+              {/* Hidden native date picker triggered by icon */}
+              <input
+                type="date"
+                max={today}
+                tabIndex={-1}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                onChange={(e) => {
+                  const iso = e.target.value;
+                  if (!iso) return;
+                  const [yyyy, mm, dd] = iso.split('-');
+                  handleFromDateChange(`${dd}${mm}${yyyy}`);
+                }}
+              />
+              <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
           <div className="flex-1">
             <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">To Date</label>
-            <input
-              type="date"
-              value={filterToDate}
-              onChange={(e) => setFilterToDate(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="DD/MM/YYYY"
+                value={toDateDisplay}
+                maxLength={10}
+                onChange={(e) => handleToDateChange(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg p-2 pr-8 text-xs focus:ring-2 focus:ring-primary outline-none"
+              />
+              {/* Hidden native date picker triggered by icon */}
+              <input
+                type="date"
+                min={filterFromDate || undefined}
+                max={today}
+                tabIndex={-1}
+                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                onChange={(e) => {
+                  const iso = e.target.value;
+                  if (!iso) return;
+                  const [yyyy, mm, dd] = iso.split('-');
+                  handleToDateChange(`${dd}${mm}${yyyy}`);
+                }}
+              />
+              <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
           <div className="flex items-end">
             <button 
-              onClick={() => { setFilterCity(""); setFilterFromDate(""); setFilterToDate(""); }}
+              onClick={() => { setFilterCity(""); setFilterFromDate(""); setFilterToDate(""); setFromDateDisplay(""); setToDateDisplay(""); }}
               className="w-full sm:w-auto px-4 py-2 bg-muted text-foreground text-xs font-bold rounded-lg hover:bg-muted/80"
             >
               Clear

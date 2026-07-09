@@ -3,10 +3,12 @@ import { useOutletContext } from "react-router-dom";
 import { Landmark, CheckCircle, XCircle, Search } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useSocket } from "@/context/SocketContext";
 
 const AdminWithdrawals = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
+  const { clearWithdrawalsCount } = useSocket();
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -14,6 +16,7 @@ const AdminWithdrawals = () => {
   useEffect(() => {
     setTitle("Withdrawal Requests");
     fetchWithdrawals();
+    clearWithdrawalsCount();
   }, [setTitle]);
 
   const fetchWithdrawals = async () => {

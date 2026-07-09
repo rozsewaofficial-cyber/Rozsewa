@@ -26,9 +26,19 @@ const initSocket = (server) => {
             console.log(`Provider ${providerId} joined room`);
         });
 
-        socket.on("join_user", (userId) => {
+        socket.on("join_user", async (userId) => {
             socket.join(`user_${userId}`);
             console.log(`User ${userId} joined room`);
+            try {
+                const User = require('../models/User');
+                const user = await User.findById(userId);
+                if (user && ['admin', 'superadmin', 'supervisor'].includes(user.role)) {
+                    socket.join('admin_room');
+                    console.log(`Admin ${userId} joined admin_room`);
+                }
+            } catch (err) {
+                console.error("Error joining admin to admin_room:", err.message);
+            }
         });
 
         socket.on("join_chat_room", (bookingId) => {
