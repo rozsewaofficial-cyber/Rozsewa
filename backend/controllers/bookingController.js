@@ -2079,6 +2079,8 @@ const getProviderReviews = async (req, res) => {
             service: b.serviceName,
             rating: b.rating,
             review: b.comment,
+            reply: b.providerReply,
+            replyDate: b.providerReplyDate,
             date: b.createdAt
         }));
 
@@ -2629,7 +2631,31 @@ const collectPayment = async (req, res) => {
     }
 };
 
+
+const replyReview = async (req, res) => {
+    const { reply } = req.body;
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+
+        if (booking.providerId.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        booking.providerReply = reply;
+        booking.providerReplyDate = new Date();
+        await booking.save();
+
+        res.json({ message: 'Reply submitted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
+    replyReview,
     createBooking,
     getUserBookings,
     getProviderBookings,

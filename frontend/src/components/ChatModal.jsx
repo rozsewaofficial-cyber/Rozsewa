@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, User, ChevronRight, Check } from 'lucide-react';
 import API from '@/lib/api';
@@ -105,7 +106,7 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <AnimatePresence>
             <motion.div 
                 initial={{ opacity: 0 }} 
@@ -234,7 +235,8 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                     </div>
                 </motion.div>
             </motion.div>
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 };
 

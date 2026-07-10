@@ -383,8 +383,9 @@ exports.makeOffer = async (req, res) => {
         return res.status(400).json({ success: false, message: `Offer is already ${offer.status}` });
       }
       if (offer.status === 'rejected') {
-        // Reset counter attempts so they can negotiate again
+        // Reset counter attempts and re-open the negotiation
         offer.counterAttempts = 0;
+        offer.status = 'pending';
       }
     }
 

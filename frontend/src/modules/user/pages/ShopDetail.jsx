@@ -217,7 +217,7 @@ const ShopDetail = () => {
         </div>
       </div>
 
-      <main className="container max-w-2xl px-4 sm:px-6 py-2 space-y-6">
+      <main className="container max-w-2xl px-4 sm:px-6 pt-2 pb-48 space-y-6">
         {/* Trust Badges */}
         <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
           {provider.warranty && (

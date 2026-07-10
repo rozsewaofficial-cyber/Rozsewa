@@ -1,16 +1,33 @@
 import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Star, TrendingUp, ThumbsUp, ThumbsDown, Filter, Loader2 } from "lucide-react";
+import { ArrowLeft, Star, TrendingUp, ThumbsUp, ThumbsDown, Filter, Loader2, Send, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import API from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 
 const ProviderReviews = () => {
   const navigate = useNavigate();
   const [filterRating, setFilterRating] = useState(0); // 0 = all
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const { toast } = useToast();
+
+  const handleReplySubmit = async (reviewId) => {
+    if (!replyText.trim()) return;
+    try {
+      await API.post(`/bookings/${reviewId}/reply`, { reply: replyText });
+      toast({ title: "Reply submitted successfully!" });
+      setReviews(reviews.map(r => r._id === reviewId ? { ...r, reply: replyText, replyDate: new Date() } : r));
+      setReplyingTo(null);
+      setReplyText("");
+    } catch (err) {
+      toast({ title: "Failed to submit reply", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     const fetchReviews = async () => {
@@ -173,6 +190,35 @@ const ProviderReviews = () => {
                   <div className="mt-3 relative">
                     <p className="text-xs font-medium text-foreground/80 leading-relaxed italic">"{r.review}"</p>
                   </div>
+                )}
+                {r.reply ? (
+                  <div className="mt-3 rounded-xl bg-muted p-3 border border-border">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Your Reply</p>
+                    <p className="text-xs font-medium text-foreground/80">{r.reply}</p>
+                    <p className="text-[9px] font-bold text-muted-foreground mt-1">
+                      {new Date(r.replyDate || new Date()).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                ) : replyingTo === r._id ? (
+                  <div className="mt-3 space-y-2">
+                    <textarea 
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Write your reply..."
+                      className="w-full rounded-xl bg-muted p-3 text-xs font-medium border border-border outline-none focus:border-primary/50 resize-none"
+                      rows={2}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => setReplyingTo(null)} className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-muted-foreground hover:bg-muted transition-colors">Cancel</button>
+                      <button onClick={() => handleReplySubmit(r._id)} className="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1 transition-colors">
+                        <Send className="h-3 w-3" /> Submit
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => { setReplyingTo(r._id); setReplyText(""); }} className="mt-2 text-[10px] font-bold text-primary hover:underline flex items-center gap-1">
+                    <MessageSquare className="h-3 w-3" /> Reply to Review
+                  </button>
                 )}
                 <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">

@@ -496,15 +496,14 @@ const BazaarOfferChat = () => {
               >✗ Reject</button>
             </div>
             <div className="flex gap-2">
-              <div 
-                onClick={() => !isSubmitting && setShowKeypad(true)}
-                className="relative flex-1 bg-slate-100 rounded-xl pl-7 pr-4 py-3 flex items-center cursor-pointer border border-transparent focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-100 transition-all"
-              >
-                <span className="text-slate-500 font-bold text-sm mr-1">₹</span>
-                <span className={`font-bold text-sm ${numericInput ? 'text-slate-800' : 'text-slate-400'}`}>
-                  {numericInput ? Number(numericInput).toLocaleString('en-IN') : 'Counter offer...'}
-                </span>
-              </div>
+              <input
+                type="number"
+                value={numericInput}
+                onChange={(e) => setNumericInput(e.target.value.slice(0, 8))}
+                disabled={isSubmitting}
+                placeholder="Counter offer..."
+                className="relative flex-1 bg-slate-100 rounded-xl pl-4 pr-4 py-3 flex items-center border border-transparent focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition-all text-slate-800 font-bold text-sm outline-none"
+              />
               <button onClick={() => handleSellerResponse('counter')} disabled={isSubmitting || !numericInput} className="bg-orange-500 hover:bg-orange-600 text-white w-12 rounded-xl flex items-center justify-center disabled:opacity-40">
                 <Send className="w-4 h-4" />
               </button>
@@ -537,15 +536,14 @@ const BazaarOfferChat = () => {
             )}
 
             <div className="flex gap-2">
-              <div 
-                onClick={() => !isSubmitting && setShowKeypad(true)}
-                className="relative flex-1 bg-slate-100 rounded-xl pl-8 pr-4 py-3 flex items-center cursor-pointer border border-transparent focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all"
-              >
-                <span className="text-slate-500 font-bold mr-2">₹</span>
-                <span className={`font-black ${numericInput ? 'text-slate-800' : 'text-slate-400'}`}>
-                  {numericInput ? Number(numericInput).toLocaleString('en-IN') : 'Your offer amount...'}
-                </span>
-              </div>
+              <input
+                type="number"
+                value={numericInput}
+                onChange={(e) => setNumericInput(e.target.value.slice(0, 8))}
+                disabled={isSubmitting}
+                placeholder="Your offer amount..."
+                className="relative flex-1 bg-slate-100 rounded-xl pl-4 pr-4 py-3 flex items-center border border-transparent focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all text-slate-800 font-black text-sm outline-none"
+              />
               <button
                 onClick={handleSendOffer}
                 disabled={isSubmitting || !numericInput}
@@ -558,74 +556,7 @@ const BazaarOfferChat = () => {
         )}
       </div>
 
-      {/* Custom Keypad Modal */}
-      {showKeypad && !isDealLocked && (
-        <div className="absolute inset-x-0 bottom-0 bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.1)] rounded-t-3xl z-50 p-5 pb-8 animate-in slide-in-from-bottom-full duration-300">
-          <div className="flex justify-between items-center mb-6 px-2">
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Offer Amount</p>
-              <p className="text-3xl font-black text-slate-800">
-                ₹{numericInput ? Number(numericInput).toLocaleString('en-IN') : '0'}
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowKeypad(false)} 
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-full text-sm"
-            >
-              Done
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-3 gap-3">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-              <button
-                key={num}
-                onClick={() => handleKeypadTap(num.toString())}
-                className="h-14 flex items-center justify-center bg-slate-50 active:bg-slate-200 rounded-2xl text-2xl font-bold text-slate-800 transition-colors"
-              >
-                {num}
-              </button>
-            ))}
-            <button
-              onClick={() => handleKeypadTap('00')}
-              className="h-14 flex items-center justify-center bg-slate-50 active:bg-slate-200 rounded-2xl text-xl font-bold text-slate-800 transition-colors"
-            >
-              00
-            </button>
-            <button
-              onClick={() => handleKeypadTap('0')}
-              className="h-14 flex items-center justify-center bg-slate-50 active:bg-slate-200 rounded-2xl text-2xl font-bold text-slate-800 transition-colors"
-            >
-              0
-            </button>
-            <button
-              onClick={() => handleKeypadTap('del')}
-              className="h-14 flex items-center justify-center bg-rose-50 active:bg-rose-100 rounded-2xl text-rose-600 transition-colors"
-            >
-              <Delete className="w-6 h-6" />
-            </button>
-          </div>
-          
-          <button
-            onClick={isSeller ? () => handleSellerResponse('counter') : handleSendOffer}
-            disabled={!numericInput || isSubmitting}
-            className={`w-full mt-4 h-14 rounded-2xl flex items-center justify-center gap-2 font-black text-lg text-white transition-all shadow-lg ${
-              isSeller ? 'bg-orange-500 shadow-orange-500/25 disabled:bg-orange-300' : 'bg-blue-600 shadow-blue-500/25 disabled:bg-blue-300'
-            }`}
-          >
-            {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : <Send className="w-6 h-6" />}
-            {isSeller ? 'Send Counter Offer' : 'Send Offer'}
-          </button>
-        </div>
-      )}
-      
-      {/* Backdrop for Keypad */}
-      {showKeypad && (
-        <div 
-          onClick={() => setShowKeypad(false)} 
-          className="absolute inset-0 bg-slate-900/20 z-40"
-        />
-      )}
+
     </div>
   );
 };

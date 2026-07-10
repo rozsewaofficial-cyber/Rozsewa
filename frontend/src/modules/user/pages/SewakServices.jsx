@@ -144,7 +144,7 @@ const SewakServices = () => {
         </div>
       </div>
 
-      <main className="container max-w-3xl px-4 sm:px-6 py-2 space-y-6">
+      <main className="container max-w-3xl px-4 sm:px-6 pt-2 pb-36 space-y-6">
 
         {/* Combos Section */}
         {combosList.length > 0 && (

@@ -101,6 +101,13 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         default: '',
     },
+    providerReply: {
+        type: String,
+        default: '',
+    },
+    providerReplyDate: {
+        type: Date,
+    },
     tags: {
         type: [String],
         default: [],

@@ -206,8 +206,11 @@ const Profile = () => {
               <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-wider">Bazaar Chat Requests</h2>
             </div>
             {offerRequests.length > 0 && (() => {
-              const receivedCount = offerRequests.filter(o => o.sellerId?._id === user?._id).length;
-              const sentCount = offerRequests.filter(o => o.buyerId?._id === user?._id).length;
+              const currentUserId = user?._id || user?.id || user?.user?._id || user?.user?.id;
+              const getOfferUserId = (entity) => entity?._id || entity?.id || entity;
+              
+              const receivedCount = offerRequests.filter(o => getOfferUserId(o.sellerId) === currentUserId).length;
+              const sentCount = offerRequests.filter(o => getOfferUserId(o.buyerId) === currentUserId).length;
               return (
                 <div className="flex items-center gap-1.5">
                   {receivedCount > 0 && (
@@ -248,7 +251,11 @@ const Profile = () => {
                 </div>
               )}
 
-              {offerRequests.filter(offer => activeOfferTab === 'sent' ? offer.buyerId?._id === user?._id : offer.sellerId?._id === user?._id).length === 0 ? (
+              {offerRequests.filter(offer => {
+                const currentUserId = user?._id || user?.id || user?.user?._id || user?.user?.id;
+                const getOfferUserId = (entity) => entity?._id || entity?.id || entity;
+                return activeOfferTab === 'sent' ? getOfferUserId(offer.buyerId) === currentUserId : getOfferUserId(offer.sellerId) === currentUserId;
+              }).length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 px-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 border-dashed text-center">
                   <ShoppingBag className="w-8 h-8 text-slate-300 mb-2" />
                   <p className="text-[13px] font-bold text-slate-600 dark:text-slate-400">No {activeOfferTab} requests yet</p>
@@ -256,7 +263,11 @@ const Profile = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {offerRequests.filter(offer => activeOfferTab === 'sent' ? offer.buyerId?._id === user?._id : offer.sellerId?._id === user?._id).map((offer, i) => {
+                  {offerRequests.filter(offer => {
+                    const currentUserId = user?._id || user?.id || user?.user?._id || user?.user?.id;
+                    const getOfferUserId = (entity) => entity?._id || entity?.id || entity;
+                    return activeOfferTab === 'sent' ? getOfferUserId(offer.buyerId) === currentUserId : getOfferUserId(offer.sellerId) === currentUserId;
+                  }).map((offer, i) => {
                   const statusColors = {
                     pending: 'bg-blue-100 text-blue-700',
                     countered: 'bg-orange-100 text-orange-700',

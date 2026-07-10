@@ -21,6 +21,7 @@ const ProviderServices = () => {
   const [activeTab, setActiveTab] = useState(draft.activeTab || "services"); // "services" or "combos"
   const [showForm, setShowForm] = useState(draft.showForm || false);
   const [showComboForm, setShowComboForm] = useState(draft.showComboForm || false);
+  const [errors, setErrors] = useState({});
   const [editId, setEditId] = useState(draft.editId || null);
   const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] });
   const [viewService, setViewService] = useState(null);
@@ -93,8 +94,18 @@ const ProviderServices = () => {
     e.preventDefault();
     if (saving) return;
     const finalName = form.name === "custom" ? form.customName : form.name;
-    if (!finalName || !form.price) { toast({ title: "Name & Price required", variant: "destructive" }); return; }
-    if (Number(form.price) < 1) { toast({ title: "Price must be positive", variant: "destructive" }); return; }
+    
+    const newErrors = {};
+    if (!finalName) newErrors.name = "Service Name is required";
+    if (!form.price) newErrors.price = "Price is required";
+    else if (Number(form.price) < 1) newErrors.price = "Price must be positive";
+    if (!form.duration) newErrors.duration = "Duration is required";
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    setErrors({});
 
     setSaving(true);
 
@@ -199,8 +210,8 @@ const ProviderServices = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); };
-  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); clearDraft(); };
+  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
+  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); clearDraft(); setErrors({}); };
 
   const handleEdit = (s) => {
     const isCustom = !categoryServices.some(cat => cat.name === s.name);
@@ -514,6 +525,7 @@ const ProviderServices = () => {
                         <option key={s._id} value={s.name}>{s.name}</option>
                       ))}
                     </select>
+                    {errors.name && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.name}</p>}
                   </div>
                 </div>
 
@@ -532,14 +544,16 @@ const ProviderServices = () => {
                     <input type="number" min="1" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
                       onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
                       readOnly={user?.providerCategory === 'sewak'}
-                      className={`w-full rounded-2xl border border-border p-4 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="299" />
+                      className={`w-full rounded-2xl border ${errors.price ? 'border-rose-500' : 'border-border'} p-4 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="299" />
+                    {errors.price && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.price}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Duration</label>
                     <select value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })}
-                      className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none">
+                      className={`w-full rounded-2xl border ${errors.duration ? 'border-rose-500' : 'border-border'} bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none`}>
                       {["15 min", "30 min", "45 min", "1 hr", "1.5 hrs", "2 hrs", "3 hrs", "4+ hrs"].map(d => <option key={d}>{d}</option>)}
                     </select>
+                    {errors.duration && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.duration}</p>}
                   </div>
                 </div>
 

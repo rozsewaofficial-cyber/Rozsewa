@@ -61,6 +61,17 @@ const libraries = ['places'];
   };
 
   useEffect(() => {
+    if (showLocationModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [showLocationModal]);
+
+  useEffect(() => {
     if (showLocationModal && "geolocation" in navigator && !selectedCoords) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
+import { Store, Phone, ShieldCheck, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
@@ -151,6 +151,14 @@ const ProviderLogin = () => {
       {/* Decorative Accents */}
       <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
+
+      {/* Back Button */}
+      <button 
+        onClick={() => navigate(-1)} 
+        className="absolute top-6 left-6 h-10 w-10 flex items-center justify-center rounded-full bg-white/50 border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 shadow-sm transition-all z-10"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </button>
 
       <div className="w-full max-w-md">
         <div className="text-center mb-8">

@@ -1005,7 +1005,10 @@ async function addZone(req, res) {
         const zone = await Zone.create(req.body);
         res.status(201).json(zone);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        if (error.code === 11000) {
+            return res.status(400).json({ message: "A zone with this name already exists." });
+        }
+        res.status(400).json({ message: "Invalid zone details. Please check your inputs." });
     }
 }
 

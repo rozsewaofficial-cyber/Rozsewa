@@ -175,11 +175,11 @@ const LeadCard = ({ lead, onUnlock, onDispute }) => {
                         .filter(Boolean).join(', ') || lead.requirementForm?.address}
                     </p>
                     {lead.location?.coordinates?.length >= 2 && (
-                      <a href={`https://www.google.com/maps/search/?api=1&query=${lead.location.coordinates[1]},${lead.location.coordinates[0]}`}
-                        target="_blank" rel="noopener noreferrer"
+                      <button 
+                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${lead.location.coordinates[1]},${lead.location.coordinates[0]}`, "_blank")}
                         className="inline-flex items-center gap-1.5 text-[9px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest mt-1.5 hover:bg-emerald-200 transition-colors">
                         <MapPin className="h-2.5 w-2.5" /> Open in Maps
-                      </a>
+                      </button>
                     )}
                   </div>
                 </div>

@@ -981,8 +981,16 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                     </div>
 
                     {req.paymentMode === 'now' ? (
-                      <div className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 py-3 text-xs font-black text-blue-600 uppercase tracking-widest">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Waiting for Online Payment
+                      <div className="space-y-3">
+                        <div className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 py-3 text-xs font-black text-blue-600 uppercase tracking-widest shadow-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Waiting for Online Payment
+                        </div>
+                        <button
+                          onClick={() => handleAction(req._id, 'completed', { paymentStatus: 'paid', paymentMode: 'after' })}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-100 border border-slate-200 py-2.5 text-[10px] font-black text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-all uppercase tracking-widest"
+                        >
+                          <Check className="h-3 w-3" /> Mark as Cash Collected (Skip Online)
+                        </button>
                       </div>
                     ) : (
                       <>

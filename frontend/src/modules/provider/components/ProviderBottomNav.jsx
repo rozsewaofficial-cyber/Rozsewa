@@ -36,7 +36,8 @@ const ProviderBottomNav = () => {
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 dark:bg-[#212121] dark:border-[#212121] shadow-[0_-4px_10px_rgba(0,0,0,0.05)] md:hidden">
       <div className="flex h-16 items-center justify-around px-2">
         {navItems.map((item) => {
-          const isActive = location.pathname.startsWith(item.path) && (item.path !== "/provider" || location.pathname === "/provider");
+          const isActive = location.pathname.startsWith(item.path) && 
+                           (item.path !== "/provider" || location.pathname === "/provider" || location.pathname === "/provider/");
           return (
             <Link key={item.path} to={item.path} className="flex flex-col items-center gap-1 p-2">
               <motion.div
