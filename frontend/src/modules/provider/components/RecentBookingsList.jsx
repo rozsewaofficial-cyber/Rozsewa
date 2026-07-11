@@ -13,7 +13,13 @@ import { ToastAction } from "@/components/ui/toast";
 const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('bookings_active_tab') || "pending";
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('bookings_active_tab', activeTab);
+  }, [activeTab]);
   const [staffList, setStaffList] = useState([]);
   const [activeTracking, setActiveTracking] = useState(null);
   const [activeChatBookingId, setActiveChatBookingId] = useState(null);
@@ -411,16 +417,34 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
         .filter(c => c.item && !isNaN(c.amount) && c.amount > 0);
       if (filtered.length === 0) return;
 
+      const booking = requests.find(r => r._id === activeBookingForExtra);
+      const existingCharges = booking?.extraCharges || [];
+      const updatedCharges = [...existingCharges, ...filtered];
+
       await API.patch(`/bookings/${activeBookingForExtra}/status`, {
-        extraCharges: filtered,
+        extraCharges: updatedCharges,
         extraStatus: 'pending'
       });
 
-      toast({ title: "Charges Sent for Approval!" });
+      toast({ title: "Extra charges sent to user for approval." });
       setShowExtraModal(false);
       fetchBookings();
     } catch (err) {
       toast({ title: "Failed to add charges", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveExtraCharge = async (bookingId, chargeIndex, currentCharges) => {
+    try {
+      const updatedCharges = currentCharges.filter((_, i) => i !== chargeIndex);
+      await API.patch(`/bookings/${bookingId}/status`, {
+        extraCharges: updatedCharges,
+        extraStatus: updatedCharges.length === 0 ? 'none' : 'pending'
+      });
+      toast({ title: "Extra charge removed" });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to remove extra charge", variant: "destructive" });
     }
   };
 
@@ -627,11 +651,24 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                       <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">Total billed to customer</div>
                     )}
                     {req.extraCharges && req.extraCharges.length > 0 && (
-                      <div className="space-y-0.5 mt-1">
+                      <div className="space-y-1 mt-2">
                         {req.extraCharges.map((extra, idx) => (
-                          <div key={idx} className="flex gap-2 text-[9px] font-black text-muted-foreground/60 uppercase tracking-tighter">
-                            <span>+ {extra.item}:</span>
-                            <span>₹{extra.amount}</span>
+                          <div key={idx} className="flex items-center justify-between gap-2 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-tighter bg-slate-50 dark:bg-slate-800/50 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                            <div className="flex gap-2">
+                              <span>+ {extra.item}:</span>
+                              <span className="text-emerald-600 dark:text-emerald-500">₹{extra.amount}</span>
+                            </div>
+                            
+                            {/* Remove button only if booking is started/pending/confirmed and not completed/cancelled */}
+                            {['started', 'pending', 'confirmed'].includes(req.status) && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleRemoveExtraCharge(req._id, idx, req.extraCharges); }}
+                                className="h-5 w-5 flex items-center justify-center rounded bg-rose-100/50 text-rose-500 hover:bg-rose-100 transition-colors"
+                                title="Remove extra charge"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>

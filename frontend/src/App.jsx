@@ -48,6 +48,7 @@ import Privacy from "./modules/user/pages/Privacy";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GlobalAlarm from "./components/GlobalAlarm";
 import LocationGate from "./components/LocationGate";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Provider Pages
 import ProviderDashboard from "./modules/provider/pages/ProviderDashboard";
@@ -131,6 +132,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <BrowserRouter>
+    <ScrollToTop />
     <ThemeProvider defaultTheme="light">
       <AuthProvider>
         <ChatProvider>

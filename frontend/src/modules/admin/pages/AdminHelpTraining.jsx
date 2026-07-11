@@ -9,15 +9,21 @@ const AdminHelpTraining = () => {
     const { setTitle } = useOutletContext();
     const { toast } = useToast();
     const [faqs, setFaqs] = useState([]);
+    const [guides, setGuides] = useState([]);
     const [showModal, setShowModal] = useState(false);
+    const [showGuideModal, setShowGuideModal] = useState(false);
+    const [editGuideId, setEditGuideId] = useState(null);
     const [formData, setFormData] = useState({ question: "", answer: "", category: "General" });
+    const [guideFormData, setGuideFormData] = useState({ title: "", category: "Marketing", content: "", readTime: "5 min read" });
 
-    useScrollLock(showModal);
+    useScrollLock(showModal || showGuideModal);
     const [loading, setLoading] = useState(false);
+    const [guideLoading, setGuideLoading] = useState(false);
 
     useEffect(() => {
         setTitle("Help & Training");
         fetchFaqs();
+        fetchGuides();
     }, [setTitle]);
 
     const fetchFaqs = async () => {
@@ -26,6 +32,15 @@ const AdminHelpTraining = () => {
             setFaqs(data);
         } catch (err) {
             console.error("Failed to fetch FAQs", err);
+        }
+    };
+
+    const fetchGuides = async () => {
+        try {
+            const { data } = await API.get("/guides");
+            setGuides(data);
+        } catch (err) {
+            console.error("Failed to fetch Guides", err);
         }
     };
 
@@ -56,6 +71,50 @@ const AdminHelpTraining = () => {
         }
     };
 
+    const handleCreateGuide = async (e) => {
+        e.preventDefault();
+        setGuideLoading(true);
+        try {
+            if (editGuideId) {
+                await API.put(`/guides/${editGuideId}`, guideFormData);
+                toast({ title: "Guide Updated" });
+            } else {
+                await API.post("/guides", guideFormData);
+                toast({ title: "Guide Created" });
+            }
+            setShowGuideModal(false);
+            setEditGuideId(null);
+            setGuideFormData({ title: "", category: "Marketing", content: "", readTime: "5 min read" });
+            fetchGuides();
+        } catch (err) {
+            toast({ title: "Error", description: err.response?.data?.message || "Failed to save guide", variant: "destructive" });
+        }
+        setGuideLoading(false);
+    };
+
+    const openEditGuide = (guide) => {
+        setEditGuideId(guide._id);
+        setGuideFormData({
+            title: guide.title,
+            category: guide.category,
+            content: guide.content,
+            readTime: guide.readTime
+        });
+        setShowGuideModal(true);
+    };
+
+    const handleDeleteGuide = async (id) => {
+        if (window.confirm("Are you sure you want to delete this Guide?")) {
+            try {
+                await API.delete(`/guides/${id}`);
+                toast({ title: "Guide Deleted" });
+                fetchGuides();
+            } catch (err) {
+                toast({ title: "Error", description: err.response?.data?.message || "Failed to delete", variant: "destructive" });
+            }
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-end">
@@ -70,23 +129,35 @@ const AdminHelpTraining = () => {
                 <div className="md:col-span-2 space-y-8">
                     {/* Section: Vendor Academy */}
                     <section>
-                        <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2 px-1"><BookOpen className="h-4 w-4" /> Vendor Academy Content</h3>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2 px-1"><BookOpen className="h-4 w-4" /> Vendor Academy Content</h3>
+                            {guides.length < 3 && (
+                                <button onClick={() => { setEditGuideId(null); setGuideFormData({ title: "", category: "Marketing", content: "", readTime: "5 min read" }); setShowGuideModal(true); }} className="text-[10px] font-black uppercase text-emerald-600 hover:text-emerald-700">
+                                    + Add Guide
+                                </button>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {[
-                                { title: "Onboarding for New Vendors", type: "Video Guide", time: "8m 14s", icon: PlayCircle },
-                                { title: "Service Quality Standards", type: "PDF Policy", time: "4.2 MB", icon: FileText },
-                                { title: "Wallet & Payout Guide", type: "Article", time: "5 min read", icon: BookOpen },
-                                { title: "99 Card Benefits Explained", type: "Article", time: "3 min read", icon: BookOpen }
-                            ].map((item, i) => (
-                                <div key={i} className="p-5 rounded-2xl border border-border bg-white shadow-sm group hover:border-emerald-500 transition-all cursor-pointer border-gray-100">
-                                    <div className="flex items-center justify-between mb-4">
+                            {guides.length === 0 ? (
+                                <div className="col-span-1 sm:col-span-2 p-4 text-center text-sm text-gray-500 border rounded-2xl">No Guides found.</div>
+                            ) : guides.map((item) => (
+                                <div key={item._id} className="p-5 rounded-2xl border border-border bg-white shadow-sm group hover:border-emerald-500 transition-all cursor-pointer border-gray-100 relative">
+                                    <div className="absolute top-4 right-4 flex gap-2">
+                                        <button onClick={(e) => { e.stopPropagation(); openEditGuide(item); }} className="text-gray-300 hover:text-blue-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleDeleteGuide(item._id); }} className="text-gray-300 hover:text-rose-500">
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center justify-between mb-4 pr-12">
                                         <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
-                                            <item.icon className="h-5 w-5" />
+                                            <FileText className="h-5 w-5" />
                                         </div>
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase">{item.type}</span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase">{item.category}</span>
                                     </div>
                                     <h4 className="font-bold text-gray-900 leading-tight mb-2 pr-4">{item.title}</h4>
-                                    <p className="text-[10px] font-black text-emerald-600 flex items-center gap-1 uppercase tracking-tight">{item.time} <ExternalLink className="h-2.5 w-2.5 ml-1" /></p>
+                                    <p className="text-[10px] font-black text-emerald-600 flex items-center gap-1 uppercase tracking-tight">{item.readTime} <ExternalLink className="h-2.5 w-2.5 ml-1" /></p>
                                 </div>
                             ))}
                         </div>
@@ -175,6 +246,45 @@ const AdminHelpTraining = () => {
                             </div>
                             <button type="submit" disabled={loading} className="w-full bg-emerald-600 text-white py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 transition">
                                 {loading ? "Creating..." : "Create FAQ"}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal for Create Guide */}
+            {showGuideModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-2xl bg-white rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-black text-foreground">{editGuideId ? "Edit Vendor Guide" : "Create Vendor Guide"}</h3>
+                            <button onClick={() => { setShowGuideModal(false); setEditGuideId(null); }}><X className="h-5 w-5" /></button>
+                        </div>
+                        <form onSubmit={handleCreateGuide} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-600">Guide Title</label>
+                                    <input type="text" required value={guideFormData.title} onChange={(e) => setGuideFormData({ ...guideFormData, title: e.target.value })}
+                                        className="w-full h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm focus:border-emerald-500 focus:outline-none" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-600">Category (e.g. Marketing)</label>
+                                    <input type="text" required value={guideFormData.category} onChange={(e) => setGuideFormData({ ...guideFormData, category: e.target.value })}
+                                        className="w-full h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm focus:border-emerald-500 focus:outline-none" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-600">Read Time (e.g. 5 min read)</label>
+                                <input type="text" required value={guideFormData.readTime} onChange={(e) => setGuideFormData({ ...guideFormData, readTime: e.target.value })}
+                                    className="w-full h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm focus:border-emerald-500 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-gray-600">Content (Markdown / HTML supported)</label>
+                                <textarea required value={guideFormData.content} onChange={(e) => setGuideFormData({ ...guideFormData, content: e.target.value })}
+                                    className="w-full h-64 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm focus:border-emerald-500 focus:outline-none font-mono" />
+                            </div>
+                            <button type="submit" disabled={guideLoading} className="w-full bg-emerald-600 text-white py-3 rounded-xl text-sm font-black uppercase tracking-widest hover:bg-emerald-700 transition">
+                                {guideLoading ? "Saving..." : (editGuideId ? "Save Changes" : "Publish Guide")}
                             </button>
                         </form>
                     </div>

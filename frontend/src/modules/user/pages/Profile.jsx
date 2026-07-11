@@ -11,6 +11,7 @@ import API from "@/lib/api";
 import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
+import { useConfirm } from "@/hooks/useConfirm";
 
 const menuItems = [
   { icon: Wallet, label: "My Wallet", desc: "Balance & transactions", path: "/wallet" },
@@ -28,7 +29,8 @@ const Profile = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { toast } = useToast();
-
+  const confirm = useConfirm();
+  
   const [profile, setProfile] = useState({
     name: user?.name || "",
     phone: user?.mobile || "",
@@ -82,7 +84,9 @@ const Profile = () => {
   const bookings = JSON.parse(localStorage.getItem("rozsewa_bookings") || "[]");
   const completed = bookings.filter(b => b.status === "completed").length;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const ok = await confirm("Are you sure you want to sign out?", { title: "Sign Out", confirmLabel: "Sign Out", destructive: true });
+    if (!ok) return;
     logout();
     navigate("/login");
   };
@@ -343,11 +347,12 @@ const Profile = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3 mb-6">
           {[
-            { label: "Bookings", value: completed.toString(), icon: Clock, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-500/20" },
-            { label: "Favorites", value: (user?.favorites?.length || 0).toString(), icon: Heart, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-100 dark:bg-rose-500/20" },
+            { label: "Bookings", value: completed.toString(), icon: Clock, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-500/20", path: "/my-bookings" },
+            { label: "Favorites", value: (user?.favorites?.length || 0).toString(), icon: Heart, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-100 dark:bg-rose-500/20", path: "/favorites" },
           ].map((stat, i) => (
             <motion.div key={stat.label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.1 }}
-              className="flex flex-col items-center gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm transition-all hover:shadow-md hover:border-blue-500/30">
+              onClick={() => navigate(stat.path)}
+              className="cursor-pointer flex flex-col items-center gap-2 rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm transition-all hover:shadow-md hover:border-blue-500/30">
               <div className={`p-2.5 rounded-[16px] ${stat.bg}`}>
                 <stat.icon className={`h-6 w-6 ${stat.color}`} />
               </div>

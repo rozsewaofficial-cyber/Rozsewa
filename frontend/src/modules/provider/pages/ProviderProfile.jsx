@@ -152,7 +152,9 @@ const ProviderProfile = () => {
     setIsEditing(!isEditing);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const ok = await confirm("Are you sure you want to sign out securely?", { title: "Sign Out", confirmLabel: "Sign Out", destructive: true });
+    if (!ok) return;
     logout();
     navigate("/provider/login");
   };

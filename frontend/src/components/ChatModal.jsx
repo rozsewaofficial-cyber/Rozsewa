@@ -19,6 +19,18 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
         if (bookingId) setActiveBookingId(bookingId);
     }, [bookingId]);
 
+    // Lock body scroll when modal is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isOpen]);
+
     const messagesEndRef = useRef(null);
     const { socket } = useSocket();
     const { user, provider } = useContext(AuthContext);
@@ -112,8 +124,9 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
                 exit={{ opacity: 0 }}
-                className="fixed top-0 left-0 right-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4"
+                className="fixed top-0 left-0 right-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4"
                 style={{ height: 'var(--visual-viewport-height, 100dvh)' }}
+                onClick={onClose}
             >
                 <motion.div 
                     initial={{ y: "100%" }} 
@@ -121,6 +134,7 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                     exit={{ y: "100%" }}
                     transition={{ type: "spring", bounce: 0, duration: 0.4 }}
                     className="flex w-full h-full max-h-[85dvh] sm:h-[600px] sm:max-w-md flex-col overflow-hidden rounded-t-[32px] sm:rounded-[32px] bg-white dark:bg-slate-900 shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4">

@@ -179,13 +179,16 @@ const Notifications = () => {
                                 {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <p className={`mt-1 text-xs leading-relaxed ${notif.isRead ? "text-slate-500 dark:text-slate-400" : "font-medium text-slate-700 dark:text-slate-300 font-bold"}`}>{notif.message}</p>
+                            <p className={`mt-1 text-xs leading-relaxed pr-2 ${notif.isRead ? "text-slate-500 dark:text-slate-400" : "font-medium text-slate-700 dark:text-slate-300 font-bold"}`}>{notif.message}</p>
+                            
+                            <div className="mt-3 flex justify-end">
+                              <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif._id); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-[10px] font-bold uppercase tracking-wider"
+                              >
+                                <Trash2 className="h-3 w-3" /> Delete
+                              </button>
+                            </div>
                           </div>
-
-                          <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif._id); }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all dark:bg-rose-900/30">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
                         </motion.div>
                       );
                     })}

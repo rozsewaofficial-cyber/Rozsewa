@@ -278,7 +278,7 @@ const Index = () => {
                   onClick={() => setShowAllCategories(!showAllCategories)}
                   className="text-[13px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 transition-colors"
                 >
-                  View all
+                  {showAllCategories ? "Show Less" : "View all"}
                 </button>
               </div>
               <CategoryGrid showAll={showAllCategories} mode={serviceMode} />
@@ -420,7 +420,7 @@ const Index = () => {
                   onClick={() => setShowAllCategories(!showAllCategories)}
                   className="text-[13px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 transition-colors"
                 >
-                  View all
+                  {showAllCategories ? "Show Less" : "View all"}
                 </button>
               </div>
               <CategoryGrid showAll={showAllCategories} mode={serviceMode} />

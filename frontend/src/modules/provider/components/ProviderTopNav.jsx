@@ -66,7 +66,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
   }, [user, location.pathname]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/10 bg-white dark:bg-slate-950/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-border/10 bg-white dark:bg-slate-950/80 backdrop-blur-md">
       <div className="container flex h-14 items-center justify-between px-4 max-w-6xl mx-auto">
         <div className="flex items-center gap-3">
           <Link to="/provider" className="flex items-center gap-2 group">

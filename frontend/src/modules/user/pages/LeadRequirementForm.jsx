@@ -493,8 +493,12 @@ const LeadRequirementForm = () => {
         return (
           <div className="relative w-full">
             <input type="text" required={field.required} value={locationDetail.city} placeholder={field.placeholder || "e.g. Noida"}
-              list="city-suggestions"
-              onChange={e => setLocationDetail(prev => ({ ...prev, city: e.target.value.replace(/[^\p{L}\p{M}\s]/gu, '') }))}
+              onChange={e => {
+                setLocationDetail(prev => ({ ...prev, city: e.target.value.replace(/[^\p{L}\p{M}\s]/gu, '') }));
+                document.getElementById('city-dropdown')?.classList.remove('hidden');
+              }}
+              onFocus={() => document.getElementById('city-dropdown')?.classList.remove('hidden')}
+              onBlur={() => setTimeout(() => document.getElementById('city-dropdown')?.classList.add('hidden'), 200)}
               onKeyDown={(e) => {
                 if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
                   e.preventDefault();
@@ -503,11 +507,19 @@ const LeadRequirementForm = () => {
               pattern="^[\p{L}\p{M}\s]+$"
               title="City should not accept special characters and numbers"
               className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all" />
-            <datalist id="city-suggestions">
-              {(STATE_CITIES[locationDetail.state] || []).map(city => (
-                <option key={city} value={city} />
+            
+            <div id="city-dropdown" className="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto top-full left-0">
+              {(STATE_CITIES[locationDetail.state] || [])
+                .filter(c => c.toLowerCase().includes((locationDetail.city || '').toLowerCase()))
+                .map(city => (
+                <div key={city} onClick={() => setLocationDetail(prev => ({ ...prev, city }))} className="px-4 py-3 cursor-pointer hover:bg-slate-50 text-sm border-b border-slate-100 last:border-0 font-medium text-slate-700">
+                  {city}
+                </div>
               ))}
-            </datalist>
+              {(STATE_CITIES[locationDetail.state] || []).filter(c => c.toLowerCase().includes((locationDetail.city || '').toLowerCase())).length === 0 && (
+                <div className="px-4 py-3 text-sm text-slate-400 text-center">No matches found</div>
+              )}
+            </div>
           </div>
         );
 
@@ -565,7 +577,7 @@ const LeadRequirementForm = () => {
         );
       case 'pincode':
         return (
-          <input type="text" required={field.required} value={locationDetail.pincode || ''} placeholder={field.placeholder || "e.g. 201301"}
+          <input type="text" inputMode="numeric" required={field.required} value={locationDetail.pincode || ''} placeholder={field.placeholder || "e.g. 201301"}
             maxLength={6}
             onChange={e => setLocationDetail(prev => ({ ...prev, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
             onKeyDown={(e) => {
@@ -664,9 +676,15 @@ const LeadRequirementForm = () => {
         setDynamicValues({});
         
         // Restore draft if any for this category
-        const cachedDraft = localStorage.getItem(`lead_draft_id_${selectedCategoryId}`);
-        setDraftId(cachedDraft || null);
-        console.log(`[LeadRequirementForm] Restored draft ID: ${cachedDraft || 'none'}`);
+        const urlDraftId = searchParams.get('draftId');
+        if (urlDraftId) {
+          setDraftId(urlDraftId);
+          console.log(`[LeadRequirementForm] Using draft ID from URL: ${urlDraftId}`);
+        } else {
+          const cachedDraft = localStorage.getItem(`lead_draft_id_${selectedCategoryId}`);
+          setDraftId(cachedDraft || null);
+          console.log(`[LeadRequirementForm] Restored draft ID from cache: ${cachedDraft || 'none'}`);
+        }
       } catch (err) {
         console.error("[LeadRequirementForm] Failed to fetch form schema:", err);
         setFormSchema({ sections: [] });
@@ -677,6 +695,49 @@ const LeadRequirementForm = () => {
     };
     fetchSchema();
   }, [selectedCategoryId, selectedServiceId]);
+
+  // ── Restore Draft details from API ──────────────────────────────────────────
+  useEffect(() => {
+    const urlDraftId = searchParams.get('draftId');
+    if (urlDraftId) {
+      const fetchDraft = async () => {
+        try {
+          const { data } = await API.get(`/leads/${urlDraftId}`);
+          if (data.requirementTitle) setRequirementTitle(data.requirementTitle);
+          if (data.requirementDesc) setRequirementDesc(data.requirementDesc);
+          if (data.locationDetail) {
+            setLocationDetail({
+              houseNo: data.locationDetail.houseNo || '',
+              apartment: data.locationDetail.apartment || '',
+              street: data.locationDetail.street || '',
+              landmark: data.locationDetail.landmark || '',
+              area: data.locationDetail.area || '',
+              city: data.locationDetail.city || '',
+              state: data.locationDetail.state || '',
+              pincode: data.locationDetail.pincode || ''
+            });
+          }
+          if (data.dynamicAnswers && data.dynamicAnswers.length > 0) {
+            const mapped = {};
+            data.dynamicAnswers.forEach(ans => { mapped[ans.fieldId] = ans.value; });
+            setDynamicValues(mapped);
+          }
+          if (data.preferredDate) {
+            setPreferredDate(new Date(data.preferredDate).toISOString().split('T')[0]);
+          }
+          if (data.preferredTime) {
+            setPreferredTime(data.preferredTime);
+            const [h, m] = data.preferredTime.split(':');
+            setSelectedHour(h || '');
+            setSelectedMin(m || '');
+          }
+        } catch (err) {
+          console.error("[LeadRequirementForm] Failed to fetch draft details:", err);
+        }
+      };
+      fetchDraft();
+    }
+  }, [searchParams]);
 
   // ── GPS setup on mount ───────────────────────────────────────────────────────
   useEffect(() => {

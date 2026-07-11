@@ -566,9 +566,17 @@ const ProviderDocuments = () => {
                   <input
                     type="text"
                     value={docNumberInput}
-                    onChange={(e) => { setDocNumberInput(e.target.value); setIsVerified(false); }}
-                    placeholder="e.g. 123456789012"
+                    onChange={(e) => { 
+                      let val = e.target.value;
+                      if (activeDocType === 'pan') {
+                        val = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+                      }
+                      setDocNumberInput(val); 
+                      setIsVerified(false); 
+                    }}
+                    placeholder={activeDocType === 'pan' ? "e.g. ABCDE1234F" : "e.g. 123456789012"}
                     className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    style={{ textTransform: activeDocType === 'pan' ? 'uppercase' : 'none' }}
                   />
 
                   {activeDocType === 'license' && (

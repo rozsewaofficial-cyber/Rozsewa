@@ -151,7 +151,7 @@ const ShopListing = () => {
     return a.numericDistance - b.numericDistance;
   });
 
-  const activeFiltersCount = (minRating ? 1 : 0) + (homeVisit ? 1 : 0) + (is24x7 ? 1 : 0) + (hasCombo ? 1 : 0) + (radius !== 15 ? 1 : 0) + (sortBy !== 'distance' ? 1 : 0);
+  const activeFiltersCount = (minRating ? 1 : 0) + (homeVisit ? 1 : 0) + (is24x7 ? 1 : 0) + (hasCombo ? 1 : 0) + (radius !== 15 ? 1 : 0);
 
   const clearFilters = () => {
     setSortBy('distance');
@@ -209,12 +209,6 @@ const ShopListing = () => {
           {/* Active Filter Chips */}
           {activeFiltersCount > 0 && mode !== "sewak" && (
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide pt-1">
-              {sortBy !== 'distance' && (
-                <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-400">
-                  <span>Sort: {sortBy === 'price_low' ? 'Price (Low)' : sortBy === 'price_high' ? 'Price (High)' : 'Rating'}</span>
-                  <X className="h-3 w-3 cursor-pointer" onClick={() => setSortBy('distance')} />
-                </div>
-              )}
               {minRating && (
                 <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-400">
                   <span>{minRating}+ Stars</span>
