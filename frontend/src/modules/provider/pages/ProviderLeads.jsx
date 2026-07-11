@@ -485,9 +485,12 @@ const ProviderLeads = () => {
               <h3 className="text-base font-black text-slate-800 dark:text-white">
                 {activeTab === 'available' ? 'No Leads Available' : activeTab === 'unlocked' ? 'No Unlocked Leads' : 'No Expired Leads'}
               </h3>
-              <p className="text-xs text-slate-400 font-medium max-w-xs">
+              <p className="text-xs text-slate-400 font-medium max-w-xs mb-2">
                 {activeTab === 'available' ? 'No new requests in your area. Stay active to receive notifications!' : 'Nothing here yet.'}
               </p>
+              <button onClick={() => fetchLeadsAndWallet(false)} className="flex items-center gap-2 h-9 px-4 rounded-xl bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors text-[10px] font-black uppercase tracking-widest">
+                <RefreshCcw className={`h-3.5 w-3.5 ${(loading || tabLoading) ? 'animate-spin' : ''}`} /> Refresh Now
+              </button>
             </div>
           ) : (
             leads.map(lead => (

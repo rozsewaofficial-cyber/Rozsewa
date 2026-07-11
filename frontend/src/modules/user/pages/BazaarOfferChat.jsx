@@ -235,7 +235,7 @@ const BazaarOfferChat = () => {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: orderRes.data.amount,
         currency: 'INR',
-        name: 'Rojsewa Bazaar',
+        name: 'Rozsewa Bazaar',
         description: `Lead Unlock Fee — ${ad?.title}`,
         order_id: orderRes.data.id,
         handler: async (response) => {
@@ -293,7 +293,7 @@ const BazaarOfferChat = () => {
         <button onClick={() => { setLoading(true); fetchData(); }} className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl">
           Try Again
         </button>
-        <button onClick={() => navigate(-1)} className="mt-3 text-slate-500 text-sm font-medium">Go Back</button>
+        <button onClick={() => navigate('/bazaar')} className="mt-3 text-slate-500 text-sm font-medium">Go Back</button>
       </div>
     );
   }
@@ -312,7 +312,7 @@ const BazaarOfferChat = () => {
 
       {/* Header */}
       <div className="bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 z-10 shrink-0">
-        <button onClick={() => navigate(-1)} className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 shrink-0">
+        <button onClick={() => navigate('/bazaar')} className="w-9 h-9 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 shrink-0">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">

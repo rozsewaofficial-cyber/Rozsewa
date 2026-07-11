@@ -144,7 +144,7 @@ const WalletPage = () => {
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/profile')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>
           <h1 className="text-xl font-black text-foreground tracking-tight">Rozsewa Wallet</h1>

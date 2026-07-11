@@ -21,7 +21,7 @@ const NotFound = () => {
         <p className="mt-2 text-lg font-semibold text-muted-foreground">Page not found</p>
         <p className="mt-1 text-sm text-muted-foreground">The page you're looking for doesn't exist.</p>
         <div className="mt-8 flex items-center justify-center gap-3">
-          <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(-1)} className="flex items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate('/')} className="flex items-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted">
             <ArrowLeft className="h-4 w-4" /> Go Back
           </motion.button>
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/")} className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground">

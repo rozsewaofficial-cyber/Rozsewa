@@ -68,6 +68,21 @@ const getProviderTickets = async (req, res) => {
     }
 };
 
+// @desc    Get all tickets (Admin)
+// @route   GET /api/support/admin/tickets
+// @access  Private (Admin)
+const getAllTickets = async (req, res) => {
+    try {
+        const tickets = await SupportTicket.find({})
+            .populate('userId', 'name email role')
+            .populate('providerId', 'name ownerName email role')
+            .sort({ createdAt: -1 });
+        res.json(tickets);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Reply to a support ticket
 // @route   PATCH /api/support/tickets/:id/reply
 // @access  Private (Admin)
@@ -160,6 +175,7 @@ const createPublicTicket = async (req, res) => {
 module.exports = {
     createTicket,
     getProviderTickets,
+    getAllTickets,
     replyTicket,
     createPublicTicket
 };

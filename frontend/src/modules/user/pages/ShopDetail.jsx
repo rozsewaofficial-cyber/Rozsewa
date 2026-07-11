@@ -185,7 +185,7 @@ const ShopDetail = () => {
         <img src={provider.image} alt={provider.name} className="absolute inset-0 h-full w-full object-cover opacity-60" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
         
-        <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/shops')}
           className="absolute left-4 sm:left-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/40 shadow-sm transition-colors">
           <ArrowLeft className="h-5 w-5" />
         </motion.button>

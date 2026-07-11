@@ -46,7 +46,7 @@ const Offers = () => {
         <div className="flex items-center gap-3">
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/')}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800"
           >
             <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />

@@ -174,7 +174,7 @@ const ServiceHistory = () => {
       <div className="relative pt-6 pb-6 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm mb-2">
         <div className="max-w-2xl mx-auto flex flex-col gap-6">
           <div className="flex items-center gap-4">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/my-bookings')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
               <ArrowLeft className="h-5 w-5" />
             </motion.button>
             <div>

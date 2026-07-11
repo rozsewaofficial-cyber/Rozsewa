@@ -154,7 +154,7 @@ const ProviderLogin = () => {
 
       {/* Back Button */}
       <button 
-        onClick={() => navigate(-1)} 
+        onClick={() => navigate('/')} 
         className="absolute top-6 left-6 h-10 w-10 flex items-center justify-center rounded-full bg-white/50 border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 shadow-sm transition-all z-10"
       >
         <ArrowLeft className="h-5 w-5" />

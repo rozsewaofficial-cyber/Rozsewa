@@ -446,8 +446,7 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
 
         {/* Mobile Profile Avatar */}
         <motion.div whileTap={{ scale: 0.9 }} className="md:hidden">
-          <Link
-            to="/admin/settings"
+          <div
             className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 border border-blue-100 text-blue-700 font-black text-sm shadow-sm overflow-hidden"
           >
             {user?.avatar || user?.profileImage ? (
@@ -467,7 +466,7 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
             >
               {user?.name ? user.name.substring(0, 2).toUpperCase() : "AD"}
             </span>
-          </Link>
+          </div>
         </motion.div>
       </div>
     </header>

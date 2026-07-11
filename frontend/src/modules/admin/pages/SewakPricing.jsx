@@ -469,7 +469,7 @@ const SewakPricing = () => {
                                 </div>
                             </div>
 
-                            <div className="p-5 border-t border-gray-100 bg-white">
+                            <div className="p-5 pb-8 border-t border-gray-100 bg-white">
                                 <Button
                                     onClick={() => {
                                         handleSaveCategoryPricing(categories[selectedCatIdx]);

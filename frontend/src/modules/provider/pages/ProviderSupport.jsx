@@ -118,7 +118,7 @@ const ProviderSupport = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-emerald-200 transition-all text-left group">
+          <button onClick={() => toast({ title: 'Live Chat Support', description: 'Connecting you to our next available executive. Please wait...', duration: 4000 })} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-emerald-200 transition-all text-left group">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 mr-4 group-hover:scale-110 transition-all">
               <MessageSquare className="h-7 w-7" />
             </div>
@@ -128,7 +128,7 @@ const ProviderSupport = () => {
             </div>
           </button>
 
-          <button className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left group">
+          <button onClick={() => toast({ title: 'Call Requested', description: 'Our support team will call you back within 2-4 hours.', duration: 5000 })} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left group">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 mr-4 group-hover:scale-110 transition-all">
               <PhoneCall className="h-7 w-7" />
             </div>
@@ -202,7 +202,7 @@ const ProviderSupport = () => {
           <h3 className="text-[10px] font-black tracking-[0.3em] uppercase text-muted-foreground mb-4 text-left">Resources</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {guides.length === 0 ? (
-              <div className="col-span-1 sm:col-span-3 p-6 text-center text-sm text-gray-500 border border-dashed rounded-2xl">No Guides Available.</div>
+              <div onClick={() => toast({ title: 'Resources', description: 'Training materials and guides will be available soon.', duration: 3000 })} className="col-span-1 sm:col-span-3 p-6 text-center text-sm text-gray-500 border border-dashed rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">No Guides Available.</div>
             ) : guides.map((art) => (
               <div key={art._id} onClick={() => setSelectedGuide(art)} className="flex flex-col rounded-[24px] border border-border bg-card p-5 hover:border-emerald-500/30 transition-all cursor-pointer group shadow-sm text-left">
                 <span className="text-[8px] font-black uppercase text-emerald-600 mb-2 tracking-widest">{art.category}</span>
@@ -219,7 +219,7 @@ const ProviderSupport = () => {
       {/* Modals */}
       <AnimatePresence>
         {isRaisingTicket && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}

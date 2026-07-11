@@ -48,6 +48,26 @@ const Index = () => {
     fetchHomeData();
   }, [userLocation, userCity]);
 
+  // Scroll Restoration Logic
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem('homeScrollPosition', window.scrollY);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      const savedPos = sessionStorage.getItem('homeScrollPosition');
+      if (savedPos) {
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(savedPos, 10));
+        }, 50);
+      }
+    }
+  }, [loading]);
+
   const fetchHomeData = async () => {
     setLoading(true);
     try {

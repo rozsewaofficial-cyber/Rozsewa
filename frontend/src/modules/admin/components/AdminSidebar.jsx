@@ -41,6 +41,7 @@ export const adminSidebarLinks = [
   { path: "/admin/zones", label: "Zones & Cities", icon: Map },
 
   { path: "/admin/feedback", label: "Feedback", icon: MessageSquare },
+  { path: "/admin/support", label: "Support Tickets", icon: HelpCircle },
   { path: "/admin/services", label: "Services Catalog", icon: Briefcase },
   { path: "/admin/benefit-policies", label: "Benefit Policies", icon: ShieldCheck },
   { path: "/admin/banners", label: "App Banners", icon: Image },
@@ -60,6 +61,7 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
   const { user, logout } = useAuth();
   const { unreadSosCount, pendingWithdrawalsCount } = useSocket();
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Filter links based on admin permissions
   const filteredLinks = adminSidebarLinks.filter(link => {
@@ -78,7 +80,7 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
       return link.path === "/admin";
     }
     return false;
-  });
+  }).filter(link => link.label.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const handleSuperAdminClick = (e) => {
     e.preventDefault();
@@ -107,6 +109,18 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
             <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Admin Panel</span>
           </div>
         </Link>
+      </div>
+
+      <div className="px-4 mb-4">
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Search menu..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-blue-500/50 focus:bg-slate-800 transition-all"
+          />
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 space-y-1.5 sidebar-scrollbar pr-1">

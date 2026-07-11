@@ -1118,7 +1118,7 @@ const ProviderRegister = () => {
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Aadhaar</label>
                         {!verificationStatus.aadhaar && (
-                          <button type="button" onClick={handleInitiateOKYC} disabled={verifying.aadhaar || aadhaarSessionId !== ""} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                          <button type="button" onClick={handleInitiateOKYC} disabled={verifying.aadhaar || formData.kycAadhaar.length !== 12 || aadhaarSessionId !== ""} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
                             {verifying.aadhaar ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send Aadhaar OTP"}
                           </button>
                         )}
@@ -1152,13 +1152,13 @@ const ProviderRegister = () => {
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">PAN Number</label>
                         {!verificationStatus.pan && (
-                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || formData.kycPanNumber.length < 10} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
                             {verifying.pan ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify PAN"}
                           </button>
                         )}
                         {verificationStatus.pan && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
+                      <input maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
                     </div>
                   </div>
 

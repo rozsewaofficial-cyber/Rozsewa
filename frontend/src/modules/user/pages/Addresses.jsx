@@ -68,7 +68,7 @@ const Addresses = () => {
           <div className="flex items-center gap-3">
             <motion.button 
               whileTap={{ scale: 0.9 }} 
-              onClick={() => navigate(-1)} 
+              onClick={() => navigate('/profile')} 
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />

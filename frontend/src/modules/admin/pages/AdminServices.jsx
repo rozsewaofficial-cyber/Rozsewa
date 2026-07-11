@@ -436,7 +436,7 @@ const AdminServices = () => {
                                                 </select>
                                             </InputField>
 
-                                            {newCat.businessModel === 'lead' ? (
+                                            {newCat.businessModel === 'lead' && (
                                                 <InputField label="Default Lead Price (₹)">
                                                     <input
                                                         type="number"
@@ -448,18 +448,6 @@ const AdminServices = () => {
                                                         required
                                                     />
                                                 </InputField>
-                                            ) : (
-                                                <div className="grid grid-cols-3 gap-2 col-span-1">
-                                                    <InputField label="Basic %">
-                                                        <input type="number" min="0" max="100" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className={inputCls} />
-                                                    </InputField>
-                                                    <InputField label="Standard %">
-                                                        <input type="number" min="0" max="100" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className={inputCls} />
-                                                    </InputField>
-                                                    <InputField label="Premium %">
-                                                        <input type="number" min="0" max="100" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className={inputCls} />
-                                                    </InputField>
-                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -483,8 +471,8 @@ const AdminServices = () => {
                                                     <div key={idx} className="flex gap-2 items-center bg-white border border-gray-200 rounded-xl p-2 shadow-sm">
                                                         <div className="h-8 w-8 rounded bg-gray-50 flex items-center justify-center text-[10px] font-black text-gray-400 shrink-0 border border-gray-100">{idx + 1}</div>
                                                         <input type="text" placeholder="Service Name" value={s.name} onChange={e => updateServiceRow(idx, 'name', e.target.value)} className="flex-1 rounded-lg border-none bg-transparent px-2 text-sm font-bold focus:ring-0 outline-none" required />
-                                                        <div className="relative w-36 shrink-0 border-l border-gray-100 pl-2">
-                                                            {newCat.businessModel === 'lead' ? (
+                                                        {newCat.businessModel === 'lead' && (
+                                                            <div className="relative w-36 shrink-0 border-l border-gray-100 pl-2">
                                                                 <div className="flex flex-col items-start gap-1 justify-center h-full">
                                                                     <label className="flex items-center gap-1 text-[9px] font-bold text-gray-500 cursor-pointer">
                                                                         <input 
@@ -509,13 +497,8 @@ const AdminServices = () => {
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                            ) : (
-                                                                <>
-                                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] uppercase font-black">₹</span>
-                                                                    <input type="number" min="1" placeholder="Base" value={s.basePrice} onChange={e => updateServiceRow(idx, 'basePrice', normalizeNonNegativeNumber(e.target.value))} className="w-full rounded-lg border-none bg-transparent py-1.5 pl-6 text-sm font-bold focus:ring-0 outline-none" />
-                                                                </>
-                                                            )}
-                                                        </div>
+                                                            </div>
+                                                        )}
                                                         <button type="button" onClick={() => removeServiceRow(idx)} className="h-8 w-8 flex items-center justify-center text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg shrink-0 transition-colors"><Trash2 className="h-4 w-4" /></button>
                                                     </div>
                                                 ))

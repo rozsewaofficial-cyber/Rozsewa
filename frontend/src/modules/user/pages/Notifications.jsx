@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Bell, BellRing, PackageCheck, Tag, Info, Trash2, CheckCircle2, DollarSign, AlertCircle } from "lucide-react";
+import { ArrowLeft, Bell, BellRing, PackageCheck, Tag, Info, Trash2, CheckCircle2, DollarSign, AlertCircle, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -47,6 +47,8 @@ const Notifications = () => {
       targetLink = "/my-bookings";
     } else if (notif.type === "payment") {
       targetLink = "/wallet";
+    } else if (notif.type === "bazaar") {
+      targetLink = "/my-bazaar-ads";
     }
 
     if (targetLink) {
@@ -91,6 +93,7 @@ const Notifications = () => {
       case 'promo': return { icon: Tag, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/30", outline: "border-emerald-200 dark:border-emerald-800" };
       case 'payment': return { icon: DollarSign, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-900/30", outline: "border-amber-200 dark:border-amber-800" };
       case 'alert': return { icon: AlertCircle, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-100 dark:bg-rose-900/30", outline: "border-rose-200 dark:border-rose-800" };
+      case 'bazaar': return { icon: MessageSquare, color: "text-cyan-600 dark:text-cyan-400", bg: "bg-cyan-100 dark:bg-cyan-900/30", outline: "border-cyan-200 dark:border-cyan-800" };
       default: return { icon: Info, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", outline: "border-purple-200 dark:border-purple-800" };
     }
   };
@@ -122,7 +125,7 @@ const Notifications = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition-colors">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition-colors">
               <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
             </motion.button>
             <div>

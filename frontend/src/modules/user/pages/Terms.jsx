@@ -12,7 +12,7 @@ const Terms = () => {
         <div className="flex items-center gap-3">
           <motion.button 
             whileTap={{ scale: 0.9 }} 
-            onClick={() => navigate(-1)} 
+            onClick={() => navigate('/profile')} 
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted"
           >
             <ArrowLeft className="h-5 w-5" />

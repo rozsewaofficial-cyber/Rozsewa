@@ -12,13 +12,13 @@ import API from "@/lib/api";
 
 // ─── Indian States ─────────────────────────────────────────────────────────────
 const STATES = [
-  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh",
-  "Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka",
-  "Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram",
-  "Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
-  "Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
-  "Andaman & Nicobar","Chandigarh","Dadra & Nagar Haveli","Daman & Diu",
-  "Delhi","Jammu & Kashmir","Ladakh","Lakshadweep","Puducherry"
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana",
+  "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman & Nicobar", "Chandigarh", "Dadra & Nagar Haveli", "Daman & Diu",
+  "Delhi", "Jammu & Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
 ];
 
 const STATE_CITIES = {
@@ -108,17 +108,17 @@ const evaluateVisibility = (rules, values) => {
     const depVal = values[rule.dependsOnFieldId];
     let matches = false;
     switch (rule.operator) {
-      case 'equals':       matches = String(depVal) === String(rule.value); break;
-      case 'not_equals':   matches = String(depVal) !== String(rule.value); break;
-      case 'contains':     matches = String(depVal || '').includes(String(rule.value)); break;
+      case 'equals': matches = String(depVal) === String(rule.value); break;
+      case 'not_equals': matches = String(depVal) !== String(rule.value); break;
+      case 'contains': matches = String(depVal || '').includes(String(rule.value)); break;
       case 'not_contains': matches = !String(depVal || '').includes(String(rule.value)); break;
-      case 'gt':           matches = Number(depVal) > Number(rule.value); break;
-      case 'lt':           matches = Number(depVal) < Number(rule.value); break;
-      case 'gte':          matches = Number(depVal) >= Number(rule.value); break;
-      case 'lte':          matches = Number(depVal) <= Number(rule.value); break;
-      case 'is_empty':     matches = !depVal || depVal === ''; break;
+      case 'gt': matches = Number(depVal) > Number(rule.value); break;
+      case 'lt': matches = Number(depVal) < Number(rule.value); break;
+      case 'gte': matches = Number(depVal) >= Number(rule.value); break;
+      case 'lte': matches = Number(depVal) <= Number(rule.value); break;
+      case 'is_empty': matches = !depVal || depVal === ''; break;
       case 'is_not_empty': matches = !!depVal && depVal !== ''; break;
-      default:             matches = true;
+      default: matches = true;
     }
     return rule.action === 'show' ? matches : !matches;
   });
@@ -129,7 +129,7 @@ const FieldRenderer = ({ field, value, onChange }) => {
   const base = "w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all text-slate-900 placeholder-slate-400";
 
   switch (field.type) {
-    case 'text':    case 'email': case 'phone': case 'url':
+    case 'text': case 'email': case 'phone': case 'url':
       return <input type={field.type === 'phone' ? 'tel' : field.type === 'currency' ? 'number' : field.type} className={base} placeholder={field.placeholder} value={value || ''} onChange={e => onChange(e.target.value)} />;
 
     case 'textarea':
@@ -300,9 +300,9 @@ const SectionRenderer = ({ section, formValues, onFieldChange, renderField }) =>
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const LeadRequirementForm = () => {
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const { user }  = useAuth();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
 
   const isAdmin = user && ['admin', 'superadmin', 'supervisor'].includes(user.role);
@@ -310,14 +310,14 @@ const LeadRequirementForm = () => {
   const initialCategoryId = searchParams.get("category") || "";
 
   // State values
-  const [categories, setCategories]   = useState([]);
+  const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialCategoryId);
-  const [selectedServiceId, setSelectedServiceId]   = useState("");
-  const [loading, setLoading]       = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [submitted, setSubmitted]     = useState(false);
-  const [draftId, setDraftId]         = useState(null);
-  const draftTimer                   = useRef(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [draftId, setDraftId] = useState(null);
+  const draftTimer = useRef(null);
 
   // Clear service ID when category changes
   useEffect(() => {
@@ -325,21 +325,21 @@ const LeadRequirementForm = () => {
   }, [selectedCategoryId]);
 
   // Form schema
-  const [formSchema, setFormSchema]   = useState(null);
+  const [formSchema, setFormSchema] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(true);
-  const [formId, setFormId]           = useState(null);
+  const [formId, setFormId] = useState(null);
   const [formVersion, setFormVersion] = useState(null);
 
   // Core Form Fields
   const [requirementTitle, setRequirementTitle] = useState('');
-  const [requirementDesc,  setRequirementDesc]  = useState('');
-  const [dynamicValues, setDynamicValues]       = useState({});
-  const [preferredDate,  setPreferredDate]      = useState('');
-  const [preferredTime,  setPreferredTime]      = useState('');
-  const [selectedHour, setSelectedHour]         = useState('');
-  const [selectedMin, setSelectedMin]           = useState('');
-  const [isDateFlexible, setIsDateFlexible]     = useState(false);
-  const [isTimeFlexible, setIsTimeFlexible]     = useState(false);
+  const [requirementDesc, setRequirementDesc] = useState('');
+  const [dynamicValues, setDynamicValues] = useState({});
+  const [preferredDate, setPreferredDate] = useState('');
+  const [preferredTime, setPreferredTime] = useState('');
+  const [selectedHour, setSelectedHour] = useState('');
+  const [selectedMin, setSelectedMin] = useState('');
+  const [isDateFlexible, setIsDateFlexible] = useState(false);
+  const [isTimeFlexible, setIsTimeFlexible] = useState(false);
 
   // Synchronize Hour & Minute select with preferredTime state
   useEffect(() => {
@@ -376,16 +376,16 @@ const LeadRequirementForm = () => {
   }, [preferredDate, selectedHour, selectedMin]);
 
   // Location Fields
-  const [coordinates,    setCoordinates]    = useState(null);
-  const [gettingGPS,     setGettingGPS]     = useState(false);
+  const [coordinates, setCoordinates] = useState(null);
+  const [gettingGPS, setGettingGPS] = useState(false);
   const [locationDetail, setLocationDetail] = useState({
     houseNo: '', apartment: '', street: '', landmark: '', area: '', city: '', state: '', pincode: ''
   });
 
   // Contact Details
-  const [contactName,  setContactName]  = useState(user?.name  || '');
+  const [contactName, setContactName] = useState(user?.name || '');
   const [contactPhone, setContactPhone] = useState(user?.mobile || '');
-  const [contactEmail, setContactEmail] = useState(user?.email  || '');
+  const [contactEmail, setContactEmail] = useState(user?.email || '');
 
   const renderField = (field, suffix = '') => {
     const fieldId = suffix ? `${field.id}__${suffix}` : field.id;
@@ -507,15 +507,15 @@ const LeadRequirementForm = () => {
               pattern="^[\p{L}\p{M}\s]+$"
               title="City should not accept special characters and numbers"
               className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all" />
-            
+
             <div id="city-dropdown" className="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto top-full left-0">
               {(STATE_CITIES[locationDetail.state] || [])
                 .filter(c => c.toLowerCase().includes((locationDetail.city || '').toLowerCase()))
                 .map(city => (
-                <div key={city} onClick={() => setLocationDetail(prev => ({ ...prev, city }))} className="px-4 py-3 cursor-pointer hover:bg-slate-50 text-sm border-b border-slate-100 last:border-0 font-medium text-slate-700">
-                  {city}
-                </div>
-              ))}
+                  <div key={city} onClick={() => setLocationDetail(prev => ({ ...prev, city }))} className="px-4 py-3 cursor-pointer hover:bg-slate-50 text-sm border-b border-slate-100 last:border-0 font-medium text-slate-700">
+                    {city}
+                  </div>
+                ))}
               {(STATE_CITIES[locationDetail.state] || []).filter(c => c.toLowerCase().includes((locationDetail.city || '').toLowerCase())).length === 0 && (
                 <div className="px-4 py-3 text-sm text-slate-400 text-center">No matches found</div>
               )}
@@ -592,7 +592,7 @@ const LeadRequirementForm = () => {
 
       case 'contactName':
         return (
-          <input type="text" required={field.required} value={contactName} 
+          <input type="text" required={field.required} value={contactName}
             onChange={e => setContactName(e.target.value.replace(/[^\p{L}\p{M}\s]/gu, ''))}
             onKeyDown={(e) => {
               if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
@@ -611,7 +611,7 @@ const LeadRequirementForm = () => {
         );
       case 'contactEmail':
         return (
-          <input type="email" required={field.required} value={contactEmail} 
+          <input type="email" required={field.required} value={contactEmail}
             onChange={e => setContactEmail(e.target.value.toLowerCase())}
             onKeyDown={(e) => {
               if (/[A-Z]/.test(e.key) && e.key.length === 1) {
@@ -674,7 +674,7 @@ const LeadRequirementForm = () => {
         setFormId(data.formId);
         setFormVersion(data.formVersion);
         setDynamicValues({});
-        
+
         // Restore draft if any for this category
         const urlDraftId = searchParams.get('draftId');
         if (urlDraftId) {
@@ -752,7 +752,7 @@ const LeadRequirementForm = () => {
   // ── Contact auto-fill ────────────────────────────────────────────────────────
   useEffect(() => {
     if (user) {
-      setContactName(user.name  || '');
+      setContactName(user.name || '');
       setContactPhone(user.mobile || user.phone || '');
       setContactEmail(user.email || '');
     }
@@ -855,8 +855,8 @@ const LeadRequirementForm = () => {
       if (data.status === 'OK' && data.results?.[0]) {
         const components = data.results[0].address_components;
         const parsed = parseGeocodeAddress(components);
-        
-        const matchedState = STATES.find(s => 
+
+        const matchedState = STATES.find(s =>
           s.toLowerCase().replace(/[^a-z]/g, '') === parsed.state.toLowerCase().replace(/[^a-z]/g, '')
         ) || '';
 
@@ -884,13 +884,13 @@ const LeadRequirementForm = () => {
   const captureGPS = () => {
     setGettingGPS(true);
     navigator.geolocation?.getCurrentPosition(
-      pos => { 
-        setCoordinates([pos.coords.longitude, pos.coords.latitude]); 
-        setGettingGPS(false); 
+      pos => {
+        setCoordinates([pos.coords.longitude, pos.coords.latitude]);
+        setGettingGPS(false);
       },
-      () => { 
-        toast({ title: 'GPS Location unavailable', variant: 'destructive' }); 
-        setGettingGPS(false); 
+      () => {
+        toast({ title: 'GPS Location unavailable', variant: 'destructive' });
+        setGettingGPS(false);
       }
     );
   };
@@ -980,7 +980,7 @@ const LeadRequirementForm = () => {
       {/* Top Header */}
       <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
         <div className="px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors shrink-0">
+          <button onClick={() => navigate('/my-leads')} className="p-2 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors shrink-0">
             <ArrowLeft className="h-4 w-4 text-slate-700" />
           </button>
           <div className="flex-1 min-w-0 text-left">
@@ -1042,10 +1042,10 @@ const LeadRequirementForm = () => {
           <div key={section.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5 text-left animate-in fade-in duration-300">
             <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
               {section.id === 'sec_requirement' ? <FileText className="h-4.5 w-4.5 text-violet-600" /> :
-               section.id === 'sec_datetime' ? <Calendar className="h-4.5 w-4.5 text-violet-600" /> :
-               section.id === 'sec_statecity' || section.id === 'sec_address' ? <MapPin className="h-4.5 w-4.5 text-violet-600" /> :
-               section.id === 'sec_contact' ? <User className="h-4.5 w-4.5 text-violet-600" /> :
-               <Sparkles className="h-4.5 w-4.5 text-violet-600" />}
+                section.id === 'sec_datetime' ? <Calendar className="h-4.5 w-4.5 text-violet-600" /> :
+                  section.id === 'sec_statecity' || section.id === 'sec_address' ? <MapPin className="h-4.5 w-4.5 text-violet-600" /> :
+                    section.id === 'sec_contact' ? <User className="h-4.5 w-4.5 text-violet-600" /> :
+                      <Sparkles className="h-4.5 w-4.5 text-violet-600" />}
               <h2 className="text-xs font-black uppercase tracking-widest text-slate-900">{section.title}</h2>
             </div>
             {section.description && (
@@ -1105,7 +1105,7 @@ const LeadRequirementForm = () => {
         <button
           type="button"
           onClick={() => {
-            const query = selectedCategoryId 
+            const query = selectedCategoryId
               ? `?category=${selectedCategoryId}${selectedServiceId ? `&service=${selectedServiceId}` : ''}`
               : '';
             navigate(`/admin/lead-forms${query}`);
@@ -1121,3 +1121,6 @@ const LeadRequirementForm = () => {
 };
 
 export default LeadRequirementForm;
+
+
+grep "router.post('/'," / Users / saumy / Documents / GitHub / Rozsewa / backend / routes / leadRoutes.js

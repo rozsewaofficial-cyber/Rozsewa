@@ -570,6 +570,8 @@ const ProviderDocuments = () => {
                       let val = e.target.value;
                       if (activeDocType === 'pan') {
                         val = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+                      } else if (activeDocType === 'aadhaar') {
+                        val = val.replace(/\D/g, '').slice(0, 12);
                       }
                       setDocNumberInput(val); 
                       setIsVerified(false); 
@@ -592,7 +594,7 @@ const ProviderDocuments = () => {
                   )}
 
                   {activeDocType === 'pan' && !isVerified && (
-                    <button onClick={handleVerifyPAN} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                    <button onClick={handleVerifyPAN} disabled={isVerifying || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(docNumberInput)} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
                       {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                       {isVerifying ? "Verifying..." : "Verify PAN API"}
                     </button>
@@ -616,7 +618,7 @@ const ProviderDocuments = () => {
                     </button>
                   )}
                   {activeDocType === 'aadhaar' && !isVerified && !otpSent && (
-                    <button onClick={handleInitiateOKYC} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                    <button onClick={handleInitiateOKYC} disabled={isVerifying || docNumberInput.length !== 12} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
                       {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                       {isVerifying ? "Sending..." : "Send Aadhaar OTP"}
                     </button>
@@ -653,7 +655,7 @@ const ProviderDocuments = () => {
 
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/provider/dashboard')}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted shrink-0 shadow-sm">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>

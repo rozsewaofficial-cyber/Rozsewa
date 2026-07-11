@@ -66,7 +66,7 @@ const MyBazaarAds = () => {
         <div className="relative z-10 max-w-2xl mx-auto">
           <div className="flex items-center gap-3 mb-4">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/profile')}
               className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />

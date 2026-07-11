@@ -82,6 +82,7 @@ import AdminBookings from "./modules/admin/pages/AdminBookings";
 import AdminEarnings from "./modules/admin/pages/AdminEarnings";
 import AdminCoupons from "./modules/admin/pages/AdminCoupons";
 import AdminFeedback from "./modules/admin/pages/AdminFeedback";
+import AdminSupport from "./modules/admin/pages/AdminSupport";
 import AdminServices from "./modules/admin/pages/AdminServices";
 import AdminLeads from "./modules/admin/pages/AdminLeads";
 import AdminLeadForms from "./modules/admin/pages/AdminLeadForms";
@@ -237,6 +238,7 @@ const App = () => (
                         <Route path="earnings" element={<AdminEarnings />} />
                         <Route path="coupons" element={<AdminCoupons />} />
                         <Route path="feedback" element={<AdminFeedback />} />
+                        <Route path="support" element={<AdminSupport />} />
                         <Route path="services" element={<AdminServices />} />
                         <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
                         <Route path="subscriptions" element={<AdminSubscriptions />} />
