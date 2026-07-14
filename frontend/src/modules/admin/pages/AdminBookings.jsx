@@ -39,7 +39,7 @@ const AdminBookings = () => {
   }, [searchTerm, filter]);
 
   useEffect(() => {
-    setTitle("Platform Bookings");
+    setTitle("All Bookings");
     fetchBookings();
     if (location.state?.searchId) {
       setSearchTerm(location.state.searchId.toString().slice(-6).toUpperCase());

@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
-import { useOutletContext } from "react-router-dom";
+import { useOutletContext, useNavigate } from "react-router-dom";
 import { HelpCircle, FileText, Plus, BookOpen, MessageSquare, ExternalLink, PlayCircle, Trash2, X } from "lucide-react";
 import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
 const AdminHelpTraining = () => {
     const { setTitle } = useOutletContext();
+    const navigate = useNavigate();
     const { toast } = useToast();
     const [faqs, setFaqs] = useState([]);
     const [guides, setGuides] = useState([]);
@@ -215,7 +216,7 @@ const AdminHelpTraining = () => {
                         </div>
                         <h4 className="font-black text-lg">Support Integration</h4>
                         <p className="text-xs text-blue-100/80 mt-2 mb-6 leading-relaxed">Your Intercom/Zendesk live chat ID is currently active and pulling data.</p>
-                        <button className="w-full py-3 bg-white text-blue-800 rounded-xl font-black text-xs hover:bg-blue-50 transition shadow-md">Open Chat Console</button>
+                        <button onClick={() => navigate("/admin/support")} className="w-full py-3 bg-white text-blue-800 rounded-xl font-black text-xs hover:bg-blue-50 transition shadow-md">Open Chat Console</button>
                     </div>
                 </div>
             </div>

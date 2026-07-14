@@ -2159,6 +2159,13 @@ const updateGlobalNightCharge = async (req, res) => {
     try {
         const { enabled, defaultPercent, startTime, endTime } = req.body;
 
+        if (!startTime || !endTime) {
+            return res.status(400).json({ message: "Start time and End time are required" });
+        }
+        if (startTime === endTime) {
+            return res.status(400).json({ message: "Start time and End time cannot be the same" });
+        }
+
         let setting = await Setting.findOne({ key: 'night_charge_config' });
         if (setting) {
             setting.value = { enabled, defaultPercent, startTime, endTime };

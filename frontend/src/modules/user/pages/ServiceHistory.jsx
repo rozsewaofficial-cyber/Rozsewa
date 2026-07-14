@@ -7,6 +7,7 @@ import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import ChatModal from "@/components/ChatModal";
 
 const demoBookings = [
@@ -27,6 +28,7 @@ const statusColors = {
 const ServiceHistory = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -112,13 +114,129 @@ const ServiceHistory = () => {
   };
 
   const handleDownloadInvoice = () => {
-    toast({ title: "Downloading Invoice", description: "PDF is being generated..." });
+    toast({ title: "Downloading Invoice", description: "Generating printable invoice..." });
     setTimeout(() => {
-      // Simulate file download
+      const basePrice = selectedBooking.total - (selectedBooking.travelCharge?.amount || 0) - (selectedBooking.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
+      const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice #${selectedBooking.id?.toUpperCase()}</title>
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 40px; max-width: 600px; margin: 0 auto; background: #f8fafc; }
+        .invoice-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; padding: 40px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px dashed #e2e8f0; padding-bottom: 20px; margin-bottom: 20px; }
+        .logo { font-size: 24px; font-weight: 900; color: #7c3aed; text-decoration: none; }
+        .invoice-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: right; }
+        .details-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 16px; margin-bottom: 30px; }
+        .detail-item h4 { margin: 0 0 4px 0; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #94a3b8; letter-spacing: 0.1em; }
+        .detail-item p { margin: 0; font-size: 13px; font-weight: 700; color: #334155; }
+        .table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        .table th { text-align: left; padding: 10px 0; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #94a3b8; border-bottom: 1px solid #e2e8f0; }
+        .table td { padding: 16px 0; font-size: 13px; font-weight: 700; border-bottom: 1px solid #f1f5f9; }
+        .table td.amount { text-align: right; }
+        .table th.amount { text-align: right; }
+        .totals { display: flex; flex-direction: column; gap: 10px; border-top: 2px dashed #e2e8f0; padding-top: 20px; }
+        .total-row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; color: #64748b; }
+        .total-row.grand-total { font-size: 20px; font-weight: 900; color: #1e293b; margin-top: 10px; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+        .footer { text-align: center; margin-top: 40px; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+        @media print {
+            body { background: white; padding: 0; }
+            .invoice-card { border: none; box-shadow: none; padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-card">
+        <div class="header">
+            <span class="logo">RozSewa</span>
+            <div class="invoice-title">
+                Invoice<br>
+                <span style="font-size: 11px; font-family: monospace; font-weight: 700;">#${selectedBooking.id?.toUpperCase()}</span>
+            </div>
+        </div>
+        <div class="details-grid">
+            <div class="detail-item">
+                <h4>Customer</h4>
+                <p>${user?.name || 'Valued Customer'}</p>
+            </div>
+            <div class="detail-item" style="text-align: right;">
+                <h4>Provider</h4>
+                <p>${selectedBooking.provider || 'N/A'}</p>
+            </div>
+            <div class="detail-item">
+                <h4>Date & Time</h4>
+                <p>${selectedBooking.date} • ${selectedBooking.time}</p>
+            </div>
+            <div class="detail-item" style="text-align: right;">
+                <h4>Payment Mode</h4>
+                <p>${selectedBooking.paymentMode === 'after' ? 'Cash on Delivery' : 'Online Payment'}</p>
+            </div>
+        </div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="amount">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>${selectedBooking.service}</td>
+                    <td class="amount">₹${basePrice}</td>
+                </tr>
+                ${selectedBooking.travelCharge?.amount > 0 ? `
+                <tr>
+                    <td>Travel Charge</td>
+                    <td class="amount">₹${selectedBooking.travelCharge.amount}</td>
+                </tr>
+                ` : ''}
+                ${(selectedBooking.extraCharges || []).map(extra => `
+                <tr>
+                    <td>${extra.item}</td>
+                    <td class="amount">₹${extra.amount}</td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+        <div class="totals">
+            <div class="total-row">
+                <span>Subtotal</span>
+                <span>₹${selectedBooking.total}</span>
+            </div>
+            <div class="total-row">
+                <span>Taxes & Fees</span>
+                <span>₹0</span>
+            </div>
+            <div class="total-row grand-total">
+                <span>Total Paid</span>
+                <style>
+                  .grand-total-val { color: #7c3aed; }
+                  @media (prefers-color-scheme: dark) {
+                    .grand-total-val { color: #a78bfa; }
+                  }
+                </style>
+                <span class="grand-total-val">₹${selectedBooking.total}</span>
+            </div>
+        </div>
+        <div class="footer">
+            Thank you for using RozSewa!
+        </div>
+    </div>
+    <script>
+        window.onload = function() {
+            window.print();
+        }
+    </script>
+</body>
+</html>`;
+
       const link = document.createElement("a");
-      link.href = "data:text/plain;charset=utf-8,RozSewa%20Invoice%0A-----------------%0A..." + encodeURIComponent(`\nBooking ID: ${selectedBooking.id}\nAmount: ₹${selectedBooking.total}`);
-      link.download = `Invoice_${selectedBooking.id}.txt`;
+      link.href = "data:text/html;charset=utf-8," + encodeURIComponent(htmlContent);
+      link.download = `Invoice_${selectedBooking.id?.toUpperCase()}.html`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
     }, 1000);
   };
 
@@ -344,6 +462,12 @@ const ServiceHistory = () => {
                         <span className="text-xs font-semibold text-foreground text-right max-w-[60%]">{selectedBooking.providerAddress}</span>
                       </div>
                     )}
+                    {selectedBooking.serviceLocation !== 'shop' && selectedBooking.address && (
+                      <div className="flex justify-between items-start bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-xs font-bold text-muted-foreground">Service Address</span>
+                        <span className="text-xs font-semibold text-foreground text-right max-w-[60%]">{selectedBooking.address}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between items-start">
                       <span className="text-sm font-semibold text-muted-foreground">Schedule</span>
                       <div className="text-right">
@@ -365,8 +489,15 @@ const ServiceHistory = () => {
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Service Price</span>
-                        <span className="font-semibold">₹{selectedBooking.total - (selectedBooking.extraCharges?.reduce((sum, c) => sum + c.amount, 0) || 0)}</span>
+                        <span className="font-semibold">₹{selectedBooking.total - (selectedBooking.travelCharge?.amount || 0) - (selectedBooking.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
+
+                      {selectedBooking.travelCharge?.amount > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Travel Charge</span>
+                          <span className="font-semibold">₹{selectedBooking.travelCharge.amount}</span>
+                        </div>
+                      )}
                       
                       {selectedBooking.extraCharges && selectedBooking.extraCharges.length > 0 && (
                         <div className="space-y-1 py-1">
@@ -551,6 +682,7 @@ const ServiceHistory = () => {
         onClose={() => setIsChatOpen(false)} 
         bookingId={selectedBooking?.id} 
         userType="User" 
+        recipientName={selectedBooking?.providerId?.shopName || selectedBooking?.providerId?.ownerName || selectedBooking?.providerId?.name}
       />
     </div>
   );

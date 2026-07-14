@@ -239,6 +239,12 @@
     top: 0 !important;
     bottom: 0 !important;
   }
+
+  /* Move checkout bottom actions above keyboard */
+  body.keyboard-open .checkout-bottom-bar {
+    bottom: var(--keyboard-height, 0px) !important;
+    padding-bottom: 1rem !important;
+  }
 }
 
 /* Centralized Toast Customization: Hide close buttons for success, info, default toasts */

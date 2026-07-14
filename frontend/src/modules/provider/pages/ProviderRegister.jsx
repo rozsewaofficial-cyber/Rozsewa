@@ -8,6 +8,7 @@ import {
   Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Upload, Image as ImageIcon, ChevronRight, X, Building2,
   Layers, Sparkles, Map, Heart, Smartphone, Lock, Eye, EyeOff
 } from "lucide-react";
+import logoImg from "@/assets/RozSewa.png";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
@@ -697,7 +698,7 @@ const ProviderRegister = () => {
       <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-xl space-y-6 my-auto">
+      <div className="w-full max-w-xl space-y-6 my-8 md:my-auto">
         <div className="text-center space-y-4">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -705,7 +706,7 @@ const ProviderRegister = () => {
             className="mx-auto flex h-20 w-40 items-center justify-center rounded-[24px] bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
           >
             <img
-              src="/RozSewa.png"
+              src={logoImg}
               alt="RozSewa Logo"
               className="h-full w-full object-contain"
             />
@@ -1259,7 +1260,7 @@ const ProviderRegister = () => {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {['kycAadhaarPhoto', 'kycAadhaarBackPhoto', 'kycPanPhoto'].map(type => (
                         <label key={type} className={`relative group flex flex-col items-center justify-center h-24 rounded-lg border-2 border-dashed transition-all cursor-pointer overflow-hidden ${formData[type] ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50 hover:border-emerald-200'}`}>
-                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFileUpload(e, type)} />
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, type)} />
                           {formData[type] ? (
                             <img src={formData[type]} className="h-full w-full object-cover" />
                           ) : (

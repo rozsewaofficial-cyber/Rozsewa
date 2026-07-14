@@ -3,6 +3,7 @@ import { useScrollLock } from "@/lib/scrollLock";
 import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Store, Phone, ShieldCheck, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
+import logoImg from "@/assets/RozSewa.png";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
@@ -168,7 +169,7 @@ const ProviderLogin = () => {
             className="mx-auto flex h-16 w-36 items-center justify-center rounded-2xl bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
           >
             <img
-              src="/RozSewa.png"
+              src={logoImg}
               alt="RozSewa Logo"
               className="h-full w-full object-contain"
             />
@@ -323,7 +324,7 @@ const ProviderLogin = () => {
         </motion.div>
 
         <div className="mt-8 flex items-center justify-center gap-6 opacity-40 grayscale pointer-events-none">
-          <img src="/RozSewa.png" alt="Security" className="h-4 w-auto brightness-0" />
+          <img src={logoImg} alt="Security" className="h-4 w-auto brightness-0" />
           <div className="h-3 w-[1px] bg-slate-400" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secure Dashboard</p>
         </div>

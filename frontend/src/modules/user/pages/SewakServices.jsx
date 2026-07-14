@@ -18,7 +18,38 @@ const SewakServices = () => {
   const [combosList, setCombosList] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const [cart, setCart] = useState({});
+  const [cart, setCart] = useState(() => {
+    try {
+      const category = new URLSearchParams(window.location.search).get("category");
+      const savedCart = localStorage.getItem(`rozsewa_cart_sewak_${category}`);
+      if (savedCart) return JSON.parse(savedCart);
+    } catch {}
+    try {
+      const category = new URLSearchParams(window.location.search).get("category");
+      const checkoutData = localStorage.getItem("rozsewa_checkout_data");
+      if (checkoutData) {
+        const parsed = JSON.parse(checkoutData);
+        if (parsed.category === category && parsed.items) {
+          const initialCart = {};
+          parsed.items.forEach(item => {
+            initialCart[item.id] = item.qty;
+          });
+          return initialCart;
+        }
+      }
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    if (categoryName) {
+      if (Object.keys(cart).length > 0) {
+        localStorage.setItem(`rozsewa_cart_sewak_${categoryName}`, JSON.stringify(cart));
+      } else {
+        localStorage.removeItem(`rozsewa_cart_sewak_${categoryName}`);
+      }
+    }
+  }, [cart, categoryName]);
 
   const fetchData = useCallback(async () => {
     if (!categoryName) return navigate("/");

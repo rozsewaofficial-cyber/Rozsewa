@@ -3,12 +3,14 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Loader2, Send, ShieldAlert, Unlock, Delete, Phone, MapPin, Lock } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useSocket } from '@/context/SocketContext';
 
 const BazaarOfferChat = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { socket } = useSocket();
   
   const [ad, setAd] = useState(null);
   const [offerThread, setOfferThread] = useState(null);
@@ -45,6 +47,32 @@ const BazaarOfferChat = () => {
   useEffect(() => {
     fetchData();
   }, [id]);
+
+  // ── Real-time: socket listener + polling fallback ────────────────────────────
+  useEffect(() => {
+    if (!id) return;
+
+    // Listen for server-pushed updates
+    const handleOfferUpdated = (payload) => {
+      if (payload?.adId === id) {
+        fetchData();
+      }
+    };
+
+    if (socket) {
+      socket.on('BAZAAR_OFFER_UPDATED', handleOfferUpdated);
+    }
+
+    // 10-second polling as a fallback for cases where socket is unavailable
+    const pollInterval = setInterval(() => {
+      fetchData();
+    }, 10000);
+
+    return () => {
+      if (socket) socket.off('BAZAAR_OFFER_UPDATED', handleOfferUpdated);
+      clearInterval(pollInterval);
+    };
+  }, [id, socket]);
 
   useEffect(() => {
     // If ad is loaded but we still don't know the user, wait

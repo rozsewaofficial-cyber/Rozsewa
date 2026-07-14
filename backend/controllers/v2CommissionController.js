@@ -323,10 +323,12 @@ exports.getCommissionPreview = async (req, res) => {
 
         // Active subscription plan benefits
         let subscriptionBenefits = [];
+        let planId = null;
         if (provider.isSubscribed) {
             const activeSub = await ProviderSubscription.findOne({ provider: provider._id, status: 'active' }).populate('subscription');
             if (activeSub && activeSub.subscription) {
                 subscriptionBenefits = activeSub.subscription.features || [];
+                planId = activeSub.subscription._id;
             }
         }
 
@@ -336,6 +338,7 @@ exports.getCommissionPreview = async (req, res) => {
             currentCommissionPercentage: calculation.commissionRate,
             remainingFreeServices: provider.freeServicesLeft,
             activeSubscription: provider.isSubscribed ? {
+                planId: planId,
                 planName: provider.planType || 'Elite Pro',
                 expiry: provider.subscriptionExpiry,
                 rate: provider.subscriptionRate,
@@ -425,6 +428,7 @@ exports.purchaseSubscription = async (req, res) => {
         provider.planType = (plan.name.toLowerCase().includes('pro') || plan.name.toLowerCase().includes('gold')) ? 'pro' : (plan.name.toLowerCase().includes('premium') ? 'premium' : 'standard');
         provider.commissionRate = provider.subscriptionRate;
 
+        
         await provider.save({ session });
 
         // Record Ledger and Transaction logs
@@ -551,6 +555,7 @@ exports.renewSubscription = async (req, res) => {
         provider.subscriptionType = plan.offeredCommissionType || 'percentage';
         provider.commissionRate = provider.subscriptionRate;
 
+        
         await provider.save({ session });
 
         // Record Logs

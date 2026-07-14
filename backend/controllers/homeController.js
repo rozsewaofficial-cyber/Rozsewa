@@ -72,7 +72,7 @@ const getPublicProviderById = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id)
             .select('name shopName ownerName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability')
-            .populate('vendorType', 'name icon');
+            .populate('vendorType', 'name icon hasNightCharge nightChargePercent');
 
         if (!provider) {
             return res.status(404).json({ message: 'Provider not found' });
@@ -261,7 +261,7 @@ const Setting = require('../models/Setting');
 const getPublicConfig = async (req, res) => {
     try {
         const settings = await Setting.find({
-            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber', 'max_bargain_discount_limit', 'distance_charge_config'] }
+            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber', 'max_bargain_discount_limit', 'distance_charge_config', 'night_charge_config'] }
         });
 
         const config = {};
@@ -273,7 +273,8 @@ const getPublicConfig = async (req, res) => {
             currency: "INR",
             supportNumber: config.supportNumber || "91XXXXXXXXXX",
             maxBargainLimit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20,
-            distanceCharge: config.distance_charge_config || { enabled: false, fallbackCharge: 40 }
+            distanceCharge: config.distance_charge_config || { enabled: false, fallbackCharge: 40 },
+            nightCharge: config.night_charge_config || { enabled: false, defaultPercent: 10, startTime: '21:00', endTime: '06:00' }
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

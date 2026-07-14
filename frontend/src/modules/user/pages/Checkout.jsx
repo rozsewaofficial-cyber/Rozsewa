@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, CreditCard, Wallet, Tag, Clock, Plus, Home, Briefcase, X, Check, ShieldCheck, Copy, Navigation, Zap, FileText, Radar, Trash2, Loader2, Moon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -25,7 +25,7 @@ const libraries = ['places'];
 const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, serviceMode } = useAuth();
+  const { user, serviceMode, updateUser } = useAuth();
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -225,6 +225,7 @@ const Checkout = () => {
   }, [user]);
 
   const [distanceChargeConfig, setDistanceChargeConfig] = useState(null);
+  const [nightChargeConfig, setNightChargeConfig] = useState(null);
 
   useEffect(() => {
     // Auto-load copied coupon
@@ -242,6 +243,9 @@ const Checkout = () => {
         }
         if (data && data.distanceCharge) {
           setDistanceChargeConfig(data.distanceCharge);
+        }
+        if (data && data.nightCharge) {
+          setNightChargeConfig(data.nightCharge);
         }
       } catch (err) {
         console.error("Failed to fetch public config:", err);
@@ -495,7 +499,53 @@ const Checkout = () => {
       estimatedTravelCharge = 0;
   }
   
-  const total = payableSubtotal + (isExpress ? EXPRESS_FEE : 0) + estimatedTravelCharge;
+  const getNightChargeAmount = () => {
+    if (!selectedTime || !nightChargeConfig) return 0;
+    
+    // Check if category override is active
+    const categoryOverride = providerDetails?.vendorType;
+    let isActive = nightChargeConfig.enabled;
+    let percentage = nightChargeConfig.defaultPercent || 0;
+
+    if (categoryOverride && categoryOverride.hasNightCharge !== undefined) {
+      isActive = categoryOverride.hasNightCharge;
+      percentage = categoryOverride.nightChargePercent;
+    }
+
+    if (!isActive || percentage <= 0) return 0;
+
+    const timeToMins = (tStr) => {
+      if(!tStr) return 0;
+      const parts = tStr.split(' ');
+      if (!parts[0].includes(':')) return 0;
+      let [h, m] = parts[0].split(':').map(Number);
+      if(parts.length > 1) {
+        if (parts[1].toLowerCase() === 'pm' && h < 12) h += 12;
+        if (parts[1].toLowerCase() === 'am' && h === 12) h = 0;
+      }
+      return h * 60 + m;
+    };
+
+    const selMins = timeToMins(selectedTime);
+    const startMins = timeToMins(nightChargeConfig.startTime || "21:00");
+    const endMins = timeToMins(nightChargeConfig.endTime || "06:00");
+
+    let isNight = false;
+    if (startMins <= endMins) {
+      isNight = selMins >= startMins && selMins <= endMins;
+    } else {
+      isNight = selMins >= startMins || selMins <= endMins;
+    }
+
+    if (isNight) {
+      return Math.round((subtotal * percentage) / 100);
+    }
+    return 0;
+  };
+
+  const nightChargeAmount = getNightChargeAmount();
+
+  const total = payableSubtotal + (isExpress ? EXPRESS_FEE : 0) + estimatedTravelCharge + nightChargeAmount;
 
   // Validation flags for custom offer
   const isOfferTooLow = hasCustomOffer && (payableSubtotal < minAllowedOffer);
@@ -609,13 +659,15 @@ const Checkout = () => {
     }];
 
     try {
-      await API.put("/auth/profile", { addresses: updated });
+      const { data } = await API.put("/auth/profile", { addresses: updated });
+      const savedAddresses = data.addresses || data.user?.addresses || updated;
       toast({ title: "Address Saved" });
       setNewAddress({ label: "", address: "" });
       setShowNewAddressForm(false);
       setShowAddressModal(false);
-      setAddresses(updated);
-      setSelectedAddress(updated[updated.length - 1]);
+      setAddresses(savedAddresses);
+      setSelectedAddress(savedAddresses[savedAddresses.length - 1]);
+      updateUser({ addresses: savedAddresses });
     } catch (err) {
       toast({ title: "Failed to save address", variant: "destructive" });
     }
@@ -631,6 +683,7 @@ const Checkout = () => {
       if (selectedAddress?._id === addressId) {
         setSelectedAddress(updated.length > 0 ? updated[0] : null);
       }
+      updateUser({ addresses: updated });
     } catch (err) {
       toast({ title: "Failed to delete address", variant: "destructive" });
     }
@@ -686,6 +739,11 @@ const Checkout = () => {
 
       // Clear checkout data
       localStorage.removeItem("rozsewa_checkout_data");
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith("rozsewa_cart_")) {
+          localStorage.removeItem(key);
+        }
+      });
     } catch (err) {
       setIsProcessing(false);
       toast({
@@ -906,9 +964,9 @@ const Checkout = () => {
               </span>
             </div>
 
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0 mr-4">Location</span>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-right line-clamp-2 max-w-[200px]">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300 text-right">
                 {createdBooking?.address || selectedAddress?.address || "Address unavailable"}
               </span>
             </div>
@@ -1239,6 +1297,19 @@ const Checkout = () => {
                   <span className="font-black text-slate-900 dark:text-white mt-0.5">₹{estimatedTravelCharge}</span>
                 </div>
               )}
+              {nightChargeAmount > 0 && (
+                <div className="flex justify-between text-sm items-start">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      <Moon className="h-3.5 w-3.5 text-indigo-500" /> Night Convenience Charge
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                      Applied for service timing {nightChargeConfig.startTime} - {nightChargeConfig.endTime}
+                    </span>
+                  </div>
+                  <span className="font-black text-slate-900 dark:text-white mt-0.5">₹{nightChargeAmount}</span>
+                </div>
+              )}
               {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Coupon Discount</span><span className="font-black">-₹{couponDiscount}</span></div>}
               {bargainDiscount > 0 && <div className="flex justify-between text-sm text-blue-500"><span className="font-bold">Bargain Discount</span><span className="font-black">-₹{bargainDiscount}</span></div>}
               {totalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 font-bold"><span className="font-bold">Total Savings</span><span className="font-black">-₹{totalDiscount}</span></div>}
@@ -1277,7 +1348,7 @@ const Checkout = () => {
 
       {/* Bottom Bar */}
       {(availableSlots.length > 0 || isExpress) && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-50 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-700 p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
+        <div className="checkout-bottom-bar fixed bottom-0 left-0 right-0 z-40 bg-slate-50 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-700 p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
           <motion.button whileTap={{ scale: 0.98 }} onClick={handleConfirmBooking} disabled={isProcessing}
             className={`flex w-full items-center justify-between rounded-[20px] py-4 px-6 shadow-2xl transition-all ${isProcessing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600'} text-white shadow-blue-600/30`}>
             <div className="flex flex-col items-start">

@@ -23,7 +23,7 @@ const ProviderServices = () => {
   const [showComboForm, setShowComboForm] = useState(draft.showComboForm || false);
   const [errors, setErrors] = useState({});
   const [editId, setEditId] = useState(draft.editId || null);
-  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] });
+  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", serviceType: "home", visible: true, image: "", amenities: [], serviceDetails: [] });
   const [viewService, setViewService] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -113,6 +113,7 @@ const ProviderServices = () => {
       name: finalName,
       description: form.description,
       duration: form.duration,
+      serviceType: form.serviceType || "home",
       visible: form.visible,
       image: form.image,
       amenities: form.amenities || [],
@@ -515,7 +516,8 @@ const ProviderServices = () => {
                           customName: "",
                           price: isSewak ? (selected?.basePrice) : "",
                           amenities: selected?.amenities || [],
-                          serviceDetails: selected?.serviceDetails || []
+                          serviceDetails: selected?.serviceDetails || [],
+                          serviceType: selected?.serviceType || "home"
                         });
                       }}
                       className={`w-full rounded-2xl border border-border p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
@@ -554,6 +556,16 @@ const ProviderServices = () => {
                       {["15 min", "30 min", "45 min", "1 hr", "1.5 hrs", "2 hrs", "3 hrs", "4+ hrs"].map(d => <option key={d}>{d}</option>)}
                     </select>
                     {errors.duration && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.duration}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Type</label>
+                    <select value={form.serviceType} onChange={e => setForm({ ...form, serviceType: e.target.value })}
+                      className={`w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none`}>
+                      <option value="home">Home Visit</option>
+                      <option value="shop">Shop Visit</option>
+                      <option value="24x7">24x7 Emergency</option>
+                      <option value="both">Both (Home & Shop)</option>
+                    </select>
                   </div>
                 </div>
 

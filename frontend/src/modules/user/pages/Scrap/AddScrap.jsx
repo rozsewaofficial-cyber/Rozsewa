@@ -258,7 +258,7 @@ const AddScrap = () => {
                 <div onClick={() => document.getElementById('ad-camera-upload')?.click()} className="aspect-square rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   <Camera className="w-5 h-5 text-slate-400" />
                   <span className="text-[9px] font-bold text-slate-500 uppercase">Camera</span>
-                  <input id="ad-camera-upload" type="file" className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
+                  <input id="ad-camera-upload" type="file" className="hidden" accept="image/*" onChange={handleImageSelect} />
                 </div>
               )}
             </div>

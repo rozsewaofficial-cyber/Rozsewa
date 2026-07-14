@@ -25,6 +25,7 @@ const AdminNightCharge = () => {
     });
     const [categories, setCategories] = useState([]);
     const [editingCategory, setEditingCategory] = useState(null);
+    const [editValue, setEditValue] = useState('');
 
     useEffect(() => {
         setTitle("Night Charge Management");
@@ -45,6 +46,15 @@ const AdminNightCharge = () => {
     };
 
     const handleGlobalSave = async () => {
+        if (!globalConfig.startTime || !globalConfig.endTime) {
+            toast.error("Start time and End time are required");
+            return;
+        }
+        if (globalConfig.startTime === globalConfig.endTime) {
+            toast.error("Start time and End time cannot be the same");
+            return;
+        }
+
         setSaving(true);
         try {
             await API.post('/admin/night-charge/global', globalConfig);
@@ -165,31 +175,40 @@ const AdminNightCharge = () => {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Start Time</label>
-                                <div className="flex items-center gap-3 bg-slate-50/50 rounded-xl border border-slate-100 px-4 h-12 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition-all group">
-                                    <Clock className="h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none shrink-0" />
-                                    <Input
+                                <div className="flex items-center bg-slate-50/50 rounded-xl border border-slate-100 px-4 h-12 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                                    <input
                                         type="time"
                                         value={globalConfig.startTime}
                                         onChange={(e) => setGlobalConfig(prev => ({ ...prev, startTime: e.target.value }))}
-                                        className="border-0 bg-transparent h-full w-full p-0 text-sm font-black focus-visible:ring-0 shadow-none"
+                                        className="border-0 bg-transparent h-full w-full p-0 text-sm font-black focus:outline-none"
                                         style={{ colorScheme: 'light' }}
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2">
+                             <div className="space-y-2">
                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">End Time</label>
-                                <div className="flex items-center gap-3 bg-slate-50/50 rounded-xl border border-slate-100 px-4 h-12 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition-all group">
-                                    <Clock className="h-4 w-4 text-slate-400 group-focus-within:text-blue-500 transition-colors pointer-events-none shrink-0" />
-                                    <Input
+                                <div className="flex items-center bg-slate-50/50 rounded-xl border border-slate-100 px-4 h-12 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                                    <input
                                         type="time"
                                         value={globalConfig.endTime}
                                         onChange={(e) => setGlobalConfig(prev => ({ ...prev, endTime: e.target.value }))}
-                                        className="border-0 bg-transparent h-full w-full p-0 text-sm font-black focus-visible:ring-0 shadow-none"
+                                        className="border-0 bg-transparent h-full w-full p-0 text-sm font-black focus:outline-none"
                                         style={{ colorScheme: 'light' }}
                                     />
                                 </div>
                             </div>
                         </div>
+
+                        {globalConfig.startTime && globalConfig.endTime && globalConfig.endTime < globalConfig.startTime && (
+                            <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-4 text-[11px] font-semibold text-blue-700 leading-relaxed space-y-1">
+                                <p className="font-extrabold flex items-center gap-1.5 text-xs text-blue-800">
+                                    <span>🌙</span> Overnight Schedule Detected
+                                </p>
+                                <p className="opacity-90">
+                                    Since the End Time is earlier than the Start Time, the night window will automatically span across midnight (e.g., from {globalConfig.startTime} to {globalConfig.endTime} of the next day).
+                                </p>
+                            </div>
+                        )}
 
                         <div className="space-y-3 pt-2">
                             <Button
@@ -271,24 +290,37 @@ const AdminNightCharge = () => {
                                                             min="0"
                                                             max="100"
                                                             placeholder="0"
-                                                            defaultValue={cat.nightChargePercent === 0 ? '' : cat.nightChargePercent}
-                                                            onBlur={(e) => {
-                                                                const val = e.target.value === '' ? 0 : Number(e.target.value);
-                                                                handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, val)));
-                                                            }}
+                                                            value={editValue}
+                                                            onChange={(e) => setEditValue(e.target.value)}
                                                             onKeyDown={(e) => {
                                                                 if (e.key === 'Enter') {
-                                                                    e.target.blur();
+                                                                    const val = editValue === '' ? 0 : Number(editValue);
+                                                                    handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, val)));
+                                                                } else if (e.key === 'Escape') {
+                                                                    setEditingCategory(null);
                                                                 }
                                                             }}
                                                             className="h-10 rounded-lg font-black text-sm px-3 w-full"
                                                             autoFocus
                                                         />
                                                         <span className="text-xs font-black text-gray-400">%</span>
+                                                        <Button 
+                                                            size="sm" 
+                                                            onClick={() => {
+                                                                const val = editValue === '' ? 0 : Number(editValue);
+                                                                handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, val)));
+                                                            }}
+                                                            className="h-10 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                                                        >
+                                                            <Save className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
                                                 ) : (
                                                     <div
-                                                        onClick={() => setEditingCategory(cat._id)}
+                                                        onClick={() => {
+                                                            setEditingCategory(cat._id);
+                                                            setEditValue(cat.nightChargePercent === 0 ? '' : cat.nightChargePercent);
+                                                        }}
                                                         className="inline-flex items-center gap-2 px-6 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-blue-600 hover:text-white transition-all group/val min-w-[80px] justify-center"
                                                     >
                                                         <span className="text-sm font-black">{cat.nightChargePercent}</span>

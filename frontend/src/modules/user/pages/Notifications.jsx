@@ -123,7 +123,7 @@ const Notifications = () => {
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition-colors">
               <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
@@ -133,11 +133,18 @@ const Notifications = () => {
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{unreadCount} unread message{unreadCount !== 1 && "s"}</p>
             </div>
           </div>
-          {unreadCount > 0 && (
-            <button onClick={handleMarkAllAsRead} className="flex h-10 items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-900/30 px-4 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors">
-              <CheckCircle2 className="h-4 w-4" /> Mark All Read
-            </button>
-          )}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {unreadCount > 0 && (
+              <button onClick={handleMarkAllAsRead} className="flex h-9 items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-900/30 px-4 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors shrink-0">
+                <CheckCircle2 className="h-4 w-4" /> Mark Read
+              </button>
+            )}
+            {notifications.length > 0 && (
+              <button onClick={handleClearAll} className="flex h-9 items-center gap-2 rounded-full bg-rose-50 dark:bg-rose-900/30 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:bg-rose-900/40 transition-colors shrink-0">
+                <Trash2 className="h-4 w-4" /> Clear All
+              </button>
+            )}
+          </div>
         </div>
 
         {notifications.length === 0 ? (

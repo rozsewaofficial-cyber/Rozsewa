@@ -83,9 +83,13 @@ const AdminEarnings = () => {
 
     // Trigger API call when filters change
     useEffect(() => {
-        // Prevent fetching if range is custom but date values are incomplete
-        if (range === "custom" && (!startDate || !endDate)) {
-            return;
+        // Prevent fetching if range is custom but date values are incomplete or invalid
+        if (range === "custom") {
+            if (!startDate || !endDate) return;
+            const todayStr = new Date().toLocaleDateString("en-CA");
+            if (startDate > todayStr || endDate > todayStr || endDate < startDate) {
+                return;
+            }
         }
         fetchAnalytics();
     }, [fetchAnalytics, range, startDate, endDate]);

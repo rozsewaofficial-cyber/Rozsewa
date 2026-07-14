@@ -22,11 +22,11 @@ const AdminSewakIncentives = () => {
     const [config, setConfig] = useState({ threshold: 5, bonusAmount: 50 });
     const [isUpdatingConfig, setIsUpdatingConfig] = useState(false);
     const [search, setSearch] = useState('');
-    const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
+    const [dateFilter, setDateFilter] = useState(new Date().toLocaleDateString("en-CA"));
     const [selectedProvider, setSelectedProvider] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
-    const todayDate = new Date().toISOString().split('T')[0];
+    const todayDate = new Date().toLocaleDateString("en-CA");
 
     useScrollLock(!!selectedProvider);
 
@@ -184,13 +184,18 @@ const AdminSewakIncentives = () => {
                             />
                         </div>
                         <div className="relative">
-                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <Input 
                                 type="date"
                                 max={todayDate}
-                                className="pl-11 h-12 rounded-2xl border-gray-100 font-bold min-w-[180px]"
+                                className="h-12 rounded-2xl border-gray-100 font-bold min-w-[180px] px-4"
                                 value={dateFilter}
                                 onChange={(e) => setDateFilter(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = e.target.value;
+                                    if (val && val > todayDate) {
+                                        setDateFilter(todayDate);
+                                    }
+                                }}
                             />
                         </div>
                     </div>

@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import BottomNav from '@/modules/user/components/BottomNav';
 import TopNav from '@/modules/user/components/TopNav';
+import { useScrollLock } from '@/lib/scrollLock';
 
 const RojsewaBazaar = () => {
   const navigate = useNavigate();
@@ -19,6 +20,8 @@ const RojsewaBazaar = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showContact, setShowContact] = useState(false);
   const { userLocation, detectLocation } = useAuth(); // for radius calc
+
+  useScrollLock(!!selectedItem);
 
   useEffect(() => {
     fetchBazaarItems();

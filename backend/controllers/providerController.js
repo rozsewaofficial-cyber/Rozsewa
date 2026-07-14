@@ -375,6 +375,9 @@ const updateProviderProfile = async (req, res) => {
             if (req.body.availability) {
                 provider.availability = req.body.availability;
             }
+            if (req.body.is24x7 !== undefined) {
+                provider.is24x7 = req.body.is24x7;
+            }
 
             if (req.body.bankDetails) {
                 provider.bankDetails = {

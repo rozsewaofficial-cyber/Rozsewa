@@ -34,7 +34,7 @@ const AdminProviders = () => {
     const [categories, setCategories] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
 
-    const todayDate = new Date().toISOString().split('T')[0];
+    const todayDate = new Date().toLocaleDateString("en-CA");
 
     // Manual Commission & Subscription configurations states
     const [subPlans, setSubPlans] = useState([]);
@@ -413,15 +413,29 @@ const AdminProviders = () => {
                                 max={todayDate}
                                 value={fromDate}
                                 onChange={(e) => setFromDate(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = e.target.value;
+                                    if (val && val > todayDate) {
+                                        setFromDate(todayDate);
+                                    }
+                                }}
                                 className="text-xs font-bold text-gray-700 outline-none bg-transparent"
                             />
                             <span className="text-[10px] font-black uppercase text-gray-400 ml-1">To</span>
                             <input
                                 type="date"
-                                min={todayDate}
+                                min={fromDate || undefined}
                                 max={todayDate}
                                 value={toDate}
                                 onChange={(e) => setToDate(e.target.value)}
+                                onBlur={(e) => {
+                                    const val = e.target.value;
+                                    if (val && val > todayDate) {
+                                        setToDate(todayDate);
+                                    } else if (val && fromDate && val < fromDate) {
+                                        setToDate(fromDate);
+                                    }
+                                }}
                                 className="text-xs font-bold text-gray-700 outline-none bg-transparent"
                             />
                             {(fromDate || toDate) && (

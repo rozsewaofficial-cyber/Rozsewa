@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const Setting = require('../models/Setting');
 const { sendNotificationToUser } = require('../config/notificationService');
 const { validationResult } = require('express-validator');
+const { getIO } = require('../config/socket');
 
 // ========================
 // USER ACTIONS
@@ -418,6 +419,16 @@ exports.makeOffer = async (req, res) => {
       type: 'bazaar'
     }).save();
 
+    // Real-time: notify both buyer and seller immediately
+    try {
+      const io = getIO();
+      const payload = { adId: adId.toString(), offerId: offer._id.toString() };
+      io.to(`user_${buyerId}`).emit('BAZAAR_OFFER_UPDATED', payload);
+      io.to(`user_${ad.sellerId}`).emit('BAZAAR_OFFER_UPDATED', payload);
+    } catch (socketErr) {
+      console.error('Bazaar socket emit error (makeOffer):', socketErr.message);
+    }
+
     res.json({ success: true, message: 'Offer sent successfully', data: offer });
   } catch (error) {
     console.error('Make Offer Error:', error);
@@ -525,6 +536,16 @@ exports.respondToOffer = async (req, res) => {
       message: action === 'accept' ? `${isSeller ? 'Seller' : 'Buyer'} accepted the offer on "${offer.adId?.title}". Unlock contact now.` : `Seller responded to your offer on "${offer.adId?.title}"`,
       type: 'bazaar'
     }).save();
+
+    // Real-time: notify both buyer and seller immediately
+    try {
+      const io = getIO();
+      const payload = { adId: offer.adId?._id?.toString() || offer.adId?.toString(), offerId: offer._id.toString() };
+      io.to(`user_${offer.buyerId}`).emit('BAZAAR_OFFER_UPDATED', payload);
+      io.to(`user_${offer.sellerId}`).emit('BAZAAR_OFFER_UPDATED', payload);
+    } catch (socketErr) {
+      console.error('Bazaar socket emit error (respondToOffer):', socketErr.message);
+    }
 
     res.json({ success: true, message: `Offer ${action}ed successfully`, data: offer });
 

@@ -4,7 +4,7 @@ import { useScrollLock } from '@/lib/scrollLock';
 import {
     Users, Plus, Shield, Lock, Trash2, CheckCircle2, XCircle,
     ChevronRight, ChevronLeft, Save, UserPlus, Fingerprint, CreditCard, Percent, Zap,
-    MoreVertical, Mail, Phone, Calendar, Info, X, Edit3, Navigation
+    MoreVertical, Mail, Phone, Calendar, Info, X, Edit3, Navigation, Eye, EyeOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from "sonner";
@@ -37,6 +37,8 @@ const AdminSuper = () => {
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showDrawer, setShowDrawer] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const [showPassword, setShowPassword] = useState(false);
 
     useScrollLock(showCreateForm || showDrawer);
     const [editingAdminId, setEditingAdminId] = useState(null);
@@ -523,7 +525,14 @@ const AdminSuper = () => {
                                             <InputField label="Full Name"><input required value={newAdmin.name} onChange={e => setNewAdmin({ ...newAdmin, name: sanitizeNameOnChange(e.target.value) })} className={inputCls} /></InputField>
                                             <InputField label="Email Address"><input required type="email" value={newAdmin.email} onChange={e => setNewAdmin({ ...newAdmin, email: sanitizeEmail(e.target.value) })} className={inputCls} /></InputField>
                                             <InputField label="Mobile Number"><input required value={newAdmin.mobile} onChange={e => setNewAdmin({ ...newAdmin, mobile: sanitizePhone(e.target.value) })} maxLength="10" className={inputCls} /></InputField>
-                                            <InputField label={isEditing ? "Password (optional)" : "Password"}><input required={!isEditing} type="password" placeholder={isEditing ? "Leave blank to keep current" : ""} value={newAdmin.password} onChange={e => setNewAdmin({ ...newAdmin, password: e.target.value })} className={inputCls} /></InputField>
+                                            <InputField label={isEditing ? "Password (optional)" : "Password"}>
+                                                <div className="relative">
+                                                    <input required={!isEditing} type={showPassword ? "text" : "password"} placeholder={isEditing ? "Leave blank to keep current" : ""} value={newAdmin.password} onChange={e => setNewAdmin({ ...newAdmin, password: e.target.value })} className={inputCls} />
+                                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                                    </button>
+                                                </div>
+                                            </InputField>
                                         </div>
                                     </div>
                                     <div className="space-y-4">
@@ -612,7 +621,6 @@ const AdminSuper = () => {
                                 )}
                                 {selectedAdmin.role !== 'superadmin' && (
                                     <div className="pt-6 border-t border-gray-100 flex gap-3">
-                                        <button onClick={() => { setShowDrawer(false); startEditing(selectedAdmin); }} className="flex-1 h-10 rounded-xl bg-gray-100 text-gray-700 text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 transition-colors">Edit Staff</button>
                                         <button onClick={() => { setShowDrawer(false); handleDeleteAdmin(selectedAdmin._id); }} className="flex-1 h-10 rounded-xl bg-red-50 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-colors">Delete</button>
                                     </div>
                                 )}

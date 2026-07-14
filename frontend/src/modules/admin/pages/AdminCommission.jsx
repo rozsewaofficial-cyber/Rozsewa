@@ -42,6 +42,11 @@ const AdminCommission = () => {
     useScrollLock(!!rejectModal);
     const [loading, setLoading] = useState(true);
 
+    const [commissionPage, setCommissionPage] = useState(1);
+    const [settlementPage, setSettlementPage] = useState(1);
+    const [withdrawalPage, setWithdrawalPage] = useState(1);
+    const itemsPerPage = 10;
+
     useEffect(() => {
         setTitle("Commission & Settlements");
         fetchData();
@@ -55,6 +60,8 @@ const AdminCommission = () => {
             setStats(data.stats);
             setQueue(data.queue);
             setSettlements(data.settlements || []);
+            setCommissionPage(1);
+            setSettlementPage(1);
             setLoading(false);
         } catch (error) {
             toast({ title: "Error", description: "Failed to fetch commission data", variant: "destructive" });
@@ -66,6 +73,7 @@ const AdminCommission = () => {
         try {
             const { data } = await API.get('/admin/withdrawals');
             setWithdrawals(data);
+            setWithdrawalPage(1);
         } catch (error) {
             console.error('Failed to fetch withdrawals', error);
         }
@@ -90,6 +98,61 @@ const AdminCommission = () => {
 
     const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
     const inDebtProviders = settlements.filter(s => s.currentDues > 0);
+
+    const totalCommissionPages = Math.ceil(queue.length / itemsPerPage);
+    const totalSettlementPages = Math.ceil(settlements.length / itemsPerPage);
+    const totalWithdrawalPages = Math.ceil(withdrawals.length / itemsPerPage);
+
+    const paginatedQueue = queue.slice((commissionPage - 1) * itemsPerPage, commissionPage * itemsPerPage);
+    const paginatedSettlements = settlements.slice((settlementPage - 1) * itemsPerPage, settlementPage * itemsPerPage);
+    const paginatedWithdrawals = withdrawals.slice((withdrawalPage - 1) * itemsPerPage, withdrawalPage * itemsPerPage);
+
+    const renderPagination = (currentPage, totalPages, onPageChange, totalRecords) => {
+        if (totalPages <= 1) return null;
+        return (
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <span className="text-xs font-bold text-gray-500">
+                    Showing Page {currentPage} of {totalPages} ({totalRecords} total records)
+                </span>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 transition active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-sm"
+                    >
+                        Previous
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                        .map((p, index, arr) => {
+                            const isEllipsis = index > 0 && p - arr[index - 1] > 1;
+                            return (
+                                <div key={p} className="flex items-center gap-1">
+                                    {isEllipsis && <span className="text-xs text-gray-400 px-1 font-bold">...</span>}
+                                    <button
+                                        onClick={() => onPageChange(p)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 shadow-sm ${
+                                            currentPage === p
+                                                ? "bg-slate-900 text-white"
+                                                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                                        }`}
+                                    >
+                                        {p}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    <button
+                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 transition active:scale-95 disabled:opacity-50 disabled:pointer-events-none shadow-sm"
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+        );
+    };
 
     const TABS = [
         { id: 'commission', label: 'Commission Breakdown', icon: <ArrowRightLeft className="h-4 w-4" /> },
@@ -188,7 +251,7 @@ const AdminCommission = () => {
                                     <tr>
                                         <td colSpan="10" className="px-4 py-8 text-center text-gray-400">No completed bookings found.</td>
                                     </tr>
-                                ) : queue.map((row) => (
+                                ) : paginatedQueue.map((row) => (
                                     <tr key={row._id} className="hover:bg-gray-50/80 transition group">
                                         <td className="px-4 py-3">
                                             <span className="text-xs font-mono font-black text-gray-800">#{row.bookingId}</span>
@@ -257,6 +320,7 @@ const AdminCommission = () => {
                             )}
                         </table>
                     </div>
+                    {renderPagination(commissionPage, totalCommissionPages, setCommissionPage, queue.length)}
                 </div>
             )}
 
@@ -302,7 +366,7 @@ const AdminCommission = () => {
                                                 <p className="text-gray-400 font-medium">All providers are in good standing!</p>
                                             </td>
                                         </tr>
-                                    ) : settlements.map((row) => (
+                                    ) : paginatedSettlements.map((row) => (
                                         <tr key={row._id} className={`hover:bg-gray-50/80 transition group ${row.currentDues > 0 ? 'bg-rose-50/30' : ''}`}>
                                             <td className="px-4 py-3">
                                                 <div>
@@ -351,6 +415,7 @@ const AdminCommission = () => {
                                 )}
                             </table>
                         </div>
+                        {renderPagination(settlementPage, totalSettlementPages, setSettlementPage, settlements.length)}
                     </div>
                 </div>
             )}
@@ -392,7 +457,7 @@ const AdminCommission = () => {
                                                 <p className="text-gray-400 font-medium">No withdrawal requests found.</p>
                                             </td>
                                         </tr>
-                                    ) : withdrawals.map((w) => (
+                                    ) : paginatedWithdrawals.map((w) => (
                                         <tr key={w._id} className="hover:bg-gray-50/80 transition">
                                             <td className="px-4 py-3">
                                                 <span className="text-xs font-mono font-black text-gray-800">#{w._id.toString().slice(-6).toUpperCase()}</span>
@@ -456,6 +521,7 @@ const AdminCommission = () => {
                                 </tbody>
                             </table>
                         </div>
+                        {renderPagination(withdrawalPage, totalWithdrawalPages, setWithdrawalPage, withdrawals.length)}
                     </div>
                 </div>
             )}

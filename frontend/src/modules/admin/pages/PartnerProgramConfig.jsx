@@ -207,11 +207,13 @@ export default function PartnerProgramConfig() {
       ...config,
       commissionSlabs: [...config.commissionSlabs, { categoryId: '', min: 0, max: 0, rate: 0 }]
     });
+    toast({ title: 'Slab Added', description: 'A new commission slab has been added. Please fill in the details.' });
   };
 
   const removeSlab = (index) => {
     const newSlabs = config.commissionSlabs.filter((_, i) => i !== index);
     setConfig({ ...config, commissionSlabs: newSlabs });
+    toast({ title: 'Slab Removed', description: 'The commission slab has been removed.' });
   };
 
 

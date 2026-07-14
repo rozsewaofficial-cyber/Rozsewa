@@ -151,6 +151,10 @@ const CustomerLogin = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     if (!name || !email || !password || !phone) { setError("Fill all fields"); return; }
+    if (!address || address.trim().length < 8) {
+      setError("Please enter a valid detailed address (at least 8 characters).");
+      return;
+    }
     
     const nameSanitized = sanitizeName(name);
     setName(nameSanitized);

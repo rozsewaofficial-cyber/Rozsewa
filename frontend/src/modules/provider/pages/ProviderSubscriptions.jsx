@@ -9,9 +9,11 @@ import {
 import { Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 
 const ProviderSubscriptions = () => {
   const { toast } = useToast();
+  const { updateUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [activeTab, setActiveTab] = useState("compare"); // "active", "compare", "history"
@@ -72,6 +74,7 @@ const ProviderSubscriptions = () => {
       await API.post("/v2/provider/subscription/purchase", { planId: plan._id });
       toast({ title: "Subscription Active!", description: `Successfully purchased ${plan.name} plan.` });
       setPaymentModalPlan(null);
+      updateUser({ isSubscribed: true });
       await fetchData();
       setActiveTab("active");
     } catch (err) {
@@ -128,6 +131,7 @@ const ProviderSubscriptions = () => {
             });
             toast({ title: "Subscription Active!", description: `Successfully purchased ${plan.name} plan.` });
             setPaymentModalPlan(null);
+            updateUser({ isSubscribed: true });
             await fetchData();
             setActiveTab("active");
           } catch (error) {
@@ -215,7 +219,7 @@ const ProviderSubscriptions = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {plans.map((plan) => {
-                  const isCurrent = activePlan && activePlan.rate === (plan.commissionRate || plan.offeredCommissionRate);
+                  const isCurrent = activePlan && activePlan.planId === plan._id;
                   return (
                     <div 
                       key={plan._id} 
@@ -417,70 +421,69 @@ const ProviderSubscriptions = () => {
             </div>
           </div>
         )}
-        {/* Payment Method Selection Modal */}
-        {paymentModalPlan && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-[40px] bg-card p-8 border border-border shadow-2xl relative animate-in zoom-in-95 duration-200">
-              <button 
-                onClick={() => setPaymentModalPlan(null)} 
-                className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-              <h2 className="text-2xl font-black tracking-tighter mb-1 uppercase">Choose Payment Method</h2>
-              <p className="text-sm text-muted-foreground mb-8">How would you like to pay for the <strong>{paymentModalPlan.name}</strong> plan (₹{paymentModalPlan.price})?</p>
-              
-              <div className="space-y-4">
-                <button
-                  type="button"
-                  onClick={handleWalletPurchase}
-                  disabled={purchasing || isProcessingOnline}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 transition-all hover:bg-emerald-100 dark:hover:bg-emerald-900/40 active:scale-95 disabled:opacity-50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-emerald-200 dark:bg-emerald-800 flex items-center justify-center">
-                      <Wallet className="h-6 w-6 text-emerald-700 dark:text-emerald-300" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-black uppercase text-sm">Pay via Wallet</div>
-                      <div className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Available: ₹{wallet?.availableBalance || 0}</div>
-                    </div>
-                  </div>
-                  {purchasing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
-                </button>
-
-                <div className="flex items-center gap-4 py-2">
-                  <div className="flex-1 h-px bg-border"></div>
-                  <div className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">OR</div>
-                  <div className="flex-1 h-px bg-border"></div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleOnlinePurchase}
-                  disabled={purchasing || isProcessingOnline}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 disabled:opacity-50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                      <LinkIcon className="h-6 w-6 text-slate-700 dark:text-slate-300" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-black uppercase text-sm">Pay Online</div>
-                      <div className="text-[10px] font-bold opacity-80 uppercase tracking-widest">UPI, Cards, Netbanking</div>
-                    </div>
-                  </div>
-                  {isProcessingOnline ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
       </main>
       <ProviderBottomNav />
+
+      {/* Payment Method Selection Modal */}
+      {paymentModalPlan && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setPaymentModalPlan(null)}>
+          <div className="w-full max-w-md rounded-[40px] bg-card p-8 border border-border shadow-2xl relative animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setPaymentModalPlan(null)} 
+              className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h2 className="text-2xl font-black tracking-tighter mb-1 uppercase">Choose Payment Method</h2>
+            <p className="text-sm text-muted-foreground mb-8">How would you like to pay for the <strong>{paymentModalPlan.name}</strong> plan (₹{paymentModalPlan.price})?</p>
+            
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={handleWalletPurchase}
+                disabled={purchasing || isProcessingOnline}
+                className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 transition-all hover:bg-emerald-100 dark:hover:bg-emerald-900/40 active:scale-95 disabled:opacity-50"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-emerald-200 dark:bg-emerald-800 flex items-center justify-center">
+                    <Wallet className="h-6 w-6 text-emerald-700 dark:text-emerald-300" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-black uppercase text-sm">Pay via Wallet</div>
+                    <div className="text-[10px] font-bold opacity-80 uppercase tracking-widest">Available: ₹{wallet?.availableBalance || 0}</div>
+                  </div>
+                </div>
+                {purchasing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+              </button>
+
+              <div className="flex items-center gap-4 py-2">
+                <div className="flex-1 h-px bg-border"></div>
+                <div className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">OR</div>
+                <div className="flex-1 h-px bg-border"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOnlinePurchase}
+                disabled={purchasing || isProcessingOnline}
+                className="w-full flex items-center justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 disabled:opacity-50"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                    <LinkIcon className="h-6 w-6 text-slate-700 dark:text-slate-300" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-black uppercase text-sm">Pay Online</div>
+                    <div className="text-[10px] font-bold opacity-80 uppercase tracking-widest">UPI, Cards, Netbanking</div>
+                  </div>
+                </div>
+                {isProcessingOnline ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowRight className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 export default ProviderSubscriptions;

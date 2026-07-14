@@ -494,6 +494,11 @@ const createBooking = async (req, res) => {
                 if (srvLimitObj) serviceLimitOverride = Number(srvLimitObj.limit);
             }
 
+            // Bulk query all wallets at once for performance (resolves slow Send Request times)
+            const providerIds = providersToNotify.map(p => p._id);
+            const wallets = await Wallet.find({ providerId: { $in: providerIds } });
+            const walletMap = new Map(wallets.map(w => [w.providerId.toString(), w.balance]));
+
             const validProviders = [];
             for (const provider of providersToNotify) {
                 let limit = serviceLimitOverride !== null ? serviceLimitOverride : (Number(cfg.defaultLimit) || 1500);
@@ -504,14 +509,10 @@ const createBooking = async (req, res) => {
                     if (catLimitObj) limit = Number(catLimitObj.limit);
                 }
 
-                const wallet = await Wallet.findOne({ providerId: provider._id });
-                const walletBalance = wallet ? wallet.balance : 0;
+                const walletBalance = walletMap.get(provider._id.toString()) || 0;
                 if (walletBalance <= -limit) {
                     console.log(`[Debt Enforcement] Provider ${provider._id} blocked from receiving booking (Balance: ${walletBalance}, Limit: -${limit})`);
                     continue;
-                }
-                if (!wallet) {
-                    console.log(`[Wallet Check] Provider ${provider._id} has no wallet yet (treated as ₹0 balance), allowed.`);
                 }
                 validProviders.push(provider);
             }

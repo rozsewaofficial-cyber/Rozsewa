@@ -5,11 +5,13 @@ import { ArrowLeft, MessageSquare, Phone, Mail, HelpCircle, ChevronRight, Search
 import { useNavigate, useLocation } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
+import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
 const HelpSupport = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
@@ -19,8 +21,49 @@ const HelpSupport = () => {
   const [selectedPolicy, setSelectedPolicy] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFaq, setExpandedFaq] = useState(null);
+  const [isRaisingTicket, setIsRaisingTicket] = useState(false);
+  const [newTicket, setNewTicket] = useState({
+    subject: "",
+    description: "",
+    category: "general",
+    priority: "normal",
+    name: "",
+    mobile: "",
+    email: "",
+    role: "user"
+  });
 
-  useScrollLock(!!selectedPolicy);
+  useScrollLock(!!selectedPolicy || isRaisingTicket);
+
+  const handleCreateTicket = async (e) => {
+    e.preventDefault();
+    if (!newTicket.subject.trim() || !newTicket.description.trim()) {
+      toast({ title: "Validation Error", description: "Subject and Description are required.", variant: "destructive" });
+      return;
+    }
+    const token = localStorage.getItem("rozsewa_token");
+    if (!token && (!newTicket.name.trim() || !newTicket.mobile?.trim())) {
+      toast({ title: "Validation Error", description: "Name and Phone number are required for guests.", variant: "destructive" });
+      return;
+    }
+    try {
+      if (token) {
+        await API.post("/support/tickets", {
+          subject: newTicket.subject,
+          description: newTicket.description,
+          category: newTicket.category,
+          priority: newTicket.priority
+        });
+      } else {
+        await API.post("/support/public-tickets", newTicket);
+      }
+      toast({ title: "Ticket Raised ✓", description: "Our team will look into your issue shortly." });
+      setIsRaisingTicket(false);
+      setNewTicket({ subject: "", description: "", category: "general", priority: "normal", name: "", mobile: "", email: "", role: "user" });
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || "Could not create ticket. Try again later.", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     const fetchFaqs = async () => {
@@ -72,11 +115,12 @@ const HelpSupport = () => {
         </div>
 
         {/* Contact Methods */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
            {[
              { label: "WhatsApp", icon: MessageSquare, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20", action: () => window.open('https://wa.me/919999999999', '_blank') },
              { label: "Call Us", icon: Phone, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20", action: () => window.location.href = 'tel:+919999999999' },
              { label: "Email Us", icon: Mail, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-500/10 border-rose-100 dark:border-rose-500/20", action: () => window.location.href = 'mailto:support@rozsewa.in' },
+             { label: "Raise Ticket", icon: Ticket, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10 border-purple-100 dark:border-purple-500/20", action: () => setIsRaisingTicket(true) },
            ].map((opt) => (
              <motion.button 
                 key={opt.label} 
@@ -208,6 +252,139 @@ const HelpSupport = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Raise Ticket Modal */}
+      <AnimatePresence>
+        {isRaisingTicket && (
+          <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="w-full max-w-lg rounded-[40px] bg-white dark:bg-slate-900 p-8 border border-slate-200 dark:border-slate-800 shadow-2xl relative overflow-y-auto max-h-[90vh] scrollbar-hide"
+            >
+              <button onClick={() => setIsRaisingTicket(false)} className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 transition-all active:scale-95 text-slate-500 hover:text-slate-900 dark:hover:text-white"><X className="h-5 w-5" /></button>
+              <h2 className="text-2xl font-black tracking-tighter mb-1 text-left uppercase text-slate-900 dark:text-white">Support Ticket</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-8 text-left font-medium">Explain your issue and we'll resolve it ASAP.</p>
+
+              <form onSubmit={handleCreateTicket} className="space-y-4 text-left">
+                {!localStorage.getItem("rozsewa_token") && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-500 ml-1">You Are A</label>
+                        <select
+                          required
+                          value={newTicket.role}
+                          onChange={(e) => setNewTicket({ ...newTicket, role: e.target.value })}
+                          className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs appearance-none dark:text-white"
+                        >
+                          <option value="user">User / Customer</option>
+                          <option value="provider">Partner (Provider)</option>
+                          <option value="sewak">Sewak</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Full Name</label>
+                        <input
+                          required
+                          type="text"
+                          placeholder="Your Name"
+                          value={newTicket.name}
+                          onChange={(e) => setNewTicket({ ...newTicket, name: e.target.value })}
+                          className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs dark:text-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Phone Number</label>
+                        <input
+                          required
+                          type="tel"
+                          placeholder="10-digit mobile"
+                          value={newTicket.mobile}
+                          onChange={(e) => setNewTicket({ ...newTicket, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                          className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs dark:text-white"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Email (Optional)</label>
+                        <input
+                          type="email"
+                          placeholder="you@email.com"
+                          value={newTicket.email}
+                          onChange={(e) => setNewTicket({ ...newTicket, email: e.target.value })}
+                          className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Issue Category</label>
+                    <select
+                      required
+                      value={newTicket.category}
+                      onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
+                      className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs appearance-none dark:text-white"
+                    >
+                      <option value="general">General Inquiry</option>
+                      <option value="booking">Booking Issue</option>
+                      <option value="payment">Payment/Refund</option>
+                      <option value="technical">Technical Bug</option>
+                      <option value="complaint">Complaint</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Priority</label>
+                    <select
+                      required
+                      value={newTicket.priority}
+                      onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}
+                      className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs appearance-none dark:text-white"
+                    >
+                      <option value="low">Low (I can wait)</option>
+                      <option value="normal">Normal (Standard)</option>
+                      <option value="high">High (Urgent)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Subject</label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Brief summary of the issue..."
+                    value={newTicket.subject}
+                    onChange={(e) => setNewTicket({ ...newTicket, subject: e.target.value })}
+                    className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs dark:text-white"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Description</label>
+                  <textarea
+                    required
+                    placeholder="Please describe your issue in detail..."
+                    value={newTicket.description}
+                    onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })}
+                    className="w-full min-h-[120px] p-5 rounded-3xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs resize-none dark:text-white"
+                  />
+                </div>
+
+                <button type="submit" className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-1 transition-all">
+                  Submit Ticket
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <BottomNav />
     </div>
   );

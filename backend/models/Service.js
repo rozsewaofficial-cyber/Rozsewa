@@ -11,6 +11,7 @@ const serviceSchema = mongoose.Schema({
     category: { type: String, required: true },
     price: { type: Number, required: true },
     duration: { type: String, default: '30 min' },
+    serviceType: { type: String, default: 'home' }, // 'home', 'shop', '24x7', 'both'
     visible: { type: Boolean, default: true },
     image: { type: String },
     amenities: [{ type: String }],

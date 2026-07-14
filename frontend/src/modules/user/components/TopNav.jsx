@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, ChevronDown, Bell, User, Moon, Sun, Home, Store, ClipboardList, Heart } from "lucide-react";
+import { MapPin, ChevronDown, Bell, User, Moon, Sun, Home, Store, ClipboardList, Heart, Maximize2, Minimize2 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -35,6 +35,7 @@ const libraries = ['places'];
   const [mapCenter, setMapCenter] = useState({ lat: 26.8467, lng: 80.9462 });
   const [selectedCoords, setSelectedCoords] = useState(null);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
 
   const onMapClick = (e) => {
     const lat = e.latLng.lat();
@@ -352,7 +353,7 @@ const libraries = ['places'];
               </div>
 
               {isLoaded && (
-                <div className="mb-4 rounded-[16px] overflow-hidden border border-slate-200 dark:border-slate-700 h-[180px] relative shadow-inner">
+                <div className={`mb-4 rounded-[16px] overflow-hidden border border-slate-200 dark:border-slate-700 relative shadow-inner transition-all duration-300 ${isMapExpanded ? 'h-[350px] sm:h-[400px]' : 'h-[180px]'}`}>
                   <GoogleMap
                     mapContainerStyle={{ width: '100%', height: '100%' }}
                     center={selectedCoords || mapCenter}
@@ -364,7 +365,15 @@ const libraries = ['places'];
                       <MarkerF position={selectedCoords} />
                     )}
                   </GoogleMap>
-                  <div className="absolute top-2 left-2 right-2 flex justify-center pointer-events-none">
+                  <div className="absolute top-2 right-2 flex justify-center pointer-events-auto">
+                    <button 
+                      onClick={(e) => { e.preventDefault(); setIsMapExpanded(!isMapExpanded); }}
+                      className="bg-white/90 dark:bg-slate-900/90 backdrop-blur p-2 rounded-full shadow-md border border-slate-200/50 text-slate-700 dark:text-slate-300 hover:text-blue-600 transition-colors"
+                    >
+                      {isMapExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <div className="absolute top-2 left-2 flex justify-center pointer-events-none">
                     <span className="bg-white/90 dark:bg-slate-900/90 backdrop-blur text-[10px] font-bold text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-full shadow-sm border border-slate-200/50">
                       {isReverseGeocoding ? "Detecting city..." : "Tap map to set location"}
                     </span>
@@ -372,12 +381,36 @@ const libraries = ['places'];
                 </div>
               )}
 
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
                 const form = e.target;
                 const input = form.elements.manualCity.value.trim();
                 if (input) {
-                  handleCitySelect(input);
+                  const submitBtn = form.querySelector('button[type="submit"]');
+                  const originalText = submitBtn.innerText;
+                  submitBtn.innerText = "Verifying...";
+                  submitBtn.disabled = true;
+                  try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}&limit=1`);
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                      let detectedCity = input;
+                      if (data[0].name) {
+                        detectedCity = data[0].name;
+                      } else if (data[0].display_name) {
+                        detectedCity = data[0].display_name.split(',')[0];
+                      }
+                      const loc = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+                      handleCitySelect(detectedCity, loc);
+                    } else {
+                      toast({ title: "Invalid Location", description: "We couldn't find that location. Please try a valid city.", variant: "destructive" });
+                    }
+                  } catch (err) {
+                    toast({ title: "Verification Failed", description: "Could not verify the location. Try again.", variant: "destructive" });
+                  } finally {
+                    submitBtn.innerText = originalText;
+                    submitBtn.disabled = false;
+                  }
                 }
               }} className="mb-4">
                 <div className="relative">

@@ -848,6 +848,7 @@ const LiveTracking = () => {
         onClose={() => setIsChatOpen(false)}
         bookingId={bookingDetails?._id || bookingDetails?.id}
         userType="User"
+        recipientName={bookingDetails?.providerId?.shopName || bookingDetails?.providerId?.ownerName || bookingDetails?.providerId?.name}
       />
     </div>
   );

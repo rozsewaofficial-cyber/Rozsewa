@@ -26,6 +26,9 @@ const ProviderSupport = () => {
     role: "provider"
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const ticketsPerPage = 5;
+
   useScrollLock(isRaisingTicket || selectedGuide);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,8 +73,16 @@ const ProviderSupport = () => {
 
   const handleCreateTicket = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
+    if (!newTicket.subject.trim() || !newTicket.description.trim()) {
+      toast({ title: "Validation Error", description: "Subject and Description are required.", variant: "destructive" });
+      return;
+    }
     const token = getAuthProviderToken();
+    if (!token && (!newTicket.name.trim() || !newTicket.mobile?.trim())) {
+      toast({ title: "Validation Error", description: "Name and Phone number are required for guests.", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
     try {
       if (token) {
         await API.post("/support/tickets", {
@@ -175,24 +186,48 @@ const ProviderSupport = () => {
                 <p className="text-[10px] text-muted-foreground font-medium mt-1">Everything seems perfect! If you need help, raise a ticket.</p>
               </div>
             ) : (
-              tickets.map((ticket) => (
-                <div key={ticket._id} className="p-5 flex items-center justify-between hover:bg-muted/20 transition-all group">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${ticket.status === 'resolved' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                      <AlertCircle className="h-5 w-5" />
+              <>
+                {tickets.slice((currentPage - 1) * ticketsPerPage, currentPage * ticketsPerPage).map((ticket) => (
+                  <div key={ticket._id} className="p-5 flex items-center justify-between hover:bg-muted/20 transition-all group">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${ticket.status === 'resolved' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                        <AlertCircle className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-foreground truncate">{ticket.subject}</h4>
+                        <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
+                          {ticket.category.toUpperCase()} • {new Date(ticket.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-foreground truncate">{ticket.subject}</h4>
-                      <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
-                        {ticket.category.toUpperCase()} • {new Date(ticket.createdAt).toLocaleDateString()}
-                      </p>
+                    <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {ticket.status}
                     </div>
                   </div>
-                  <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {ticket.status}
+                ))}
+                
+                {Math.ceil(tickets.length / ticketsPerPage) > 1 && (
+                  <div className="p-4 flex items-center justify-center gap-4 border-t border-border">
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50 disabled:hover:bg-muted disabled:hover:text-muted-foreground transition-colors"
+                    >
+                      Prev
+                    </button>
+                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                      {currentPage} / {Math.ceil(tickets.length / ticketsPerPage)}
+                    </span>
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(tickets.length / ticketsPerPage)))}
+                      disabled={currentPage === Math.ceil(tickets.length / ticketsPerPage)}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50 disabled:hover:bg-muted disabled:hover:text-muted-foreground transition-colors"
+                    >
+                      Next
+                    </button>
                   </div>
-                </div>
-              ))
+                )}
+              </>
             )}
           </div>
         </section>

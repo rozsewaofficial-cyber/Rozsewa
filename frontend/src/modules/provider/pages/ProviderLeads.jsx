@@ -176,7 +176,17 @@ const LeadCard = ({ lead, onUnlock, onDispute }) => {
                     </p>
                     {lead.location?.coordinates?.length >= 2 && (
                       <button 
-                        onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${lead.location.coordinates[1]},${lead.location.coordinates[0]}`, "_blank")}
+                        onClick={() => {
+                          const lat = lead.location.coordinates[1];
+                          const lng = lead.location.coordinates[0];
+                          const label = encodeURIComponent(lead.requirementTitle || 'Lead Location');
+                          // Use platform-appropriate map link to avoid WebView "Not Available" errors
+                          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                          const url = isIOS
+                            ? `maps://maps.apple.com/?q=${lat},${lng}&label=${label}`
+                            : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+                          window.open(url, '_blank');
+                        }}
                         className="inline-flex items-center gap-1.5 text-[9px] font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg uppercase tracking-widest mt-1.5 hover:bg-emerald-200 transition-colors">
                         <MapPin className="h-2.5 w-2.5" /> Open in Maps
                       </button>
@@ -525,8 +535,13 @@ const ProviderLeads = () => {
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => !unlocking && setUnlockModal(null)} />
           <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl space-y-4 border border-border">
-            <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <Unlock className="h-5 w-5 text-emerald-500" /> Confirm Unlock
+            <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <Unlock className="h-5 w-5 text-emerald-500" /> Confirm Unlock
+              </span>
+              <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                #{unlockModal.leadId?.slice(-6).toUpperCase()}
+              </span>
             </h3>
             <p className="text-sm text-slate-600 dark:text-slate-400">
               You are about to unlock this lead for <strong>₹{unlockModal.price}</strong>. This will deduct from your wallet or subscription credits.
@@ -553,8 +568,13 @@ const ProviderLeads = () => {
         <div className="fixed inset-0 z-[1000] flex items-start justify-center pt-16 p-4">
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => { setDisputingLeadId(null); setDisputeError(''); }} />
           <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl space-y-4 border border-border">
-            <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-rose-500" /> Raise Refund Dispute
+            <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-rose-500" /> Raise Refund Dispute
+              </span>
+              <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                #{disputingLeadId?.slice(-6).toUpperCase()}
+              </span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Describe why this lead was invalid. False claims may restrict your account.
