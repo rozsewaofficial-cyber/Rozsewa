@@ -7,6 +7,14 @@ const bazaarCategorySchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
+  description: {
+    type: String,
+    trim: true
+  },
+  subCategories: [{
+    type: String,
+    trim: true
+  }],
   icon: {
     type: String, // Can store lucide icon name or image URL
     default: 'Package'

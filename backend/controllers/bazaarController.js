@@ -17,7 +17,7 @@ const { getIO } = require('../config/socket');
 exports.postAd = async (req, res) => {
   try {
     const { 
-      title, description, category, brand, condition, 
+      title, description, category, subCategory, brand, condition, 
       price, isNegotiable, images, location 
     } = req.body;
     
@@ -38,6 +38,7 @@ exports.postAd = async (req, res) => {
       title,
       description,
       category,
+      subCategory,
       brand,
       condition,
       price,
@@ -300,7 +301,7 @@ exports.getCategories = async (req, res) => {
 // Create a new category (Admin)
 exports.createCategory = async (req, res) => {
   try {
-    const { name, icon, order } = req.body;
+    const { name, icon, order, description, subCategories } = req.body;
     
     // Check if exists
     const existing = await BazaarCategory.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
@@ -308,7 +309,7 @@ exports.createCategory = async (req, res) => {
        return res.status(400).json({ success: false, message: 'Category already exists' });
     }
 
-    const category = new BazaarCategory({ name, icon, order });
+    const category = new BazaarCategory({ name, icon, order, description, subCategories });
     await category.save();
     
     res.status(201).json({ success: true, data: category, message: 'Category added successfully' });

@@ -25,6 +25,10 @@ const bazaarAdSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  subCategory: {
+    type: String,
+    trim: true
+  },
   brand: {
     type: String,
     trim: true
