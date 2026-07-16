@@ -26,6 +26,8 @@ const AdminBazaarPage = () => {
   const [newCatName, setNewCatName] = useState('');
   const [newCatOrder, setNewCatOrder] = useState(0);
   const [newCatIcon, setNewCatIcon] = useState(null);
+  const [newCatDescription, setNewCatDescription] = useState('');
+  const [newCatSubCategory, setNewCatSubCategory] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   
   useScrollLock(!!editingAd);
@@ -248,12 +250,21 @@ const AdminBazaarPage = () => {
         }
       }
 
-      const res = await api.post('/bazaar/admin/categories', { name: newCatName, order: newCatOrder, icon: iconUrl });
+      const subCategoriesArray = newCatSubCategory.split(',').map(s => s.trim()).filter(Boolean);
+      const res = await api.post('/bazaar/admin/categories', { 
+        name: newCatName, 
+        order: newCatOrder, 
+        icon: iconUrl,
+        description: newCatDescription,
+        subCategories: subCategoriesArray
+      });
       if (res.data.success) {
         toast({ title: 'Category added' });
         setNewCatName('');
         setNewCatOrder(0);
         setNewCatIcon(null);
+        setNewCatDescription('');
+        setNewCatSubCategory('');
         fetchCategories();
       }
     } catch (err) {
@@ -501,6 +512,26 @@ const AdminBazaarPage = () => {
                   value={newCatOrder}
                   onChange={e => setNewCatOrder(e.target.value)}
                   className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Category Description (Optional)</label>
+                <textarea
+                  value={newCatDescription}
+                  onChange={e => setNewCatDescription(e.target.value)}
+                  className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Enter a brief description for this category"
+                  rows="2"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Sub Categories (Optional)</label>
+                <input
+                  type="text"
+                  value={newCatSubCategory}
+                  onChange={e => setNewCatSubCategory(e.target.value)}
+                  className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="e.g. Smartphones, Accessories (Comma separated)"
                 />
               </div>
               <button

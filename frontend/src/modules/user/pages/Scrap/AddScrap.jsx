@@ -270,10 +270,35 @@ const AddScrap = () => {
             
             <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Category</label>
-                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} onFocus={handleFocus} required>
+                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500" value={formData.category} onChange={e => {
+                  setFormData({ ...formData, category: e.target.value, subCategory: '' });
+                }} onFocus={handleFocus} required>
                   {categories.map((c, i) => <option key={i} value={c.name}>{c.name}</option>)}
                 </select>
+                {(() => {
+                  const selectedCat = categories.find(c => c.name === formData.category);
+                  if (selectedCat && selectedCat.description) {
+                    return <p className="text-[11px] text-slate-500 mt-1.5 px-1">{selectedCat.description}</p>;
+                  }
+                  return null;
+                })()}
               </div>
+
+            {(() => {
+              const selectedCat = categories.find(c => c.name === formData.category);
+              if (selectedCat && selectedCat.subCategories && selectedCat.subCategories.length > 0) {
+                return (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Sub Category</label>
+                    <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500" value={formData.subCategory} onChange={e => setFormData({ ...formData, subCategory: e.target.value })} onFocus={handleFocus} required>
+                      <option value="">Select Sub Category</option>
+                      {selectedCat.subCategories.map((sub, i) => <option key={i} value={sub}>{sub}</option>)}
+                    </select>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ad Title</label>
