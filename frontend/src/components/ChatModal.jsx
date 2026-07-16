@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, User, ChevronRight, Check } from 'lucide-react';
 import API from '@/lib/api';
@@ -6,7 +7,7 @@ import { useSocket } from '@/context/SocketContext';
 import AuthContext from '@/context/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 
-const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
+const ChatModal = ({ isOpen, onClose, bookingId, userType, recipientName }) => {
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState('');
     const [loading, setLoading] = useState(true);
@@ -18,6 +19,18 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
         if (bookingId) setActiveBookingId(bookingId);
     }, [bookingId]);
 
+    // Lock body scroll when modal is open
+    useEffect(() => {
+        if (isOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [isOpen]);
+
     const messagesEndRef = useRef(null);
     const { socket } = useSocket();
     const { user, provider } = useContext(AuthContext);
@@ -25,6 +38,18 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
 
     const currentUser = userType === 'Provider' ? provider : user;
     const currentUserId = currentUser?._id;
+
+    // Extract recipient name from messages if not passed
+    let derivedRecipientName = recipientName;
+    if (!derivedRecipientName && messages.length > 0) {
+        const otherMsg = messages.find(m => {
+            const senderIdStr = m.senderId?._id ? m.senderId._id.toString() : m.senderId?.toString();
+            return senderIdStr && senderIdStr !== currentUserId?.toString();
+        });
+        if (otherMsg) {
+            derivedRecipientName = otherMsg.senderName || otherMsg.senderId?.shopName || otherMsg.senderId?.ownerName || otherMsg.senderId?.name;
+        }
+    }
 
     // Fetch initial messages
     useEffect(() => {
@@ -105,14 +130,15 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
 
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <AnimatePresence>
             <motion.div 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
                 exit={{ opacity: 0 }}
-                className="fixed top-0 left-0 right-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4"
+                className="fixed top-0 left-0 right-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4"
                 style={{ height: 'var(--visual-viewport-height, 100dvh)' }}
+                onClick={onClose}
             >
                 <motion.div 
                     initial={{ y: "100%" }} 
@@ -120,6 +146,7 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                     exit={{ y: "100%" }}
                     transition={{ type: "spring", bounce: 0, duration: 0.4 }}
                     className="flex w-full h-full max-h-[85dvh] sm:h-[600px] sm:max-w-md flex-col overflow-hidden rounded-t-[32px] sm:rounded-[32px] bg-white dark:bg-slate-900 shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4">
@@ -128,7 +155,7 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                                 <User className="h-5 w-5" />
                             </div>
                             <div>
-                                <h3 className="text-[15px] font-black text-slate-900 dark:text-white">Chat with {userType === 'Provider' ? 'Customer' : 'Provider'}</h3>
+                                <h3 className="text-[15px] font-black text-slate-900 dark:text-white">Chat with {derivedRecipientName || (userType === 'Provider' ? 'Customer' : 'Provider')}</h3>
                                 <p className="text-[11px] font-bold text-emerald-500 flex items-center gap-1">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Online
                                 </p>
@@ -234,7 +261,8 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType }) => {
                     </div>
                 </motion.div>
             </motion.div>
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 };
 

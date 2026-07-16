@@ -8,6 +8,7 @@ import {
   Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Upload, Image as ImageIcon, ChevronRight, X, Building2,
   Layers, Sparkles, Map, Heart, Smartphone, Lock, Eye, EyeOff
 } from "lucide-react";
+import logoImg from "@/assets/RozSewa.png";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
@@ -697,7 +698,7 @@ const ProviderRegister = () => {
       <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
 
-      <div className="w-full max-w-xl space-y-6 my-auto">
+      <div className="w-full max-w-xl space-y-6 my-8 md:my-auto">
         <div className="text-center space-y-4">
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -705,7 +706,7 @@ const ProviderRegister = () => {
             className="mx-auto flex h-20 w-40 items-center justify-center rounded-[24px] bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
           >
             <img
-              src="/RozSewa.png"
+              src={logoImg}
               alt="RozSewa Logo"
               className="h-full w-full object-contain"
             />
@@ -1118,7 +1119,7 @@ const ProviderRegister = () => {
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Aadhaar</label>
                         {!verificationStatus.aadhaar && (
-                          <button type="button" onClick={handleInitiateOKYC} disabled={verifying.aadhaar || aadhaarSessionId !== ""} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                          <button type="button" onClick={handleInitiateOKYC} disabled={verifying.aadhaar || formData.kycAadhaar.length !== 12 || aadhaarSessionId !== ""} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
                             {verifying.aadhaar ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send Aadhaar OTP"}
                           </button>
                         )}
@@ -1152,13 +1153,13 @@ const ProviderRegister = () => {
                       <div className="flex items-center justify-between ml-1">
                         <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">PAN Number</label>
                         {!verificationStatus.pan && (
-                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || formData.kycPanNumber.length < 10} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
                             {verifying.pan ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify PAN"}
                           </button>
                         )}
                         {verificationStatus.pan && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
                       </div>
-                      <input maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
+                      <input maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
                     </div>
                   </div>
 
@@ -1259,7 +1260,7 @@ const ProviderRegister = () => {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       {['kycAadhaarPhoto', 'kycAadhaarBackPhoto', 'kycPanPhoto'].map(type => (
                         <label key={type} className={`relative group flex flex-col items-center justify-center h-24 rounded-lg border-2 border-dashed transition-all cursor-pointer overflow-hidden ${formData[type] ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50 hover:border-emerald-200'}`}>
-                          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFileUpload(e, type)} />
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, type)} />
                           {formData[type] ? (
                             <img src={formData[type]} className="h-full w-full object-cover" />
                           ) : (

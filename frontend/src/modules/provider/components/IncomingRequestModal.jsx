@@ -26,7 +26,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
     const [counterAmount, setCounterAmount] = useState('');
     const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
-    const extraChargesAmount = request.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+    const extraChargesAmount = (request.extraCharges || []).filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
     const totalFixedPrice = request.originalFixedPrice || request.amount || 0;
     const totalCustomerOffer = request.customerOffer || request.amount || 0;
     const baseCustomerOffer = Math.max(0, totalCustomerOffer - extraChargesAmount);

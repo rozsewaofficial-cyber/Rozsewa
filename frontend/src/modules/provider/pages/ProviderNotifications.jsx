@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
-import { Bell, CheckCircle, Info, AlertTriangle, Loader2 } from "lucide-react";
+import { Bell, CheckCircle, Info, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -42,6 +42,27 @@ const ProviderNotifications = () => {
       toast({ title: "All notifications marked as read" });
     } catch (err) {
       toast({ title: "Failed to mark notifications", variant: "destructive" });
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      await API.delete("/notifications");
+      setNotifications([]);
+      toast({ title: "All notifications cleared" });
+    } catch (err) {
+      toast({ title: "Failed to clear notifications", variant: "destructive" });
+    }
+  };
+
+  const deleteNotification = async (id, e) => {
+    e.stopPropagation();
+    try {
+      await API.delete(`/notifications/${id}`);
+      setNotifications(prev => prev.filter(n => (n._id || n.id) !== id));
+      toast({ title: "Notification deleted" });
+    } catch (err) {
+      toast({ title: "Failed to delete notification", variant: "destructive" });
     }
   };
 
@@ -89,16 +110,23 @@ const ProviderNotifications = () => {
     <div className="min-h-[100dvh] bg-background pb-20 md:pb-8">
       <ProviderTopNav />
       <main className="container max-w-4xl px-0 sm:px-4 py-4 md:py-8">
-        <div className="px-4 sm:px-0 mb-4 md:mb-6 flex justify-between items-end">
+        <div className="px-4 sm:px-0 mb-4 md:mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-end items-start gap-4 sm:gap-0">
           <div>
             <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground">Notifications</h1>
             <p className="text-xs md:text-sm text-muted-foreground mt-1">Stay updated with your business activities.</p>
           </div>
-          {hasUnread && (
-            <button onClick={markAllRead} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
-              Mark all read
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-4">
+            {hasUnread && (
+              <button onClick={markAllRead} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                Mark all read
+              </button>
+            )}
+            {notifications.length > 0 && (
+              <button onClick={clearAllNotifications} className="text-xs font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1.5">
+                <Trash2 className="h-3.5 w-3.5" /> Clear All
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -115,7 +143,7 @@ const ProviderNotifications = () => {
             {notifications.map(n => (
               <div key={n._id || n.id} 
                 onClick={() => handleNotificationClick(n)}
-                className={`p-4 md:p-6 flex gap-4 hover:bg-muted/20 transition-colors cursor-pointer ${!n.isRead ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : ''}`}
+                className={`group p-4 md:p-6 flex gap-4 hover:bg-muted/20 transition-colors cursor-pointer ${!n.isRead ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : ''}`}
               >
                 <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${n.type === 'success' ? 'bg-emerald-50' : n.type === 'warning' ? 'bg-amber-50' : 'bg-blue-50'}`}>
                   {getIcon(n.type)}
@@ -130,6 +158,13 @@ const ProviderNotifications = () => {
                   </div>
                   <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">{n.desc || n.message}</p>
                 </div>
+                <button 
+                  onClick={(e) => deleteNotification(n._id || n.id, e)} 
+                  className="shrink-0 self-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-2 text-muted-foreground hover:text-rose-500 hover:bg-rose-50 rounded-full"
+                  title="Delete Notification"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>

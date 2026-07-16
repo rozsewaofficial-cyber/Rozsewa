@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import BottomNav from '@/modules/user/components/BottomNav';
 import TopNav from '@/modules/user/components/TopNav';
+import { useScrollLock } from '@/lib/scrollLock';
 
 const RojsewaBazaar = () => {
   const navigate = useNavigate();
@@ -19,6 +20,8 @@ const RojsewaBazaar = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showContact, setShowContact] = useState(false);
   const { userLocation, detectLocation } = useAuth(); // for radius calc
+
+  useScrollLock(!!selectedItem);
 
   useEffect(() => {
     fetchBazaarItems();
@@ -89,7 +92,7 @@ const RojsewaBazaar = () => {
         <div className="relative z-10 max-w-2xl mx-auto">
           <div className="flex items-center gap-3 mb-4">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/')}
               className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />

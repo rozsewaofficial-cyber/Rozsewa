@@ -47,6 +47,7 @@ const ProviderDocuments = () => {
 
   const [activeDocType, setActiveDocType] = useState(null);
   const [previewVideoModal, setPreviewVideoModal] = useState(null);
+  const [previewDocModal, setPreviewDocModal] = useState(null);
 
   // Video Recorder State
   const [recorderOpen, setRecorderOpen] = useState(false);
@@ -65,6 +66,7 @@ const ProviderDocuments = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [docNumberInput, setDocNumberInput] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [aadhaarSessionId, setAadhaarSessionId] = useState("");
@@ -72,7 +74,7 @@ const ProviderDocuments = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [dobInput, setDobInput] = useState("");
 
-  useScrollLock(isModalOpen || recorderOpen || !!previewVideoModal);
+  useScrollLock(isModalOpen || recorderOpen || !!previewVideoModal || !!previewDocModal);
 
   useEffect(() => {
     fetchProfile();
@@ -91,6 +93,7 @@ const ProviderDocuments = () => {
 
   const handleUploadClick = (docId) => {
     setActiveDocType(docId);
+    setSelectedFile(null);
     if (docId === 'aadhaar') {
       setDocNumberInput(provider?.kycAadhaar || "");
       setIsVerified(provider?.kycAadhaar ? true : false);
@@ -253,9 +256,13 @@ const ProviderDocuments = () => {
     setIsModalOpen(false);
 
     try {
-      const { data } = await API.post("/provider/documents", {
-        docId: activeDocType,
-        docNumber: docNumberInput
+      const formData = new FormData();
+      formData.append("docId", activeDocType);
+      formData.append("docNumber", docNumberInput);
+      if (selectedFile) formData.append("document", selectedFile);
+
+      const { data } = await API.post("/provider/documents", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
       });
 
       // Update local state
@@ -276,6 +283,7 @@ const ProviderDocuments = () => {
       setUploading(null);
       setActiveDocType(null);
       setDocNumberInput("");
+      setSelectedFile(null);
     }
   };
 
@@ -566,9 +574,19 @@ const ProviderDocuments = () => {
                   <input
                     type="text"
                     value={docNumberInput}
-                    onChange={(e) => { setDocNumberInput(e.target.value); setIsVerified(false); }}
-                    placeholder="e.g. 123456789012"
+                    onChange={(e) => { 
+                      let val = e.target.value;
+                      if (activeDocType === 'pan') {
+                        val = val.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+                      } else if (activeDocType === 'aadhaar') {
+                        val = val.replace(/\D/g, '').slice(0, 12);
+                      }
+                      setDocNumberInput(val); 
+                      setIsVerified(false); 
+                    }}
+                    placeholder={activeDocType === 'pan' ? "e.g. ABCDE1234F" : "e.g. 123456789012"}
                     className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    style={{ textTransform: activeDocType === 'pan' ? 'uppercase' : 'none' }}
                   />
 
                   {activeDocType === 'license' && (
@@ -584,7 +602,7 @@ const ProviderDocuments = () => {
                   )}
 
                   {activeDocType === 'pan' && !isVerified && (
-                    <button onClick={handleVerifyPAN} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                    <button onClick={handleVerifyPAN} disabled={isVerifying || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(docNumberInput)} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
                       {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                       {isVerifying ? "Verifying..." : "Verify PAN API"}
                     </button>
@@ -608,7 +626,7 @@ const ProviderDocuments = () => {
                     </button>
                   )}
                   {activeDocType === 'aadhaar' && !isVerified && !otpSent && (
-                    <button onClick={handleInitiateOKYC} disabled={isVerifying || !docNumberInput} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
+                    <button onClick={handleInitiateOKYC} disabled={isVerifying || docNumberInput.length !== 12} className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-100 text-emerald-700 px-4 py-3 text-sm font-black uppercase tracking-widest hover:bg-emerald-200 disabled:opacity-50">
                       {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                       {isVerifying ? "Sending..." : "Send Aadhaar OTP"}
                     </button>
@@ -628,11 +646,21 @@ const ProviderDocuments = () => {
                       <CheckCircle2 className="h-4 w-4" /> API Verification Complete
                     </div>
                   )}
+
+                  <div className="mt-4 border-t border-border pt-4">
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2 block">Upload Photo Proof (Required)</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setSelectedFile(e.target.files[0])}
+                      className="w-full text-sm font-medium file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 file:transition-colors file:cursor-pointer cursor-pointer border border-border rounded-xl bg-background"
+                    />
+                  </div>
                 </div>
 
                 <button
                   onClick={handleSubmitDocument}
-                  disabled={!docNumberInput || (['aadhaar', 'pan', 'gst', 'police', 'license'].includes(activeDocType) && !isVerified)}
+                  disabled={!docNumberInput || (['aadhaar', 'pan', 'gst', 'police', 'license'].includes(activeDocType) && !isVerified) || !selectedFile}
                   className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-black uppercase tracking-widest text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ShieldCheck className="h-4 w-4" /> Save Details
@@ -645,7 +673,7 @@ const ProviderDocuments = () => {
 
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/provider/dashboard')}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted shrink-0 shadow-sm">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>
@@ -776,7 +804,16 @@ const ProviderDocuments = () => {
                       </div>
                     </div>
 
-                    <div className="shrink-0 self-end sm:self-auto">
+                    <div className="shrink-0 self-end sm:self-auto flex items-center gap-2">
+                      {uploaded?.url && (
+                        <button
+                          onClick={() => setPreviewDocModal(uploaded.url)}
+                          className="flex items-center justify-center h-9 w-9 rounded-xl bg-muted text-foreground hover:bg-muted/80 transition-colors shadow-sm"
+                          title="View Document"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      )}
                       {isUploading ? (
                         <div className="p-2"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
                       ) : !isVerified ? (
@@ -1040,16 +1077,43 @@ const ProviderDocuments = () => {
                   <XCircle className="h-5 w-5" />
                 </button>
               </div>
-              <div className="p-6 bg-slate-50 flex items-center justify-center">
+              <div className="p-6 bg-slate-50 flex items-center justify-center rounded-b-[2rem]">
                 <video src={previewVideoModal} controls autoPlay className="w-full max-h-[50vh] rounded-2xl shadow-lg border border-slate-200" />
               </div>
-              <div className="p-6 text-center bg-white">
-                <button
-                  onClick={() => setPreviewVideoModal(null)}
-                  className="px-8 py-3 bg-slate-900 text-white font-bold rounded-xl text-xs uppercase tracking-widest h-12"
-                >
-                  Close Preview
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Document Preview Modal */}
+      <AnimatePresence>
+        {previewDocModal && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="absolute inset-0" onClick={() => setPreviewDocModal(null)} />
+            <div className="relative w-full max-w-xl bg-white rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                <div className="text-left">
+                  <h3 className="text-lg font-black text-slate-900">Document Preview</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Uploaded File</p>
+                </div>
+                <button onClick={() => setPreviewDocModal(null)} className="h-8 w-8 flex items-center justify-center rounded-xl bg-slate-100 text-slate-400 hover:bg-slate-200 transition-colors">
+                  <XCircle className="h-5 w-5" />
                 </button>
+              </div>
+              <div className="p-6 bg-slate-50 flex items-center justify-center rounded-b-[2rem] min-h-[300px]">
+                {previewDocModal === 'API_Verified' ? (
+                  <div className="flex flex-col items-center justify-center space-y-4 text-slate-500">
+                    <div className="h-16 w-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                      <ShieldCheck className="h-8 w-8" />
+                    </div>
+                    <div className="text-center">
+                      <h4 className="font-black text-slate-800 text-sm">Automatically Verified</h4>
+                      <p className="text-xs font-medium text-slate-500 max-w-xs mt-1">This document was verified instantly using your provided ID number. No physical file is available for preview.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <img src={previewDocModal} alt="Document Preview" className="w-full max-h-[60vh] object-contain rounded shadow-sm border border-slate-200" />
+                )}
               </div>
             </div>
           </div>

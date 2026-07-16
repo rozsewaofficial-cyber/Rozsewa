@@ -78,12 +78,12 @@ const AdminDashboard = () => {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                    { label: "Total Users", value: stats.totalUsers.toLocaleString(), icon: Users, cls: "text-blue-700 bg-blue-50 border-blue-200" },
-                    { label: "Total Providers", value: stats.totalProviders.toLocaleString(), icon: UserCheck, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-                    { label: "Active Bookings", value: stats.activeBookings.toLocaleString(), icon: CalendarDays, cls: "text-amber-700 bg-amber-50 border-amber-200" },
-                    { label: "Daily Revenue", value: `₹${stats.revenue.toLocaleString()}`, icon: IndianRupee, cls: "text-indigo-700 bg-indigo-50 border-indigo-200" },
+                    { label: "Total Users", link: "/admin/users", value: stats.totalUsers.toLocaleString(), icon: Users, cls: "text-blue-700 bg-blue-50 border-blue-200" },
+                    { label: "Total Providers", link: "/admin/providers", value: stats.totalProviders.toLocaleString(), icon: UserCheck, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+                    { label: "Active Bookings", link: "/admin/bookings", value: stats.activeBookings.toLocaleString(), icon: CalendarDays, cls: "text-amber-700 bg-amber-50 border-amber-200" },
+                    { label: "Daily Revenue", link: "/admin/finance", value: `₹${stats.revenue.toLocaleString()}`, icon: IndianRupee, cls: "text-indigo-700 bg-indigo-50 border-indigo-200" },
                 ].map((s, i) => (
-                    <div key={i} className={`rounded-xl border p-4 ${s.cls} shadow-sm transition-all hover:-translate-y-1`}>
+                    <Link to={s.link} key={i} className={`block rounded-xl border p-4 ${s.cls} shadow-sm transition-all hover:-translate-y-1 hover:shadow-md cursor-pointer`}>
                         <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-1.5">
                                 <s.icon className="h-4 w-4 opacity-70" />
@@ -92,7 +92,7 @@ const AdminDashboard = () => {
                             <TrendingUp className="h-3 w-3 opacity-50" />
                         </div>
                         <h3 className="text-2xl font-black">{s.value}</h3>
-                    </div>
+                    </Link>
                 ))}
             </div>
 

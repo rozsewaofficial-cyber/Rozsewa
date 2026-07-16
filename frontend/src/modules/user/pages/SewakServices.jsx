@@ -18,7 +18,38 @@ const SewakServices = () => {
   const [combosList, setCombosList] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const [cart, setCart] = useState({});
+  const [cart, setCart] = useState(() => {
+    try {
+      const category = new URLSearchParams(window.location.search).get("category");
+      const savedCart = localStorage.getItem(`rozsewa_cart_sewak_${category}`);
+      if (savedCart) return JSON.parse(savedCart);
+    } catch {}
+    try {
+      const category = new URLSearchParams(window.location.search).get("category");
+      const checkoutData = localStorage.getItem("rozsewa_checkout_data");
+      if (checkoutData) {
+        const parsed = JSON.parse(checkoutData);
+        if (parsed.category === category && parsed.items) {
+          const initialCart = {};
+          parsed.items.forEach(item => {
+            initialCart[item.id] = item.qty;
+          });
+          return initialCart;
+        }
+      }
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    if (categoryName) {
+      if (Object.keys(cart).length > 0) {
+        localStorage.setItem(`rozsewa_cart_sewak_${categoryName}`, JSON.stringify(cart));
+      } else {
+        localStorage.removeItem(`rozsewa_cart_sewak_${categoryName}`);
+      }
+    }
+  }, [cart, categoryName]);
 
   const fetchData = useCallback(async () => {
     if (!categoryName) return navigate("/");
@@ -124,7 +155,7 @@ const SewakServices = () => {
       <div className="relative pt-6 pb-10 px-5 sm:px-8 bg-gradient-to-b from-blue-50 to-slate-50 dark:from-slate-900 dark:to-slate-950 shadow-sm mb-6 rounded-b-[3rem]">
         <div className="max-w-3xl mx-auto flex flex-col gap-6">
           <div className="flex items-center gap-4">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
               <ArrowLeft className="h-5 w-5" />
             </motion.button>
             <div>
@@ -144,7 +175,7 @@ const SewakServices = () => {
         </div>
       </div>
 
-      <main className="container max-w-3xl px-4 sm:px-6 py-2 space-y-6">
+      <main className="container max-w-3xl px-4 sm:px-6 pt-2 pb-36 space-y-6">
 
         {/* Combos Section */}
         {combosList.length > 0 && (

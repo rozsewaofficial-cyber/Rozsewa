@@ -148,7 +148,8 @@ const providerSchema = mongoose.Schema({
     },
     isSubscribed: {
         type: Boolean,
-        default: false
+        default: false,
+        set: v => (v === 'undefined' ? false : v)
     },
     subscriptionExpiry: {
         type: Date,

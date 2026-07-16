@@ -10,15 +10,48 @@ import { useAuth } from "@/context/AuthContext";
 import TopNav from "@/modules/user/components/TopNav";
 import API from "@/lib/api";
 
+const CustomDatePicker = ({ value, onChange, min, className, placeholder = "Select Date" }) => {
+  const formatDisplayDate = (dateStr) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return dateStr;
+  };
+
+  return (
+    <div className="relative w-full">
+      {/* Visual Display Input */}
+      <div className={`w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-900 dark:text-slate-100 flex items-center justify-between pointer-events-none ${className}`}>
+        <span className={value ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}>
+          {value ? formatDisplayDate(value) : placeholder}
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+      {/* Invisible Native Input */}
+      <input
+        type="date"
+        value={value || ''}
+        min={min}
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+      />
+    </div>
+  );
+};
+
 // ─── Indian States ─────────────────────────────────────────────────────────────
 const STATES = [
-  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh",
-  "Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka",
-  "Kerala","Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram",
-  "Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
-  "Tripura","Uttar Pradesh","Uttarakhand","West Bengal",
-  "Andaman & Nicobar","Chandigarh","Dadra & Nagar Haveli","Daman & Diu",
-  "Delhi","Jammu & Kashmir","Ladakh","Lakshadweep","Puducherry"
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana",
+  "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman & Nicobar", "Chandigarh", "Dadra & Nagar Haveli", "Daman & Diu",
+  "Delhi", "Jammu & Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
 ];
 
 const STATE_CITIES = {
@@ -108,17 +141,17 @@ const evaluateVisibility = (rules, values) => {
     const depVal = values[rule.dependsOnFieldId];
     let matches = false;
     switch (rule.operator) {
-      case 'equals':       matches = String(depVal) === String(rule.value); break;
-      case 'not_equals':   matches = String(depVal) !== String(rule.value); break;
-      case 'contains':     matches = String(depVal || '').includes(String(rule.value)); break;
+      case 'equals': matches = String(depVal) === String(rule.value); break;
+      case 'not_equals': matches = String(depVal) !== String(rule.value); break;
+      case 'contains': matches = String(depVal || '').includes(String(rule.value)); break;
       case 'not_contains': matches = !String(depVal || '').includes(String(rule.value)); break;
-      case 'gt':           matches = Number(depVal) > Number(rule.value); break;
-      case 'lt':           matches = Number(depVal) < Number(rule.value); break;
-      case 'gte':          matches = Number(depVal) >= Number(rule.value); break;
-      case 'lte':          matches = Number(depVal) <= Number(rule.value); break;
-      case 'is_empty':     matches = !depVal || depVal === ''; break;
+      case 'gt': matches = Number(depVal) > Number(rule.value); break;
+      case 'lt': matches = Number(depVal) < Number(rule.value); break;
+      case 'gte': matches = Number(depVal) >= Number(rule.value); break;
+      case 'lte': matches = Number(depVal) <= Number(rule.value); break;
+      case 'is_empty': matches = !depVal || depVal === ''; break;
       case 'is_not_empty': matches = !!depVal && depVal !== ''; break;
-      default:             matches = true;
+      default: matches = true;
     }
     return rule.action === 'show' ? matches : !matches;
   });
@@ -126,10 +159,10 @@ const evaluateVisibility = (rules, values) => {
 
 // ─── Field Renderer ───────────────────────────────────────────────────────────
 const FieldRenderer = ({ field, value, onChange }) => {
-  const base = "w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all text-slate-900 placeholder-slate-400";
+  const base = "w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none transition-all text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500";
 
   switch (field.type) {
-    case 'text':    case 'email': case 'phone': case 'url':
+    case 'text': case 'email': case 'phone': case 'url':
       return <input type={field.type === 'phone' ? 'tel' : field.type === 'currency' ? 'number' : field.type} className={base} placeholder={field.placeholder} value={value || ''} onChange={e => onChange(e.target.value)} />;
 
     case 'textarea':
@@ -138,7 +171,7 @@ const FieldRenderer = ({ field, value, onChange }) => {
     case 'number': case 'currency':
       return (
         <div className="relative">
-          {field.type === 'currency' && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">₹</span>}
+          {field.type === 'currency' && <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-bold">₹</span>}
           <input type="number" className={`${base} ${field.type === 'currency' ? 'pl-8' : ''}`} placeholder={field.placeholder} value={value || ''} onChange={e => onChange(e.target.value)} />
         </div>
       );
@@ -155,9 +188,9 @@ const FieldRenderer = ({ field, value, onChange }) => {
       return (
         <div className="space-y-2">
           {(field.options || []).map(o => (
-            <label key={o.value} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-violet-400 transition-colors">
+            <label key={o.value} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl cursor-pointer hover:border-violet-400 dark:hover:border-violet-600 transition-colors">
               <input type="radio" name={field.id} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} className="accent-violet-600" />
-              <span className="text-sm font-medium text-slate-800">{o.label}</span>
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{o.label}</span>
             </label>
           ))}
         </div>
@@ -166,10 +199,10 @@ const FieldRenderer = ({ field, value, onChange }) => {
     case 'checkbox': case 'boolean':
       return (
         <label className="flex items-center gap-3 cursor-pointer">
-          <div className={`relative w-12 h-6 rounded-full transition-colors ${value ? 'bg-violet-600' : 'bg-slate-200'}`} onClick={() => onChange(!value)}>
+          <div className={`relative w-12 h-6 rounded-full transition-colors ${value ? 'bg-violet-600' : 'bg-slate-200 dark:bg-slate-800'}`} onClick={() => onChange(!value)}>
             <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${value ? 'left-7' : 'left-1'}`} />
           </div>
-          <span className="text-sm font-medium text-slate-700">{value ? 'Yes' : 'No'}</span>
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{value ? 'Yes' : 'No'}</span>
         </label>
       );
 
@@ -180,11 +213,11 @@ const FieldRenderer = ({ field, value, onChange }) => {
           {(field.options || []).map(o => {
             const checked = selected.includes(o.value);
             return (
-              <label key={o.value} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${checked ? 'border-violet-500 bg-violet-50' : 'border-slate-200 bg-white hover:border-violet-300'}`}>
-                <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${checked ? 'bg-violet-600 border-violet-600' : 'border-slate-300'}`}>
+              <label key={o.value} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${checked ? 'border-violet-500 bg-violet-50 dark:bg-violet-950/20' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:border-violet-300 dark:hover:border-violet-700'}`}>
+                <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-all ${checked ? 'bg-violet-600 border-violet-600' : 'border-slate-300 dark:border-slate-700'}`}>
                   {checked && <CheckCircle2 className="w-3 h-3 text-white" />}
                 </div>
-                <span className="text-sm font-medium text-slate-800">{o.label}</span>
+                <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{o.label}</span>
                 <input type="checkbox" checked={checked} className="sr-only" onChange={e => {
                   const newVal = e.target.checked ? [...selected, o.value] : selected.filter(v => v !== o.value);
                   onChange(newVal);
@@ -196,7 +229,7 @@ const FieldRenderer = ({ field, value, onChange }) => {
       );
 
     case 'date':
-      return <input type="date" className={base} value={value || ''} onChange={e => onChange(e.target.value)} min={new Date().toISOString().split('T')[0]} />;
+      return <CustomDatePicker value={value || ''} onChange={onChange} min={new Date().toISOString().split('T')[0]} />;
 
     case 'time':
       const handleTimeChange = (e) => {
@@ -225,7 +258,7 @@ const FieldRenderer = ({ field, value, onChange }) => {
     case 'gps':
       return (
         <div className="flex gap-2 items-center">
-          <div className={`flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-600`}>
+          <div className={`flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300`}>
             {value ? `${value.lat?.toFixed(5)}, ${value.lng?.toFixed(5)}` : 'No location captured'}
           </div>
           <button type="button" onClick={() => {
@@ -300,9 +333,9 @@ const SectionRenderer = ({ section, formValues, onFieldChange, renderField }) =>
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const LeadRequirementForm = () => {
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const { user }  = useAuth();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
 
   const isAdmin = user && ['admin', 'superadmin', 'supervisor'].includes(user.role);
@@ -310,36 +343,41 @@ const LeadRequirementForm = () => {
   const initialCategoryId = searchParams.get("category") || "";
 
   // State values
-  const [categories, setCategories]   = useState([]);
+  const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(initialCategoryId);
-  const [selectedServiceId, setSelectedServiceId]   = useState("");
-  const [loading, setLoading]       = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [submitted, setSubmitted]     = useState(false);
-  const [draftId, setDraftId]         = useState(null);
-  const draftTimer                   = useRef(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [draftId, setDraftId] = useState(null);
+  const draftTimer = useRef(null);
 
   // Clear service ID when category changes
   useEffect(() => {
     setSelectedServiceId("");
   }, [selectedCategoryId]);
 
+  // Scroll to top on mount or when category/service changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [selectedCategoryId, selectedServiceId]);
+
   // Form schema
-  const [formSchema, setFormSchema]   = useState(null);
+  const [formSchema, setFormSchema] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(true);
-  const [formId, setFormId]           = useState(null);
+  const [formId, setFormId] = useState(null);
   const [formVersion, setFormVersion] = useState(null);
 
   // Core Form Fields
   const [requirementTitle, setRequirementTitle] = useState('');
-  const [requirementDesc,  setRequirementDesc]  = useState('');
-  const [dynamicValues, setDynamicValues]       = useState({});
-  const [preferredDate,  setPreferredDate]      = useState('');
-  const [preferredTime,  setPreferredTime]      = useState('');
-  const [selectedHour, setSelectedHour]         = useState('');
-  const [selectedMin, setSelectedMin]           = useState('');
-  const [isDateFlexible, setIsDateFlexible]     = useState(false);
-  const [isTimeFlexible, setIsTimeFlexible]     = useState(false);
+  const [requirementDesc, setRequirementDesc] = useState('');
+  const [dynamicValues, setDynamicValues] = useState({});
+  const [preferredDate, setPreferredDate] = useState('');
+  const [preferredTime, setPreferredTime] = useState('');
+  const [selectedHour, setSelectedHour] = useState('');
+  const [selectedMin, setSelectedMin] = useState('');
+  const [isDateFlexible, setIsDateFlexible] = useState(false);
+  const [isTimeFlexible, setIsTimeFlexible] = useState(false);
 
   // Synchronize Hour & Minute select with preferredTime state
   useEffect(() => {
@@ -376,16 +414,16 @@ const LeadRequirementForm = () => {
   }, [preferredDate, selectedHour, selectedMin]);
 
   // Location Fields
-  const [coordinates,    setCoordinates]    = useState(null);
-  const [gettingGPS,     setGettingGPS]     = useState(false);
+  const [coordinates, setCoordinates] = useState(null);
+  const [gettingGPS, setGettingGPS] = useState(false);
   const [locationDetail, setLocationDetail] = useState({
     houseNo: '', apartment: '', street: '', landmark: '', area: '', city: '', state: '', pincode: ''
   });
 
   // Contact Details
-  const [contactName,  setContactName]  = useState(user?.name  || '');
+  const [contactName, setContactName] = useState(user?.name || '');
   const [contactPhone, setContactPhone] = useState(user?.mobile || '');
-  const [contactEmail, setContactEmail] = useState(user?.email  || '');
+  const [contactEmail, setContactEmail] = useState(user?.email || '');
 
   const renderField = (field, suffix = '') => {
     const fieldId = suffix ? `${field.id}__${suffix}` : field.id;
@@ -397,9 +435,9 @@ const LeadRequirementForm = () => {
             <input
               type="text" required={false} value={requirementTitle} onChange={e => setRequirementTitle(e.target.value)}
               placeholder={field.placeholder || "e.g. Need plumber for bathroom leakage repair"}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all"
+              className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all"
             />
-            <p className="text-[9px] text-slate-400 text-right">{requirementTitle.length} chars (min 10)</p>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 text-right">{requirementTitle.length} chars (min 10)</p>
           </div>
         );
       case 'requirementDesc':
@@ -408,15 +446,17 @@ const LeadRequirementForm = () => {
             <textarea
               rows={4} required={false} value={requirementDesc} onChange={e => setRequirementDesc(e.target.value)}
               placeholder={field.placeholder || "Please describe details of the work required..."}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all resize-none"
+              className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all resize-none"
             />
-            <p className="text-[9px] text-slate-400 text-right">{requirementDesc.length} chars (min 15)</p>
+            <p className="text-[9px] text-slate-400 dark:text-slate-500 text-right">{requirementDesc.length} chars (min 15)</p>
           </div>
         );
 
       case 'preferredDate':
         return (
-          <input type="date" value={preferredDate} onChange={e => setPreferredDate(e.target.value)}
+          <CustomDatePicker
+            value={preferredDate}
+            onChange={setPreferredDate}
             min={(() => {
               const today = new Date();
               const yyyy = today.getFullYear();
@@ -424,7 +464,7 @@ const LeadRequirementForm = () => {
               const dd = String(today.getDate()).padStart(2, '0');
               return `${yyyy}-${mm}-${dd}`;
             })()}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900" />
+          />
         );
       case 'preferredTime':
         const todayStr = (() => {
@@ -440,7 +480,7 @@ const LeadRequirementForm = () => {
               required={field.required}
               value={selectedHour}
               onChange={e => setSelectedHour(e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 transition-all"
+              className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 transition-all"
             >
               <option value="">Hour</option>
               {Array.from({ length: 24 }).map((_, i) => {
@@ -461,7 +501,7 @@ const LeadRequirementForm = () => {
               required={field.required}
               value={selectedMin}
               onChange={e => setSelectedMin(e.target.value)}
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 transition-all"
+              className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 transition-all"
             >
               <option value="">Min</option>
               {['00', '15', '30', '45'].map(m => {
@@ -484,7 +524,7 @@ const LeadRequirementForm = () => {
       case 'state':
         return (
           <select required={field.required} value={locationDetail.state} onChange={e => setLocationDetail(prev => ({ ...prev, state: e.target.value }))}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900">
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100">
             <option value="">Select State</option>
             {STATES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -493,8 +533,12 @@ const LeadRequirementForm = () => {
         return (
           <div className="relative w-full">
             <input type="text" required={field.required} value={locationDetail.city} placeholder={field.placeholder || "e.g. Noida"}
-              list="city-suggestions"
-              onChange={e => setLocationDetail(prev => ({ ...prev, city: e.target.value.replace(/[^\p{L}\p{M}\s]/gu, '') }))}
+              onChange={e => {
+                setLocationDetail(prev => ({ ...prev, city: e.target.value.replace(/[^\p{L}\p{M}\s]/gu, '') }));
+                document.getElementById('city-dropdown')?.classList.remove('hidden');
+              }}
+              onFocus={() => document.getElementById('city-dropdown')?.classList.remove('hidden')}
+              onBlur={() => setTimeout(() => document.getElementById('city-dropdown')?.classList.add('hidden'), 200)}
               onKeyDown={(e) => {
                 if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
                   e.preventDefault();
@@ -502,12 +546,20 @@ const LeadRequirementForm = () => {
               }}
               pattern="^[\p{L}\p{M}\s]+$"
               title="City should not accept special characters and numbers"
-              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 placeholder-slate-400 transition-all" />
-            <datalist id="city-suggestions">
-              {(STATE_CITIES[locationDetail.state] || []).map(city => (
-                <option key={city} value={city} />
-              ))}
-            </datalist>
+              className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all" />
+
+            <div id="city-dropdown" className="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg max-h-40 overflow-y-auto top-full left-0">
+              {(STATE_CITIES[locationDetail.state] || [])
+                .filter(c => c.toLowerCase().includes((locationDetail.city || '').toLowerCase()))
+                .map(city => (
+                  <div key={city} onClick={() => setLocationDetail(prev => ({ ...prev, city }))} className="px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 text-sm border-b border-slate-100 dark:border-slate-800 last:border-0 font-medium text-slate-700 dark:text-slate-300">
+                    {city}
+                  </div>
+                ))}
+              {(STATE_CITIES[locationDetail.state] || []).filter(c => c.toLowerCase().includes((locationDetail.city || '').toLowerCase())).length === 0 && (
+                <div className="px-4 py-3 text-sm text-slate-400 dark:text-slate-500 text-center">No matches found</div>
+              )}
+            </div>
           </div>
         );
 
@@ -522,7 +574,7 @@ const LeadRequirementForm = () => {
             }}
             pattern="^[\p{L}\p{N}\s,.-]*$"
             title="Special characters are not allowed"
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
       case 'apartment':
         return (
@@ -535,7 +587,7 @@ const LeadRequirementForm = () => {
             }}
             pattern="^[\p{L}\p{N}\s,.-]*$"
             title="Special characters are not allowed"
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
       case 'street':
         return (
@@ -548,7 +600,7 @@ const LeadRequirementForm = () => {
             }}
             pattern="^[\p{L}\p{N}\s,.-]*$"
             title="Special characters are not allowed"
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
       case 'landmark':
         return (
@@ -561,11 +613,11 @@ const LeadRequirementForm = () => {
             }}
             pattern="^[\p{L}\p{N}\s,.-]*$"
             title="Special characters are not allowed"
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
       case 'pincode':
         return (
-          <input type="text" required={field.required} value={locationDetail.pincode || ''} placeholder={field.placeholder || "e.g. 201301"}
+          <input type="text" inputMode="numeric" required={field.required} value={locationDetail.pincode || ''} placeholder={field.placeholder || "e.g. 201301"}
             maxLength={6}
             onChange={e => setLocationDetail(prev => ({ ...prev, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
             onKeyDown={(e) => {
@@ -575,12 +627,12 @@ const LeadRequirementForm = () => {
             }}
             pattern="[0-9]{6}"
             title="Pincode must be exactly 6 digits"
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
 
       case 'contactName':
         return (
-          <input type="text" required={field.required} value={contactName} 
+          <input type="text" required={field.required} value={contactName}
             onChange={e => setContactName(e.target.value.replace(/[^\p{L}\p{M}\s]/gu, ''))}
             onKeyDown={(e) => {
               if (/[^a-zA-Z\s]/.test(e.key) && e.key.length === 1) {
@@ -589,17 +641,17 @@ const LeadRequirementForm = () => {
             }}
             pattern="^[\p{L}\p{M}\s]+$"
             title="Contact name should not accept special characters and numbers"
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
       case 'contactPhone':
         return (
           <input type="tel" required={field.required} value={contactPhone} onChange={e => setContactPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
             placeholder={field.placeholder || "10-digit mobile number"}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
       case 'contactEmail':
         return (
-          <input type="email" required={field.required} value={contactEmail} 
+          <input type="email" required={field.required} value={contactEmail}
             onChange={e => setContactEmail(e.target.value.toLowerCase())}
             onKeyDown={(e) => {
               if (/[A-Z]/.test(e.key) && e.key.length === 1) {
@@ -608,7 +660,7 @@ const LeadRequirementForm = () => {
             }}
             pattern="^[^A-Z]*$"
             title="Email address should not contain capital letters"
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 transition-all" />
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none text-slate-900 dark:text-slate-100 transition-all" />
         );
 
       default:
@@ -643,7 +695,7 @@ const LeadRequirementForm = () => {
     fetchCategories();
   }, []);
 
-  // ── Fetch Schema ─────────────────────────────────────────────────────────────
+  // ── Fetch Schema & Restore Draft ─────────────────────────────────────────────
   useEffect(() => {
     const fetchSchema = async () => {
       if (!selectedCategoryId) {
@@ -662,11 +714,76 @@ const LeadRequirementForm = () => {
         setFormId(data.formId);
         setFormVersion(data.formVersion);
         setDynamicValues({});
-        
+
         // Restore draft if any for this category
-        const cachedDraft = localStorage.getItem(`lead_draft_id_${selectedCategoryId}`);
-        setDraftId(cachedDraft || null);
-        console.log(`[LeadRequirementForm] Restored draft ID: ${cachedDraft || 'none'}`);
+        const urlDraftId = searchParams.get('draftId');
+        let activeDraftId = null;
+        if (urlDraftId) {
+          activeDraftId = urlDraftId;
+          setDraftId(urlDraftId);
+          console.log(`[LeadRequirementForm] Using draft ID from URL: ${urlDraftId}`);
+        } else {
+          const cachedDraft = localStorage.getItem(`lead_draft_id_${selectedCategoryId}`);
+          activeDraftId = cachedDraft || null;
+          setDraftId(activeDraftId);
+          console.log(`[LeadRequirementForm] Restored draft ID from cache: ${cachedDraft || 'none'}`);
+        }
+
+        if (activeDraftId) {
+          try {
+            console.log(`[LeadRequirementForm] Fetching draft details for: ${activeDraftId}`);
+            const draftRes = await API.get(`/leads/${activeDraftId}`);
+            const draftData = draftRes.data;
+            if (draftData.requirementTitle) setRequirementTitle(draftData.requirementTitle);
+            if (draftData.requirementDesc) setRequirementDesc(draftData.requirementDesc);
+            if (draftData.locationDetail) {
+              setLocationDetail({
+                houseNo: draftData.locationDetail.houseNo || '',
+                apartment: draftData.locationDetail.apartment || '',
+                street: draftData.locationDetail.street || '',
+                landmark: draftData.locationDetail.landmark || '',
+                area: draftData.locationDetail.area || '',
+                city: draftData.locationDetail.city || '',
+                state: draftData.locationDetail.state || '',
+                pincode: draftData.locationDetail.pincode || ''
+              });
+            }
+            if (draftData.dynamicAnswers && draftData.dynamicAnswers.length > 0) {
+              const mapped = {};
+              draftData.dynamicAnswers.forEach(ans => { mapped[ans.fieldId] = ans.value; });
+              setDynamicValues(mapped);
+            }
+            if (draftData.preferredDate) {
+              setPreferredDate(new Date(draftData.preferredDate).toISOString().split('T')[0]);
+            }
+            if (draftData.preferredTime) {
+              setPreferredTime(draftData.preferredTime);
+              const [h, m] = draftData.preferredTime.split(':');
+              setSelectedHour(h || '');
+              setSelectedMin(m || '');
+            }
+          } catch (draftErr) {
+            console.error("[LeadRequirementForm] Failed to fetch draft details:", draftErr);
+          }
+        } else {
+          // Reset form fields to empty since there is no active draft for this category
+          setRequirementTitle('');
+          setRequirementDesc('');
+          setLocationDetail({
+            houseNo: '',
+            apartment: '',
+            street: '',
+            landmark: '',
+            area: '',
+            city: '',
+            state: '',
+            pincode: ''
+          });
+          setPreferredDate('');
+          setPreferredTime('');
+          setSelectedHour('');
+          setSelectedMin('');
+        }
       } catch (err) {
         console.error("[LeadRequirementForm] Failed to fetch form schema:", err);
         setFormSchema({ sections: [] });
@@ -691,7 +808,7 @@ const LeadRequirementForm = () => {
   // ── Contact auto-fill ────────────────────────────────────────────────────────
   useEffect(() => {
     if (user) {
-      setContactName(user.name  || '');
+      setContactName(user.name || '');
       setContactPhone(user.mobile || user.phone || '');
       setContactEmail(user.email || '');
     }
@@ -794,8 +911,8 @@ const LeadRequirementForm = () => {
       if (data.status === 'OK' && data.results?.[0]) {
         const components = data.results[0].address_components;
         const parsed = parseGeocodeAddress(components);
-        
-        const matchedState = STATES.find(s => 
+
+        const matchedState = STATES.find(s =>
           s.toLowerCase().replace(/[^a-z]/g, '') === parsed.state.toLowerCase().replace(/[^a-z]/g, '')
         ) || '';
 
@@ -823,13 +940,13 @@ const LeadRequirementForm = () => {
   const captureGPS = () => {
     setGettingGPS(true);
     navigator.geolocation?.getCurrentPosition(
-      pos => { 
-        setCoordinates([pos.coords.longitude, pos.coords.latitude]); 
-        setGettingGPS(false); 
+      pos => {
+        setCoordinates([pos.coords.longitude, pos.coords.latitude]);
+        setGettingGPS(false);
       },
-      () => { 
-        toast({ title: 'GPS Location unavailable', variant: 'destructive' }); 
-        setGettingGPS(false); 
+      () => {
+        toast({ title: 'GPS Location unavailable', variant: 'destructive' });
+        setGettingGPS(false);
       }
     );
   };
@@ -870,11 +987,14 @@ const LeadRequirementForm = () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // SUCCESS SCREEN
   // ═══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SUCCESS SCREEN
+  // ═══════════════════════════════════════════════════════════════════════════
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-emerald-50 flex flex-col">
-        <div className="px-4 py-4 border-b border-white/60 bg-white/80 backdrop-blur-md sticky top-0 z-50 flex items-center gap-3">
-          <h1 className="text-base font-black text-slate-900">Request Submitted</h1>
+      <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-emerald-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex flex-col">
+        <div className="px-4 py-4 border-b border-white/60 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 flex items-center gap-3">
+          <h1 className="text-base font-black text-slate-900 dark:text-white">Request Submitted</h1>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto space-y-6 animate-in fade-in duration-500">
           <div className="relative">
@@ -885,13 +1005,13 @@ const LeadRequirementForm = () => {
           </div>
 
           <div className="space-y-3">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Submitted Successfully</h2>
-            <div className="bg-white/80 backdrop-blur border border-slate-100 rounded-2xl p-5 text-left space-y-2.5 shadow-sm">
-              <p className="text-sm text-slate-600 leading-relaxed">Your request has been submitted successfully.</p>
-              <p className="text-sm text-slate-600 leading-relaxed">Nearby verified providers will review your request and contact you directly if interested.</p>
-              <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
-                <p className="text-xs text-slate-500 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-violet-500" /> No booking has been created</p>
-                <p className="text-xs text-slate-500 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-violet-500" /> No payment is required</p>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Submitted Successfully</h2>
+            <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-100 dark:border-slate-800 rounded-2xl p-5 text-left space-y-2.5 shadow-sm">
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Your request has been submitted successfully.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">Nearby verified providers will review your request and contact you directly if interested.</p>
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-violet-500" /> No booking has been created</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-violet-500" /> No payment is required</p>
               </div>
             </div>
           </div>
@@ -902,7 +1022,7 @@ const LeadRequirementForm = () => {
               View My Requests
             </button>
             <button onClick={() => navigate('/home')}
-              className="w-full py-4 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-2xl hover:bg-slate-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+              className="w-full py-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-bold text-sm rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
               <Home className="h-4 w-4" /> Go Home
             </button>
           </div>
@@ -915,21 +1035,21 @@ const LeadRequirementForm = () => {
   // SINGLE PAGE FORM
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B1120] pb-28">
       {/* Top Header */}
-      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm">
+      <div className="sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 shadow-sm">
         <div className="px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors shrink-0">
-            <ArrowLeft className="h-4 w-4 text-slate-700" />
+          <button onClick={() => navigate(-1)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shrink-0">
+            <ArrowLeft className="h-4 w-4 text-slate-700 dark:text-slate-300" />
           </button>
           <div className="flex-1 min-w-0 text-left">
             <p className="text-[9px] font-black uppercase tracking-widest text-violet-600 flex items-center gap-1">
               <Sparkles className="h-3 w-3" /> Lead-Based Request
             </p>
-            <h1 className="text-sm font-black text-slate-900 truncate">Create Request</h1>
+            <h1 className="text-sm font-black text-slate-900 dark:text-white truncate">Create Request</h1>
           </div>
           {savingDraft && (
-            <div className="flex items-center gap-1 text-[9px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+            <div className="flex items-center gap-1 text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest shrink-0">
               <Loader2 className="h-3 w-3 animate-spin text-violet-500" /> Auto-Saving
             </div>
           )}
@@ -939,13 +1059,13 @@ const LeadRequirementForm = () => {
       <form onSubmit={handleSubmit} className="max-w-xl mx-auto px-4 py-6 space-y-6">
 
         {/* 1. Category */}
-        <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm space-y-2 text-left">
-          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Service Category *</label>
+        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-2 text-left">
+          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Service Category *</label>
           <select
             required
             value={selectedCategoryId}
             onChange={e => setSelectedCategoryId(e.target.value)}
-            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 transition-all"
+            className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 transition-all"
           >
             <option value="">— Select a Service Category —</option>
             {categories.map(cat => (
@@ -958,13 +1078,13 @@ const LeadRequirementForm = () => {
             const selectedCategory = categories.find(c => c._id === selectedCategoryId);
             if (!selectedCategory?.services?.length) return null;
             return (
-              <div className="space-y-2 mt-4 pt-4 border-t border-slate-100">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Specific Service *</label>
+              <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Select Specific Service *</label>
                 <select
                   required
                   value={selectedServiceId}
                   onChange={e => setSelectedServiceId(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 transition-all"
+                  className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 transition-all"
                 >
                   <option value="">— Select a Specific Service —</option>
                   {selectedCategory.services.map(srv => (
@@ -978,17 +1098,17 @@ const LeadRequirementForm = () => {
 
         {/* Render sections dynamically (either custom published form schema or the default fallback layout) */}
         {(formSchema?.sections?.length > 0 ? formSchema.sections : getDefaultSections()).map(section => (
-          <div key={section.id} className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5 text-left animate-in fade-in duration-300">
-            <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
+          <div key={section.id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-5 text-left animate-in fade-in duration-300">
+            <div className="flex items-center gap-2 border-b border-slate-50 dark:border-slate-800 pb-3">
               {section.id === 'sec_requirement' ? <FileText className="h-4.5 w-4.5 text-violet-600" /> :
-               section.id === 'sec_datetime' ? <Calendar className="h-4.5 w-4.5 text-violet-600" /> :
-               section.id === 'sec_statecity' || section.id === 'sec_address' ? <MapPin className="h-4.5 w-4.5 text-violet-600" /> :
-               section.id === 'sec_contact' ? <User className="h-4.5 w-4.5 text-violet-600" /> :
-               <Sparkles className="h-4.5 w-4.5 text-violet-600" />}
-              <h2 className="text-xs font-black uppercase tracking-widest text-slate-900">{section.title}</h2>
+                section.id === 'sec_datetime' ? <Calendar className="h-4.5 w-4.5 text-violet-600" /> :
+                  section.id === 'sec_statecity' || section.id === 'sec_address' ? <MapPin className="h-4.5 w-4.5 text-violet-600" /> :
+                    section.id === 'sec_contact' ? <User className="h-4.5 w-4.5 text-violet-600" /> :
+                      <Sparkles className="h-4.5 w-4.5 text-violet-600" />}
+              <h2 className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">{section.title}</h2>
             </div>
             {section.description && (
-              <p className="text-xs text-slate-400 font-medium -mt-2 leading-relaxed">{section.description}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 font-medium -mt-2 leading-relaxed">{section.description}</p>
             )}
 
             <SectionRenderer
@@ -1000,9 +1120,9 @@ const LeadRequirementForm = () => {
 
             {/* GPS Map capture specifically embedded inside the Address Details section layout */}
             {section.id === 'sec_address' && (
-              <div className="pt-2 border-t border-slate-100/50 space-y-4">
+              <div className="pt-2 border-t border-slate-100/50 dark:border-slate-800/50 space-y-4">
                 <button type="button" onClick={captureGPS} disabled={gettingGPS}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-2xl border border-slate-200 transition-all active:scale-[0.98] disabled:opacity-60">
+                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs rounded-2xl border border-slate-200 dark:border-slate-700 transition-all active:scale-[0.98] disabled:opacity-60">
                   {gettingGPS ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4 text-violet-600" />}
                   {gettingGPS ? 'Capturing GPS Location...' : coordinates ? '✓ GPS Location Captured' : 'Lock GPS Location *'}
                 </button>
@@ -1010,7 +1130,7 @@ const LeadRequirementForm = () => {
                 {coordinates && (
                   <iframe
                     title="map-frame"
-                    className="w-full h-36 rounded-2xl border border-slate-200"
+                    className="w-full h-36 rounded-2xl border border-slate-200 dark:border-slate-800"
                     src={`https://maps.google.com/maps?q=${coordinates[1]},${coordinates[0]}&z=15&output=embed`}
                     loading="lazy"
                   />
@@ -1019,9 +1139,9 @@ const LeadRequirementForm = () => {
             )}
 
             {section.id === 'sec_contact' && (
-              <div className="p-4 bg-violet-50/50 border border-violet-100 rounded-2xl flex items-start gap-2.5 mt-3">
+              <div className="p-4 bg-violet-50/50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/50 rounded-2xl flex items-start gap-2.5 mt-3">
                 <Shield className="h-4.5 w-4.5 text-violet-600 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-violet-800 font-medium leading-relaxed">
+                <p className="text-[11px] text-violet-800 dark:text-violet-300 font-medium leading-relaxed">
                   Your contact details and exact address remain completely masked. They are only revealed to verified providers who unlock your request.
                 </p>
               </div>
@@ -1044,7 +1164,7 @@ const LeadRequirementForm = () => {
         <button
           type="button"
           onClick={() => {
-            const query = selectedCategoryId 
+            const query = selectedCategoryId
               ? `?category=${selectedCategoryId}${selectedServiceId ? `&service=${selectedServiceId}` : ''}`
               : '';
             navigate(`/admin/lead-forms${query}`);
@@ -1060,3 +1180,5 @@ const LeadRequirementForm = () => {
 };
 
 export default LeadRequirementForm;
+
+

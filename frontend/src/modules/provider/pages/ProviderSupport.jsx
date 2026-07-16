@@ -12,11 +12,13 @@ const ProviderSupport = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
+  const [guides, setGuides] = useState([]);
+  const [selectedGuide, setSelectedGuide] = useState(null);
   const [isRaisingTicket, setIsRaisingTicket] = useState(false);
-  const [newTicket, setNewTicket] = useState({ 
-    subject: "", 
-    category: "payment", 
-    priority: "low", 
+  const [newTicket, setNewTicket] = useState({
+    subject: "",
+    category: "payment",
+    priority: "low",
     description: "",
     name: "",
     mobile: "",
@@ -24,7 +26,10 @@ const ProviderSupport = () => {
     role: "provider"
   });
 
-  useScrollLock(isRaisingTicket);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ticketsPerPage = 5;
+
+  useScrollLock(isRaisingTicket || selectedGuide);
   const [submitting, setSubmitting] = useState(false);
 
   const getAuthProviderToken = () => {
@@ -43,7 +48,17 @@ const ProviderSupport = () => {
     } else {
       setLoading(false);
     }
+    fetchGuides();
   }, []);
+
+  const fetchGuides = async () => {
+    try {
+      const { data } = await API.get("/guides");
+      setGuides(data);
+    } catch (err) {
+      console.error("Failed to load guides");
+    }
+  };
 
   const fetchTickets = async () => {
     try {
@@ -58,8 +73,16 @@ const ProviderSupport = () => {
 
   const handleCreateTicket = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
+    if (!newTicket.subject.trim() || !newTicket.description.trim()) {
+      toast({ title: "Validation Error", description: "Subject and Description are required.", variant: "destructive" });
+      return;
+    }
     const token = getAuthProviderToken();
+    if (!token && (!newTicket.name.trim() || !newTicket.mobile?.trim())) {
+      toast({ title: "Validation Error", description: "Name and Phone number are required for guests.", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
     try {
       if (token) {
         await API.post("/support/tickets", {
@@ -73,10 +96,10 @@ const ProviderSupport = () => {
       }
       toast({ title: "Ticket Raised ✓", description: "Our team will look into your issue shortly." });
       setIsRaisingTicket(false);
-      setNewTicket({ 
-        subject: "", 
-        description: "", 
-        category: "other", 
+      setNewTicket({
+        subject: "",
+        description: "",
+        category: "other",
         priority: "low",
         name: "",
         mobile: "",
@@ -106,7 +129,7 @@ const ProviderSupport = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-emerald-200 transition-all text-left group">
+          <button onClick={() => toast({ title: 'Live Chat Support', description: 'Connecting you to our next available executive. Please wait...', duration: 4000 })} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-emerald-200 transition-all text-left group">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 mr-4 group-hover:scale-110 transition-all">
               <MessageSquare className="h-7 w-7" />
             </div>
@@ -116,7 +139,7 @@ const ProviderSupport = () => {
             </div>
           </button>
 
-          <button className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left group">
+          <button onClick={() => toast({ title: 'Call Requested', description: 'Our support team will call you back within 2-4 hours.', duration: 5000 })} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left group">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 mr-4 group-hover:scale-110 transition-all">
               <PhoneCall className="h-7 w-7" />
             </div>
@@ -163,24 +186,48 @@ const ProviderSupport = () => {
                 <p className="text-[10px] text-muted-foreground font-medium mt-1">Everything seems perfect! If you need help, raise a ticket.</p>
               </div>
             ) : (
-              tickets.map((ticket) => (
-                <div key={ticket._id} className="p-5 flex items-center justify-between hover:bg-muted/20 transition-all group">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${ticket.status === 'resolved' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                      <AlertCircle className="h-5 w-5" />
+              <>
+                {tickets.slice((currentPage - 1) * ticketsPerPage, currentPage * ticketsPerPage).map((ticket) => (
+                  <div key={ticket._id} className="p-5 flex items-center justify-between hover:bg-muted/20 transition-all group">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${ticket.status === 'resolved' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                        <AlertCircle className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-foreground truncate">{ticket.subject}</h4>
+                        <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
+                          {ticket.category.toUpperCase()} • {new Date(ticket.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-foreground truncate">{ticket.subject}</h4>
-                      <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
-                        {ticket.category.toUpperCase()} • {new Date(ticket.createdAt).toLocaleDateString()}
-                      </p>
+                    <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {ticket.status}
                     </div>
                   </div>
-                  <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {ticket.status}
+                ))}
+                
+                {Math.ceil(tickets.length / ticketsPerPage) > 1 && (
+                  <div className="p-4 flex items-center justify-center gap-4 border-t border-border">
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50 disabled:hover:bg-muted disabled:hover:text-muted-foreground transition-colors"
+                    >
+                      Prev
+                    </button>
+                    <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                      {currentPage} / {Math.ceil(tickets.length / ticketsPerPage)}
+                    </span>
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(tickets.length / ticketsPerPage)))}
+                      disabled={currentPage === Math.ceil(tickets.length / ticketsPerPage)}
+                      className="px-4 py-2 text-xs font-bold rounded-xl bg-muted text-muted-foreground hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-50 disabled:hover:bg-muted disabled:hover:text-muted-foreground transition-colors"
+                    >
+                      Next
+                    </button>
                   </div>
-                </div>
-              ))
+                )}
+              </>
             )}
           </div>
         </section>
@@ -189,16 +236,14 @@ const ProviderSupport = () => {
         <section>
           <h3 className="text-[10px] font-black tracking-[0.3em] uppercase text-muted-foreground mb-4 text-left">Resources</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { t: "Shop Visit Mastery", c: "Marketing" },
-              { t: "Payout Cycle Logic", c: "Finance" },
-              { t: "Staff Allocation", c: "Operations" }
-            ].map((art, i) => (
-              <div key={i} className="flex flex-col rounded-[24px] border border-border bg-card p-5 hover:border-emerald-500/30 transition-all cursor-pointer group shadow-sm text-left">
-                <span className="text-[8px] font-black uppercase text-emerald-600 mb-2 tracking-widest">{art.c}</span>
-                <h4 className="text-xs font-bold leading-tight mb-4 text-foreground flex-1">{art.t}</h4>
+            {guides.length === 0 ? (
+              <div onClick={() => toast({ title: 'Resources', description: 'Training materials and guides will be available soon.', duration: 3000 })} className="col-span-1 sm:col-span-3 p-6 text-center text-sm text-gray-500 border border-dashed rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">No Guides Available.</div>
+            ) : guides.map((art) => (
+              <div key={art._id} onClick={() => setSelectedGuide(art)} className="flex flex-col rounded-[24px] border border-border bg-card p-5 hover:border-emerald-500/30 transition-all cursor-pointer group shadow-sm text-left">
+                <span className="text-[8px] font-black uppercase text-emerald-600 mb-2 tracking-widest">{art.category}</span>
+                <h4 className="text-xs font-bold leading-tight mb-4 text-foreground flex-1">{art.title}</h4>
                 <div className="flex items-center text-[9px] font-black uppercase text-muted-foreground group-hover:text-emerald-600 transition-colors">
-                  Read Guide <ChevronRight className="h-3 w-3 ml-1" />
+                  {art.readTime} <ChevronRight className="h-3 w-3 ml-1" />
                 </div>
               </div>
             ))}
@@ -206,10 +251,10 @@ const ProviderSupport = () => {
         </section>
       </main>
 
-      {/* Raise Ticket Modal */}
+      {/* Modals */}
       <AnimatePresence>
         {isRaisingTicket && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -256,7 +301,7 @@ const ProviderSupport = () => {
                           type="tel"
                           pattern="[0-9]{10}"
                           value={newTicket.mobile}
-                          onChange={(e) => setNewTicket({ ...newTicket, mobile: e.target.value.replace(/\D/g, '').slice(0,10) })}
+                          onChange={(e) => setNewTicket({ ...newTicket, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                           placeholder="10-digit number"
                           className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 outline-none font-bold text-xs"
                         />
@@ -336,6 +381,44 @@ const ProviderSupport = () => {
               </form>
             </motion.div>
           </div>
+        )}
+
+        {/* Guide Reader Modal */}
+        {selectedGuide && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setSelectedGuide(null)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+              className="flex w-full h-[90dvh] sm:h-[80vh] sm:max-w-2xl flex-col overflow-hidden rounded-[32px] bg-white dark:bg-slate-900 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-5 sticky top-0 z-10">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white pr-4 leading-tight">{selectedGuide.title}</h3>
+                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mt-1">{selectedGuide.category} • {selectedGuide.readTime}</p>
+                </div>
+                <button onClick={() => setSelectedGuide(null)} className="rounded-full p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 transition-colors self-start shrink-0">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-4 bg-slate-50 dark:bg-slate-900/50">
+                <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-headings:font-black prose-emerald">
+                  {/* Render newlines as paragraphs for simple markdown support */}
+                  {selectedGuide.content.split('\n').map((paragraph, idx) => (
+                    <p key={idx} className="mb-4 text-slate-700 dark:text-slate-300 font-medium leading-relaxed">{paragraph}</p>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 

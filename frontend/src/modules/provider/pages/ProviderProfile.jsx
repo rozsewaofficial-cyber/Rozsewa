@@ -152,7 +152,9 @@ const ProviderProfile = () => {
     setIsEditing(!isEditing);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const ok = await confirm("Are you sure you want to sign out securely?", { title: "Sign Out", confirmLabel: "Sign Out", destructive: true });
+    if (!ok) return;
     logout();
     navigate("/provider/login");
   };
@@ -174,9 +176,13 @@ const ProviderProfile = () => {
     const file = e.target.files[0];
     if (file) {
       setUploading(true);
-      const formData = new FormData();
-      formData.append("image", file);
       try {
+        // Compress before upload to avoid slow uploads from large camera photos
+        const { compressImage } = await import('@/lib/imageCompression');
+        const compressedFile = await compressImage(file, 800, 800, 0.7);
+
+        const formData = new FormData();
+        formData.append("image", compressedFile);
         const { data } = await API.post("/upload", formData, {
           headers: { "Content-Type": "multipart/form-data" }
         });

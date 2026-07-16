@@ -48,6 +48,7 @@ import Privacy from "./modules/user/pages/Privacy";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GlobalAlarm from "./components/GlobalAlarm";
 import LocationGate from "./components/LocationGate";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Provider Pages
 import ProviderDashboard from "./modules/provider/pages/ProviderDashboard";
@@ -81,6 +82,7 @@ import AdminBookings from "./modules/admin/pages/AdminBookings";
 import AdminEarnings from "./modules/admin/pages/AdminEarnings";
 import AdminCoupons from "./modules/admin/pages/AdminCoupons";
 import AdminFeedback from "./modules/admin/pages/AdminFeedback";
+import AdminSupport from "./modules/admin/pages/AdminSupport";
 import AdminServices from "./modules/admin/pages/AdminServices";
 import AdminLeads from "./modules/admin/pages/AdminLeads";
 import AdminLeadForms from "./modules/admin/pages/AdminLeadForms";
@@ -106,6 +108,7 @@ import AdminDispatch from "./modules/admin/pages/AdminDispatch";
 import AdminEmergency from "./modules/admin/pages/AdminEmergency";
 import AdminFinance from "./modules/admin/pages/AdminFinance";
 import ProviderReports from "./modules/admin/pages/ProviderReports";
+import AdminReports from "./modules/admin/pages/AdminReports";
 
 
 import AdminHelpTraining from "./modules/admin/pages/AdminHelpTraining";
@@ -131,6 +134,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <BrowserRouter>
+    <ScrollToTop />
     <ThemeProvider defaultTheme="light">
       <AuthProvider>
         <ChatProvider>
@@ -160,19 +164,19 @@ const App = () => (
                         <Route path="/tracking" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><LiveTracking /></ProtectedRoute>} />
                         <Route path="/booking-waiting" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BookingWaiting /></ProtectedRoute>} />
                         <Route path="/my-bookings" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><ServiceHistory /></ProtectedRoute>} />
-                        <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Profile /></ProtectedRoute>} />
-                        <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Favorites /></ProtectedRoute>} />
-                        <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Addresses /></ProtectedRoute>} />
-                        <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Notifications /></ProtectedRoute>} />
-                        <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Wallet /></ProtectedRoute>} />
-                        <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><LeadRequirementForm /></ProtectedRoute>} />
-                        <Route path="/my-leads" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><MyLeads /></ProtectedRoute>} />
-                        <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Scrap /></ProtectedRoute>} />
-                        <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><AddScrap /></ProtectedRoute>} />
-                        <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><RojsewaBazaar /></ProtectedRoute>} />
-                        <Route path="/my-bazaar-ads" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><MyBazaarAds /></ProtectedRoute>} />
-                        <Route path="/bazaar/:id" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarAdDetails /></ProtectedRoute>} />
-                        <Route path="/bazaar/:id/offer" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><BazaarOfferChat /></ProtectedRoute>} />
+                        <Route path="/profile" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Profile /></ProtectedRoute>} />
+                        <Route path="/favorites" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Favorites /></ProtectedRoute>} />
+                        <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Addresses /></ProtectedRoute>} />
+                        <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Notifications /></ProtectedRoute>} />
+                        <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Wallet /></ProtectedRoute>} />
+                        <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><LeadRequirementForm /></ProtectedRoute>} />
+                        <Route path="/my-leads" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><MyLeads /></ProtectedRoute>} />
+                        <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Scrap /></ProtectedRoute>} />
+                        <Route path="/scrap/add" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><AddScrap /></ProtectedRoute>} />
+                        <Route path="/bazaar" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><RojsewaBazaar /></ProtectedRoute>} />
+                        <Route path="/my-bazaar-ads" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><MyBazaarAds /></ProtectedRoute>} />
+                        <Route path="/bazaar/:id" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><BazaarAdDetails /></ProtectedRoute>} />
+                        <Route path="/bazaar/:id/offer" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><BazaarOfferChat /></ProtectedRoute>} />
 
                         {/* Public Info Routes */}
                         <Route path="/post-service" element={<PostService />} />
@@ -235,6 +239,7 @@ const App = () => (
                         <Route path="earnings" element={<AdminEarnings />} />
                         <Route path="coupons" element={<AdminCoupons />} />
                         <Route path="feedback" element={<AdminFeedback />} />
+                        <Route path="support" element={<AdminSupport />} />
                         <Route path="services" element={<AdminServices />} />
                         <Route path="provider-subscriptions" element={<AdminProviderSubscriptions />} />
                         <Route path="subscriptions" element={<AdminSubscriptions />} />
@@ -263,6 +268,7 @@ const App = () => (
                         <Route path="emergency" element={<AdminEmergency />} />
                         <Route path="finance" element={<AdminFinance />} />
                         <Route path="provider-reports" element={<ProviderReports />} />
+                        <Route path="reports" element={<AdminReports />} />
                         <Route path="withdrawals" element={<AdminWithdrawals />} />
                         <Route path="bazaar" element={<AdminScrap />} />
 

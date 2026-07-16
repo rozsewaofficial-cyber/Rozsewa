@@ -123,7 +123,7 @@ const AdminEmergency = () => {
                               <div className="h-10 w-10 shrink-0 bg-red-50 text-red-500 flex items-center justify-center rounded-xl font-black text-[10px] border border-red-100">VND SOS</div>
                               <div>
                                  <h4 className="font-black text-red-900">{sos.providerId?.shopName || 'Unknown Provider'}</h4>
-                                 <p className="text-[10px] font-bold text-red-600 uppercase tracking-tighter mb-1">Owner: {sos.providerId?.ownerName}</p>
+                                 <p className="text-[10px] font-bold text-red-600 uppercase tracking-tighter mb-1">Owner: {sos.providerId?.ownerName} | Mobile: {sos.mobile || sos.providerId?.mobile || 'N/A'}</p>
                                  <p className="text-xs font-bold text-gray-500 mt-0.5 max-w-[250px] leading-relaxed">
                                     <MapPin className="h-3 w-3 inline mr-1" /> {sos.address}
                                  </p>
@@ -136,7 +136,7 @@ const AdminEmergency = () => {
                               href={`tel:${sos.mobile || sos.providerId?.mobile || '#'}`}
                               className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-xs font-black shadow-lg shadow-red-200 hover:bg-red-700 active:scale-95 transition flex items-center justify-center gap-1.5"
                            >
-                              <PhoneIncoming className="h-3.5 w-3.5" /> Call Provider
+                              <PhoneIncoming className="h-3.5 w-3.5" /> Call ({sos.mobile || sos.providerId?.mobile || 'N/A'})
                            </a>
                            <a
                               href={`https://www.google.com/maps?q=${sos.location?.coordinates[1]},${sos.location?.coordinates[0]}`}

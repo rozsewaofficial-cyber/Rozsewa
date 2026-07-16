@@ -33,6 +33,9 @@ const WalletPage = () => {
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [addAmount, setAddAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [viewAll, setViewAll] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
 
   useScrollLock(showAddMoney);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,6 +58,11 @@ const WalletPage = () => {
 
   const totalEarned = transactions.filter(t => t.type === "credit").reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const totalSpent = transactions.filter(t => t.type === "debit").reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  
+  const displayTransactions = viewAll 
+    ? transactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : transactions.slice(0, 4);
+  const totalPages = Math.ceil(transactions.length / itemsPerPage);
 
   const handleAddMoney = async (e) => {
     e.preventDefault();
@@ -142,7 +150,7 @@ const WalletPage = () => {
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/profile')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-card hover:bg-muted">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>
           <h1 className="text-xl font-black text-foreground tracking-tight">Rozsewa Wallet</h1>
@@ -206,7 +214,21 @@ const WalletPage = () => {
             <h3 className="text-sm font-black uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <History className="h-4 w-4 text-primary" /> Recents
             </h3>
-            <button className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary/80">View All</button>
+            {transactions.length > 4 && (
+              <button 
+                onClick={() => {
+                  if (viewAll) {
+                    setViewAll(false);
+                    setCurrentPage(1);
+                  } else {
+                    setViewAll(true);
+                  }
+                }}
+                className="text-[10px] font-bold uppercase tracking-wider text-primary hover:text-primary/80"
+              >
+                {viewAll ? "Show Less" : "View All"}
+              </button>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -215,7 +237,7 @@ const WalletPage = () => {
                 <p className="text-sm font-semibold text-muted-foreground">No transactions yet.</p>
               </div>
             ) : (
-              transactions.map((txn, i) => (
+              displayTransactions.map((txn, i) => (
                 <motion.div key={txn._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className="group flex items-center justify-between rounded-[24px] border border-border bg-card p-4 hover:border-primary/30 transition-all cursor-pointer">
                   <div className="flex items-center gap-4">
@@ -234,6 +256,29 @@ const WalletPage = () => {
               ))
             )}
           </div>
+          
+          {/* Pagination Controls */}
+          {viewAll && totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 px-2 py-4 border-t border-border/50">
+              <button 
+                disabled={currentPage === 1} 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed bg-muted/50 rounded-xl"
+              >
+                Previous
+              </button>
+              <span className="text-xs font-black text-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button 
+                disabled={currentPage === totalPages} 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed bg-muted/50 rounded-xl"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </main>
 

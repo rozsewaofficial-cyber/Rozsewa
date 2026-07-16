@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Bell, BellRing, PackageCheck, Tag, Info, Trash2, CheckCircle2, DollarSign, AlertCircle } from "lucide-react";
+import { ArrowLeft, Bell, BellRing, PackageCheck, Tag, Info, Trash2, CheckCircle2, DollarSign, AlertCircle, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -47,6 +47,8 @@ const Notifications = () => {
       targetLink = "/my-bookings";
     } else if (notif.type === "payment") {
       targetLink = "/wallet";
+    } else if (notif.type === "bazaar") {
+      targetLink = "/my-bazaar-ads";
     }
 
     if (targetLink) {
@@ -91,6 +93,7 @@ const Notifications = () => {
       case 'promo': return { icon: Tag, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/30", outline: "border-emerald-200 dark:border-emerald-800" };
       case 'payment': return { icon: DollarSign, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-100 dark:bg-amber-900/30", outline: "border-amber-200 dark:border-amber-800" };
       case 'alert': return { icon: AlertCircle, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-100 dark:bg-rose-900/30", outline: "border-rose-200 dark:border-rose-800" };
+      case 'bazaar': return { icon: MessageSquare, color: "text-cyan-600 dark:text-cyan-400", bg: "bg-cyan-100 dark:bg-cyan-900/30", outline: "border-cyan-200 dark:border-cyan-800" };
       default: return { icon: Info, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/30", outline: "border-purple-200 dark:border-purple-800" };
     }
   };
@@ -120,9 +123,9 @@ const Notifications = () => {
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition-colors">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition-colors">
               <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
             </motion.button>
             <div>
@@ -130,11 +133,18 @@ const Notifications = () => {
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{unreadCount} unread message{unreadCount !== 1 && "s"}</p>
             </div>
           </div>
-          {unreadCount > 0 && (
-            <button onClick={handleMarkAllAsRead} className="flex h-10 items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-900/30 px-4 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors">
-              <CheckCircle2 className="h-4 w-4" /> Mark All Read
-            </button>
-          )}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {unreadCount > 0 && (
+              <button onClick={handleMarkAllAsRead} className="flex h-9 items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-900/30 px-4 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors shrink-0">
+                <CheckCircle2 className="h-4 w-4" /> Mark Read
+              </button>
+            )}
+            {notifications.length > 0 && (
+              <button onClick={handleClearAll} className="flex h-9 items-center gap-2 rounded-full bg-rose-50 dark:bg-rose-900/30 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:bg-rose-900/40 transition-colors shrink-0">
+                <Trash2 className="h-4 w-4" /> Clear All
+              </button>
+            )}
+          </div>
         </div>
 
         {notifications.length === 0 ? (
@@ -179,13 +189,16 @@ const Notifications = () => {
                                 {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                             </div>
-                            <p className={`mt-1 text-xs leading-relaxed ${notif.isRead ? "text-slate-500 dark:text-slate-400" : "font-medium text-slate-700 dark:text-slate-300 font-bold"}`}>{notif.message}</p>
+                            <p className={`mt-1 text-xs leading-relaxed pr-2 ${notif.isRead ? "text-slate-500 dark:text-slate-400" : "font-medium text-slate-700 dark:text-slate-300 font-bold"}`}>{notif.message}</p>
+                            
+                            <div className="mt-3 flex justify-end">
+                              <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif._id); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors dark:bg-rose-900/20 dark:hover:bg-rose-900/40 text-[10px] font-bold uppercase tracking-wider"
+                              >
+                                <Trash2 className="h-3 w-3" /> Delete
+                              </button>
+                            </div>
                           </div>
-
-                          <button onClick={(e) => { e.stopPropagation(); deleteNotification(notif._id); }}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 opacity-100 md:opacity-0 md:group-hover:opacity-100 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full bg-rose-100 text-rose-600 hover:bg-rose-200 transition-all dark:bg-rose-900/30">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
                         </motion.div>
                       );
                     })}

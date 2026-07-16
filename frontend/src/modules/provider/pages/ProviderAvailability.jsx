@@ -19,6 +19,7 @@ const ProviderAvailability = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [schedule, setSchedule] = useState(() => getDefault());
+  const [is24x7, setIs24x7] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -35,6 +36,9 @@ const ProviderAvailability = () => {
           newSchedule[item.day] = { enabled: item.isActive, start: item.startTime, end: item.endTime };
         });
         setSchedule(newSchedule);
+      }
+      if (data.is24x7 !== undefined) {
+        setIs24x7(data.is24x7);
       }
     } catch (err) {
       console.error("Failed to fetch availability:", err);
@@ -106,7 +110,7 @@ const ProviderAvailability = () => {
         isActive: schedule[day].enabled
       }));
 
-      await API.put("/provider/profile", { availability: availabilityArray });
+      await API.put("/provider/profile", { availability: availabilityArray, is24x7 });
       toast({ title: "Schedule Saved ✓", description: "Your availability has been updated." });
     } catch (err) {
       toast({ title: "Error", description: "Failed to save schedule.", variant: "destructive" });
@@ -120,7 +124,7 @@ const ProviderAvailability = () => {
       <ProviderTopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/provider/dashboard')}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>
@@ -137,6 +141,26 @@ const ProviderAvailability = () => {
           </div>
         ) : (
           <div className="space-y-3">
+          <div className="rounded-2xl border bg-card p-4 mb-4">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <span className="text-sm font-bold text-foreground">24/7 Emergency</span>
+                <p className="text-[10px] font-medium text-muted-foreground mt-0.5">I am available round the clock for emergencies</p>
+              </div>
+              <button 
+                onClick={() => setIs24x7(!is24x7)} 
+                className="p-3 -mr-3 rounded-full hover:bg-muted transition-colors select-none"
+                style={{ WebkitTapHighlightColor: "transparent" }}
+              >
+                {is24x7 ? (
+                  <ToggleRight className="h-10 w-10 sm:h-12 sm:w-12 text-rose-500 drop-shadow-sm" />
+                ) : (
+                  <ToggleLeft className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground/40" />
+                )}
+              </button>
+            </div>
+          </div>
+          
           <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Weekly Schedule</h3>
           {days.map((day, i) => (
             <motion.div key={day} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}

@@ -66,7 +66,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
   }, [user, location.pathname]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/10 bg-white dark:bg-slate-950/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 w-full border-b border-border/10 bg-white dark:bg-slate-950/80 backdrop-blur-md">
       <div className="container flex h-14 items-center justify-between px-4 max-w-6xl mx-auto">
         <div className="flex items-center gap-3">
           <Link to="/provider" className="flex items-center gap-2 group">
@@ -78,7 +78,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
           {showBack && (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/provider/dashboard')}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
             >
               <ArrowLeft className="h-4 w-4" />

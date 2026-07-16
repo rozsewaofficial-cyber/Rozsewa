@@ -25,8 +25,11 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
+  // Normalize role: legacy 'user' and undefined both map to 'customer'
+  const effectiveRole = user?.role === 'user' || !user?.role ? 'customer' : user.role;
+
   // Check role-based access
-  if (user && !allowedRoles.includes(user.role)) {
+  if (user && !allowedRoles.includes(effectiveRole)) {
     return <Navigate to="/" replace />;
   }
 

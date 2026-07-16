@@ -6,13 +6,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { normalizeNonNegativeNumber, validateNonNegativeNumber } from "@/lib/numberValidation";
 import { validateDate } from "@/lib/dateValidation";
-import axios from 'axios';
+import API from "@/lib/api";
 
 const AdminCoupons = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
   
-  const auth = JSON.parse(localStorage.getItem("rozsewa_auth_admin") || "{}");
   
   const [coupons, setCoupons] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -37,15 +36,9 @@ const AdminCoupons = () => {
     fetchCategories();
   }, [setTitle]);
 
-  const config = {
-      headers: {
-          Authorization: `Bearer ${auth?.token}`
-      }
-  };
-
   const fetchCoupons = async () => {
       try {
-          const { data } = await axios.get('http://localhost:5000/api/admin/coupons', config);
+          const { data } = await API.get('/admin/coupons');
           setCoupons(data);
       } catch (error) {
           toast({ title: "Error", description: "Failed to fetch coupons", variant: "destructive" });
@@ -56,7 +49,7 @@ const AdminCoupons = () => {
 
   const fetchCategories = async () => {
       try {
-          const { data } = await axios.get('http://localhost:5000/api/public/categories');
+          const { data } = await API.get('/public/categories');
           setCategories(data);
       } catch (error) {
           console.error("Failed to fetch categories:", error);
@@ -65,7 +58,7 @@ const AdminCoupons = () => {
 
   const handleToggleStatus = async (id) => {
       try {
-          const { data } = await axios.put(`http://localhost:5000/api/admin/coupons/${id}/toggle`, {}, config);
+          const { data } = await API.put(`/admin/coupons/${id}/toggle`, {});
           setCoupons(coupons.map(c => c._id === id ? data : c));
           toast({ title: "Status Updated", description: `Coupon is now ${data.isActive ? 'active' : 'disabled'}` });
       } catch (error) {
@@ -76,7 +69,7 @@ const AdminCoupons = () => {
   const handleDelete = async (id) => {
       if (window.confirm("Are you sure you want to delete this coupon?")) {
           try {
-              await axios.delete(`http://localhost:5000/api/admin/coupons/${id}`, config);
+              await API.delete(`/admin/coupons/${id}`);
               setCoupons(coupons.filter(c => c._id !== id));
               toast({ title: "Coupon Deleted", description: "The coupon has been permanently removed." });
           } catch (error) {
@@ -118,7 +111,7 @@ const AdminCoupons = () => {
             targetCategory: newCoupon.targetCategory || null
         };
 
-        const { data } = await axios.post('http://localhost:5000/api/admin/coupons', payload, config);
+        const { data } = await API.post('/admin/coupons', payload);
         setCoupons([data, ...coupons]);
         setNewCoupon({ code: "", discount: "", maxUses: "", expiry: "", minOrderAmount: "", maxDiscountAmount: "", targetCategory: "" });
         setShowModal(false);

@@ -107,13 +107,13 @@ const AdminAuditLogs = () => {
                     <div className="flex items-center gap-4 pt-1">
                         <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 backdrop-blur-sm">
                             <button 
-                                onClick={() => setViewMode('table')}
+                                onClick={() => { setViewMode('table'); setPage(1); }}
                                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}
                             >
                                 <List className="h-3 w-3" /> Table
                             </button>
                             <button 
-                                onClick={() => setViewMode('timeline')}
+                                onClick={() => { setViewMode('timeline'); setPage(1); }}
                                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${viewMode === 'timeline' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}
                             >
                                 <History className="h-3 w-3" /> Timeline
@@ -166,7 +166,7 @@ const AdminAuditLogs = () => {
                     <div className="flex items-center gap-3">
                         <Input 
                             type="date" 
-                            min={new Date().toISOString().split('T')[0]}
+                            max={new Date().toLocaleDateString("en-CA")}
                             className="rounded-2xl border-gray-100 bg-gray-50/50 text-xs font-bold h-12"
                             value={filters.startDate}
                             onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
@@ -174,8 +174,9 @@ const AdminAuditLogs = () => {
                         <span className="text-gray-300 font-black px-1">→</span>
                         <Input 
                             type="date" 
-                            max={new Date().toISOString().split('T')[0]}
-                            className="rounded-2xl border-gray-100 bg-gray-50/50 text-xs font-bold h-12"
+                            min={filters.startDate || undefined}
+                            max={new Date().toLocaleDateString("en-CA")}
+                            className="rounded-2xl border-gray-150 bg-gray-50/50 text-xs font-bold h-12"
                             value={filters.endDate}
                             onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
                         />

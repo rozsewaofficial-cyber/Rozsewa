@@ -517,6 +517,27 @@ const deleteAddress = async (req, res) => {
     }
 };
 
+const updateAddress = async (req, res) => {
+    const { label, address, icon, location } = req.body;
+    try {
+        const user = await User.findById(req.user._id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        const addr = user.addresses.id(req.params.id);
+        if (!addr) return res.status(404).json({ message: 'Address not found' });
+
+        addr.label = label;
+        addr.address = address;
+        addr.icon = icon;
+        if (location) addr.location = location;
+
+        await user.save();
+        res.json(user.addresses);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const addFavorite = async (req, res) => {
     const { providerId } = req.body;
     try {
@@ -697,6 +718,7 @@ module.exports = {
     verifyCredentials,
     addAddress,
     deleteAddress,
+    updateAddress,
     addFavorite,
     deleteFavorite,
     getFavorites,

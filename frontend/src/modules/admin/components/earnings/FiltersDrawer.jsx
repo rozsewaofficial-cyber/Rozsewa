@@ -38,7 +38,7 @@ const FiltersDrawer = ({
                         animate={{ x: 0 }}
                         exit={{ x: "100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed bottom-0 right-0 top-0 z-50 w-full max-w-sm bg-white p-6 shadow-xl border-l border-gray-100 flex flex-col h-screen"
+                        className="fixed bottom-0 right-0 top-0 z-50 w-full max-w-sm bg-white p-6 pb-10 shadow-xl border-l border-gray-100 flex flex-col h-[100dvh]"
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between border-b border-gray-100 pb-4">
@@ -168,7 +168,7 @@ const FiltersDrawer = ({
                         </div>
 
                         {/* Actions */}
-                        <div className="border-t border-gray-100 pt-4 flex gap-3">
+                        <div className="border-t border-gray-100 pt-4 pb-4 flex gap-3">
                             <button
                                 onClick={onReset}
                                 className="flex items-center gap-1.5 justify-center flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-xs font-bold text-gray-500 shadow-sm transition-all hover:bg-gray-50"

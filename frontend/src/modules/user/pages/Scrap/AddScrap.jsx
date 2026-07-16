@@ -51,6 +51,7 @@ const AddScrap = () => {
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     fetchCategories();
   }, []);
 
@@ -67,6 +68,12 @@ const AddScrap = () => {
   };
 
   // Removed automatic location fetch on mount. Added manual button instead.
+
+  const handleFocus = (e) => {
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  };
 
   const fetchLiveLocation = () => {
     if (!("geolocation" in navigator)) {
@@ -130,6 +137,7 @@ const AddScrap = () => {
     }));
 
     setSelectedFiles(prev => [...prev, ...newFiles]);
+    e.target.value = null;
   };
 
   const removeImage = (index) => {
@@ -210,7 +218,7 @@ const AddScrap = () => {
     <div className="min-h-screen pb-20 relative bg-slate-50 dark:bg-slate-950">
       <div className="relative z-10">
         <header className="sticky top-0 z-40 backdrop-blur-xl bg-white/70 dark:bg-slate-900/70 border-b border-black/[0.03] dark:border-white/[0.02] px-4 py-4 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center shadow-sm border border-black/[0.02] dark:border-white/[0.02]">
+          <button onClick={() => navigate('/scrap')} className="w-10 h-10 bg-white dark:bg-slate-800 rounded-xl flex items-center justify-center shadow-sm border border-black/[0.02] dark:border-white/[0.02]">
             <ArrowLeft className="w-5 h-5 text-slate-800 dark:text-white" />
           </button>
           <div>
@@ -250,7 +258,7 @@ const AddScrap = () => {
                 <div onClick={() => document.getElementById('ad-camera-upload')?.click()} className="aspect-square rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                   <Camera className="w-5 h-5 text-slate-400" />
                   <span className="text-[9px] font-bold text-slate-500 uppercase">Camera</span>
-                  <input id="ad-camera-upload" type="file" className="hidden" accept="image/*" capture="environment" onChange={handleImageSelect} />
+                  <input id="ad-camera-upload" type="file" className="hidden" accept="image/*" onChange={handleImageSelect} />
                 </div>
               )}
             </div>
@@ -262,29 +270,29 @@ const AddScrap = () => {
             
             <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Category</label>
-                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} required>
+                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500" value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} onFocus={handleFocus} required>
                   {categories.map((c, i) => <option key={i} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Ad Title</label>
-              <input type="text" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="Brand, model, key details" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} required />
+              <input type="text" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="Brand, model, key details" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} onFocus={handleFocus} required />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Description (min 20 chars)</label>
-              <textarea className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white min-h-[100px]" placeholder="Include condition, features, reason for selling..." value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} required />
+              <textarea className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white min-h-[100px]" placeholder="Include condition, features, reason for selling..." value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} onFocus={handleFocus} required />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Brand (Optional)</label>
-                <input type="text" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. Apple, Sony" value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} />
+                <input type="text" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. Apple, Sony" value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} onFocus={handleFocus} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Condition</label>
-                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" value={formData.condition} onChange={e => setFormData({ ...formData, condition: e.target.value })}>
+                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" value={formData.condition} onChange={e => setFormData({ ...formData, condition: e.target.value })} onFocus={handleFocus}>
                   {conditions.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -297,7 +305,7 @@ const AddScrap = () => {
             <div className="space-y-4">
               <div className="relative">
                 <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input type="number" className="w-full pl-10 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-base font-black outline-none dark:text-white" placeholder="0" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} required min="0" />
+                <input type="number" className="w-full pl-10 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-base font-black outline-none dark:text-white" placeholder="0" value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} onFocus={handleFocus} required min="0" />
               </div>
               <label className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
                 <input type="checkbox" checked={formData.isNegotiable} onChange={e => setFormData({ ...formData, isNegotiable: e.target.checked })} className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500" />
@@ -329,26 +337,26 @@ const AddScrap = () => {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Exact Full Address (Hidden)</label>
-                <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. 42 MG Road, near Apollo" value={formData.location.exactAddress} onChange={e => updateLocation('exactAddress', e.target.value)} required />
+                <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. 42 MG Road, near Apollo" value={formData.location.exactAddress} onChange={e => updateLocation('exactAddress', e.target.value)} onFocus={handleFocus} required />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Area Name (Public)</label>
-                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. MG Road" value={formData.location.areaName} onChange={e => updateLocation('areaName', e.target.value)} required />
+                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. MG Road" value={formData.location.areaName} onChange={e => updateLocation('areaName', e.target.value)} onFocus={handleFocus} required />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">House No. (Hidden)</label>
-                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. 42" value={formData.location.houseNumber} onChange={e => updateLocation('houseNumber', e.target.value)} />
+                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. 42" value={formData.location.houseNumber} onChange={e => updateLocation('houseNumber', e.target.value)} onFocus={handleFocus} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">City (Public)</label>
-                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. Mumbai" value={formData.location.city} onChange={e => updateLocation('city', e.target.value)} required />
+                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. Mumbai" value={formData.location.city} onChange={e => updateLocation('city', e.target.value)} onFocus={handleFocus} required />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">State</label>
-                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. MH" value={formData.location.state} onChange={e => updateLocation('state', e.target.value)} required />
+                  <input type="text" className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-medium outline-none dark:text-white" placeholder="e.g. MH" value={formData.location.state} onChange={e => updateLocation('state', e.target.value)} onFocus={handleFocus} required />
                 </div>
               </div>
             </div>

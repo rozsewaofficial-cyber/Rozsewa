@@ -66,7 +66,7 @@ const MyBazaarAds = () => {
         <div className="relative z-10 max-w-2xl mx-auto">
           <div className="flex items-center gap-3 mb-4">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/profile')}
               className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -86,8 +86,8 @@ const MyBazaarAds = () => {
 
       <div className="max-w-2xl mx-auto px-4 -mt-8 relative z-10">
         <div className="flex items-center justify-between mb-4 px-1">
-          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-            Showing <span className="text-slate-900 dark:text-white">{ads.length}</span> ads
+          <p className="text-xs font-bold text-blue-100">
+            Showing <span className="text-white">{ads.length}</span> ads
           </p>
           <button 
             onClick={() => navigate('/scrap/add')}

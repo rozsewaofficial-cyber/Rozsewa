@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { 
-  Briefcase, IndianRupee, Percent, TrendingUp, AlertTriangle, 
-  CheckCircle2, Clock, Search, ChevronDown, ChevronUp, RefreshCcw, 
+import {
+  Briefcase, IndianRupee, Percent, TrendingUp, AlertTriangle,
+  CheckCircle2, Clock, Search, ChevronDown, ChevronUp, RefreshCcw,
   MapPin, Calendar, User, Phone, Mail, Eye, ShieldCheck, XCircle, ShieldAlert,
   Loader2, Settings, ChevronLeft, ChevronRight
 } from "lucide-react";
@@ -30,12 +30,12 @@ const AdminLeads = () => {
   const [loading, setLoading] = useState(true);
   const [expandedLeads, setExpandedLeads] = useState({});
   const [filter, setFilter] = useState("all"); // 'all', 'pending', 'available', 'unlocked', 'completed', 'expired', 'disputed', 'closed'
-    const [search, setSearch] = useState("");
+  const [search, setSearch] = useState("");
   const [filterCity, setFilterCity] = useState("");
   const [filterFromDate, setFilterFromDate] = useState("");
   const [filterToDate, setFilterToDate] = useState("");
-  
-  const todayDate = new Date().toISOString().split('T')[0];
+
+  const todayDate = new Date().toLocaleDateString("en-CA");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -113,39 +113,39 @@ const AdminLeads = () => {
       .filter(l => {
         const searchLower = search.toLowerCase();
         const serviceName = l.service || l.requirementTitle || l.categoryId?.name || '';
-        
+
         // Search text
         if (search && !l._id.toLowerCase().includes(searchLower) && !serviceName.toLowerCase().includes(searchLower) && !(l.customer?.name || '').toLowerCase().includes(searchLower)) {
-            return false;
+          return false;
         }
 
         // City / Address filter
         if (filterCity) {
-            const addr = [
-                l.locationDetail?.houseNo, l.locationDetail?.apartment, l.locationDetail?.street, 
-                l.locationDetail?.landmark, l.locationDetail?.area, l.locationDetail?.city, 
-                l.locationDetail?.state, l.locationDetail?.pincode
-            ].filter(Boolean).join(', ') + ' ' + (l.requirementForm?.address || '');
-            
-            if (!addr.toLowerCase().includes(filterCity.toLowerCase())) {
-                return false;
-            }
+          const addr = [
+            l.locationDetail?.houseNo, l.locationDetail?.apartment, l.locationDetail?.street,
+            l.locationDetail?.landmark, l.locationDetail?.area, l.locationDetail?.city,
+            l.locationDetail?.state, l.locationDetail?.pincode
+          ].filter(Boolean).join(', ') + ' ' + (l.requirementForm?.address || '');
+
+          if (!addr.toLowerCase().includes(filterCity.toLowerCase())) {
+            return false;
+          }
         }
 
         // Date filter
         if (filterFromDate || filterToDate) {
-            if (!l.createdAt) return false;
-            const bDate = new Date(l.createdAt);
-            if (filterFromDate) {
-                const fDate = new Date(filterFromDate);
-                fDate.setHours(0,0,0,0);
-                if (bDate < fDate) return false;
-            }
-            if (filterToDate) {
-                const tDate = new Date(filterToDate);
-                tDate.setHours(23,59,59,999);
-                if (bDate > tDate) return false;
-            }
+          if (!l.createdAt) return false;
+          const bDate = new Date(l.createdAt);
+          if (filterFromDate) {
+            const fDate = new Date(filterFromDate);
+            fDate.setHours(0, 0, 0, 0);
+            if (bDate < fDate) return false;
+          }
+          if (filterToDate) {
+            const tDate = new Date(filterToDate);
+            tDate.setHours(23, 59, 59, 999);
+            if (bDate > tDate) return false;
+          }
         }
 
         return true;
@@ -154,7 +154,7 @@ const AdminLeads = () => {
 
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const paginatedLeads = useMemo(() => {
-      return filteredLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    return filteredLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   }, [filteredLeads, currentPage]);
 
   const statusConfig = {
@@ -172,7 +172,7 @@ const AdminLeads = () => {
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in duration-700">
-      
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div>
@@ -212,61 +212,90 @@ const AdminLeads = () => {
       {/* Filters and Search Bar */}
       <div className="flex flex-col gap-4 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex flex-col lg:flex-row gap-4">
-            <div className="relative flex-[2]">
+          <div className="relative flex-[2]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input 
-                type="text" 
-                placeholder="Search by lead ID, customer, service..." 
-                value={search} 
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none" 
+            <input
+              type="text"
+              placeholder="Search by lead ID, customer, service..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
             />
-            </div>
-            
-            <div className="flex-1">
-            <input 
-                type="text" 
-                placeholder="City / Address..." 
-                value={filterCity} 
-                onChange={e => setFilterCity(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none" 
+          </div>
+
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="City / Address..."
+              value={filterCity}
+              onChange={e => setFilterCity(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
             />
-            </div>
-            <div className="flex-1">
-            <input 
-                type="date" 
-                value={filterFromDate} 
-                onChange={e => setFilterFromDate(e.target.value)}
-                max={todayDate}
-                title="From Date"
-                className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none text-slate-500" 
+          </div>
+          <div className="flex-1">
+            <input
+              type="date"
+              value={filterFromDate}
+              onChange={e => setFilterFromDate(e.target.value)}
+              onBlur={e => {
+                const val = e.target.value;
+                if (val && val > todayDate) {
+                  setFilterFromDate(todayDate);
+                }
+              }}
+              max={todayDate}
+              title="From Date"
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none text-slate-500"
             />
-            </div>
-            <div className="flex-1">
-            <input 
-                type="date" 
-                value={filterToDate} 
-                onChange={e => setFilterToDate(e.target.value)}
-                min={filterFromDate || undefined}
-                max={todayDate}
-                title="To Date"
-                className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none text-slate-500" 
+          </div>
+          <div className="flex-1">
+            <input
+              type="date"
+              value={filterToDate}
+              onChange={e => setFilterToDate(e.target.value)}
+              onBlur={e => {
+                const val = e.target.value;
+                if (val && val > todayDate) {
+                  setFilterToDate(todayDate);
+                } else if (val && filterFromDate && val < filterFromDate) {
+                  setFilterToDate(filterFromDate);
+                }
+              }}
+              min={filterFromDate || undefined}
+              max={todayDate}
+              title="To Date"
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 transition-all outline-none text-slate-500"
             />
-            </div>
+          </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-          {["all", "pending", "available", "unlocked", "completed", "expired", "disputed", "closed"].map(f => (
-            <button 
-              key={f} 
-              onClick={() => setFilter(f)}
-              className={`rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all ${
-                filter === f ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" : "bg-slate-50 text-slate-500 hover:text-slate-900"
-              }`}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar scroll-smooth flex-1">
+            {["all", "pending", "available", "unlocked", "completed", "expired", "disputed", "closed"].map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-wider whitespace-nowrap transition-all ${filter === f ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" : "bg-slate-50 text-slate-500 hover:text-slate-900"
+                  }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          {(search || filterCity || filterFromDate || filterToDate || filter !== "all") && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setFilterCity("");
+                setFilterFromDate("");
+                setFilterToDate("");
+                setFilter("all");
+              }}
+              className="text-xs font-black text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100/80 px-4 py-3 rounded-2xl flex items-center gap-1.5 uppercase tracking-widest active:scale-95 transition-all self-end sm:self-auto shrink-0"
             >
-              {f}
+              Clear Filters
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -287,7 +316,7 @@ const AdminLeads = () => {
           paginatedLeads.map((lead) => {
             const conf = statusConfig[lead.status] || statusConfig.pending;
             return (
-              <motion.div 
+              <motion.div
                 layout
                 key={lead._id}
                 className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-xl transition-all flex flex-col gap-4"
@@ -315,13 +344,13 @@ const AdminLeads = () => {
                       <p>{lead.requirementDesc || lead.requirementForm?.description || "No description provided."}</p>
                       <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t border-slate-200/50">
                         <p className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" /> 
+                          <Calendar className="h-3.5 w-3.5" />
                           {lead.preferredDate || lead.requirementForm?.preferredDate || 'N/A'}
-                          { (lead.preferredTime || lead.requirementForm?.preferredTime) ? ` at ${lead.preferredTime || lead.requirementForm?.preferredTime}` : '' }
+                          {(lead.preferredTime || lead.requirementForm?.preferredTime) ? ` at ${lead.preferredTime || lead.requirementForm?.preferredTime}` : ''}
                         </p>
                         <p className="flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5" /> 
-                          { [lead.locationDetail?.houseNo, lead.locationDetail?.street, lead.locationDetail?.city].filter(Boolean).join(', ') || lead.requirementForm?.address || "Coordinate Location" }
+                          <MapPin className="h-3.5 w-3.5" />
+                          {[lead.locationDetail?.houseNo, lead.locationDetail?.street, lead.locationDetail?.city].filter(Boolean).join(', ') || lead.requirementForm?.address || "Coordinate Location"}
                         </p>
                         {lead.createdAt && (
                           <p className="flex items-center gap-1.5 text-violet-600 font-bold col-span-2 mt-1.5 border-t border-slate-200/40 pt-1.5">
@@ -341,7 +370,7 @@ const AdminLeads = () => {
                     </div>
 
                     <div className="flex flex-col gap-2 w-full">
-                      <button 
+                      <button
                         onClick={() => setExpandedLeads(prev => ({ ...prev, [lead._id]: !prev[lead._id] }))}
                         className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 shadow-sm"
                       >
@@ -349,7 +378,7 @@ const AdminLeads = () => {
                         {expandedLeads[lead._id] ? 'Hide Details' : 'View Details'}
                       </button>
                       {lead.status !== 'closed' && lead.status !== 'completed' && lead.status !== 'expired' && (
-                        <button 
+                        <button
                           onClick={() => handleManualClose(lead._id)}
                           className="w-full py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-[10px] font-black uppercase tracking-widest transition-all"
                         >
@@ -371,17 +400,17 @@ const AdminLeads = () => {
                         <div className="grid grid-cols-[80px_1fr] gap-x-2 gap-y-2.5 text-xs font-semibold text-slate-700">
                           <span className="text-slate-400 font-bold">Name</span>
                           <span className="font-black text-slate-800">{lead.customer?.name || "Guest"}</span>
-                          
+
                           <span className="text-slate-400 font-bold">Phone</span>
                           <span className="font-black text-emerald-700 flex items-center gap-1">
                             <Phone className="h-3.5 w-3.5" /> {lead.customer?.mobile || "N/A"}
                           </span>
-                          
+
                           <span className="text-slate-400 font-bold">Email</span>
                           <span className="font-black text-violet-700 flex items-center gap-1">
                             <Mail className="h-3.5 w-3.5" /> {lead.customer?.email || "N/A"}
                           </span>
-                          
+
                           <span className="text-slate-400 font-bold">Address</span>
                           <span className="font-bold text-slate-850">
                             {lead.requirementForm?.address || [lead.locationDetail?.houseNo, lead.locationDetail?.apartment, lead.locationDetail?.street, lead.locationDetail?.landmark, lead.locationDetail?.area, lead.locationDetail?.city, lead.locationDetail?.state, lead.locationDetail?.pincode].filter(Boolean).join(', ') || 'N/A'}
@@ -451,7 +480,7 @@ const AdminLeads = () => {
                               <div key={idx} className="bg-white border border-slate-150 p-3 rounded-xl text-xs space-y-1 shadow-sm text-left">
                                 <p className="font-black text-slate-800">{p.shopName || p.ownerName} <span className="text-[10px] text-slate-400 font-semibold">({p.ownerName})</span></p>
                                 <p className="text-slate-500 font-bold flex items-center gap-2">
-                                  <span className="font-mono">📞 {p.mobile}</span> 
+                                  <span className="font-mono">📞 {p.mobile}</span>
                                   {p.email && <span className="font-mono">| ✉️ {p.email}</span>}
                                 </p>
                               </div>
@@ -473,50 +502,49 @@ const AdminLeads = () => {
       {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between bg-white px-6 py-4 rounded-3xl border border-slate-100 shadow-sm mt-2">
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
-                <span className="text-gray-900 font-black">
-                    {Math.min(currentPage * itemsPerPage, filteredLeads.length)}
-                </span>{" "}
-                of <span className="text-gray-900 font-black">{filteredLeads.length}</span> leads
-            </p>
+          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+            Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
+            <span className="text-gray-900 font-black">
+              {Math.min(currentPage * itemsPerPage, filteredLeads.length)}
+            </span>{" "}
+            of <span className="text-gray-900 font-black">{filteredLeads.length}</span> leads
+          </p>
 
-            <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+              // Only show 5 pages max around current page
+              if (totalPages > 5 && Math.abs(page - currentPage) > 2 && page !== 1 && page !== totalPages) {
+                if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
+                return null;
+              }
+              return (
                 <button
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  className={`h-8 min-w-8 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-black transition-all shadow-sm ${page === currentPage
+                      ? "bg-blue-600 text-white border border-blue-600"
+                      : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                  {page}
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    // Only show 5 pages max around current page
-                    if (totalPages > 5 && Math.abs(page - currentPage) > 2 && page !== 1 && page !== totalPages) {
-                        if (page === 2 || page === totalPages - 1) return <span key={page} className="px-1 text-slate-400">...</span>;
-                        return null;
-                    }
-                    return (
-                        <button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            className={`h-8 min-w-8 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-black transition-all shadow-sm ${
-                                page === currentPage
-                                    ? "bg-blue-600 text-white border border-blue-600"
-                                    : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                            }`}
-                        >
-                            {page}
-                        </button>
-                    )
-                })}
-                <button
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
-                >
-                    <ChevronRight className="h-4 w-4" />
-                </button>
-            </div>
+              )
+            })}
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -546,13 +574,13 @@ const AdminLeads = () => {
                 </div>
                 {dispute.adminDecision === 'pending' ? (
                   <div className="flex items-center gap-2 self-end md:self-center">
-                    <button 
+                    <button
                       onClick={() => handleResolveDispute(dispute._id, "rejected")}
                       className="px-4 py-2 border border-slate-200 text-slate-500 hover:text-slate-900 text-xs font-bold rounded-xl transition-all active:scale-95"
                     >
                       Reject Dispute
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleResolveDispute(dispute._id, "approved")}
                       className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all active:scale-95 shadow-md shadow-red-600/10"
                     >

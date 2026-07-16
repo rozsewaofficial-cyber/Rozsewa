@@ -16,6 +16,7 @@ const {
     verifyCredentials,
     addAddress,
     deleteAddress,
+    updateAddress,
     addFavorite,
     deleteFavorite,
     getFavorites,
@@ -41,6 +42,7 @@ router.put('/password', protect, updatePassword);
 // Dedicated endpoints for sub-resources
 router.get('/favorites', protect, getFavorites);
 router.post('/addresses', protect, addAddress);
+router.put('/addresses/:id', protect, updateAddress);
 router.delete('/addresses/:id', protect, deleteAddress);
 router.post('/favorites', protect, addFavorite);
 router.delete('/favorites/:id', protect, deleteFavorite);

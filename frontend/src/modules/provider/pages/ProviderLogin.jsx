@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { Link, useNavigate, Navigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Store, Phone, ShieldCheck, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
+import { Store, Phone, ShieldCheck, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, X } from "lucide-react";
+import logoImg from "@/assets/RozSewa.png";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
@@ -152,6 +153,14 @@ const ProviderLogin = () => {
       <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
 
+      {/* Back Button */}
+      <button 
+        onClick={() => navigate('/')} 
+        className="absolute top-6 left-6 h-10 w-10 flex items-center justify-center rounded-full bg-white/50 border border-slate-200 text-slate-600 hover:bg-white hover:text-slate-900 shadow-sm transition-all z-10"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </button>
+
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <motion.div
@@ -160,7 +169,7 @@ const ProviderLogin = () => {
             className="mx-auto flex h-16 w-36 items-center justify-center rounded-2xl bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
           >
             <img
-              src="/RozSewa.png"
+              src={logoImg}
               alt="RozSewa Logo"
               className="h-full w-full object-contain"
             />
@@ -315,7 +324,7 @@ const ProviderLogin = () => {
         </motion.div>
 
         <div className="mt-8 flex items-center justify-center gap-6 opacity-40 grayscale pointer-events-none">
-          <img src="/RozSewa.png" alt="Security" className="h-4 w-auto brightness-0" />
+          <img src={logoImg} alt="Security" className="h-4 w-auto brightness-0" />
           <div className="h-3 w-[1px] bg-slate-400" />
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Secure Dashboard</p>
         </div>

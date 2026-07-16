@@ -3,7 +3,7 @@ const router = express.Router();
 const { 
     createBooking, getUserBookings, getProviderBookings, updateBooking, 
     updateBookingStatusByProvider, verifyStartOTP, verifyEndOTP, 
-    getProviderReviews, submitReview,
+    getProviderReviews, submitReview, replyReview,
     proposeSchedule, acceptSchedule, rejectSchedule, checkOverlapStatus,
     counterOfferBooking, acceptCounterOffer, rejectCounterOffer, collectPayment
 } = require('../controllers/bookingController');
@@ -19,6 +19,7 @@ router.post('/:id/start', protect, verifyStartOTP);
 router.post('/:id/complete', protect, verifyEndOTP);
 router.post('/:id/review', protect, submitReview);
 router.get('/provider/reviews', protect, getProviderReviews);
+router.post('/:id/reply', protect, replyReview);
 
 router.patch('/:id/propose-schedule', protect, proposeSchedule);
 router.patch('/:id/accept-schedule', protect, acceptSchedule);

@@ -5,12 +5,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { User, Building, Landmark, Lock, Bell, HelpCircle, FileText, ChevronRight, LogOut, Loader2, Power, Zap, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 import { motion } from "framer-motion";
 
 const ProviderSettings = () => {
   const { logout, updateUser } = useAuth();
   const { toast } = useToast();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState(null);
@@ -52,7 +54,9 @@ const ProviderSettings = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const ok = await confirm("Are you sure you want to sign out securely?", { title: "Sign Out", confirmLabel: "Sign Out", destructive: true });
+    if (!ok) return;
     logout();
     toast({ title: "Signed Out", description: "Session closed securely." });
     navigate("/provider/login");

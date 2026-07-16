@@ -78,6 +78,7 @@ const Header = ({
                         <input
                             type="date"
                             value={startDate}
+                            max={new Date().toLocaleDateString("en-CA")}
                             onChange={(e) => setStartDate(e.target.value)}
                             className="bg-transparent text-xs font-bold text-gray-800 focus:outline-none"
                         />
@@ -85,6 +86,8 @@ const Header = ({
                         <input
                             type="date"
                             value={endDate}
+                            min={startDate || undefined}
+                            max={new Date().toLocaleDateString("en-CA")}
                             onChange={(e) => setEndDate(e.target.value)}
                             className="bg-transparent text-xs font-bold text-gray-800 focus:outline-none"
                         />

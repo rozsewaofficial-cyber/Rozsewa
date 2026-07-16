@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, MapPin, Plus, Home, Briefcase, Navigation, Trash2, X, Map } from "lucide-react";
+import { ArrowLeft, MapPin, Plus, Home, Briefcase, Navigation, Trash2, X, Map, Edit2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -13,6 +13,7 @@ const Addresses = () => {
   const [addresses, setAddresses] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newAddr, setNewAddr] = useState({ label: "", address: "", icon: "home" });
+  const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -30,22 +31,39 @@ const Addresses = () => {
     fetchAddresses();
   }, []);
 
-  const handleAddAddress = async () => {
+  const handleSaveAddress = async () => {
     if (!newAddr.label || !newAddr.address) {
       toast({ title: "Please fill all fields", variant: "destructive" });
       return;
     }
     setLoading(true);
     try {
-      const { data } = await API.post("/auth/addresses", newAddr);
-      setAddresses(data); // Backend returns the updated addresses array
-      toast({ title: "Address Added Successfully" });
-      setShowAddForm(false);
-      setNewAddr({ label: "", address: "", icon: "home" });
+      if (editingId) {
+        const { data } = await API.put(`/auth/addresses/${editingId}`, newAddr);
+        setAddresses(data);
+        toast({ title: "Address Updated Successfully" });
+      } else {
+        const { data } = await API.post("/auth/addresses", newAddr);
+        setAddresses(data); // Backend returns the updated addresses array
+        toast({ title: "Address Added Successfully" });
+      }
+      handleCloseForm();
     } catch (err) {
-      toast({ title: "Failed to add address", variant: "destructive" });
+      toast({ title: editingId ? "Failed to update address" : "Failed to add address", variant: "destructive" });
     }
     setLoading(false);
+  };
+
+  const handleEditClick = (addr) => {
+    setEditingId(addr._id);
+    setNewAddr({ label: addr.label, address: addr.address, icon: addr.icon });
+    setShowAddForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowAddForm(false);
+    setEditingId(null);
+    setNewAddr({ label: "", address: "", icon: "home" });
   };
 
   const handleDelete = async (id) => {
@@ -68,7 +86,7 @@ const Addresses = () => {
           <div className="flex items-center gap-3">
             <motion.button 
               whileTap={{ scale: 0.9 }} 
-              onClick={() => navigate(-1)} 
+              onClick={() => navigate('/profile')} 
               className="flex h-10 w-10 items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -111,12 +129,22 @@ const Addresses = () => {
                     <div className="flex-1 min-w-0 pt-0.5">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <h3 className="text-[16px] font-black text-slate-900 dark:text-white truncate">{addr.label}</h3>
-                        <button 
-                          onClick={() => handleDelete(addr._id)} 
-                          className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors opacity-0 group-hover:opacity-100 sm:opacity-100"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 sm:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleEditClick(addr)} 
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
+                            title="Edit Address"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(addr._id)} 
+                            className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                            title="Delete Address"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed pr-6">{addr.address}</p>
                     </div>
@@ -154,10 +182,10 @@ const Addresses = () => {
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-[16px] font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-blue-600" /> Add New Address
+                  <MapPin className="w-5 h-5 text-blue-600" /> {editingId ? "Edit Address" : "Add New Address"}
                 </h3>
                 <button 
-                  onClick={() => setShowAddForm(false)}
+                  onClick={handleCloseForm}
                   className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white transition-colors"
                 >
                   <X className="h-4 w-4" />
@@ -169,9 +197,12 @@ const Addresses = () => {
                   <label className="text-[12px] font-bold text-slate-700 dark:text-slate-300 px-1">Label Name</label>
                   <input 
                     type="text" 
-                    placeholder="e.g. Home, Office, Mom's Place..." 
+                    placeholder="e.g. Home, Office, Friends House..." 
                     value={newAddr.label} 
-                    onChange={(e) => setNewAddr({ ...newAddr, label: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                      setNewAddr({ ...newAddr, label: val });
+                    }}
                     className="w-full h-12 rounded-[16px] border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 text-[14px] font-bold text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none" 
                   />
                 </div>
@@ -181,7 +212,10 @@ const Addresses = () => {
                   <textarea 
                     placeholder="Flat No, Building, Street, Area..." 
                     value={newAddr.address} 
-                    onChange={(e) => setNewAddr({ ...newAddr, address: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^a-zA-Z0-9\s,\-\/\.]/g, '');
+                      setNewAddr({ ...newAddr, address: val });
+                    }}
                     className="w-full rounded-[16px] border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-[14px] font-medium text-slate-900 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:bg-white dark:focus:bg-slate-900 transition-all outline-none resize-none" 
                     rows={3} 
                   />
@@ -215,11 +249,11 @@ const Addresses = () => {
 
                 <motion.button 
                   whileTap={{ scale: 0.98 }}
-                  onClick={handleAddAddress} 
+                  onClick={handleSaveAddress} 
                   disabled={loading} 
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-[16px] text-[14px] font-black uppercase tracking-wide shadow-lg shadow-blue-600/20 transition-all mt-2 disabled:opacity-70"
                 >
-                  {loading ? "Saving Address..." : "Save Address"}
+                  {loading ? "Saving Address..." : (editingId ? "Save Changes" : "Save Address")}
                 </motion.button>
               </div>
             </motion.div>

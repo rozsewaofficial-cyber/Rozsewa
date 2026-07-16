@@ -376,8 +376,13 @@ const SewakPricing = () => {
                                                                                     value={combo.sewakPrice ?? ''}
                                                                                     onChange={(e) => {
                                                                                         const val = e.target.value;
-                                                                                        updateComboPrice(catIdx, comboIdx, val === '' ? '' : Math.max(0, Number(val)));
+                                                                                        let cleanVal = val;
+                                                                                        if (val.startsWith('0') && val.length > 1) {
+                                                                                            cleanVal = val.replace(/^0+/, '');
+                                                                                        }
+                                                                                        updateComboPrice(catIdx, comboIdx, cleanVal === '' ? '' : Math.max(0, Number(cleanVal)));
                                                                                     }}
+                                                                                    onFocus={(e) => e.target.select()}
                                                                                     className={`${inputCls} pl-9 font-black text-emerald-700 bg-emerald-50/50 border-emerald-200 focus:ring-emerald-500/20 focus:border-emerald-500`}
                                                                                 />
                                                                             </div>
@@ -453,10 +458,15 @@ const SewakPricing = () => {
                                                     value={selectedService.basePrice ?? ''}
                                                     onChange={(e) => {
                                                         const val = e.target.value;
-                                                        const normalizedVal = val === '' ? '' : Math.max(0, Number(val));
+                                                        let cleanVal = val;
+                                                        if (val.startsWith('0') && val.length > 1) {
+                                                            cleanVal = val.replace(/^0+/, '');
+                                                        }
+                                                        const normalizedVal = cleanVal === '' ? '' : Math.max(0, Number(cleanVal));
                                                         updatePrice(selectedCatIdx, selectedSvcIdx, 'basePrice', normalizedVal);
                                                         setSelectedService(prev => ({ ...prev, basePrice: normalizedVal }));
                                                     }}
+                                                    onFocus={(e) => e.target.select()}
                                                     className="w-full h-14 pl-11 rounded-xl border border-gray-200 bg-gray-50 font-black text-2xl text-gray-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
                                                 />
                                             </div>
@@ -469,7 +479,7 @@ const SewakPricing = () => {
                                 </div>
                             </div>
 
-                            <div className="p-5 border-t border-gray-100 bg-white">
+                            <div className="p-5 pb-8 border-t border-gray-100 bg-white">
                                 <Button
                                     onClick={() => {
                                         handleSaveCategoryPricing(categories[selectedCatIdx]);

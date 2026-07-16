@@ -61,7 +61,7 @@ const BazaarAdDetails = () => {
     <div className="min-h-screen bg-slate-50 pb-24">
       {/* Header */}
       <div className="bg-white p-4 flex items-center gap-3 sticky top-0 z-10 shadow-sm">
-        <button onClick={() => navigate(-1)} className="p-2 bg-slate-100 rounded-full text-slate-600">
+        <button onClick={() => navigate('/bazaar')} className="p-2 bg-slate-100 rounded-full text-slate-600">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="font-bold text-slate-800 line-clamp-1 flex-1">{ad.title}</h1>

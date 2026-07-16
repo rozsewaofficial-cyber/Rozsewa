@@ -30,7 +30,38 @@ const ShopDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [tab, setTab] = useState("services"); // services | reviews | about
-  const [cart, setCart] = useState({});
+  const [cart, setCart] = useState(() => {
+    try {
+      const shopId = window.location.pathname.split("/").pop();
+      const savedCart = localStorage.getItem(`rozsewa_cart_shop_${shopId}`);
+      if (savedCart) return JSON.parse(savedCart);
+    } catch {}
+    try {
+      const shopId = window.location.pathname.split("/").pop();
+      const checkoutData = localStorage.getItem("rozsewa_checkout_data");
+      if (checkoutData) {
+        const parsed = JSON.parse(checkoutData);
+        if (parsed.providerId === shopId && parsed.items) {
+          const initialCart = {};
+          parsed.items.forEach(item => {
+            initialCart[item.id] = item.qty;
+          });
+          return initialCart;
+        }
+      }
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    if (id) {
+      if (Object.keys(cart).length > 0) {
+        localStorage.setItem(`rozsewa_cart_shop_${id}`, JSON.stringify(cart));
+      } else {
+        localStorage.removeItem(`rozsewa_cart_shop_${id}`);
+      }
+    }
+  }, [cart, id]);
   const { toast } = useToast();
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [serviceFilter, setServiceFilter] = useState("all");
@@ -181,11 +212,12 @@ const ShopDetail = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-28 md:pb-0 font-sans">
       <TopNav />
       {/* Hero Banner */}
-      <div className="relative h-72 sm:h-80 w-full bg-slate-900 rounded-b-[3rem] shadow-sm overflow-hidden mb-6">
-        <img src={provider.image} alt={provider.name} className="absolute inset-0 h-full w-full object-cover opacity-60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+      <div className="relative h-72 sm:h-80 w-full bg-slate-900 rounded-b-[3rem] shadow-sm overflow-hidden mb-6 flex items-center justify-center">
+        <img src={provider.image} alt={provider.name} className="absolute inset-0 h-full w-full object-cover opacity-40 blur-xl scale-110" />
+        <img src={provider.image} alt={provider.name} className="absolute inset-0 h-full w-full object-contain opacity-90" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent" />
         
-        <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)}
+        <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/shops')}
           className="absolute left-4 sm:left-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/40 shadow-sm transition-colors">
           <ArrowLeft className="h-5 w-5" />
         </motion.button>
@@ -217,7 +249,7 @@ const ShopDetail = () => {
         </div>
       </div>
 
-      <main className="container max-w-2xl px-4 sm:px-6 py-2 space-y-6">
+      <main className="container max-w-2xl px-4 sm:px-6 pt-2 pb-48 space-y-6">
         {/* Trust Badges */}
         <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
           {provider.warranty && (
@@ -482,11 +514,11 @@ const ShopDetail = () => {
                 <p className="text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed">{provider.about}</p>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
-                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-4 flex items-center gap-2"><Camera className="h-5 w-5 text-blue-500" /> Previous Work</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  {provider.portfolio?.length > 0 ? (
-                    provider.portfolio.map((p, i) => (
+              {provider.portfolio?.length > 0 && (
+                <div className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm mt-6">
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-4 flex items-center gap-2"><Camera className="h-5 w-5 text-blue-500" /> Previous Work</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {provider.portfolio.map((p, i) => (
                       <div key={i} className="col-span-2 grid grid-cols-2 gap-4">
                         {p.before && (
                           <div className="group relative rounded-2xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -505,12 +537,10 @@ const ShopDetail = () => {
                           </div>
                         )}
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-[13px] font-medium text-slate-500 col-span-2 text-center py-6">No previous work uploaded yet.</p>
-                  )}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

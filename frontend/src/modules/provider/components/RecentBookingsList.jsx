@@ -3,6 +3,7 @@ import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus,
 import LiveTrackingView from "./LiveTrackingView";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
+import { useScrollLock } from "@/lib/scrollLock";
 import API from "@/lib/api";
 import ChatModal from "@/components/ChatModal";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -13,7 +14,13 @@ import { ToastAction } from "@/components/ui/toast";
 const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState(() => {
+    return sessionStorage.getItem('bookings_active_tab') || "pending";
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('bookings_active_tab', activeTab);
+  }, [activeTab]);
   const [staffList, setStaffList] = useState([]);
   const [activeTracking, setActiveTracking] = useState(null);
   const [activeChatBookingId, setActiveChatBookingId] = useState(null);
@@ -33,7 +40,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   const [isCancelling, setIsCancelling] = useState(false);
 
   const handleCounterSubmit = async (bookingId, originalFixedPrice, customerOffer, extraCharges = []) => {
-    const extraChargesAmount = extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+    const extraChargesAmount = (extraCharges || []).filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
     const baseCustomerOffer = Math.max(0, customerOffer - extraChargesAmount);
     const baseFixedPrice = Math.max(0, originalFixedPrice - extraChargesAmount);
 
@@ -241,6 +248,8 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
     }
   };
 
+  const isSewak = user?.role === 'sewak' || user?.providerCategory === 'sewak';
+
   const [filterCity, setFilterCity] = useState("");
   const [filterFromDate, setFilterFromDate] = useState("");      // YYYY-MM-DD
   const [filterToDate, setFilterToDate] = useState("");          // YYYY-MM-DD
@@ -371,6 +380,8 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   const [reportReason, setReportReason] = useState("");
   const [isReporting, setIsReporting] = useState(false);
 
+  useScrollLock(showExtraModal || !!otpBooking || cancelModalOpen || !!counteringBookingId || !!reportBookingId || showAdminRequestModal || !!activeTracking);
+
   const handleOtpVerify = async () => {
     const fullOtp = providerOtp;
     if (fullOtp.length !== 4) return;
@@ -411,16 +422,34 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
         .filter(c => c.item && !isNaN(c.amount) && c.amount > 0);
       if (filtered.length === 0) return;
 
+      const booking = requests.find(r => r._id === activeBookingForExtra);
+      const existingCharges = booking?.extraCharges || [];
+      const updatedCharges = [...existingCharges, ...filtered];
+
       await API.patch(`/bookings/${activeBookingForExtra}/status`, {
-        extraCharges: filtered,
+        extraCharges: updatedCharges,
         extraStatus: 'pending'
       });
 
-      toast({ title: "Charges Sent for Approval!" });
+      toast({ title: "Extra charges sent to user for approval." });
       setShowExtraModal(false);
       fetchBookings();
     } catch (err) {
       toast({ title: "Failed to add charges", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveExtraCharge = async (bookingId, chargeIndex, currentCharges) => {
+    try {
+      const updatedCharges = currentCharges.filter((_, i) => i !== chargeIndex);
+      await API.patch(`/bookings/${bookingId}/status`, {
+        extraCharges: updatedCharges,
+        extraStatus: updatedCharges.length === 0 ? 'none' : 'pending'
+      });
+      toast({ title: "Extra charge removed" });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to remove extra charge", variant: "destructive" });
     }
   };
 
@@ -465,16 +494,18 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
       {/* Filters Section - Only for Partner (Provider), not for Sewak */}
       {user?.role === 'provider' && (
         <div className="flex flex-col sm:flex-row gap-3 bg-card p-3 rounded-2xl border border-border">
-          <div className="flex-1">
-            <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">Search City/Address</label>
-            <input
-              type="text"
-              placeholder="e.g. Delhi, Mumbai..."
-              value={filterCity}
-              onChange={(e) => setFilterCity(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-            />
-          </div>
+          {!isSewak && (
+            <div className="flex-1">
+              <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">Search City/Address</label>
+              <input
+                type="text"
+                placeholder="e.g. Delhi, Mumbai..."
+                value={filterCity}
+                onChange={(e) => setFilterCity(e.target.value)}
+                className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
+              />
+            </div>
+          )}
           <div className="flex-1">
             <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">From Date</label>
             <div className="relative">
@@ -627,11 +658,24 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                       <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">Total billed to customer</div>
                     )}
                     {req.extraCharges && req.extraCharges.length > 0 && (
-                      <div className="space-y-0.5 mt-1">
+                      <div className="space-y-1 mt-2">
                         {req.extraCharges.map((extra, idx) => (
-                          <div key={idx} className="flex gap-2 text-[9px] font-black text-muted-foreground/60 uppercase tracking-tighter">
-                            <span>+ {extra.item}:</span>
-                            <span>₹{extra.amount}</span>
+                          <div key={idx} className="flex items-center justify-between gap-2 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-tighter bg-slate-50 dark:bg-slate-800/50 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                            <div className="flex gap-2">
+                              <span>+ {extra.item}:</span>
+                              <span className="text-emerald-600 dark:text-emerald-500">₹{extra.amount}</span>
+                            </div>
+                            
+                            {/* Remove button only if booking is started/pending/confirmed and not completed/cancelled */}
+                            {['started', 'pending', 'confirmed'].includes(req.status) && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleRemoveExtraCharge(req._id, idx, req.extraCharges); }}
+                                className="h-5 w-5 flex items-center justify-center rounded bg-rose-100/50 text-rose-500 hover:bg-rose-100 transition-colors"
+                                title="Remove extra charge"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -682,7 +726,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                 {req.status === "pending" && req.offerStatus !== "countered" && (!req.proposedSchedule || req.proposedSchedule.status !== 'pending') && (
                   req.bargainDiscount > 0 ? (
                     counteringBookingId === req._id ? (() => {
-                      const extraChargesAmount = req.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
+                      const extraChargesAmount = (req.extraCharges || []).filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
                       const baseCustomerOffer = Math.max(0, req.customerOffer - extraChargesAmount);
                       const baseFixedPrice = Math.max(0, req.originalFixedPrice - extraChargesAmount);
                       return (
@@ -888,7 +932,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                             setShowExtraModal(true);
                             setNewExtraCharges([{ item: '', amount: '' }]);
                           }}
-                          className="w-full flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-primary bg-primary/5 py-3 text-[10px] font-black uppercase text-primary tracking-widest hover:bg-primary/10 transition-all"
+                          className="w-full flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-primary bg-primary/5 dark:bg-primary/10 py-3 text-[10px] font-black uppercase text-primary dark:text-primary-foreground tracking-widest hover:bg-primary/10 dark:hover:bg-primary/20 transition-all"
                         >
                           <Plus className="h-4 w-4" /> {isBeautyBooking(req) ? 'Add Products Used' : 'Add Spare Parts'}
                         </button>
@@ -899,7 +943,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                             setShowExtraModal(true);
                             setNewExtraCharges([{ item: '', amount: '' }]);
                           }}
-                          className="w-full flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-indigo-500 bg-indigo-50 py-3 text-[10px] font-black uppercase text-indigo-600 tracking-widest hover:bg-indigo-100 transition-all"
+                          className="w-full flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-indigo-500 bg-indigo-50 dark:bg-indigo-950/20 py-3 text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest hover:bg-indigo-100 dark:hover:bg-indigo-950/30 transition-all"
                         >
                           <Plus className="h-4 w-4" /> Add Extra Service
                         </button>
@@ -966,7 +1010,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                       <h4 className="text-sm font-black text-foreground mb-3 uppercase tracking-wider text-center">Payment Collection</h4>
                       <div className="flex justify-between text-xs font-bold text-muted-foreground mb-2">
                         <span>Base Price</span>
-                        <span>₹{(req.totalAmount || 0) - (req.extraCharges?.filter(c => c.item.includes('Travel Charge') || c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                        <span>₹{(req.totalAmount || 0) - ((req.extraCharges || []).filter(c => c.item.includes('Travel Charge') || c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
                       {req.extraCharges && req.extraCharges.length > 0 && (
                         <div className="flex justify-between text-xs font-bold text-muted-foreground mb-2">
@@ -976,13 +1020,21 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                       )}
                       <div className="flex justify-between text-sm font-black text-emerald-700 dark:text-emerald-400 mt-3 pt-3 border-t border-emerald-100 dark:border-emerald-900">
                         <span>Total Bill</span>
-                        <span>₹{(req.totalAmount || 0) + (req.extraCharges?.filter(c => !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                        <span>₹{(req.totalAmount || 0) + ((req.extraCharges || []).filter(c => !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
                     </div>
 
                     {req.paymentMode === 'now' ? (
-                      <div className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 py-3 text-xs font-black text-blue-600 uppercase tracking-widest">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Waiting for Online Payment
+                      <div className="space-y-3">
+                        <div className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 py-3 text-xs font-black text-blue-600 uppercase tracking-widest shadow-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" /> Waiting for Online Payment
+                        </div>
+                        <button
+                          onClick={() => handleAction(req._id, 'completed', { paymentStatus: 'paid', paymentMode: 'after' })}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-100 border border-slate-200 py-2.5 text-[10px] font-black text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-all uppercase tracking-widest"
+                        >
+                          <Check className="h-3 w-3" /> Mark as Cash Collected (Skip Online)
+                        </button>
                       </div>
                     ) : (
                       <>
@@ -1025,8 +1077,8 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
       {/* OTP MODAL */}
       <AnimatePresence>
         {otpBooking && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-8 border border-border shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 touch-none">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-8 border border-border shadow-2xl touch-auto">
               <h3 className="text-lg font-black text-center mb-2">{otpType === 'start' ? 'Service Verification' : 'Completion Verification'}</h3>
               <p className="text-xs text-muted-foreground text-center mb-6">Ask the customer for the 4-digit code to {otpType === 'start' ? 'start' : 'complete'} the service.</p>
 
@@ -1279,6 +1331,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
         onClose={() => setActiveChatBookingId(null)}
         bookingId={activeChatBookingId}
         userType="Provider"
+        recipientName={requests.find(b => b._id === activeChatBookingId)?.userId?.name}
       />
     </div>
   );

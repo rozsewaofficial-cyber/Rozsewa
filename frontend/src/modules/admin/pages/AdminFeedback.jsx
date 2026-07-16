@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Search, Star, MessageSquare, Filter, Reply, CheckCircle2, Loader2 } from "lucide-react";
+import { Search, Star, MessageSquare, Filter, Reply, CheckCircle2, Loader2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -75,24 +75,38 @@ const AdminFeedback = () => {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 rounded-xl bg-white p-4 shadow-sm border border-gray-200">
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-bold text-gray-600">Filters:</span>
+      <div className="flex flex-col sm:flex-row gap-4 rounded-xl bg-white p-4 shadow-sm border border-gray-200 justify-between items-start sm:items-center">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <span className="text-sm font-bold text-gray-600">Filters:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-3 pr-8 text-xs font-bold text-gray-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 hover:bg-white transition-colors cursor-pointer appearance-none">
+              <option value="all">All Ratings</option>
+              <option value="positive">Positive (4-5 ⭐)</option>
+              <option value="negative">Negative (1-3 ⭐)</option>
+              <option value="unacknowledged">Action Needed</option>
+            </select>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-3 pr-8 text-xs font-bold text-gray-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 hover:bg-white transition-colors cursor-pointer appearance-none">
+              <option value="all">All Sources</option>
+              <option value="user">From Users</option>
+              <option value="provider">From Providers</option>
+            </select>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-3 pr-8 text-xs font-bold text-gray-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 hover:bg-white transition-colors cursor-pointer appearance-none">
-            <option value="all">All Ratings</option>
-            <option value="positive">Positive (4-5 ⭐)</option>
-            <option value="negative">Negative (1-3 ⭐)</option>
-            <option value="unacknowledged">Action Needed</option>
-          </select>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-3 pr-8 text-xs font-bold text-gray-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 hover:bg-white transition-colors cursor-pointer appearance-none">
-            <option value="all">All Sources</option>
-            <option value="user">From Users</option>
-            <option value="provider">From Providers</option>
-          </select>
-        </div>
+        {(filter !== "all" || roleFilter !== "all" || searchTerm !== "") && (
+          <button 
+            onClick={() => {
+              setSearchTerm("");
+              setFilter("all");
+              setRoleFilter("all");
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/50 hover:bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition-all active:scale-95 shadow-sm"
+          >
+            <X className="h-3.5 w-3.5" /> Clear Filters
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

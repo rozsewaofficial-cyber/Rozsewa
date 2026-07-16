@@ -228,6 +228,39 @@ const ProviderWallet = () => {
     openBankModal();
   };
 
+  const handleDownload = () => {
+    if (!transactions || transactions.length === 0) {
+      toast({ title: "No transactions to download", variant: "destructive" });
+      return;
+    }
+
+    const headers = ["Date", "Time", "Transaction ID", "Booking ID", "Title", "Type", "Amount (₹)", "Status", "Description"];
+    const csvContent = [
+      headers.join(","),
+      ...transactions.map(txn => {
+        const dateObj = new Date(txn.createdAt);
+        const date = dateObj.toLocaleDateString();
+        const time = dateObj.toLocaleTimeString();
+        const type = txn.type === 'credit' ? 'Credit' : 'Debit';
+        const status = txn.status ? txn.status.charAt(0).toUpperCase() + txn.status.slice(1) : "Completed";
+        const bookingId = txn.bookingId || "N/A";
+        const description = txn.description ? `"${txn.description.replace(/"/g, '""')}"` : "";
+        const title = txn.title ? `"${txn.title.replace(/"/g, '""')}"` : "";
+        return `${date},${time},${txn._id},${bookingId},${title},${type},${txn.amount},${status},${description}`;
+      })
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Wallet_History_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="min-h-[100dvh] bg-background pb-20 md:pb-8">
       <ProviderTopNav />
@@ -240,7 +273,7 @@ const ProviderWallet = () => {
               <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground">Wallet</h1>
               <p className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold tracking-widest mt-1">Earnings & Payouts</p>
             </div>
-            <button className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center hover:bg-accent transition-colors"><Download className="h-4 w-4 text-foreground" /></button>
+            <button onClick={handleDownload} className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center hover:bg-accent transition-colors"><Download className="h-4 w-4 text-foreground" /></button>
           </div>
 
           {/* Two Cards: Balance + Cash Limit */}

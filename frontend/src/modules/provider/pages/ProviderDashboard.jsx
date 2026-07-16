@@ -522,7 +522,7 @@ const ProviderDashboard = () => {
             </div>
           </div>
 
-          <div className="relative z-[9999] flex bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl border border-emerald-100 dark:border-white/5 rounded-2xl p-1.5 gap-2 shadow-xl shadow-emerald-900/5 w-full md:w-auto shrink-0">
+          <div className="relative z-30 flex flex-wrap bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl border border-emerald-100 dark:border-white/5 rounded-2xl p-1.5 gap-2 shadow-xl shadow-emerald-900/5 w-full md:w-auto shrink-0">
             <button onClick={toggleOnline}
               className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all ${isOnline ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" : "bg-emerald-50/50 dark:bg-slate-800 text-emerald-300 dark:text-slate-500 border border-emerald-100 dark:border-slate-700"
                 }`}>
@@ -536,10 +536,10 @@ const ProviderDashboard = () => {
               {isSyncingLocation ? "Syncing..." : "Sync GPS"}
             </button>
 
-            <div className="relative" ref={emergencyMenuRef}>
+            <div className="relative flex-1 md:flex-none w-full sm:w-auto" ref={emergencyMenuRef}>
               <button
                 onClick={() => isEmergencyActive ? setShowEmergencyMenu(!showEmergencyMenu) : toggleEmergency()}
-                className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 relative overflow-hidden ${
+                className={`w-full flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 relative overflow-hidden ${
                   isEmergencyActive
                     ? "bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]"
                     : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-700 hover:border-rose-200 hover:text-rose-400"
@@ -562,7 +562,7 @@ const ProviderDashboard = () => {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full mt-2 right-0 w-64 bg-white dark:bg-slate-900 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 dark:border-slate-800 p-2 z-[9999]"
+                    className="absolute top-full mt-2 right-0 w-64 bg-white dark:bg-slate-900 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 dark:border-slate-800 p-2 z-40"
                   >
                     <div className="p-4 border-b border-slate-50 dark:border-slate-800">
                       <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Emergency Protocol</p>
@@ -835,8 +835,20 @@ const ProviderDashboard = () => {
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
             {(menuItems.length > 0 ? menuItems : defaultMenu).filter(item => user?.providerCategory !== 'sewak' || item.title !== "Registration").map((item, idx) => {
-              const miniIcons = [Briefcase, Clock, Tag, Wallet, Star, ShieldCheck, FileText, Headset, Settings];
-              const MiniIcon = miniIcons[idx];
+              const getMiniIconByTitle = (title) => {
+                switch (title) {
+                  case "Timing": return Clock;
+                  case "Wallet": return Wallet;
+                  case "Leads": return Briefcase;
+                  case "Reviews": return Star;
+                  case "Registration": return ShieldCheck;
+                  case "Docs": return FileText;
+                  case "Support": return Headset;
+                  case "Settings": return Settings;
+                  default: return Settings;
+                }
+              };
+              const MiniIcon = getMiniIconByTitle(item.title);
               return (
                 <Link key={idx} to={item.path} className="group">
                   <motion.div

@@ -102,7 +102,7 @@ const ProviderBenefitPolicy = () => {
           <h3 className="text-2xl font-black tracking-tighter text-white italic uppercase">Ready to maximize earnings?</h3>
           <p className="text-xs font-bold text-gray-400 mt-3 max-w-sm mx-auto leading-relaxed uppercase tracking-widest">Your success is our priority. Follow these policies to maintain your top-tier status.</p>
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/provider/dashboard')}
             className="mt-8 rounded-2xl bg-white px-10 py-4 text-[10px] font-black uppercase tracking-widest text-black shadow-xl active:scale-95 transition-all"
           >
             Back to Card Center

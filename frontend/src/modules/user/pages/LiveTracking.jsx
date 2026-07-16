@@ -428,7 +428,7 @@ const LiveTracking = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate(-1)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/my-bookings')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
               <ArrowLeft className="h-5 w-5" />
             </motion.button>
             <div>
@@ -637,6 +637,42 @@ const LiveTracking = () => {
           </motion.div>
         )}
 
+        {/* Accepted Extra Charges UI */}
+        {bookingDetails?.extraCharges?.length > 0 && bookingDetails?.extraStatus !== 'pending' && (
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="rounded-[24px] border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600">
+                <Check className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-black text-emerald-700 dark:text-emerald-500">Additional Charges</h3>
+                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                  Included in your final bill
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-1 space-y-3">
+              {bookingDetails?.extraCharges?.map((item, idx) => (
+                <div key={idx} className="flex justify-between text-[13px]">
+                  <span className="text-slate-500 dark:text-slate-400">{item.item}</span>
+                  <span className="font-bold text-slate-900 dark:text-white">₹{item.amount}</span>
+                </div>
+              ))}
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between">
+                <span className="text-[13px] font-black text-slate-900 dark:text-white">Extra Total</span>
+                <span className="text-[14px] font-black text-emerald-600 dark:text-emerald-500">
+                  ₹{bookingDetails?.extraCharges?.reduce((sum, item) => sum + (item.amount || 0), 0)}
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Payment section removed as per requirement: provider will collect payment */}
 
         {bookingDetails?.status !== 'cancelled' && (
@@ -816,6 +852,7 @@ const LiveTracking = () => {
         onClose={() => setIsChatOpen(false)}
         bookingId={bookingDetails?._id || bookingDetails?.id}
         userType="User"
+        recipientName={bookingDetails?.providerId?.shopName || bookingDetails?.providerId?.ownerName || bookingDetails?.providerId?.name}
       />
     </div>
   );

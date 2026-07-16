@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!auth); // Only block UI on first mount if no cached auth
   const [userLocation, setUserLocation] = useState(() => {
     const saved = localStorage.getItem("rozsewa_user_location");
     return saved ? JSON.parse(saved) : null;
@@ -190,9 +190,9 @@ export const AuthProvider = ({ children }) => {
           const userData = res.data;
 
           setAuth(prev => {
-            if (prev) return { ...prev, ...userData };
+            if (prev) return { ...prev, ...userData, role: userData.role || prev.role };
             const saved = JSON.parse(localStorage.getItem(getStorageKey(path)) || "{}");
-            return { ...saved, ...userData, token: currentToken };
+            return { ...saved, ...userData, token: currentToken, role: userData.role || saved.role };
           });
 
           // If no live GPS location, use user's saved location

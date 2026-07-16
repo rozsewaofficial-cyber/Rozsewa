@@ -110,7 +110,7 @@ const Provider99Card = () => {
             </div>
 
             {!provider?.isSubscribed && (
-              <button onClick={() => window.location.href='/provider'} className="w-full md:w-auto shrink-0 rounded-2xl bg-white px-8 py-4 text-xs font-black uppercase tracking-widest text-emerald-700 shadow-xl transition-all hover:scale-105 active:scale-95">
+              <button onClick={() => window.location.href='/provider/subscriptions'} className="w-full md:w-auto shrink-0 rounded-2xl bg-white px-8 py-4 text-xs font-black uppercase tracking-widest text-emerald-700 shadow-xl transition-all hover:scale-105 active:scale-95">
                 Register Now
               </button>
             )}

@@ -494,6 +494,11 @@ const createBooking = async (req, res) => {
                 if (srvLimitObj) serviceLimitOverride = Number(srvLimitObj.limit);
             }
 
+            // Bulk query all wallets at once for performance (resolves slow Send Request times)
+            const providerIds = providersToNotify.map(p => p._id);
+            const wallets = await Wallet.find({ providerId: { $in: providerIds } });
+            const walletMap = new Map(wallets.map(w => [w.providerId.toString(), w.balance]));
+
             const validProviders = [];
             for (const provider of providersToNotify) {
                 let limit = serviceLimitOverride !== null ? serviceLimitOverride : (Number(cfg.defaultLimit) || 1500);
@@ -504,14 +509,10 @@ const createBooking = async (req, res) => {
                     if (catLimitObj) limit = Number(catLimitObj.limit);
                 }
 
-                const wallet = await Wallet.findOne({ providerId: provider._id });
-                const walletBalance = wallet ? wallet.balance : 0;
+                const walletBalance = walletMap.get(provider._id.toString()) || 0;
                 if (walletBalance <= -limit) {
                     console.log(`[Debt Enforcement] Provider ${provider._id} blocked from receiving booking (Balance: ${walletBalance}, Limit: -${limit})`);
                     continue;
-                }
-                if (!wallet) {
-                    console.log(`[Wallet Check] Provider ${provider._id} has no wallet yet (treated as ₹0 balance), allowed.`);
                 }
                 validProviders.push(provider);
             }
@@ -2079,6 +2080,8 @@ const getProviderReviews = async (req, res) => {
             service: b.serviceName,
             rating: b.rating,
             review: b.comment,
+            reply: b.providerReply,
+            replyDate: b.providerReplyDate,
             date: b.createdAt
         }));
 
@@ -2629,7 +2632,31 @@ const collectPayment = async (req, res) => {
     }
 };
 
+
+const replyReview = async (req, res) => {
+    const { reply } = req.body;
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+
+        if (booking.providerId.toString() !== req.user._id.toString()) {
+            return res.status(401).json({ message: 'Not authorized' });
+        }
+
+        booking.providerReply = reply;
+        booking.providerReplyDate = new Date();
+        await booking.save();
+
+        res.json({ message: 'Reply submitted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
+    replyReview,
     createBooking,
     getUserBookings,
     getProviderBookings,

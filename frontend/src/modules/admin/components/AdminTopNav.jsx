@@ -181,48 +181,55 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
       <div className="flex flex-1 items-center justify-end gap-3">
 
         {/* ── Global Search ─────────────────────────────────────────────── */}
-        <div className="relative hidden md:block" ref={searchRef}>
+        <div className="relative hidden md:block w-64 lg:w-80" ref={searchRef}>
           {/* Input bar */}
-          <div
-            onClick={handleSearchOpen}
-            className="flex items-center w-64 lg:w-80 cursor-text bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 text-sm font-semibold text-gray-400 outline-none hover:border-blue-400 hover:bg-white transition-all shadow-inner"
-          >
-            <Search className="absolute left-3.5 h-4 w-4 text-gray-400" />
-            <span className="flex-1 select-none">Search across RozSewa...</span>
-            <span className="bg-white border border-gray-200 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400 shadow-sm">
-              CTRL+K
-            </span>
+          <div className="relative flex items-center w-full">
+            <Search className="absolute left-3.5 h-4 w-4 text-gray-400 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (!searchOpen) setSearchOpen(true);
+              }}
+              onFocus={() => {
+                setSearchOpen(true);
+                setNotifOpen(false);
+              }}
+              placeholder="Search across RozSewa..."
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-16 text-sm font-semibold text-gray-850 outline-none hover:border-blue-400 focus:border-blue-500 focus:bg-white transition-all shadow-inner placeholder:text-gray-400 dark:text-gray-900"
+            />
+            <div className="absolute right-3.5 flex items-center gap-1.5">
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  className="text-gray-400 hover:text-gray-655 transition"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+              {!searchQuery && (
+                <span className="bg-white border border-gray-200 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-gray-400 shadow-sm pointer-events-none">
+                  CTRL+K
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Search overlay panel */}
           <AnimatePresence>
             {searchOpen && (
               <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                initial={{ opacity: 0, y: 6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                exit={{ opacity: 0, y: 6, scale: 0.98 }}
                 transition={{ duration: 0.15 }}
-                className="absolute top-14 left-0 w-[480px] bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden z-50"
+                className="absolute top-14 left-0 right-0 w-full bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden z-50 mt-1"
               >
-                {/* Input inside panel */}
-                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100">
-                  <Search className="h-4 w-4 text-gray-400 shrink-0" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search users, providers, sewaks, bookings..."
-                    className="flex-1 text-sm font-semibold text-gray-800 bg-transparent outline-none placeholder:text-gray-400"
-                    autoFocus
-                  />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery("")} className="text-gray-400 hover:text-gray-600">
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
                 {/* Results body */}
                 <div className="max-h-[440px] overflow-y-auto">
                   {searchLoading && (
@@ -446,8 +453,7 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
 
         {/* Mobile Profile Avatar */}
         <motion.div whileTap={{ scale: 0.9 }} className="md:hidden">
-          <Link
-            to="/admin/settings"
+          <div
             className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 border border-blue-100 text-blue-700 font-black text-sm shadow-sm overflow-hidden"
           >
             {user?.avatar || user?.profileImage ? (
@@ -467,7 +473,7 @@ const AdminTopNav = ({ title = "Dashboard", toggleMenu }) => {
             >
               {user?.name ? user.name.substring(0, 2).toUpperCase() : "AD"}
             </span>
-          </Link>
+          </div>
         </motion.div>
       </div>
     </header>
