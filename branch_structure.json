@@ -1,12 +1,15 @@
 {
   "default_branch": "master",
   "branches": [
+    "bugfix",
     "master"
   ],
   "parent": {
+    "bugfix": "master",
     "master": null
   },
   "order": [
-    "master"
+    "master",
+    "bugfix"
   ]
 }
