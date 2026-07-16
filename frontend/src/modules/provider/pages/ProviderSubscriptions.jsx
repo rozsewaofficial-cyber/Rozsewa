@@ -103,6 +103,9 @@ const ProviderSubscriptions = () => {
   };
 
   const handleOnlinePurchase = async () => {
+    toast({ title: "Subscription Active", description: "Your subscription was activated successfully (Simulated).", variant: "default" });
+    return;
+    /*
     const plan = paymentModalPlan;
     setIsProcessingOnline(true);
     
@@ -151,6 +154,7 @@ const ProviderSubscriptions = () => {
     } finally {
       setIsProcessingOnline(false);
     }
+    */
   };
 
   const handleRenew = async () => {

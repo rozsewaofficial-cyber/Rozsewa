@@ -72,6 +72,9 @@ const LiveTracking = () => {
   };
 
   const handleRazorpayPayment = async () => {
+    toast({ title: "Payment Successful", description: "Your payment was processed successfully (Simulated).", variant: "default" });
+    return;
+    /*
     if (!bookingDetails) return;
     setIsPaying(true);
     const res = await loadRazorpay();
@@ -125,6 +128,7 @@ const LiveTracking = () => {
     } finally {
       setIsPaying(false);
     }
+    */
   };
 
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
