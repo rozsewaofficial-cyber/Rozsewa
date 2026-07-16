@@ -111,10 +111,6 @@ const ProviderWallet = () => {
   const handlePayAdmin = async () => {
     if (balance >= 0) return;
     const debtAmount = Math.abs(balance);
-
-    toast({ title: "Money Added! 🎉", description: "Amount successfully added to your wallet (Simulated).", variant: "default" });
-    return;
-    /*
     setIsProcessing(true);
     const res = await loadRazorpay();
 
@@ -165,7 +161,7 @@ const ProviderWallet = () => {
     } finally {
       setIsProcessing(false);
     }
-    */
+
   };
 
   const submitWithdrawal = async (e) => {

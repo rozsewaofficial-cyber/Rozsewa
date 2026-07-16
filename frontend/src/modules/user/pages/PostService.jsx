@@ -75,9 +75,6 @@ const PostService = () => {
   });
 
   const handleRazorpayPayment = async () => {
-    toast({ title: "Payment Successful", description: "Your payment was processed successfully (Simulated).", variant: "default" });
-    return;
-    /*
     if (!booking) return;
     setIsPaying(true);
     const res = await loadRazorpay();
@@ -105,7 +102,7 @@ const PostService = () => {
     } catch (err) {
       toast({ title: "Payment Failed", description: err.message, variant: "destructive" });
     } finally { setIsPaying(false); }
-    */
+
   };
 
   const extraTotal = booking?.extraCharges?.reduce((sum, item) => sum + item.amount, 0) || 0;
