@@ -28,7 +28,19 @@ const AdminBazaarPage = () => {
   const [newCatIcon, setNewCatIcon] = useState(null);
   const [newCatDescription, setNewCatDescription] = useState('');
   const [newCatSubCategory, setNewCatSubCategory] = useState('');
+  const [newCatFields, setNewCatFields] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Field Modal State
+  const [isFieldModalOpen, setIsFieldModalOpen] = useState(false);
+  const [editingFieldIndex, setEditingFieldIndex] = useState(-1);
+  const [fieldFormData, setFieldFormData] = useState({
+    name: '', label: '', type: 'text', options: '', required: false
+  });
+
+  // Edit Category Modal State
+  const [isEditCategoryModalOpen, setIsEditCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   
   useScrollLock(!!editingAd);
 
@@ -256,7 +268,8 @@ const AdminBazaarPage = () => {
         order: newCatOrder, 
         icon: iconUrl,
         description: newCatDescription,
-        subCategories: subCategoriesArray
+        subCategories: subCategoriesArray,
+        fields: newCatFields
       });
       if (res.data.success) {
         toast({ title: 'Category added' });
@@ -265,12 +278,97 @@ const AdminBazaarPage = () => {
         setNewCatIcon(null);
         setNewCatDescription('');
         setNewCatSubCategory('');
+        setNewCatFields([]);
         fetchCategories();
       }
     } catch (err) {
       toast({ title: err.response?.data?.message || 'Failed to add category', variant: 'destructive' });
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleUpdateCategory = async (e) => {
+    e.preventDefault();
+    try {
+      setIsUploading(true);
+      let iconUrl = editingCategory.icon;
+      
+      if (newCatIcon) {
+        const uploadData = new FormData();
+        uploadData.append('image', newCatIcon);
+        const uploadRes = await api.post('/upload', uploadData);
+        if (uploadRes.data.url) iconUrl = uploadRes.data.url;
+      }
+      
+      let subCats = editingCategory.subCategories;
+      if (typeof editingCategory.subCategories === 'string') {
+        subCats = editingCategory.subCategories.split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      const res = await api.put(`/bazaar/admin/categories/${editingCategory._id}`, {
+        ...editingCategory,
+        icon: iconUrl,
+        subCategories: subCats
+      });
+      
+      if (res.data.success) {
+        toast({ title: 'Category updated successfully' });
+        setIsEditCategoryModalOpen(false);
+        setEditingCategory(null);
+        setNewCatIcon(null);
+        fetchCategories();
+      }
+    } catch (err) {
+      toast({ title: err.response?.data?.message || 'Failed to update category', variant: 'destructive' });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveField = (e) => {
+    e.preventDefault();
+    if (!fieldFormData.label || !fieldFormData.name) return;
+
+    const newField = {
+      name: fieldFormData.name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+      label: fieldFormData.label,
+      type: fieldFormData.type,
+      required: fieldFormData.required,
+      options: fieldFormData.type === 'dropdown' ? fieldFormData.options.split(',').map(s => s.trim()).filter(Boolean) : []
+    };
+
+    // If we are editing an existing category in the modal
+    if (editingCategory) {
+      const updatedFields = [...(editingCategory.fields || [])];
+      if (editingFieldIndex >= 0) {
+        updatedFields[editingFieldIndex] = newField;
+      } else {
+        updatedFields.push(newField);
+      }
+      setEditingCategory({ ...editingCategory, fields: updatedFields });
+    } else {
+      // We are adding a new category
+      const updatedFields = [...newCatFields];
+      if (editingFieldIndex >= 0) {
+        updatedFields[editingFieldIndex] = newField;
+      } else {
+        updatedFields.push(newField);
+      }
+      setNewCatFields(updatedFields);
+    }
+    setIsFieldModalOpen(false);
+  };
+
+  const handleDeleteField = (idx, isEditingExisting = false) => {
+    if (isEditingExisting) {
+      const updatedFields = [...(editingCategory.fields || [])];
+      updatedFields.splice(idx, 1);
+      setEditingCategory({ ...editingCategory, fields: updatedFields });
+    } else {
+      const updatedFields = [...newCatFields];
+      updatedFields.splice(idx, 1);
+      setNewCatFields(updatedFields);
     }
   };
 
@@ -534,6 +632,28 @@ const AdminBazaarPage = () => {
                   placeholder="e.g. Smartphones, Accessories (Comma separated)"
                 />
               </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-xs font-bold text-gray-700">Dynamic Fields (Optional)</label>
+                  <button type="button" onClick={() => { setEditingFieldIndex(-1); setFieldFormData({name:'', label:'', type:'text', options:'', required:false}); setIsFieldModalOpen(true); }} className="text-[10px] bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold px-2 py-1 rounded transition-colors">
+                    + Add Field
+                  </button>
+                </div>
+                <div className="space-y-2 border border-slate-200 rounded-lg p-2 bg-slate-50 min-h-[60px]">
+                  {newCatFields.map((f, i) => (
+                    <div key={i} className="flex justify-between items-center bg-white p-2 rounded shadow-sm border border-slate-100">
+                      <span className="text-xs font-bold text-slate-700">{f.label} <span className="text-slate-400 font-medium ml-1">({f.type})</span></span>
+                      <div className="flex gap-2">
+                         <button type="button" onClick={() => { setEditingFieldIndex(i); setFieldFormData({...f, options: f.options ? f.options.join(', ') : ''}); setIsFieldModalOpen(true); }} className="text-blue-500 hover:bg-blue-50 p-1 rounded"><Edit2 size={12}/></button>
+                         <button type="button" onClick={() => handleDeleteField(i, false)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={12}/></button>
+                      </div>
+                    </div>
+                  ))}
+                  {newCatFields.length === 0 && <div className="flex items-center justify-center h-full pt-3"><p className="text-[11px] text-slate-400 font-medium">No dynamic fields added yet.</p></div>}
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={isUploading}
@@ -569,11 +689,25 @@ const AdminBazaarPage = () => {
                        )}
                        <div className="flex-1 min-w-0">
                          <p className="text-sm font-bold text-gray-800 truncate">{cat.name}</p>
-                         <p className="text-[10px] text-gray-500 font-medium">Order: {cat.order}</p>
+                         <p className="text-[10px] text-gray-500 font-medium">Order: {cat.order} • Fields: {cat.fields?.length || 0}</p>
                        </div>
+                       <button
+                         onClick={() => {
+                           setEditingCategory({
+                             ...cat,
+                             subCategories: cat.subCategories ? cat.subCategories.join(', ') : ''
+                           });
+                           setIsEditCategoryModalOpen(true);
+                         }}
+                         className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors shrink-0"
+                         title="Edit Category"
+                       >
+                         <Edit2 className="w-4 h-4" />
+                       </button>
                        <button
                          onClick={() => handleDeleteCategory(cat._id)}
                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                         title="Delete Category"
                        >
                          <Trash2 className="w-4 h-4" />
                        </button>
@@ -838,6 +972,198 @@ const AdminBazaarPage = () => {
               </button>
               <button form="editAdForm" type="submit" className="px-6 py-2 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-700">
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Field Editor Modal */}
+      {isFieldModalOpen && (
+        <div className="fixed inset-0 z-[120] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100">
+              <h3 className="font-bold text-lg text-slate-800">{editingFieldIndex >= 0 ? 'Edit Field' : 'Add New Field'}</h3>
+              <button onClick={() => setIsFieldModalOpen(false)} className="text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg"><X className="w-5 h-5"/></button>
+            </div>
+            <form onSubmit={handleSaveField} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Field Label</label>
+                <input 
+                  type="text" 
+                  required
+                  value={fieldFormData.label}
+                  onChange={e => {
+                    const label = e.target.value;
+                    const name = label.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    setFieldFormData({...fieldFormData, label, name});
+                  }}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm font-medium"
+                  placeholder="e.g. Storage Capacity"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Field Type</label>
+                <select 
+                  value={fieldFormData.type}
+                  onChange={e => setFieldFormData({...fieldFormData, type: e.target.value})}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm font-medium bg-white"
+                >
+                  <option value="text">Short Text</option>
+                  <option value="textarea">Long Text (Textarea)</option>
+                  <option value="number">Number</option>
+                  <option value="dropdown">Dropdown Options</option>
+                  <option value="checkbox">Checkbox (Yes/No)</option>
+                </select>
+              </div>
+
+              {fieldFormData.type === 'dropdown' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1.5">Options (Comma Separated)</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={fieldFormData.options}
+                    onChange={e => setFieldFormData({...fieldFormData, options: e.target.value})}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:border-blue-500 outline-none text-sm font-medium"
+                    placeholder="e.g. 64GB, 128GB, 256GB"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={fieldFormData.required}
+                  onChange={e => setFieldFormData({...fieldFormData, required: e.target.checked})}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <span className="text-sm font-bold text-slate-700">Make this field required</span>
+              </label>
+
+              <button type="submit" className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors mt-2">
+                Save Field
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Category Modal */}
+      {isEditCategoryModalOpen && editingCategory && (
+        <div className="fixed inset-0 z-[110] bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 shrink-0 bg-slate-50">
+              <h3 className="font-black text-lg text-slate-800">Edit Category: {editingCategory.name}</h3>
+              <button onClick={() => { setIsEditCategoryModalOpen(false); setEditingCategory(null); setNewCatIcon(null); }} className="text-slate-400 hover:bg-slate-200 p-1.5 rounded-lg transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <form onSubmit={handleUpdateCategory} className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-6">
+              {/* Basic Info Column */}
+              <div className="flex-1 space-y-4">
+                <h4 className="font-bold text-slate-800 border-b pb-2">Basic Info</h4>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Category Icon</label>
+                  <div className="flex items-center gap-3">
+                    {newCatIcon || editingCategory.icon ? (
+                      <div className="relative w-16 h-16 rounded-xl border border-gray-200 overflow-hidden">
+                        <img src={newCatIcon ? URL.createObjectURL(newCatIcon) : editingCategory.icon} alt="Preview" className="w-full h-full object-cover" />
+                        <button type="button" onClick={() => { setNewCatIcon(null); setEditingCategory({...editingCategory, icon: ''}); }} className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center">
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div onClick={() => document.getElementById('edit-cat-icon-upload')?.click()} className="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-gray-50 transition-colors">
+                        <ImageIcon className="w-4 h-4 text-gray-400" />
+                        <span className="text-[8px] font-bold text-gray-500 uppercase">Upload</span>
+                      </div>
+                    )}
+                    <input id="edit-cat-icon-upload" type="file" className="hidden" accept="image/*" onChange={(e) => { if(e.target.files[0]) setNewCatIcon(e.target.files[0]) }} />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Category Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCategory.name}
+                    onChange={e => setEditingCategory({...editingCategory, name: e.target.value})}
+                    className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingCategory.order}
+                    onChange={e => setEditingCategory({...editingCategory, order: e.target.value})}
+                    className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={editingCategory.description || ''}
+                    onChange={e => setEditingCategory({...editingCategory, description: e.target.value})}
+                    className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-sm outline-none focus:ring-1 focus:ring-blue-500 min-h-[60px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Sub Categories (Comma Separated)</label>
+                  <input
+                    type="text"
+                    value={editingCategory.subCategories}
+                    onChange={e => setEditingCategory({...editingCategory, subCategories: e.target.value})}
+                    className="w-full p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Fields Column */}
+              <div className="flex-1 space-y-4">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h4 className="font-bold text-slate-800">Dynamic Fields</h4>
+                  <button type="button" onClick={() => { setEditingFieldIndex(-1); setFieldFormData({name:'', label:'', type:'text', options:'', required:false}); setIsFieldModalOpen(true); }} className="text-[10px] bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold px-2 py-1 rounded transition-colors">
+                    + Add Field
+                  </button>
+                </div>
+
+                <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-slate-50 min-h-[200px] overflow-y-auto">
+                  {(editingCategory.fields || []).map((f, i) => (
+                    <div key={i} className="flex justify-between items-center bg-white p-2.5 rounded-lg shadow-sm border border-slate-100">
+                      <div>
+                        <div className="text-xs font-bold text-slate-700">{f.label}</div>
+                        <div className="text-[10px] text-slate-400 font-medium">{f.type} {f.required ? '• Required' : ''}</div>
+                      </div>
+                      <div className="flex gap-2">
+                         <button type="button" onClick={() => { setEditingFieldIndex(i); setFieldFormData({...f, options: f.options ? f.options.join(', ') : ''}); setIsFieldModalOpen(true); }} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded"><Edit2 size={14}/></button>
+                         <button type="button" onClick={() => handleDeleteField(i, true)} className="text-red-500 hover:bg-red-50 p-1.5 rounded"><Trash2 size={14}/></button>
+                      </div>
+                    </div>
+                  ))}
+                  {(!editingCategory.fields || editingCategory.fields.length === 0) && (
+                    <div className="flex flex-col items-center justify-center h-full pt-10 text-slate-400">
+                      <Tag className="w-8 h-8 opacity-20 mb-2" />
+                      <p className="text-xs font-medium">No dynamic fields.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </form>
+            
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+              <button type="button" onClick={() => { setIsEditCategoryModalOpen(false); setEditingCategory(null); setNewCatIcon(null); }} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleUpdateCategory} disabled={isUploading} className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
+                {isUploading ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Save Changes'}
               </button>
             </div>
           </div>

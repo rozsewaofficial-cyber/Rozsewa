@@ -47,6 +47,8 @@ const AddScrap = () => {
     }
   });
 
+  const [dynamicFieldsData, setDynamicFieldsData] = useState({});
+  const [selectedCategoryFields, setSelectedCategoryFields] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -61,10 +63,25 @@ const AddScrap = () => {
       if (res.data.success && res.data.data.length > 0) {
         setCategories(res.data.data);
         setFormData(prev => ({ ...prev, category: res.data.data[0].name }));
+        if (res.data.data[0].fields) {
+          setSelectedCategoryFields(res.data.data[0].fields);
+        }
       }
     } catch (err) {
       console.error("Failed to load categories", err);
     }
+  };
+
+  // When category changes, update the fields
+  const handleCategoryChange = (catName) => {
+    setFormData({ ...formData, category: catName, subCategory: '' });
+    const cat = categories.find(c => c.name === catName);
+    if (cat && cat.fields) {
+      setSelectedCategoryFields(cat.fields);
+    } else {
+      setSelectedCategoryFields([]);
+    }
+    setDynamicFieldsData({}); // Reset dynamic fields on category change
   };
 
   // Removed automatic location fetch on mount. Added manual button instead.
@@ -157,7 +174,15 @@ const AddScrap = () => {
       return;
     }
 
-    const payload = { ...formData, price: Number(formData.price) };
+    // Validate Dynamic Fields
+    for (const field of selectedCategoryFields) {
+      if (field.required && !dynamicFieldsData[field.name]) {
+        toast({ title: `${field.label} is required`, variant: 'destructive' });
+        return;
+      }
+    }
+
+    const payload = { ...formData, price: Number(formData.price), dynamicFields: dynamicFieldsData };
     const validationResult = adSchema.safeParse(payload);
     
     if (!validationResult.success) {
@@ -270,9 +295,7 @@ const AddScrap = () => {
             
             <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Category</label>
-                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500" value={formData.category} onChange={e => {
-                  setFormData({ ...formData, category: e.target.value, subCategory: '' });
-                }} onFocus={handleFocus} required>
+                <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500" value={formData.category} onChange={e => handleCategoryChange(e.target.value)} onFocus={handleFocus} required>
                   {categories.map((c, i) => <option key={i} value={c.name}>{c.name}</option>)}
                 </select>
                 {(() => {
@@ -322,6 +345,55 @@ const AddScrap = () => {
                 </select>
               </div>
             </div>
+
+            {/* Dynamic Fields Section */}
+            {selectedCategoryFields.length > 0 && (
+              <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                <h3 className="text-sm font-black text-slate-800 dark:text-white">Additional Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {selectedCategoryFields.map((field) => (
+                    <div key={field.name}>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        {field.label} {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {field.type === 'text' && (
+                        <input type="text" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500"
+                          value={dynamicFieldsData[field.name] || ''}
+                          onChange={e => setDynamicFieldsData({...dynamicFieldsData, [field.name]: e.target.value})}
+                          onFocus={handleFocus} required={field.required} />
+                      )}
+                      {field.type === 'number' && (
+                        <input type="number" className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500"
+                          value={dynamicFieldsData[field.name] || ''}
+                          onChange={e => setDynamicFieldsData({...dynamicFieldsData, [field.name]: e.target.value})}
+                          onFocus={handleFocus} required={field.required} />
+                      )}
+                      {field.type === 'textarea' && (
+                        <textarea className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500 min-h-[80px]"
+                          value={dynamicFieldsData[field.name] || ''}
+                          onChange={e => setDynamicFieldsData({...dynamicFieldsData, [field.name]: e.target.value})}
+                          onFocus={handleFocus} required={field.required} />
+                      )}
+                      {field.type === 'dropdown' && (
+                        <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none dark:text-white focus:border-blue-500"
+                          value={dynamicFieldsData[field.name] || ''}
+                          onChange={e => setDynamicFieldsData({...dynamicFieldsData, [field.name]: e.target.value})}
+                          onFocus={handleFocus} required={field.required}>
+                          <option value="">Select {field.label}</option>
+                          {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      )}
+                      {field.type === 'checkbox' && (
+                        <label className="flex items-center gap-3 p-3 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                          <input type="checkbox" checked={!!dynamicFieldsData[field.name]} onChange={e => setDynamicFieldsData({...dynamicFieldsData, [field.name]: e.target.checked})} className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500" />
+                          <span className="text-sm font-bold text-slate-800 dark:text-white">{field.label}</span>
+                        </label>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Pricing */}
