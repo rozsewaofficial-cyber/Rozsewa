@@ -35,8 +35,13 @@ const bazaarAdSchema = new mongoose.Schema({
   },
   condition: {
     type: String,
-    enum: ['New', 'Like New', 'Good', 'Fair', 'Poor', 'Not Applicable'],
+    enum: ['New', 'Like New', 'Good', 'Fair', 'Poor', 'Not Applicable', 'Used', 'Refurbished'], // Expanded enum to prevent errors for now
     default: 'Good'
+  },
+  dynamicFields: {
+    type: Map,
+    of: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   price: {
     type: Number,

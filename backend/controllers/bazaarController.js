@@ -44,6 +44,7 @@ exports.postAd = async (req, res) => {
       price,
       isNegotiable,
       images,
+      dynamicFields: req.body.dynamicFields || {},
       location: {
         type: 'Point',
         coordinates: location.coordinates, // [lng, lat]
@@ -301,7 +302,7 @@ exports.getCategories = async (req, res) => {
 // Create a new category (Admin)
 exports.createCategory = async (req, res) => {
   try {
-    const { name, icon, order, description, subCategories } = req.body;
+    const { name, icon, order, description, subCategories, fields } = req.body;
     
     // Check if exists
     const existing = await BazaarCategory.findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } });
@@ -309,12 +310,40 @@ exports.createCategory = async (req, res) => {
        return res.status(400).json({ success: false, message: 'Category already exists' });
     }
 
-    const category = new BazaarCategory({ name, icon, order, description, subCategories });
+    const category = new BazaarCategory({ name, icon, order, description, subCategories, fields });
     await category.save();
     
     res.status(201).json({ success: true, data: category, message: 'Category added successfully' });
   } catch (error) {
     console.error('Create Category Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// Update a category (Admin)
+exports.updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, icon, order, description, subCategories, fields, isActive } = req.body;
+    
+    const category = await BazaarCategory.findById(id);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    if (name) category.name = name;
+    if (icon) category.icon = icon;
+    if (order !== undefined) category.order = order;
+    if (description !== undefined) category.description = description;
+    if (subCategories) category.subCategories = subCategories;
+    if (fields) category.fields = fields;
+    if (isActive !== undefined) category.isActive = isActive;
+
+    await category.save();
+    
+    res.json({ success: true, data: category, message: 'Category updated successfully' });
+  } catch (error) {
+    console.error('Update Category Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
@@ -751,7 +780,7 @@ exports.getBazaarTransactions = async (req, res) => {
 exports.editAdAdmin = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, description, price, category, condition } = req.body;
+    const { title, description, price, category, condition, dynamicFields } = req.body;
     const ad = await BazaarAd.findById(id);
     if (!ad) {
       return res.status(404).json({ success: false, message: 'Ad not found' });
@@ -761,6 +790,7 @@ exports.editAdAdmin = async (req, res) => {
     ad.price = price || ad.price;
     ad.category = category || ad.category;
     ad.condition = condition || ad.condition;
+    if (dynamicFields) ad.dynamicFields = dynamicFields;
     await ad.save();
     res.json({ success: true, message: 'Ad updated successfully', data: ad });
   } catch (error) {

@@ -64,6 +64,7 @@ router.delete('/admin/ads/:id', protect, admin, deleteAd);
 // ========================
 router.get('/categories', getCategories);
 router.post('/admin/categories', protect, admin, createCategory);
+router.put('/admin/categories/:id', protect, admin, require('../controllers/bazaarController').updateCategory);
 router.delete('/admin/categories/:id', protect, admin, deleteCategory);
 
 // ========================
