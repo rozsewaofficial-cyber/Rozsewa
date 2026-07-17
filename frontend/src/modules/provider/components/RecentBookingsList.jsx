@@ -9,6 +9,7 @@ import ChatModal from "@/components/ChatModal";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { ToastAction } from "@/components/ui/toast";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   const [requests, setRequests] = useState([]);
@@ -1082,17 +1083,14 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
               <p className="text-xs text-muted-foreground text-center mb-6">Ask the customer for the 4-digit code to {otpType === 'start' ? 'start' : 'complete'} the service.</p>
 
               <div className="flex justify-center mb-8">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  autoComplete="one-time-code"
-                  maxLength="4"
-                  value={providerOtp}
-                  onChange={(e) => setProviderOtp(e.target.value.replace(/\D/g, ''))}
-                  className="w-48 text-center tracking-[1em] rounded-2xl border-2 border-border bg-muted py-4 text-3xl font-black text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all placeholder:text-muted-foreground/30"
-                  placeholder="••••"
-                />
+                <InputOTP maxLength={4} value={providerOtp} onChange={(val) => setProviderOtp(val)}>
+                  <InputOTPGroup className="gap-3">
+                    <InputOTPSlot index={0} className="w-14 h-16 text-3xl font-black rounded-xl border-2 border-border !border-l" />
+                    <InputOTPSlot index={1} className="w-14 h-16 text-3xl font-black rounded-xl border-2 border-border !border-l" />
+                    <InputOTPSlot index={2} className="w-14 h-16 text-3xl font-black rounded-xl border-2 border-border !border-l" />
+                    <InputOTPSlot index={3} className="w-14 h-16 text-3xl font-black rounded-xl border-2 border-border !border-l" />
+                  </InputOTPGroup>
+                </InputOTP>
               </div>
 
               {/* Upload Before Photo */}
