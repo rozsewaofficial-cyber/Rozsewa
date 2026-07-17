@@ -120,13 +120,13 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
             }
           }
         }}
-        className={`group flex flex-col items-center text-center gap-2 ${isGrid ? 'w-full max-w-[100px]' : 'snap-start w-[85px] sm:w-[100px]'} p-2 bg-transparent transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
+        className={`group flex flex-col items-center text-center gap-2 ${isGrid ? 'w-full max-w-[110px]' : 'snap-start w-[95px] sm:w-[110px]'} p-2 bg-transparent transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
       >
-        <div className={`flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 shadow-sm ${theme.icon} mb-1 transition-transform group-hover:scale-110 group-hover:shadow-md group-hover:border-blue-500/30`}>
+        <div className={`flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 shadow-sm ${theme.icon} mb-1 transition-transform group-hover:scale-110 group-hover:shadow-md group-hover:border-blue-500/30`}>
           {cat.image ? (
-            <img src={cat.image} alt={cat.name} className="h-full w-full object-cover rounded-full p-0.5" />
+            <img src={cat.image} alt={cat.name} className="h-full w-full object-cover rounded-2xl p-0.5" />
           ) : (
-            <div className="[&>svg]:w-6 [&>svg]:h-6">
+            <div className="[&>svg]:w-8 [&>svg]:h-8">
               {getIcon(cat.icon)}
             </div>
           )}
