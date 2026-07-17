@@ -797,9 +797,23 @@ const LeadRequirementForm = () => {
 
   // ── GPS setup on mount ───────────────────────────────────────────────────────
   useEffect(() => {
+    const cachedLocStr = sessionStorage.getItem("rozsewa_user_location") || localStorage.getItem("rozsewa_user_location");
+    if (cachedLocStr) {
+      try {
+        const cachedLoc = JSON.parse(cachedLocStr);
+        if (cachedLoc && cachedLoc.lat && cachedLoc.lng) {
+          setCoordinates([cachedLoc.lng, cachedLoc.lat]);
+          return;
+        }
+      } catch (e) {}
+    }
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        pos => setCoordinates([pos.coords.longitude, pos.coords.latitude]),
+        pos => {
+          setCoordinates([pos.coords.longitude, pos.coords.latitude]);
+          sessionStorage.setItem("rozsewa_user_location", JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude }));
+        },
         () => setCoordinates([77.209, 28.613])
       );
     }

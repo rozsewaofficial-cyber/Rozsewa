@@ -367,36 +367,38 @@ const ProviderProfile = () => {
         </section>
 
         {/* ── Referral & Rewards ───────────────────────────────────────── */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 px-1">
-            <Sparkles className="h-4 w-4 text-emerald-500" />
-            <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Referral & Rewards</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex flex-col items-center text-center space-y-2">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Referral Code</span>
-              <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl font-black text-sm border border-emerald-100 uppercase tracking-wider select-all">
-                {user?.vendorCode || "N/A"}
-              </div>
-              <p className="text-[9px] font-bold text-muted-foreground mt-1">Share this to earn 3 free services</p>
+        {user?.providerCategory !== 'sewak' && (
+          <section className="space-y-4">
+            <div className="flex items-center gap-2 px-1">
+              <Sparkles className="h-4 w-4 text-emerald-500" />
+              <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Referral & Rewards</h2>
             </div>
-            <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex flex-col items-center text-center space-y-2">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Free Services</span>
-              <div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-black text-base shadow-lg shadow-emerald-500/20">
-                {user?.freeServicesLeft || 0}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex flex-col items-center text-center space-y-2">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Referral Code</span>
+                <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl font-black text-sm border border-emerald-100 uppercase tracking-wider select-all">
+                  {user?.vendorCode || "N/A"}
+                </div>
+                <p className="text-[9px] font-bold text-muted-foreground mt-1">Share this to earn 3 free services</p>
               </div>
-              <p className="text-[9px] font-bold text-muted-foreground mt-1">Remaining without commission</p>
-            </div>
-            <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex flex-col items-center text-center space-y-2">
-              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Your Pay Plan</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-emerald-600">{user?.commissionRate || 10}</span>
-                <span className="text-xs font-black text-emerald-600">%</span>
+              <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex flex-col items-center text-center space-y-2">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Free Services</span>
+                <div className="h-10 w-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-black text-base shadow-lg shadow-emerald-500/20">
+                  {user?.freeServicesLeft || 0}
+                </div>
+                <p className="text-[9px] font-bold text-muted-foreground mt-1">Remaining without commission</p>
               </div>
-              <p className="text-[9px] font-bold text-muted-foreground mt-1">After free services exhausted</p>
+              <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex flex-col items-center text-center space-y-2">
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Your Pay Plan</span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-emerald-600">{user?.commissionRate || 10}</span>
+                  <span className="text-xs font-black text-emerald-600">%</span>
+                </div>
+                <p className="text-[9px] font-bold text-muted-foreground mt-1">After free services exhausted</p>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ── Vendor Welfare ─────────────────────────────────────────── */}
         <section className="space-y-4">

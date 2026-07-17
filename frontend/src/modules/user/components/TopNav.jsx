@@ -20,7 +20,7 @@ const TopNav = () => {
   const { user, detectLocation } = useAuth();
   const [city, setCity] = useState(() => {
     if (user && user.city) return user.city;
-    return localStorage.getItem("rozsewa_user_city") || "Lucknow";
+    return sessionStorage.getItem("rozsewa_user_city") || "Lucknow";
   });
   const [dynamicCities, setDynamicCities] = useState(["Lucknow", "Delhi", "Mumbai", "Bangalore", "Pune", "Hyderabad", "Kolkata", "Chennai"]);
 
@@ -106,7 +106,7 @@ const libraries = ['places'];
   useEffect(() => {
     if (user && user.city) {
       setCity(user.city);
-      localStorage.setItem("rozsewa_user_city", user.city);
+      sessionStorage.setItem("rozsewa_user_city", user.city);
     }
   }, [user]);
 
@@ -147,11 +147,11 @@ const libraries = ['places'];
 
   const handleCitySelect = async (selectedCity, coordinates = null) => {
     setCity(selectedCity);
-    localStorage.setItem("rozsewa_user_city", selectedCity);
+    sessionStorage.setItem("rozsewa_user_city", selectedCity);
     if (coordinates) {
-      localStorage.setItem("rozsewa_user_location", JSON.stringify(coordinates));
+      sessionStorage.setItem("rozsewa_user_location", JSON.stringify(coordinates));
     } else {
-      localStorage.removeItem("rozsewa_user_location");
+      sessionStorage.removeItem("rozsewa_user_location");
     }
 
     if (user) {

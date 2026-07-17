@@ -32,7 +32,7 @@ const Index = () => {
 
   useEffect(() => {
     const init = async () => {
-      const savedCity = localStorage.getItem("rozsewa_user_city");
+      const savedCity = sessionStorage.getItem("rozsewa_user_city");
       if (!userLocation && !savedCity) {
         try {
           await detectLocation();

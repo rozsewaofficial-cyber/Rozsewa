@@ -69,11 +69,11 @@ export const AuthProvider = ({ children }) => {
 
   const [loading, setLoading] = useState(!auth); // Only block UI on first mount if no cached auth
   const [userLocation, setUserLocation] = useState(() => {
-    const saved = localStorage.getItem("rozsewa_user_location");
+    const saved = sessionStorage.getItem("rozsewa_user_location");
     return saved ? JSON.parse(saved) : null;
   });
   const [userCity, setUserCity] = useState(() => {
-    return localStorage.getItem("rozsewa_user_city") || "";
+    return sessionStorage.getItem("rozsewa_user_city") || "";
   });
 
   const [serviceMode, setServiceMode] = useState(() => {
@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }) => {
         async (pos) => {
           const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setUserLocation(loc);
-          localStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
+          sessionStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
 
           try {
             const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -110,7 +110,7 @@ export const AuthProvider = ({ children }) => {
                                       addressComponents.find(c => c.types.includes('administrative_area_level_2'));
                 
                 if (cityComponent) {
-                  localStorage.setItem("rozsewa_user_city", cityComponent.long_name);
+                  sessionStorage.setItem("rozsewa_user_city", cityComponent.long_name);
                   setUserCity(cityComponent.long_name);
                 }
               }
@@ -120,7 +120,7 @@ export const AuthProvider = ({ children }) => {
               const data = await res.json();
               const detectedCity = data.address?.city || data.address?.town || data.address?.village || "";
               if (detectedCity) {
-                localStorage.setItem("rozsewa_user_city", detectedCity);
+                sessionStorage.setItem("rozsewa_user_city", detectedCity);
                 setUserCity(detectedCity);
               }
             }
@@ -196,15 +196,15 @@ export const AuthProvider = ({ children }) => {
           });
 
           // If no live GPS location, use user's saved location
-          const currentCity = localStorage.getItem("rozsewa_user_city");
-          if (!localStorage.getItem("rozsewa_user_location") && userData.location?.coordinates) {
+          const currentCity = sessionStorage.getItem("rozsewa_user_city");
+          if (!sessionStorage.getItem("rozsewa_user_location") && userData.location?.coordinates) {
             const [lng, lat] = userData.location.coordinates;
             const isSameCity = !currentCity || currentCity.toLowerCase().includes((userData.city || "").toLowerCase());
 
             if (lat !== 0 && lng !== 0 && isSameCity) {
               const loc = { lat, lng };
               setUserLocation(loc);
-              localStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
+              sessionStorage.setItem("rozsewa_user_location", JSON.stringify(loc));
             }
           }
         } catch (err) {

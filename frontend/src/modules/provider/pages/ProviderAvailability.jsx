@@ -205,7 +205,7 @@ const ProviderAvailability = () => {
           whileTap={{ scale: 0.97 }} 
           onClick={handleSave}
           disabled={saving}
-          className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-sm font-extrabold text-primary-foreground shadow-xl shadow-primary/20 ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
+          className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 mb-12 text-sm font-extrabold text-primary-foreground shadow-xl shadow-primary/20 ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
           {saving ? (
              <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />

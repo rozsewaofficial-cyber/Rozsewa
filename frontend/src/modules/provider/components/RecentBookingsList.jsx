@@ -6,7 +6,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { useScrollLock } from "@/lib/scrollLock";
 import API from "@/lib/api";
 import ChatModal from "@/components/ChatModal";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { useSocket } from "@/context/SocketContext";
 import { useAuth } from "@/context/AuthContext";
 import { ToastAction } from "@/components/ui/toast";
@@ -1083,17 +1082,17 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
               <p className="text-xs text-muted-foreground text-center mb-6">Ask the customer for the 4-digit code to {otpType === 'start' ? 'start' : 'complete'} the service.</p>
 
               <div className="flex justify-center mb-8">
-                <InputOTP maxLength={4} value={providerOtp} onChange={setProviderOtp}>
-                  <InputOTPGroup className="gap-3">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                      <InputOTPSlot
-                        key={i}
-                        index={i}
-                        className="h-14 w-12 rounded-xl border-2 border-border bg-muted text-center text-2xl font-black text-foreground first:rounded-xl first:border-2 last:rounded-xl focus-visible:border-primary focus-visible:ring-0 focus-visible:outline-none"
-                      />
-                    ))}
-                  </InputOTPGroup>
-                </InputOTP>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="one-time-code"
+                  maxLength="4"
+                  value={providerOtp}
+                  onChange={(e) => setProviderOtp(e.target.value.replace(/\D/g, ''))}
+                  className="w-48 text-center tracking-[1em] rounded-2xl border-2 border-border bg-muted py-4 text-3xl font-black text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all placeholder:text-muted-foreground/30"
+                  placeholder="••••"
+                />
               </div>
 
               {/* Upload Before Photo */}

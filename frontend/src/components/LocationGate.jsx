@@ -33,8 +33,8 @@ const LocationGate = () => {
   };
 
   useEffect(() => {
-    const savedCity = localStorage.getItem("rozsewa_user_city");
-    const savedLoc = localStorage.getItem("rozsewa_user_location");
+    const savedCity = sessionStorage.getItem("rozsewa_user_city");
+    const savedLoc = sessionStorage.getItem("rozsewa_user_location");
     if (sessionStorage.getItem("location_gate_passed") === "true" || userLocation || savedLoc || savedCity) {
       if ((userLocation || savedLoc || savedCity) && sessionStorage.getItem("location_gate_passed") !== "true") {
         sessionStorage.setItem("location_gate_passed", "true");

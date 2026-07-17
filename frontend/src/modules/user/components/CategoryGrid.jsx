@@ -66,25 +66,16 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
     !searchQuery || cat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const displayList = showAll ? filteredCategories : filteredCategories.slice(0, 10);
-  const half = Math.ceil(displayList.length / 2);
-  const row1 = displayList.slice(0, half);
-  const row2 = displayList.slice(half);
+  const displayList = showAll ? filteredCategories : filteredCategories.slice(0, 6);
 
   if (loading) return (
-    <div className="overflow-x-auto pb-4 snap-x scrollbar-hide -mx-1 px-1">
-      <div className="flex flex-col gap-4 w-max">
-        {[0, 1].map(rowIndex => (
-          <div key={rowIndex} className="flex gap-3 sm:gap-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex flex-col items-center gap-2 w-[85px] sm:w-[100px]">
-                <div className="w-14 h-14 bg-slate-200 dark:bg-slate-800 rounded-[16px] animate-pulse"></div>
-                <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse mt-1"></div>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 sm:gap-4 pb-4 items-stretch">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="flex flex-col items-center gap-2 w-full">
+          <div className="w-[85%] aspect-square bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse mx-auto"></div>
+          <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded-full animate-pulse mt-1"></div>
+        </div>
+      ))}
     </div>
   );
 
@@ -100,8 +91,7 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
     );
   }
 
-  const renderCategory = (cat, i, isGrid = false) => {
-    const theme = themes[i % themes.length];
+  const renderCategory = (cat, i, isGrid = true) => {
     return (
       <motion.button
         key={cat._id}
@@ -120,49 +110,34 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
             }
           }
         }}
-        className={`group flex flex-col items-center text-center gap-2 ${isGrid ? 'w-full max-w-[110px]' : 'snap-start w-[95px] sm:w-[110px]'} p-2 bg-transparent transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : ""}`}
+        className={`group flex flex-col items-center text-center w-full h-full bg-white dark:bg-slate-900 rounded-[20px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-2 sm:p-3 transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : "hover:shadow-md hover:border-slate-200"}`}
       >
-        <div className={`flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 shadow-sm ${theme.icon} mb-1 transition-transform group-hover:scale-110 group-hover:shadow-md group-hover:border-blue-500/30`}>
+        <div className={`relative flex items-center justify-center w-[90%] sm:w-[85%] aspect-square rounded-full bg-[#006e33] dark:bg-emerald-800 mb-2 sm:mb-3 transition-transform duration-300 group-hover:scale-105 mx-auto overflow-hidden shrink-0`}>
           {cat.image ? (
-            <img src={cat.image} alt={cat.name} className="h-full w-full object-cover rounded-2xl p-0.5" />
+            <img src={cat.image} alt={cat.name} className="absolute inset-0 w-full h-full object-cover" />
           ) : (
-            <div className="[&>svg]:w-8 [&>svg]:h-8">
+            <div className={`[&>svg]:w-7 [&>svg]:h-7 text-white relative z-10`}>
               {getIcon(cat.icon)}
             </div>
           )}
         </div>
 
-        <span className={`text-[11px] sm:text-[12px] font-bold leading-tight line-clamp-2 px-1 ${cat.isComingSoon ? "text-slate-500" : "text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white"}`}>
-          {cat.name}
-        </span>
+        <div className={`flex-1 flex items-center justify-center w-full px-1 pb-1`}>
+          <span className={`text-[11px] sm:text-[12px] font-semibold leading-[1.2] line-clamp-3 ${cat.isComingSoon ? "text-slate-500" : "text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white"}`}>
+            {cat.name}
+          </span>
+        </div>
       </motion.button>
     );
   };
 
-  if (showAll) {
-    return (
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-y-6 gap-x-2 pb-4 -mx-1 px-1">
-        {displayList.map((cat, i) => (
-          <div className="flex justify-center" key={cat._id}>
-            {renderCategory(cat, i, true)}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
   return (
-    <div className="overflow-x-auto pb-4 snap-x scrollbar-hide -mx-1 px-1">
-      <div className="flex flex-col gap-4 w-max">
-        <div className="flex items-start gap-3 sm:gap-4">
-          {row1.map((cat, i) => renderCategory(cat, i, false))}
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 sm:gap-4 pb-4 items-stretch">
+      {displayList.map((cat, i) => (
+        <div className="flex w-full h-full" key={cat._id}>
+          {renderCategory(cat, i, true)}
         </div>
-        {row2.length > 0 && (
-          <div className="flex items-start gap-3 sm:gap-4">
-            {row2.map((cat, i) => renderCategory(cat, half + i, false))}
-          </div>
-        )}
-      </div>
+      ))}
     </div>
   );
 };
