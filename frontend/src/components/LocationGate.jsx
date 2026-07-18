@@ -27,23 +27,29 @@ const LocationGate = () => {
     }
   }, [isLoaded]);
 
-  const handleCityInput = (val) => {
+  const handleCityInput = async (val) => {
     setManualCity(val);
     if (!val.trim()) {
       setSuggestions([]);
       return;
     }
-    if (autocompleteService.current) {
-      autocompleteService.current.getPlacePredictions(
-        { input: val, componentRestrictions: { country: 'in' } },
-        (predictions, status) => {
-          if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-            setSuggestions(predictions);
-          } else {
-            setSuggestions([]);
-          }
-        }
-      );
+    
+    try {
+      // Use Nominatim as a reliable free fallback for city search
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=in&limit=5`);
+      const data = await res.json();
+      if (data && data.length > 0) {
+        const formatted = data.map(item => ({
+          place_id: item.place_id,
+          description: item.display_name
+        }));
+        setSuggestions(formatted);
+      } else {
+        setSuggestions([]);
+      }
+    } catch (err) {
+      console.error("Autocomplete error:", err);
+      setSuggestions([]);
     }
   };
 
@@ -58,6 +64,7 @@ const LocationGate = () => {
   const handleSkip = () => {
     sessionStorage.removeItem("rozsewa_user_city");
     sessionStorage.setItem("location_gate_passed", "true");
+    sessionStorage.setItem("location_gate_skipped", "true");
     setStatus("success");
   };
 

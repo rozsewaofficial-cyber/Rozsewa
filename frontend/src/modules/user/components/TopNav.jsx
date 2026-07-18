@@ -19,7 +19,8 @@ const TopNav = () => {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const { user, detectLocation } = useAuth();
   const [city, setCity] = useState(() => {
-    if (user && user.city) return user.city;
+    const skipped = sessionStorage.getItem("location_gate_skipped") === "true";
+    if (user && user.city && !skipped) return user.city;
     return sessionStorage.getItem("rozsewa_user_city") || "Select Location";
   });
   const [dynamicCities, setDynamicCities] = useState(["Lucknow", "Delhi", "Mumbai", "Bangalore", "Pune", "Hyderabad", "Kolkata", "Chennai"]);
@@ -101,11 +102,17 @@ const libraries = ['places'];
     }
   };
 
-  // Sync city when user logs in
+  // Sync city when user logs in or out
   useEffect(() => {
-    if (user && user.city) {
-      setCity(user.city);
-      sessionStorage.setItem("rozsewa_user_city", user.city);
+    if (user) {
+      const skipped = sessionStorage.getItem("location_gate_skipped") === "true";
+      if (user.city && !skipped) {
+        setCity(user.city);
+        sessionStorage.setItem("rozsewa_user_city", user.city);
+      }
+    } else {
+      // Re-read from sessionStorage when user logs out
+      setCity(sessionStorage.getItem("rozsewa_user_city") || "Select Location");
     }
   }, [user]);
 

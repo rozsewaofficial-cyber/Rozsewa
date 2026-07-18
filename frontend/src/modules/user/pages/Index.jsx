@@ -33,7 +33,8 @@ const Index = () => {
   useEffect(() => {
     const init = async () => {
       const savedCity = sessionStorage.getItem("rozsewa_user_city");
-      if (!userLocation && !savedCity) {
+      const skipped = sessionStorage.getItem("location_gate_skipped") === "true";
+      if (!userLocation && !savedCity && !skipped) {
         try {
           await detectLocation();
         } catch (err) {

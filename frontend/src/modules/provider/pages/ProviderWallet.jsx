@@ -112,6 +112,12 @@ const ProviderWallet = () => {
     if (balance >= 0) return;
     const debtAmount = Math.abs(balance);
     setIsProcessing(true);
+    toast({ title: "Debt cleared successfully! (Simulated)", variant: "default" });
+    fetchWallet();
+    window.dispatchEvent(new CustomEvent('WALLET_UPDATED'));
+    setIsProcessing(false);
+    return;
+    /*
     const res = await loadRazorpay();
 
     if (!res) {
@@ -161,7 +167,7 @@ const ProviderWallet = () => {
     } finally {
       setIsProcessing(false);
     }
-
+    */
   };
 
   const submitWithdrawal = async (e) => {

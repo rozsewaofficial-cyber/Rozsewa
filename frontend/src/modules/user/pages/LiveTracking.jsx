@@ -74,6 +74,11 @@ const LiveTracking = () => {
   const handleRazorpayPayment = async () => {
     if (!bookingDetails) return;
     setIsPaying(true);
+    toast({ title: "Payment Successful!", description: "Your booking is now fully confirmed. (Simulated)" });
+    fetchBookingStatus();
+    setIsPaying(false);
+    return;
+    /*
     const res = await loadRazorpay();
 
     if (!res) {
@@ -125,7 +130,7 @@ const LiveTracking = () => {
     } finally {
       setIsPaying(false);
     }
-
+    */
   };
 
   const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;

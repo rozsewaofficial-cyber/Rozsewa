@@ -105,7 +105,15 @@ const ProviderSubscriptions = () => {
   const handleOnlinePurchase = async () => {
     const plan = paymentModalPlan;
     setIsProcessingOnline(true);
-    
+    toast({ title: "Subscription Active!", description: `Successfully purchased ${plan.name} plan (Simulated).` });
+    setPaymentModalPlan(null);
+    updateUser({ isSubscribed: true });
+    fetchData().then(() => {
+        setActiveTab("active");
+        setIsProcessingOnline(false);
+    });
+    return;
+    /*
     const res = await loadRazorpay();
     if (!res) {
       toast({ title: "Razorpay SDK failed to load. Are you online?", variant: "destructive" });
@@ -151,7 +159,7 @@ const ProviderSubscriptions = () => {
     } finally {
       setIsProcessingOnline(false);
     }
-
+    */
   };
 
   const handleRenew = async () => {

@@ -839,9 +839,10 @@ const BazaarOfferChat = () => {
   });
 
   const handlePayToUnlock = async () => {
-    showToast("Online payments are temporarily disabled.", true);
+    showToast('🎉 Payment successful! Contact details unlocked. (Simulated)');
+    fetchData();
     return;
-
+    /*
     if (!offerThread) return;
     try {
       setIsPayingFee(true);
@@ -895,6 +896,7 @@ const BazaarOfferChat = () => {
     } finally {
       setIsPayingFee(false);
     }
+    */
   };
 
   if (loading) {

@@ -74,6 +74,13 @@ const WalletPage = () => {
     setIsProcessing(true);
 
     try {
+      toast({ title: "Money Added! 🎉 (Simulated)", description: `₹${amount} successfully added to your wallet.` });
+      setAddAmount("");
+      setShowAddMoney(false);
+      fetchWalletData(); // Refresh balance
+      setIsProcessing(false);
+      return;
+      /*
       const res = await loadRazorpay();
       if (!res) {
         toast({ title: "Razorpay SDK failed to load. Are you online?", variant: "destructive" });
@@ -134,6 +141,8 @@ const WalletPage = () => {
       toast({ title: "Failed to initiate payment", description: err.message, variant: "destructive" });
       setIsProcessing(false);
     }
+    */
+    } catch (err) {}
 
   };
 

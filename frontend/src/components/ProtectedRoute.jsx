@@ -62,6 +62,12 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
 
   const handlePayAdmin = async () => {
     setIsProcessing(true);
+    toast({ title: "Debt cleared successfully! Reloading... (Simulated)", variant: "default" });
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+    return;
+    /*
     const res = await loadRazorpay();
 
     if (!res) {
@@ -110,6 +116,7 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     } finally {
       setIsProcessing(false);
     }
+    */
   };
 
   // Check Debt Limit Enforcer for Providers

@@ -776,6 +776,10 @@ const Checkout = () => {
   };
 
   const handleRazorpayPayment = async () => {
+    toast({ title: "Payment successful!", description: "Your payment was processed successfully (Simulated)" });
+    processBooking();
+    return;
+    /*
     const res = await loadRazorpay();
 
     if (!res) {
@@ -821,7 +825,7 @@ const Checkout = () => {
     } catch (err) {
       toast({ title: "Failed to initiate payment", description: err.message, variant: "destructive" });
     }
-
+    */
   };
 
   // ─── BOOKING CONFIRMED SCREEN ─────────────────────────────────

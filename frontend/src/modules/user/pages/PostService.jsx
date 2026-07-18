@@ -77,6 +77,12 @@ const PostService = () => {
   const handleRazorpayPayment = async () => {
     if (!booking) return;
     setIsPaying(true);
+    toast({ title: "Payment Successful! (Simulated)" });
+    setPaymentDone(true); setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 3000);
+    setIsPaying(false);
+    return;
+    /*
     const res = await loadRazorpay();
     if (!res) { toast({ title: "SDK failed to load.", variant: "destructive" }); setIsPaying(false); return; }
     try {
@@ -102,7 +108,7 @@ const PostService = () => {
     } catch (err) {
       toast({ title: "Payment Failed", description: err.message, variant: "destructive" });
     } finally { setIsPaying(false); }
-
+    */
   };
 
   const extraTotal = booking?.extraCharges?.reduce((sum, item) => sum + item.amount, 0) || 0;

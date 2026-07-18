@@ -365,6 +365,10 @@ const ProviderLeads = () => {
   };
 
   const handleRazorpayCheckout = async (leadId, amount) => {
+    toast({ title: 'Payment Successful', description: 'Lead unlocked! (Simulated)' });
+    fetchLeadsAndWallet();
+    return;
+    /*
     try {
       const { data: orderData } = await API.post('/payment/order', { amount, type: 'lead_unlock', leadId });
       const options = {
@@ -390,7 +394,7 @@ const ProviderLeads = () => {
     } catch (err) {
       toast({ title: 'Payment Failed', description: err.response?.data?.message || 'Try again.', variant: 'destructive' });
     }
-
+    */
   };
 
   const handleDisputeSubmit = async (e) => {
