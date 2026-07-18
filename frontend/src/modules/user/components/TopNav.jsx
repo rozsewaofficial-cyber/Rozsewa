@@ -20,7 +20,7 @@ const TopNav = () => {
   const { user, detectLocation } = useAuth();
   const [city, setCity] = useState(() => {
     if (user && user.city) return user.city;
-    return sessionStorage.getItem("rozsewa_user_city") || "Lucknow";
+    return sessionStorage.getItem("rozsewa_user_city") || "Select Location";
   });
   const [dynamicCities, setDynamicCities] = useState(["Lucknow", "Delhi", "Mumbai", "Bangalore", "Pune", "Hyderabad", "Kolkata", "Chennai"]);
 
@@ -50,8 +50,7 @@ const libraries = ['places'];
         setIsReverseGeocoding(false);
         if (data?.address) {
           const detectedCity = data.address.city || data.address.town || data.address.village || data.address.county || "Unknown City";
-          const cityWithLabel = `${detectedCity} (Map)`;
-          handleCitySelect(cityWithLabel, loc);
+          handleCitySelect(detectedCity, loc);
           toast({ title: "Location Updated", description: `Selected ${detectedCity} from map.` });
         }
       })
@@ -183,8 +182,7 @@ const libraries = ['places'];
         } catch (e) {
           console.error("Reverse geocoding error:", e);
         }
-        const cityWithLabel = `${detectedCity} (Detected)`;
-        handleCitySelect(cityWithLabel, loc);
+        handleCitySelect(detectedCity, loc);
         toast({ title: "Location Updated", description: `Successfully detected ${detectedCity}.` });
       }
     } catch (err) {
@@ -225,7 +223,9 @@ const libraries = ['places'];
                 className="flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-2 text-[14px] font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all shadow-sm group"
               >
                 <MapPin className="h-4 w-4 text-blue-600 group-hover:scale-110 transition-transform" />
-                <span className="truncate max-w-[140px]">{city}</span>
+                <span className="truncate max-w-[140px]">
+                  {city ? city.replace(" (Detected)", "").replace(" (Map)", "") : "Select Location"}
+                </span>
                 <ChevronDown className="h-4 w-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
               </button>
 
@@ -298,7 +298,9 @@ const libraries = ['places'];
               className="flex items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3.5 py-2 text-[13px] font-bold text-slate-900 dark:text-white transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm"
             >
               <MapPin className="h-4 w-4 text-blue-600" />
-              <span className="max-w-[90px] truncate">{city}</span>
+              <span className="max-w-[90px] truncate">
+                {city ? city.replace(" (Detected)", "").replace(" (Map)", "") : "Select Location"}
+              </span>
               <ChevronDown className="h-3 w-3 text-slate-400" />
             </button>
 
