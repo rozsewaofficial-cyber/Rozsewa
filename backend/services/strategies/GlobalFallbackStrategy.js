@@ -11,8 +11,16 @@ class GlobalFallbackStrategy {
     }
     
     async evaluate(bookingAmount, provider, category) {
-        // Find slabs with no category (null represents global default)
-        const globalSlabs = await CommissionSlab.find({ category: null }).sort({ minAmount: 1 });
+        const role = provider?.providerCategory || 'partner';
+        // Find slabs with no category (null represents global default) matching provider role
+        const globalSlabs = await CommissionSlab.find({ 
+            category: null,
+            $or: [
+                { providerCategory: { $in: ['all', role] } },
+                { providerCategory: { $exists: false } },
+                { providerCategory: null }
+            ]
+        }).sort({ minAmount: 1 });
         
         const matchedSlab = globalSlabs.find(s => bookingAmount >= s.minAmount && bookingAmount <= s.maxAmount);
         

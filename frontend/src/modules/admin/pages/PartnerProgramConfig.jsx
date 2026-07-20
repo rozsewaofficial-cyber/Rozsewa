@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { useScrollLock } from '@/lib/scrollLock';
 import API from '@/lib/api';
-import { 
-  Save, Loader2, Plus, Trash2, ShieldCheck, DollarSign, Gift, Calendar, 
-  AlertTriangle, CreditCard, XCircle, Edit 
+import {
+  Save, Loader2, Plus, Trash2, ShieldCheck, DollarSign, Gift, Calendar,
+  AlertTriangle, CreditCard, XCircle, Edit
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,11 +15,11 @@ import AdminPartnerPolicies from './AdminPartnerPolicies';
 const validateFrontendSlabs = (slabs) => {
   if (!slabs || slabs.length === 0) return { isValid: true };
   const sorted = [...slabs].sort((a, b) => Number(a.min) - Number(b.min));
-  
+
   if (Number(sorted[0].min) !== 0) {
     return { isValid: false, error: "First slab min amount must start at 0." };
   }
-  
+
   for (let i = 0; i < sorted.length - 1; i++) {
     const current = sorted[i];
     const next = sorted[i + 1];
@@ -30,7 +30,7 @@ const validateFrontendSlabs = (slabs) => {
       return { isValid: false, error: `Gap detected between slabs: ${current.min}-${current.max} and ${next.min}-${next.max}.` };
     }
   }
-  
+
   const last = sorted[sorted.length - 1];
   if (Number(last.max) < 99999) {
     return { isValid: false, error: "Last slab max amount must cover all values (set to a large number like 999999)." };
@@ -46,7 +46,7 @@ export default function PartnerProgramConfig() {
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [activeTab, setActiveTab] = useState('rules'); // 'rules', 'slabs', 'subscriptions', 'bonuses'
-  
+
   const [config, setConfig] = useState({
     freeTrialEnabled: true,
     freeServiceCount: 3,
@@ -65,13 +65,14 @@ export default function PartnerProgramConfig() {
 
   const [plans, setPlans] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  
+
   const [newPlan, setNewPlan] = useState({
     name: "",
     price: "",
     duration: 365,
     planType: "yearly",
     category: "",
+    providerCategory: "all",
     commissionRate: "",
     description: "",
     status: "active",
@@ -97,14 +98,14 @@ export default function PartnerProgramConfig() {
     try {
       const { data } = await API.get('/admin/categories');
       setCategories(data);
-    } catch (err) {}
+    } catch (err) { }
   };
 
   const fetchPlans = async () => {
     try {
       const { data } = await API.get("/admin/subscriptions");
       setPlans(data);
-    } catch (err) {}
+    } catch (err) { }
   };
 
   const fetchConfig = async () => {
@@ -137,31 +138,28 @@ export default function PartnerProgramConfig() {
     // Validate slabs contiguity
     const slabsByCategory = {};
     for (const slab of config.commissionSlabs) {
-        if (!slab.categoryId) {
-            toast({ title: 'Validation Error', description: 'Please select a category for all commission slabs.', variant: 'destructive' });
-            return;
-        }
+      if (!slab.categoryId) {
+        toast({ title: 'Validation Error', description: 'Please select a category for all commission slabs.', variant: 'destructive' });
+        return;
+      }
     }
-    
+
     config.commissionSlabs.forEach(s => {
-      const key = s.categoryId || 'global';
+      const key = `${s.categoryId || 'global'}:${s.providerCategory || 'all'}`;
       if (!slabsByCategory[key]) slabsByCategory[key] = [];
       slabsByCategory[key].push({
         min: Number(s.min),
         max: Number(s.max),
-        rate: Number(s.rate)
+        rate: Number(s.rate),
+        categoryId: s.categoryId,
+        providerCategory: s.providerCategory || 'all'
       });
     });
 
-    for (const key of Object.keys(slabsByCategory)) {
-      const validation = validateFrontendSlabs(slabsByCategory[key]);
+    for (const catKey of Object.keys(slabsByCategory)) {
+      const validation = validateFrontendSlabs(slabsByCategory[catKey]);
       if (!validation.isValid) {
-        const catName = key === 'global' ? 'Global Default' : `Category: ${categories.find(c => c._id === key)?.name || key}`;
-        toast({ 
-          title: "Validation Error", 
-          description: `${catName}: ${validation.error}`, 
-          variant: "destructive" 
-        });
+        toast({ title: 'Slabs Contiguity Error', description: validation.error, variant: 'destructive' });
         return;
       }
     }
@@ -173,6 +171,7 @@ export default function PartnerProgramConfig() {
         freeServiceCount: Number(config.freeServiceCount) || 0,
         commissionSlabs: config.commissionSlabs.map(s => ({
           ...s,
+          providerCategory: s.providerCategory || 'all',
           min: Number(s.min) || 0,
           max: Number(s.max) || 0,
           rate: Number(s.rate) || 0
@@ -190,7 +189,7 @@ export default function PartnerProgramConfig() {
 
   const updateSlab = (index, field, value) => {
     const newSlabs = [...config.commissionSlabs];
-    let val = field === 'categoryId' ? value : normalizeNonNegativeNumber(value);
+    let val = (field === 'categoryId' || field === 'providerCategory') ? value : normalizeNonNegativeNumber(value);
     if (field === 'rate' && Number(val) > 100) {
       val = '100';
     }
@@ -200,12 +199,12 @@ export default function PartnerProgramConfig() {
 
   const addSlab = () => {
     if (config.commissionSlabs.some(s => !s.categoryId || s.min === '' || s.max === '' || s.rate === '' || (Number(s.min) === 0 && Number(s.max) === 0))) {
-        toast({ title: 'Validation Error', description: 'Please complete all fields (including Category) for the existing slab before adding a new one.', variant: 'destructive' });
-        return;
+      toast({ title: 'Validation Error', description: 'Please complete all fields (including Category) for the existing slab before adding a new one.', variant: 'destructive' });
+      return;
     }
     setConfig({
       ...config,
-      commissionSlabs: [...config.commissionSlabs, { categoryId: '', min: 0, max: 0, rate: 0 }]
+      commissionSlabs: [...config.commissionSlabs, { categoryId: '', providerCategory: 'all', min: 0, max: 0, rate: 0 }]
     });
     toast({ title: 'Slab Added', description: 'A new commission slab has been added. Please fill in the details.' });
   };
@@ -239,7 +238,7 @@ export default function PartnerProgramConfig() {
 
   const handleEdit = (plan) => {
     setEditingPlan(plan);
-    
+
     // Parse key-value benefits
     const benefitsMap = {};
     if (plan.benefits) {
@@ -344,7 +343,7 @@ export default function PartnerProgramConfig() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">Manage onboarding, commission slabs, priorities, and subscription models.</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <button
             onClick={handleSave}
@@ -388,30 +387,30 @@ export default function PartnerProgramConfig() {
                   <p className="text-sm font-bold text-slate-700">Enable Free Trial Benefits</p>
                   <p className="text-xs text-slate-400 font-medium">New providers start with 0% commission quota</p>
                 </div>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={config.freeTrialEnabled}
                   onChange={e => setConfig({ ...config, freeTrialEnabled: e.target.checked })}
-                  className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" 
+                  className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
               </div>
 
               {config.freeTrialEnabled && (
                 <div>
                   <label className="text-xs font-bold text-slate-500">Free Service Quota</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     inputMode="numeric"
-                    value={config.freeServiceCount} 
+                    value={config.freeServiceCount}
                     onChange={e => setConfig({ ...config, freeServiceCount: normalizeNonNegativeNumber(e.target.value) })}
-                    className="w-full border p-2.5 rounded-lg mt-1 outline-emerald-500 text-sm" 
+                    className="w-full border p-2.5 rounded-lg mt-1 outline-emerald-500 text-sm"
                   />
                 </div>
               )}
 
               <div>
                 <label className="text-xs font-bold text-slate-500">Apply To Categories</label>
-                <select 
+                <select
                   value={config.applyTo}
                   onChange={e => setConfig({ ...config, applyTo: e.target.value })}
                   className="w-full border p-2.5 rounded-lg mt-1 outline-emerald-500 text-sm bg-white"
@@ -425,11 +424,11 @@ export default function PartnerProgramConfig() {
                 <div className="p-3 border rounded-lg max-h-40 overflow-y-auto space-y-2">
                   {categories.map(cat => (
                     <label key={cat._id} className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                      <input 
+                      <input
                         type="checkbox"
                         checked={config.selectedCategories.includes(cat._id)}
                         onChange={e => {
-                          const list = e.target.checked 
+                          const list = e.target.checked
                             ? [...config.selectedCategories, cat._id]
                             : config.selectedCategories.filter(id => id !== cat._id);
                           setConfig({ ...config, selectedCategories: list });
@@ -452,25 +451,25 @@ export default function PartnerProgramConfig() {
             <div className="space-y-4 pt-2">
               <div>
                 <label className="text-xs font-bold text-slate-500">Cancellation Penalty (₹)</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   inputMode="numeric"
-                  value={config.penalties?.cancellationCharge !== undefined ? config.penalties.cancellationCharge : 100} 
+                  value={config.penalties?.cancellationCharge !== undefined ? config.penalties.cancellationCharge : 100}
                   onChange={e => {
                     const penaltyVal = normalizeNonNegativeNumber(e.target.value);
-                    setConfig({ 
-                      ...config, 
-                      penalties: { 
-                        ...config.penalties, 
-                        cancellationCharge: Number(penaltyVal) 
-                      } 
+                    setConfig({
+                      ...config,
+                      penalties: {
+                        ...config.penalties,
+                        cancellationCharge: Number(penaltyVal)
+                      }
                     });
                   }}
-                  className="w-full border p-2.5 rounded-lg mt-1 outline-emerald-500 text-sm font-semibold" 
+                  className="w-full border p-2.5 rounded-lg mt-1 outline-emerald-500 text-sm font-semibold"
                   placeholder="e.g. 100"
                 />
                 <p className="text-xs text-slate-400 font-medium mt-1">
-                  Amount deducted from the provider's wallet when they cancel a booking. 
+                  Amount deducted from the provider's wallet when they cancel a booking.
                   50% of this charge will credit to the user, and 50% will credit to the admin.
                 </p>
               </div>
@@ -490,7 +489,7 @@ export default function PartnerProgramConfig() {
               <Plus className="h-4 w-4" /> Add Slab
             </button>
           </div>
-          
+
           <div className="space-y-3 pt-2">
             {config.commissionSlabs.map((slab, i) => (
               <div key={i} className="flex flex-col md:flex-row items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -501,6 +500,14 @@ export default function PartnerProgramConfig() {
                     {categories.map(cat => (
                       <option key={cat._id} value={cat._id}>{cat.name}</option>
                     ))}
+                  </select>
+                </div>
+                <div className="w-full md:flex-[1.2]">
+                  <label className="text-[10px] uppercase font-bold text-slate-400">Target Role</label>
+                  <select value={slab.providerCategory || 'all'} onChange={e => updateSlab(i, 'providerCategory', e.target.value)} className="w-full border p-2 rounded-lg text-sm bg-white outline-emerald-500 font-semibold">
+                    <option value="all">All Providers</option>
+                    <option value="partner">Partner Only</option>
+                    <option value="sewak">Sewak Only</option>
                   </select>
                 </div>
                 <div className="w-full md:flex-1">
@@ -543,15 +550,23 @@ export default function PartnerProgramConfig() {
                   <div>
                     <span className="font-bold text-slate-700 text-base">{plan.name}</span>
                     <span className="ml-2 text-[9px] font-black px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-500 uppercase tracking-widest">{plan.duration} Days</span>
+                    <span className={`ml-1 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${plan.providerCategory === 'sewak'
+                        ? 'bg-amber-100 text-amber-800'
+                        : plan.providerCategory === 'partner'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                      {plan.providerCategory === 'sewak' ? 'Sewak Only' : plan.providerCategory === 'partner' ? 'Partner Only' : 'All Providers'}
+                    </span>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => handleEdit(plan)} className="text-slate-400 hover:text-blue-500 transition"><Edit className="h-4 w-4" /></button>
                     <button onClick={() => deletePlan(plan._id)} className="text-slate-400 hover:text-red-500 transition"><Trash2 className="h-4 w-4" /></button>
                   </div>
                 </div>
-                
+
                 <p className="text-xs text-slate-400 font-medium leading-relaxed">{plan.description || "No description provided."}</p>
-                
+
                 <div className="grid grid-cols-2 gap-4 mt-1 border-t border-slate-200/60 pt-3">
                   <div>
                     <label className="text-[9px] uppercase font-bold text-slate-400">Price</label>
@@ -641,6 +656,19 @@ export default function PartnerProgramConfig() {
                     </div>
 
                     <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500">Target Provider Role</label>
+                      <select
+                        value={newPlan.providerCategory || 'all'}
+                        onChange={(e) => setNewPlan({ ...newPlan, providerCategory: e.target.value })}
+                        className="w-full border p-2.5 rounded-lg text-sm bg-white outline-emerald-500 font-semibold"
+                      >
+                        <option value="all">All Providers</option>
+                        <option value="partner">Partner Only</option>
+                        <option value="sewak">Sewak Only</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-500">Price (₹)</label>
                       <input
                         type="text"
@@ -717,7 +745,7 @@ export default function PartnerProgramConfig() {
                         { key: "additionalLeads", label: "Additional Daily Leads" }
                       ].map(item => (
                         <label key={item.key} className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer">
-                          <input 
+                          <input
                             type="checkbox"
                             checked={!!newPlan[item.key]}
                             onChange={e => setNewPlan({ ...newPlan, [item.key]: e.target.checked })}

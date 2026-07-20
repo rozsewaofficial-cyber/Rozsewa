@@ -17,9 +17,14 @@ const axios = require('axios');
 // @access  Private/Admin
 const getProviders = async (req, res) => {
     try {
-        const { status } = req.query;
+        const { status, category, providerCategory } = req.query;
         const query = status ? { status } : {};
-        query.providerCategory = { $ne: 'sewak' };
+        const cat = category || providerCategory;
+        if (cat === 'sewak') {
+            query.providerCategory = 'sewak';
+        } else if (cat === 'partner') {
+            query.providerCategory = { $ne: 'sewak' };
+        }
         const providers = await Provider.find(query).sort({ createdAt: -1 });
         res.json(providers);
     } catch (error) {
@@ -464,13 +469,29 @@ const updateCategory = async (req, res) => {
         if (req.body.defaultLeadPrice !== undefined) category.defaultLeadPrice = req.body.defaultLeadPrice;
 
         if (req.body.services) {
-            category.services = [];
-            category.services.push(...req.body.services);
+            category.services = req.body.services.map(s => {
+                const existing = category.services.find(sub => (sub._id && s._id && sub._id.toString() === s._id.toString()) || sub.name === s.name);
+                return {
+                    _id: existing?._id || s._id || new mongoose.Types.ObjectId(),
+                    name: s.name,
+                    basePrice: Number(s.basePrice) || 0,
+                    description: s.description || existing?.description || ""
+                };
+            });
             category.markModified('services');
         }
         if (req.body.combos) {
-            category.combos = [];
-            category.combos.push(...req.body.combos);
+            category.combos = req.body.combos.map(c => {
+                const existing = category.combos.find(cb => (cb._id && c._id && cb._id.toString() === c._id.toString()) || cb.name === c.name);
+                return {
+                    _id: existing?._id || c._id || new mongoose.Types.ObjectId(),
+                    name: c.name,
+                    description: c.description || existing?.description || "",
+                    services: c.services || [],
+                    sewakPrice: Number(c.sewakPrice) || 0,
+                    image: c.image || existing?.image || ""
+                };
+            });
             category.markModified('combos');
         }
         const updated = await category.save();
@@ -2060,9 +2081,14 @@ const getAdminSubscriptionPlans = async (req, res) => {
 // @access  Private/Admin
 const createSubscriptionPlan = async (req, res) => {
     try {
-        const plan = await SubscriptionPlan.create(req.body);
+        const data = { ...req.body };
+        if (data.category === "" || data.category === "undefined") {
+            data.category = null;
+        }
+        const plan = await SubscriptionPlan.create(data);
         res.status(201).json(plan);
     } catch (error) {
+        console.error("createSubscriptionPlan error:", error);
         res.status(400).json({ message: error.message });
     }
 };
@@ -2072,10 +2098,15 @@ const createSubscriptionPlan = async (req, res) => {
 // @access  Private/Admin
 const updateSubscriptionPlan = async (req, res) => {
     try {
-        const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const data = { ...req.body };
+        if (data.category === "" || data.category === "undefined") {
+            data.category = null;
+        }
+        const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, data, { new: true });
         if (!plan) return res.status(404).json({ message: 'Plan not found' });
         res.json(plan);
     } catch (error) {
+        console.error("updateSubscriptionPlan error:", error);
         res.status(400).json({ message: error.message });
     }
 };

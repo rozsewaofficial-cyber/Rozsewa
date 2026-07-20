@@ -31,25 +31,11 @@ const seedTestSewak = async () => {
             vendorCode: 'RSVND99999'
         };
 
-        if (provider) {
-            console.log('Test Sewak already exists. Updating credentials...');
-            provider.password = password;
-            provider.ownerName = testData.ownerName;
-            provider.shopName = testData.shopName;
-            provider.address = testData.address;
-            provider.city = testData.city;
-            provider.state = testData.state;
-            provider.providerCategory = testData.providerCategory;
-            provider.status = testData.status;
-            provider.kycVerified = testData.kycVerified;
-            await provider.save();
-            console.log('Test Sewak updated successfully.');
-        } else {
-            console.log('Creating new Test Sewak...');
-            provider = new Provider(testData);
-            await provider.save();
-            console.log('Test Sewak created successfully.');
-        }
+        await Provider.deleteOne({ mobile });
+
+        provider = new Provider(testData);
+        await provider.save();
+        console.log('Test Sewak created successfully.');
 
         process.exit(0);
     } catch (error) {

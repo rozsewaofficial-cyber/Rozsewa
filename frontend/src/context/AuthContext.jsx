@@ -329,7 +329,7 @@ export const AuthProvider = ({ children }) => {
       const { data: apiResponse } = await API.post(endpoint, loginData);
 
       const authData = apiResponse.data?.user || apiResponse;
-      const isActuallySewak = authData.providerCategory === 'sewak' || authData.vendorType === 'sewak' || (authData.vendorCode && authData.vendorCode.startsWith('RSSEW'));
+      const isActuallySewak = authData.providerCategory === 'sewak' || authData.role === 'sewak' || authData.vendorType === 'sewak' || (authData.vendorCode && (authData.vendorCode.startsWith('RSSEW') || authData.vendorCode.startsWith('RSSEWK')));
 
       if (type === 'sewak' && !isActuallySewak) throw new Error("This account is not registered as a Sewak.");
       if (type === 'provider' && isActuallySewak) throw new Error("Please login through the Sewak portal.");

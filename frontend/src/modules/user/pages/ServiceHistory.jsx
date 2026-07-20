@@ -487,28 +487,39 @@ const ServiceHistory = () => {
                   <div className="rounded-2xl border border-border p-4">
                     <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-3">Payment Details</h4>
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Service Price</span>
-                        <span className="font-semibold">₹{selectedBooking.total - (selectedBooking.travelCharge?.amount || 0) - (selectedBooking.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
-                      </div>
+                      {(() => {
+                        const extraItemsOnly = selectedBooking.extraCharges?.filter(c => c.item && !c.item.toLowerCase().includes('travel charge')) || [];
+                        const extraSum = extraItemsOnly.reduce((sum, c) => sum + (c.amount || 0), 0);
+                        const travelAmt = selectedBooking.travelCharge?.amount || 0;
+                        const servicePrice = Math.max(0, selectedBooking.total - travelAmt - extraSum);
 
-                      {selectedBooking.travelCharge?.amount > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Travel Charge</span>
-                          <span className="font-semibold">₹{selectedBooking.travelCharge.amount}</span>
-                        </div>
-                      )}
-                      
-                      {selectedBooking.extraCharges && selectedBooking.extraCharges.length > 0 && (
-                        <div className="space-y-1 py-1">
-                          {selectedBooking.extraCharges.map((extra, idx) => (
-                            <div key={idx} className="flex justify-between text-sm italic text-muted-foreground/80">
-                              <span>+ {extra.item}</span>
-                              <span>₹{extra.amount}</span>
+                        return (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Service Price</span>
+                              <span className="font-semibold">₹{servicePrice}</span>
                             </div>
-                          ))}
-                        </div>
-                      )}
+
+                            {travelAmt > 0 && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Travel Charge</span>
+                                <span className="font-semibold">₹{travelAmt}</span>
+                              </div>
+                            )}
+
+                            {extraItemsOnly.length > 0 && (
+                              <div className="space-y-1 py-1">
+                                {extraItemsOnly.map((extra, idx) => (
+                                  <div key={idx} className="flex justify-between text-sm italic text-muted-foreground/80">
+                                    <span>+ {extra.item}</span>
+                                    <span>₹{extra.amount}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
 
                       <div className="flex justify-between text-sm"><span className="text-muted-foreground">Taxes & Fee</span><span className="font-semibold">₹0</span></div>
                       

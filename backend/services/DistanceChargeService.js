@@ -151,14 +151,7 @@ class DistanceChargeService {
             booking.travelCharge = travelChargeObj;
 
             if (!booking.extraCharges) booking.extraCharges = [];
-            booking.extraCharges = booking.extraCharges.filter(c => !c.item.includes('Travel Charge'));
-
-            if (resultCharge > 0) {
-                booking.extraCharges.push({
-                    item: `Travel Charge${distanceKm > 0 ? ` (${distanceKm.toFixed(2)} km)` : ' (Standard)'}`,
-                    amount: resultCharge
-                });
-            }
+            booking.extraCharges = booking.extraCharges.filter(c => !c.item || !c.item.toLowerCase().includes('travel charge'));
 
             // Update Total Amounts
             booking.totalAmount = (booking.totalAmount || 0) + chargeDifference;

@@ -200,7 +200,8 @@ const authProvider = async (req, res) => {
                         freeServicesLeft: provider.freeServicesLeft,
                         isSubscribed: provider.isSubscribed,
                         planType: provider.planType,
-                        role: 'provider'
+                        providerCategory: provider.providerCategory || 'partner',
+                        role: provider.providerCategory === 'sewak' ? 'sewak' : 'provider'
                     }
                 }
             });
@@ -700,9 +701,18 @@ const getSubscriptionPlans = async (req, res) => {
             queryOr.push({ category: catId });
         }
 
+        const userCategory = provider.providerCategory || 'partner';
+        const roleQueryOr = [
+            { providerCategory: { $exists: false } },
+            { providerCategory: null },
+            { providerCategory: 'all' },
+            { providerCategory: userCategory }
+        ];
+
         const plans = await SubscriptionPlan.find({ 
             status: 'active', 
-            $or: queryOr
+            $or: queryOr,
+            $and: [{ $or: roleQueryOr }]
         }).sort({ displayOrder: 1 });
         res.json(plans);
     } catch (error) {

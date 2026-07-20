@@ -53,6 +53,7 @@ exports.getConfig = async (req, res) => {
         const legacySlabs = slabs.map(s => ({
             _id: s._id,
             categoryId: s.category ? s.category.toString() : '',
+            providerCategory: s.providerCategory || 'all',
             min: s.minAmount,
             max: s.maxAmount,
             rate: s.commissionRate
@@ -94,28 +95,33 @@ exports.updateConfig = async (req, res) => {
             attendance
         } = req.body;
 
-        // 1. Group slabs by category to run contiguity check
-        const slabsByCategory = {};
+        // 1. Group slabs by category & role to run contiguity check
+        const slabsGrouped = {};
         if (commissionSlabs && commissionSlabs.length > 0) {
             commissionSlabs.forEach(s => {
                 const catKey = s.categoryId || 'global';
-                if (!slabsByCategory[catKey]) slabsByCategory[catKey] = [];
-                slabsByCategory[catKey].push({
+                const roleKey = s.providerCategory || 'all';
+                const groupKey = `${catKey}:${roleKey}`;
+                if (!slabsGrouped[groupKey]) slabsGrouped[groupKey] = [];
+                slabsGrouped[groupKey].push({
                     minAmount: Number(s.min),
                     maxAmount: Number(s.max),
                     commissionRate: Number(s.rate),
-                    category: s.categoryId || null
+                    category: s.categoryId || null,
+                    providerCategory: s.providerCategory || 'all'
                 });
             });
         }
 
-        // Validate contiguity and overlaps for each category
-        for (const catKey of Object.keys(slabsByCategory)) {
-            const validation = validateSlabsContiguity(slabsByCategory[catKey]);
+        // Validate contiguity and overlaps for each category/role grouping
+        for (const groupKey of Object.keys(slabsGrouped)) {
+            const validation = validateSlabsContiguity(slabsGrouped[groupKey]);
             if (!validation.isValid) {
+                const [catKey, roleKey] = groupKey.split(':');
                 const catName = catKey === 'global' ? 'Global Default' : `Category ID ${catKey}`;
+                const roleName = roleKey.toUpperCase();
                 return res.status(400).json({ 
-                    message: `Validation failed for ${catName}: ${validation.message}` 
+                    message: `Validation failed for ${catName} [Role: ${roleName}]: ${validation.message}` 
                 });
             }
         }
@@ -168,8 +174,8 @@ exports.updateConfig = async (req, res) => {
         // 3. Save slabs (clear and insert new)
         await CommissionSlab.deleteMany({});
         const slabsToInsert = [];
-        Object.keys(slabsByCategory).forEach(catKey => {
-            slabsToInsert.push(...slabsByCategory[catKey]);
+        Object.keys(slabsGrouped).forEach(groupKey => {
+            slabsToInsert.push(...slabsGrouped[groupKey]);
         });
         if (slabsToInsert.length > 0) {
             await CommissionSlab.insertMany(slabsToInsert);

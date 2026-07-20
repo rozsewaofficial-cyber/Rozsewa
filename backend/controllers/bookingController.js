@@ -122,22 +122,62 @@ const createBooking = async (req, res) => {
         // --- 1. Compute Trusted Subtotal on Backend ---
         let subtotal = 0;
 
+        let isSewakBooking = requiredProviderCategory === 'sewak';
+        if (!isSewakBooking && providerId && mongoose.Types.ObjectId.isValid(providerId)) {
+            const checkProv = await Provider.findById(providerId).select('providerCategory');
+            if (checkProv && checkProv.providerCategory === 'sewak') {
+                isSewakBooking = true;
+            }
+        }
+
         if (items && items.length > 0) {
             for (const item of items) {
                 const itemId = item.id;
                 const qty = Number(item.qty) || 1;
                 let basePrice = 0;
+                let priceFound = false;
 
-                if (mongoose.Types.ObjectId.isValid(itemId)) {
+                if (isSewakBooking) {
+                    // For Sewak bookings, check Category sub-services / combos first
+                    if (mongoose.Types.ObjectId.isValid(itemId)) {
+                        const category = await Category.findOne({
+                            $or: [
+                                { "services._id": itemId },
+                                { "combos._id": itemId }
+                            ]
+                        });
+                        if (category) {
+                            const subSvc = category.services.id(itemId);
+                            if (subSvc) {
+                                basePrice = subSvc.basePrice || 0;
+                                priceFound = true;
+                            } else {
+                                const subCombo = category.combos.id(itemId);
+                                if (subCombo) {
+                                    basePrice = subCombo.sewakPrice || 0;
+                                    priceFound = true;
+                                }
+                            }
+                        }
+                    }
+                    if (!priceFound && item.price !== undefined) {
+                        basePrice = Number(item.price) || 0;
+                        priceFound = true;
+                    }
+                }
+
+                if (!priceFound && mongoose.Types.ObjectId.isValid(itemId)) {
                     // Check individual service
                     const service = await Service.findById(itemId);
                     if (service) {
                         basePrice = service.price || 0;
+                        priceFound = true;
                     } else {
                         // Check combo
                         const combo = await Combo.findById(itemId);
                         if (combo) {
                             basePrice = combo.price || 0;
+                            priceFound = true;
                         } else {
                             // Check sewak sub-service or combo under Category
                             const category = await Category.findOne({
@@ -150,43 +190,71 @@ const createBooking = async (req, res) => {
                                 const subSvc = category.services.id(itemId);
                                 if (subSvc) {
                                     basePrice = subSvc.basePrice || 0;
+                                    priceFound = true;
                                 } else {
                                     const subCombo = category.combos.id(itemId);
                                     if (subCombo) {
                                         basePrice = subCombo.sewakPrice || 0;
+                                        priceFound = true;
                                     }
                                 }
                             }
                         }
                     }
                 }
+
+                if (!priceFound && item.price !== undefined) {
+                    basePrice = Number(item.price) || 0;
+                }
+
                 subtotal += basePrice * qty;
             }
         } else {
             // Fallback if no items passed: lookup single serviceId
             if (mongoose.Types.ObjectId.isValid(serviceId)) {
-                const service = await Service.findById(serviceId);
-                if (service) {
-                    subtotal = service.price || 0;
-                } else {
-                    const combo = await Combo.findById(serviceId);
-                    if (combo) {
-                        subtotal = combo.price || 0;
+                if (isSewakBooking) {
+                    const category = await Category.findOne({
+                        $or: [
+                            { "services._id": serviceId },
+                            { "combos._id": serviceId }
+                        ]
+                    });
+                    if (category) {
+                        const subSvc = category.services.id(serviceId);
+                        if (subSvc) {
+                            subtotal = subSvc.basePrice || 0;
+                        } else {
+                            const subCombo = category.combos.id(serviceId);
+                            if (subCombo) {
+                                subtotal = subCombo.sewakPrice || 0;
+                            }
+                        }
+                    }
+                }
+                if (subtotal === 0) {
+                    const service = await Service.findById(serviceId);
+                    if (service) {
+                        subtotal = service.price || 0;
                     } else {
-                        const category = await Category.findOne({
-                            $or: [
-                                { "services._id": serviceId },
-                                { "combos._id": serviceId }
-                            ]
-                        });
-                        if (category) {
-                            const subSvc = category.services.id(serviceId);
-                            if (subSvc) {
-                                subtotal = subSvc.basePrice || 0;
-                            } else {
-                                const subCombo = category.combos.id(serviceId);
-                                if (subCombo) {
-                                    subtotal = subCombo.sewakPrice || 0;
+                        const combo = await Combo.findById(serviceId);
+                        if (combo) {
+                            subtotal = combo.price || 0;
+                        } else {
+                            const category = await Category.findOne({
+                                $or: [
+                                    { "services._id": serviceId },
+                                    { "combos._id": serviceId }
+                                ]
+                            });
+                            if (category) {
+                                const subSvc = category.services.id(serviceId);
+                                if (subSvc) {
+                                    subtotal = subSvc.basePrice || 0;
+                                } else {
+                                    const subCombo = category.combos.id(serviceId);
+                                    if (subCombo) {
+                                        subtotal = subCombo.sewakPrice || 0;
+                                    }
                                 }
                             }
                         }
@@ -1740,36 +1808,30 @@ const verifyEndOTP = async (req, res) => {
                     }
                     const commissionableAmount = Math.max(0, booking.totalAmount - travelChargeAmount);
 
-                    if (provider.providerCategory === 'sewak') {
-                        adminCommission = commissionableAmount;
-                        providerPayout = travelChargeAmount;
-                        commissionStatus = 'sewak_revenue';
-                    } else {
-                        const matchedRule = await CommissionRuleEngine.selectRule(commissionableAmount, provider, provider.vendorType);
-                        calculation = CommissionService.calculate(commissionableAmount, matchedRule);
-                        adminCommission = calculation.platformAmount;
-                        providerPayout = calculation.providerAmount + travelChargeAmount;
-                        commissionStatus = calculation.source.toLowerCase();
+                    const matchedRule = await CommissionRuleEngine.selectRule(commissionableAmount, provider, provider.vendorType);
+                    calculation = CommissionService.calculate(commissionableAmount, matchedRule);
+                    adminCommission = calculation.platformAmount;
+                    providerPayout = calculation.providerAmount + travelChargeAmount;
+                    commissionStatus = calculation.source.toLowerCase();
 
-                        // Increment trial usedServices
-                        if (calculation.source === 'FREE_TRIAL') {
-                            provider.freeTrial.usedServices += 1;
-                            const program = await PartnerProgram.findOne().session(session);
-                            const totalTrial = program ? program.freeServiceCount : 3;
-                            if (provider.freeTrial.usedServices >= (totalTrial + provider.freeTrial.extraFreeServices)) {
-                                provider.freeTrial.trialCompletedAt = Date.now();
-                            }
+                    // Increment trial usedServices
+                    if (calculation.source === 'FREE_TRIAL') {
+                        if (!provider.freeTrial) provider.freeTrial = { usedServices: 0 };
+                        provider.freeTrial.usedServices = (provider.freeTrial.usedServices || 0) + 1;
+                        const program = await PartnerProgram.findOne().session(session);
+                        const totalTrial = program ? program.freeServiceCount : 3;
+                        if (provider.freeTrial.usedServices >= (totalTrial + (provider.freeTrial.extraFreeServices || 0))) {
+                            provider.freeTrial.trialCompletedAt = Date.now();
                         }
-                        // Increment waiver counts
-                        if (calculation.source === 'WAIVER') {
-                            provider.commissionWaiver.bookingsWaivedCount += 1;
-                        }
+                    }
+                    // Increment waiver counts
+                    if (calculation.source === 'WAIVER') {
+                        if (!provider.commissionWaiver) provider.commissionWaiver = { bookingsWaivedCount: 0 };
+                        provider.commissionWaiver.bookingsWaivedCount = (provider.commissionWaiver.bookingsWaivedCount || 0) + 1;
                     }
 
                     // Increment bookingsCount
-                    if (provider.providerCategory !== 'sewak') {
-                        provider.bookingsCount = (provider.bookingsCount || 0) + 1;
-                    }
+                    provider.bookingsCount = (provider.bookingsCount || 0) + 1;
 
                     // Save snapshot on booking
                     bookingSession.status = 'completed';

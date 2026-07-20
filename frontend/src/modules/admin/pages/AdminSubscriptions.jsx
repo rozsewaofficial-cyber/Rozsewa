@@ -33,6 +33,7 @@ const AdminSubscriptions = () => {
     price: "",
     planType: "monthly",
     category: "",
+    providerCategory: "all",
     commissionRate: "",
     leadCredits: "",
     duration: 365,
@@ -78,7 +79,12 @@ const AdminSubscriptions = () => {
 
     const customFeatures = customBenefitsText.split(",").map(f => f.trim()).filter(f => f);
     const existingPredefined = (newPlan.features || []).filter(f => PREDEFINED_BENEFITS.includes(f));
-    const planToSave = { ...newPlan, features: [...existingPredefined, ...customFeatures] };
+    const planToSave = { 
+      ...newPlan, 
+      category: newPlan.category || null,
+      providerCategory: newPlan.providerCategory || 'all',
+      features: [...existingPredefined, ...customFeatures] 
+    };
 
     try {
       if (editingPlan) {
@@ -93,7 +99,7 @@ const AdminSubscriptions = () => {
       setEditingPlan(null);
       resetForm();
     } catch (err) {
-      toast({ title: "Operation Failed", variant: "destructive" });
+      toast({ title: "Operation Failed", description: err.response?.data?.message || err.message, variant: "destructive" });
     }
   };
 
@@ -114,6 +120,7 @@ const AdminSubscriptions = () => {
       price: "",
       planType: "monthly",
       category: "",
+      providerCategory: "all",
       commissionRate: "",
       leadCredits: "",
       duration: 365,
@@ -130,7 +137,8 @@ const AdminSubscriptions = () => {
     setEditingPlan(plan);
     setNewPlan({
       ...plan,
-      category: plan.category?._id || plan.category
+      category: plan.category?._id || plan.category,
+      providerCategory: plan.providerCategory || 'all'
     });
     setCustomBenefitsText((plan.features || []).filter(f => !PREDEFINED_BENEFITS.includes(f)).join(", "));
     setShowModal(true);
@@ -189,7 +197,18 @@ const AdminSubscriptions = () => {
                   </div>
                   <div>
                     <h3 className="font-black text-slate-900 leading-tight">{plan.name}</h3>
-                    <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mt-0.5">{plan.category?.name || 'Uncategorized'}</p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{plan.category?.name || 'Uncategorized'}</span>
+                      <span className={`text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider ${
+                        plan.providerCategory === 'sewak'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : plan.providerCategory === 'partner'
+                          ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      }`}>
+                        {plan.providerCategory === 'sewak' ? 'Sewak Only' : plan.providerCategory === 'partner' ? 'Partner Only' : 'All Providers'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -287,7 +306,6 @@ const AdminSubscriptions = () => {
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Category</label>
                       <select
-                        required
                         value={newPlan.category}
                         onChange={(e) => setNewPlan({ ...newPlan, category: e.target.value })}
                         className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none appearance-none"
@@ -296,6 +314,19 @@ const AdminSubscriptions = () => {
                         {categories.map(c => (
                           <option key={c._id} value={c._id}>{c.name}</option>
                         ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Target Provider Role</label>
+                      <select
+                        value={newPlan.providerCategory || 'all'}
+                        onChange={(e) => setNewPlan({ ...newPlan, providerCategory: e.target.value })}
+                        className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none appearance-none"
+                      >
+                        <option value="all">All Providers</option>
+                        <option value="partner">Partner Only</option>
+                        <option value="sewak">Sewak Only</option>
                       </select>
                     </div>
 

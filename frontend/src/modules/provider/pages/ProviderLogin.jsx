@@ -25,18 +25,18 @@ const ProviderLogin = () => {
 
   // Initialize state from sessionStorage if available
   const [mobile, setMobile] = useState(() => sessionStorage.getItem("providerLoginMobile") || "");
-  const [password, setPassword] = useState(() => sessionStorage.getItem("providerLoginPassword") || "");
+  const [password, setPassword] = useState("");
   const [loginType, setLoginType] = useState(() => sessionStorage.getItem("providerLoginType") || 'provider');
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const { login, loginWithOTP, user, isAuthenticated, loading } = useAuth();
 
-  // Save to sessionStorage whenever they change
+  // Save mobile & loginType to sessionStorage whenever they change
   useEffect(() => {
     sessionStorage.setItem("providerLoginMobile", mobile);
-    sessionStorage.setItem("providerLoginPassword", password);
     sessionStorage.setItem("providerLoginType", loginType);
-  }, [mobile, password, loginType]);
+    sessionStorage.removeItem("providerLoginPassword");
+  }, [mobile, loginType]);
 
   const [showOtpError, setShowOtpError] = useState(false);
 

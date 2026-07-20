@@ -13,8 +13,19 @@ class CategorySlabStrategy {
     async evaluate(bookingAmount, provider, category) {
         if (!category) return null;
 
-        // Find slabs for this category
-        const slabs = await CommissionSlab.find({ category: category._id }).sort({ minAmount: 1 });
+        const role = provider?.providerCategory || 'partner';
+        
+        const catId = category._id || category;
+        
+        // Find slabs for this category matching provider role
+        const slabs = await CommissionSlab.find({ 
+            category: catId,
+            $or: [
+                { providerCategory: { $in: ['all', role] } },
+                { providerCategory: { $exists: false } },
+                { providerCategory: null }
+            ]
+        }).sort({ minAmount: 1 });
         if (slabs.length === 0) return null;
 
         const matchedSlab = slabs.find(s => bookingAmount >= s.minAmount && bookingAmount <= s.maxAmount);

@@ -514,7 +514,7 @@ const ProviderDashboard = () => {
               <span className="text-[10px] md:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em]">
                 RozSewa Verified Professional
               </span>
-              {isSubscribed && user?.providerCategory !== 'sewak' && (
+              {isSubscribed && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-[9px] font-black text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 uppercase tracking-widest">
                   Valid till: {user?.subscriptionExpiry ? new Date(user.subscriptionExpiry).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' }) : 'Lifetime'}
                 </span>
@@ -614,7 +614,7 @@ const ProviderDashboard = () => {
         </section>
 
         {/* Commission Status / Partner Program Card */}
-        {user?.providerCategory !== 'sewak' && commissionPreview && (
+        {commissionPreview && (
           <section className="animate-in fade-in duration-700 mt-6 text-left">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[1.5rem] shadow-sm space-y-6">
               <div className="flex justify-between items-start">
@@ -726,7 +726,7 @@ const ProviderDashboard = () => {
         )}
 
         {/* Registration Status / Elite Banner */}
-        {user?.providerCategory !== 'sewak' && !isSubscribed && (
+        {!isSubscribed && (
           <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
               <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-4 md:p-6 text-white shadow-2xl shadow-emerald-500/20 border border-white/10 group text-left">
                 <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>

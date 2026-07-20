@@ -13,6 +13,11 @@ const subscriptionPlanSchema = mongoose.Schema({
         ref: 'Category',
         required: false 
     },
+    providerCategory: {
+        type: String,
+        enum: ['all', 'partner', 'sewak'],
+        default: 'all'
+    },
     offeredCommissionRate: { type: Number, required: false },
     offeredCommissionType: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
     commissionRate: { type: Number }, // alias/new field

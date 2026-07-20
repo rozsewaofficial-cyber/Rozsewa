@@ -18,7 +18,7 @@ export const adminSidebarLinks = [
   { path: "/admin/employees", label: "Employees", icon: Users },
   { path: "/admin/providers", label: "Providers", icon: UserCheck },
   { path: "/admin/subscriptions", label: "Subscription Plans", icon: CreditCard },
-  { path: "/admin/provider-subscriptions", label: "Provider Subscriptions", icon: ShieldCheck },
+  { path: "/admin/provider-subscriptions", label: "Provider & Sewak Subscriptions", icon: ShieldCheck },
   { path: "/admin/sewaks", label: "Sewak Management", icon: Users },
   { path: "/admin/sewak-enquiries", label: "Sewak Enquiries", icon: MessageSquare },
   { path: "/admin/verify-sewaks", label: "Verify Sewaks", icon: UserPlus },

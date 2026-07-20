@@ -17,14 +17,14 @@ const run = async () => {
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('✅ Connected!\n');
 
-        // ── 1. Upsert Provider ──────────────────────────────────────────────
-        let provider = await Provider.findOne({ mobile: MOBILE });
+        // ── 1. Clean & Create Provider ──────────────────────────────────────
+        await Provider.deleteOne({ mobile: MOBILE });
 
-        const providerData = {
+        const provider = new Provider({
             ownerName:        'Test Sewak',
             shopName:         'Test Sewak Store',
             mobile:           MOBILE,
-            password:         PASSWORD,          // hashed by pre-save hook
+            password:         PASSWORD, // pre('save') hook hashes this
             address:          '123 Test Street',
             city:             'Agra',
             state:            'Uttar Pradesh',
@@ -38,21 +38,10 @@ const run = async () => {
             isSubscribed:     false,
             commissionRate:   10,
             location: { type: 'Point', coordinates: [78.0081, 27.1767] },
-        };
+        });
 
-        if (provider) {
-            // Re-set password so it gets re-hashed
-            provider.password         = PASSWORD;
-            provider.providerCategory = 'sewak';
-            provider.status           = 'verified';
-            provider.kycVerified      = true;
-            await provider.save();
-            console.log('🔄 Provider already existed — credentials reset.');
-        } else {
-            provider = new Provider(providerData);
-            await provider.save();
-            console.log('✨ Sewak Provider created successfully.');
-        }
+        await provider.save();
+        console.log('✨ Sewak Provider created/reset successfully.');
 
         // ── 2. Seed OTP (delete old + insert fresh with long expiry) ────────
         await OTP.deleteMany({ mobile: MOBILE });
