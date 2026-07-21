@@ -18,6 +18,7 @@ router.get('/config', getPublicConfig);
 router.get('/zones', getPublicZones);
 router.get('/benefit-policies', require('../controllers/benefitPolicyController').getPublicBenefitPolicies);
 
-router.post('/sewak-enquiry', require('../controllers/sewakEnquiryController').createEnquiry);
+router.get('/categories/:categoryId/subcategories', require('../controllers/subcategoryController').getPublicSubcategoriesByCategory);
+router.get('/subcategories/:subcategoryId/services', require('../controllers/subcategoryController').getPublicServicesBySubcategory);
 
 module.exports = router;

@@ -158,6 +158,7 @@ const App = () => (
                         <Route path="/shop/:id" element={<ShopDetail />} />
                         <Route path="/sewak-services" element={<SewakServices />} />
                         <Route path="/category" element={<SubcategoryPage />} />
+                        <Route path="/subcategory" element={<SubcategoryPage />} />
 
                         {/* Protected Customer Routes */}
                         <Route path="/checkout" element={<ProtectedRoute allowedRoles={["customer", "provider"]}><Checkout /></ProtectedRoute>} />

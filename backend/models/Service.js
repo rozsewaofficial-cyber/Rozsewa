@@ -3,12 +3,21 @@ const mongoose = require('mongoose');
 const serviceSchema = mongoose.Schema({
     providerId: {
         type: mongoose.Schema.Types.ObjectId,
-        required: true,
+        required: false,
         ref: 'Provider'
+    },
+    categoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category'
+    },
+    subcategoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Subcategory'
     },
     name: { type: String, required: true },
     description: { type: String },
-    category: { type: String, required: true },
+    category: { type: String },
+    subcategory: { type: String },
     price: { type: Number, required: true },
     duration: { type: String, default: '30 min' },
     serviceType: { type: String, default: 'home' }, // 'home', 'shop', '24x7', 'both'

@@ -106,7 +106,7 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
             } else if (mode === "sewak") {
               navigate(`/sewak-services?category=${encodeURIComponent(cat.name)}`);
             } else {
-              navigate(`/shops?category=${encodeURIComponent(cat.name)}&mode=${mode}`);
+              navigate(`/subcategory?categoryId=${cat._id}&category=${encodeURIComponent(cat.name)}&mode=partner`);
             }
           }
         }}

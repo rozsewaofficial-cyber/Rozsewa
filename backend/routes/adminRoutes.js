@@ -290,4 +290,14 @@ router.delete('/coupons/:id', protect, admin, deleteCoupon);
 router.get('/partner-policies', protect, admin, partnerPolicyController.getPolicies);
 router.post('/partner-policies', protect, admin, partnerPolicyController.savePolicy);
 
+// Subcategories & Services Management
+const subcategoryController = require('../controllers/subcategoryController');
+router.get('/subcategories', protect, admin, subcategoryController.getAdminSubcategories);
+router.post('/subcategories', protect, admin, subcategoryController.createSubcategory);
+router.put('/subcategories/:id', protect, admin, subcategoryController.updateSubcategory);
+router.delete('/subcategories/:id', protect, admin, subcategoryController.deleteSubcategory);
+router.post('/subcategories/:subcategoryId/services', protect, admin, subcategoryController.createAdminService);
+router.put('/services/:id', protect, admin, subcategoryController.updateAdminService);
+router.delete('/services/:id', protect, admin, subcategoryController.deleteAdminService);
+
 module.exports = router;
