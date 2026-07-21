@@ -7,6 +7,13 @@ import { useJsApiLoader } from "@react-google-maps/api";
 const libraries = ["places"];
 
 const LocationGate = () => {
+  // ============================================================================
+  // SENIOR SDE NOTE: LOCATION GATE BYPASS TOGGLE
+  // Set BYPASS_LOCATION_GATE = true to skip location prompt and go directly to Home.
+  // Set BYPASS_LOCATION_GATE = false to revert back to original location gate flow.
+  // ============================================================================
+  const BYPASS_LOCATION_GATE = true;
+
   const { userLocation, detectLocation } = useAuth();
   const [status, setStatus] = useState("prompt"); // 'prompt' | 'checking' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState("");
@@ -113,7 +120,7 @@ const LocationGate = () => {
     }
   }, []); // Empty dependency array prevents infinite loop
 
-  if (status === "success") {
+  if (BYPASS_LOCATION_GATE || status === "success") {
     return <Outlet />;
   }
 
