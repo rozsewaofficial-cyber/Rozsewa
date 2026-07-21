@@ -85,6 +85,15 @@ const bazaarAdSchema = new mongoose.Schema({
   rejectionReason: {
     type: String
   },
+  // Admin can override unlock fee per product (null = use global Setting default)
+  unlockFee: {
+    type: Number,
+    default: null
+  },
+  // Internal admin note added during approval (not visible to seller/buyer)
+  adminNote: {
+    type: String
+  },
   // Analytics
   metrics: {
     views: { type: Number, default: 0 },

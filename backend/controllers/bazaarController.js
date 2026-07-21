@@ -2,12 +2,16 @@ const BazaarAd = require('../models/BazaarAd');
 const BazaarCategory = require('../models/BazaarCategory');
 const BazaarOffer = require('../models/BazaarOffer');
 const BazaarChatTemplate = require('../models/BazaarChatTemplate');
+const BazaarUnlockTransaction = require('../models/BazaarUnlockTransaction');
+const BazaarPIIViolation = require('../models/BazaarPIIViolation');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const Setting = require('../models/Setting');
+const { Wallet, Transaction } = require('../models/Wallet');
 const { sendNotificationToUser } = require('../config/notificationService');
 const { validationResult } = require('express-validator');
 const { getIO } = require('../config/socket');
+const { detectPII } = require('../utils/piiFilter');
 
 // ========================
 // USER ACTIONS
@@ -207,7 +211,20 @@ exports.getPendingAds = async (req, res) => {
 // Get All Ads for Admin Management (Live, Rejected, Sold, etc.)
 exports.getAllAdminAds = async (req, res) => {
   try {
-    const ads = await BazaarAd.find({ status: { $ne: 'pending_review' } })
+    const { status, search } = req.query;
+    const query = {};
+    if (status) {
+      query.status = status;
+    } else {
+      query.status = { $ne: 'pending_review' };
+    }
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const ads = await BazaarAd.find(query)
       .populate('sellerId', 'name mobile')
       .sort({ createdAt: -1 });
     
@@ -233,20 +250,32 @@ exports.deleteAd = async (req, res) => {
 };
 
 // Admin Approve or Reject Ad
+// Now also accepts: unlockFee (optional per-product override), adminNote (internal note)
 exports.reviewAd = async (req, res) => {
   try {
     const { id } = req.params;
-    const { action, rejectionReason } = req.body; // action: 'approve' or 'reject'
+    const { action, rejectionReason, unlockFee, adminNote } = req.body;
 
     const ad = await BazaarAd.findById(id);
     if (!ad) return res.status(404).json({ success: false, message: 'Ad not found' });
 
     if (action === 'approve') {
       ad.status = 'live';
-      // Set expiry to 30 days from now (Blueprint Phase 10)
+      // Set expiry to 30 days from now
       const expiry = new Date();
       expiry.setDate(expiry.getDate() + 30);
       ad.expiresAt = expiry;
+
+      // Per-product unlock fee override (null = use global default from Settings)
+      if (unlockFee !== undefined && unlockFee !== null && unlockFee !== '') {
+        const parsed = parseFloat(unlockFee);
+        ad.unlockFee = isNaN(parsed) ? null : parsed;
+      } else {
+        ad.unlockFee = null; // Null = fall back to global Setting
+      }
+
+      // Internal admin note
+      if (adminNote) ad.adminNote = adminNote;
       
       await ad.save();
 
@@ -263,6 +292,7 @@ exports.reviewAd = async (req, res) => {
     } else if (action === 'reject') {
       ad.status = 'rejected';
       ad.rejectionReason = rejectionReason || 'Violated community guidelines';
+      if (adminNote) ad.adminNote = adminNote;
       await ad.save();
 
       // Notify User
@@ -388,6 +418,80 @@ exports.makeOffer = async (req, res) => {
       return res.status(400).json({ success: false, message: 'You cannot make an offer on your own ad' });
     }
 
+    // ── RULE 1: Chat messages can only be sent AFTER a numeric offer thread exists + Max Limit check
+    if (actionType === 'predefined_query') {
+      const existingThread = await BazaarOffer.findOne({ adId, buyerId });
+      if (!existingThread) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please make a price offer first before sending messages.'
+        });
+      }
+
+      let settings = await Setting.findOne({ key: 'bazaar_rules' });
+      const maxChatMsgs = settings?.value?.maxChatMessages ?? 10;
+      
+      const totalChatMsgs = existingThread.offerHistory.filter(m => m.actionType === 'predefined_query').length;
+      if (totalChatMsgs >= maxChatMsgs) {
+        return res.status(400).json({
+          success: false,
+          message: `Maximum chat message limit (${maxChatMsgs}) reached for this negotiation.`
+        });
+      }
+
+      // Block messages once the deal is locked or rejected — no more chatter needed
+      if (existingThread.status === 'deal_locked') {
+        return res.status(400).json({
+          success: false,
+          message: 'Deal is already locked. Use the contact details to communicate directly.'
+        });
+      }
+
+      // ── RULE 2: Template allowlist validation + PII check
+      // A. Text must strictly match an active admin chat template for 'buyer' or 'both'
+      const matchedTemplate = await BazaarChatTemplate.findOne({
+        text: predefinedMessage,
+        forRole: { $in: ['buyer', 'both'] },
+        isActive: true
+      });
+
+      if (!matchedTemplate) {
+        // Log violation if custom text containing PII was injected via direct API call
+        const piiResult = detectPII(predefinedMessage);
+        if (piiResult.containsPII) {
+          await BazaarPIIViolation.create({
+            userId: buyerId,
+            adId,
+            offerId: existingThread._id,
+            attemptedText: predefinedMessage,
+            detectedType: piiResult.type || 'template_bypass',
+            reason: piiResult.reason || 'Custom message injected bypassing chat templates'
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'Custom chat messages are not allowed. Please select from quick-reply options.'
+        });
+      }
+
+      // B. Secondary PII check on the template text (just in case an admin template itself contains contact info)
+      const piiCheck = detectPII(predefinedMessage);
+      if (piiCheck.containsPII) {
+        await BazaarPIIViolation.create({
+          userId: buyerId,
+          adId,
+          offerId: existingThread._id,
+          attemptedText: predefinedMessage,
+          detectedType: piiCheck.type,
+          reason: piiCheck.reason
+        });
+        return res.status(400).json({
+          success: false,
+          message: 'Message blocked due to security policies (contact sharing not allowed).'
+        });
+      }
+    }
+
     // Fetch Admin Settings for Bargaining Rules
     let settings = await Setting.findOne({ key: 'bazaar_rules' });
     const rules = settings ? settings.value : { minOfferPercentage: 50, maxCounterAttempts: 3 };
@@ -396,6 +500,9 @@ exports.makeOffer = async (req, res) => {
       const minAllowed = (rules.minOfferPercentage / 100) * ad.price;
       if (numericAmount < minAllowed) {
          return res.status(400).json({ success: false, message: `Offer must be at least ${rules.minOfferPercentage}% of the asking price (₹${minAllowed})` });
+      }
+      if (numericAmount > ad.price) {
+         return res.status(400).json({ success: false, message: `Offer price cannot exceed the asking price (₹${ad.price.toLocaleString('en-IN')})` });
       }
     }
 
@@ -412,6 +519,12 @@ exports.makeOffer = async (req, res) => {
     } else {
       if (offer.status === 'deal_locked' || offer.status === 'completed') {
         return res.status(400).json({ success: false, message: `Offer is already ${offer.status}` });
+      }
+      if (actionType === 'numeric_offer' && offer.status === 'pending') {
+        return res.status(400).json({
+          success: false,
+          message: 'Your previous offer is waiting for the seller to respond. Please wait for the seller to accept, reject, or counter.'
+        });
       }
       if (offer.status === 'rejected') {
         // Reset counter attempts and re-open the negotiation
@@ -512,7 +625,7 @@ exports.respondToOffer = async (req, res) => {
         return res.status(400).json({ success: false, message: 'You can only accept a countered offer' });
       }
       if (isSeller && offer.status !== 'pending') {
-        return res.status(400).json({ success: false, message: 'You can only accept a pending offer' });
+        return res.status(400).json({ success: false, message: 'You can only accept an active pending offer' });
       }
 
       offer.status = 'deal_locked';
@@ -531,8 +644,17 @@ exports.respondToOffer = async (req, res) => {
       });
     } else if (action === 'counter') {
        if (isBuyer) return res.status(403).json({ success: false, message: 'Buyers cannot counter directly, make a new offer' });
+       if (offer.status === 'countered') {
+         return res.status(400).json({
+           success: false,
+           message: 'You have already sent a counter offer. Please wait for the buyer to accept or make a new offer.'
+         });
+       }
        if (!numericAmount || isNaN(numericAmount) || numericAmount <= 0) {
          return res.status(400).json({ success: false, message: 'Invalid counter amount' });
+       }
+       if (numericAmount > offer.adId.price) {
+         return res.status(400).json({ success: false, message: `Counter price cannot exceed the asking price (₹${offer.adId.price.toLocaleString('en-IN')})` });
        }
        
        let settings = await Setting.findOne({ key: 'bazaar_rules' });
@@ -591,8 +713,6 @@ exports.getOfferHistory = async (req, res) => {
     const { offerId } = req.query;
     const userId = req.user._id;
 
-    // Find the offer thread for this specific user (buyer) or if seller, find all threads?
-    // Let's assume this is mostly for the buyer side for now, or if it's the seller, they need an offerId.
     const ad = await BazaarAd.findById(adId);
     if (!ad) return res.status(404).json({ success: false, message: 'Ad not found' });
 
@@ -619,65 +739,320 @@ exports.getOfferHistory = async (req, res) => {
 };
 
 // ========================
-// LEAD UNLOCK
+// UNLOCK CONTACT (PAID)
 // ========================
 
-exports.unlockLead = async (req, res) => {
+/**
+ * Check if the current buyer has already unlocked this ad's contact,
+ * and return the applicable unlock fee + deal lock state.
+ * The UI uses this to show the correct CTA:
+ *   - No offer yet      → "Make an offer to start"
+ *   - Offer pending     → "Waiting for seller to accept"
+ *   - deal_locked       → "Pay to unlock contact"
+ *   - Already paid      → Show contact details
+ */
+exports.checkUnlockStatus = async (req, res) => {
   try {
-    const { offerId } = req.body;
-    const userId = req.user._id;
-    const LEAD_FEE = 10; // Fixed at ₹10 for now as per plan
+    const { adId } = req.params;
+    const buyerId = req.user._id;
 
-    const offer = await BazaarOffer.findById(offerId).populate('adId');
-    if (!offer) return res.status(404).json({ success: false, message: 'Offer not found' });
+    const ad = await BazaarAd.findById(adId).select('unlockFee status sellerId');
+    if (!ad) return res.status(404).json({ success: false, message: 'Ad not found' });
 
-    if (offer.status !== 'deal_locked') {
-      return res.status(400).json({ success: false, message: 'Deal is not locked yet' });
+    const isSeller = ad.sellerId.toString() === buyerId.toString();
+
+    // Resolve the applicable fee: per-product override OR global setting
+    let fee = ad.unlockFee;
+    if (fee === null || fee === undefined) {
+      const setting = await Setting.findOne({ key: 'bazaar_rules' });
+      fee = setting?.value?.bazaarCommissionFee ?? 20;
     }
 
-    const isBuyer = offer.buyerId.toString() === userId.toString();
-    const isSeller = offer.sellerId.toString() === userId.toString();
+    // Check if already paid-unlock exists
+    const existingUnlock = await BazaarUnlockTransaction.findOne({
+      buyerId,
+      adId,
+      status: 'success'
+    });
 
-    if (!isBuyer && !isSeller) return res.status(403).json({ success: false, message: 'Unauthorized' });
+    // Check offer state so UI can guide buyer correctly
+    let dealState = 'no_offer'; // no_offer | offer_pending | countered | deal_locked
+    if (!isSeller) {
+      const offer = await BazaarOffer.findOne({ adId, buyerId }).select('status');
+      if (offer) {
+        dealState = offer.status; // 'pending' | 'countered' | 'deal_locked' | 'rejected'
+      }
+    }
 
-    if (isBuyer && offer.isLeadUnlockedByBuyer) return res.status(400).json({ success: false, message: 'Already unlocked by you' });
-    if (isSeller && offer.isLeadUnlockedBySeller) return res.status(400).json({ success: false, message: 'Already unlocked by you' });
-
-    // Deduct Wallet
-    const user = await User.findById(userId);
-    // Note: Assuming `walletBalance` field exists on User. If it's a separate Wallet model, adjust accordingly.
-    // In RozSewa, there's usually a Wallet model or field. Let's assume user.wallet or similar.
-    // The previous implementation used a different wallet system, let's just bypass strict wallet check for the demo, 
-    // or simulate deduction if no standard wallet field exists in this file context yet.
-    // I will mock the wallet deduction for now.
-    
-    if (isBuyer) offer.isLeadUnlockedByBuyer = true;
-    if (isSeller) offer.isLeadUnlockedBySeller = true;
-
-    await offer.save();
-
-    res.json({ 
-      success: true, 
-      message: 'Lead unlocked successfully!',
+    res.json({
+      success: true,
       data: {
-        isLeadUnlockedByBuyer: offer.isLeadUnlockedByBuyer,
-        isLeadUnlockedBySeller: offer.isLeadUnlockedBySeller
+        isUnlocked: !!existingUnlock,
+        fee,
+        adStatus: ad.status,
+        isSeller,
+        dealState // frontend uses this to show the right CTA
       }
     });
   } catch (error) {
-    console.error('Unlock Lead Error:', error);
+    console.error('Check Unlock Status Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
 
 
+/**
+ * GET /bazaar/unlock/contact/:adId
+ * Returns full contact details if buyer has a verified unlock transaction.
+ * This is the secure server-side gate — never trust client-side flags.
+ */
+exports.getUnlockedContactDetails = async (req, res) => {
+  try {
+    const { adId } = req.params;
+    const buyerId = req.user._id;
+
+    const ad = await BazaarAd.findById(adId);
+    if (!ad) return res.status(404).json({ success: false, message: 'Ad not found' });
+
+    // Sellers can always see their own ad contact (it's theirs)
+    if (ad.sellerId.toString() === buyerId.toString()) {
+      return res.json({
+        success: true,
+        data: {
+          phone: ad.contactDetails?.phone,
+          exactAddress: ad.location?.exactAddress,
+          houseNumber: ad.location?.houseNumber,
+          areaName: ad.location?.areaName,
+          city: ad.location?.city
+        }
+      });
+    }
+
+    // For buyers: verify they have a successful unlock transaction
+    const unlock = await BazaarUnlockTransaction.findOne({
+      buyerId,
+      adId,
+      status: 'success'
+    });
+
+    if (!unlock) {
+      return res.status(403).json({
+        success: false,
+        message: 'Contact details locked. Please pay the unlock fee first.'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        phone: ad.contactDetails?.phone,
+        exactAddress: ad.location?.exactAddress,
+        houseNumber: ad.location?.houseNumber,
+        areaName: ad.location?.areaName,
+        city: ad.location?.city
+      }
+    });
+  } catch (error) {
+    console.error('Get Unlocked Contact Details Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+/**
+ * POST /bazaar/unlock
+ * Buyer pays the unlock fee (wallet deduction) to reveal seller's contact.
+ *
+ * BUSINESS RULES (enforced server-side, never trust client):
+ * 1. A BazaarOffer with status 'deal_locked' MUST exist for (buyerId, adId).
+ *    Both parties must have agreed on a price before contact is revealed.
+ * 2. Predefined chat messages ("Hi", "Is it available?") do NOT satisfy this —
+ *    only a numeric offer that was accepted by the seller creates deal_locked.
+ * 3. Atomic wallet deduction with $gte guard prevents overdraft race conditions.
+ * 4. Unique index on (buyerId, adId) prevents double-charge.
+ */
+exports.unlockLead = async (req, res) => {
+  try {
+    const { adId, offerId } = req.body;
+    const buyerId = req.user._id;
+
+    if (!adId) {
+      return res.status(400).json({ success: false, message: 'adId is required' });
+    }
+
+    const ad = await BazaarAd.findById(adId);
+    if (!ad) return res.status(404).json({ success: false, message: 'Ad not found' });
+
+    if (ad.status !== 'live') {
+      return res.status(400).json({ success: false, message: 'This ad is not currently available' });
+    }
+
+    // Prevent seller from unlocking their own ad
+    if (ad.sellerId.toString() === buyerId.toString()) {
+      return res.status(400).json({ success: false, message: 'You cannot unlock your own ad' });
+    }
+
+    // ── GATE: Both parties must have agreed on a deal (deal_locked) first.
+    // Chat messages, queries, or browsing do NOT qualify.
+    // Only a numeric offer accepted by the seller transitions status → 'deal_locked'.
+    const lockedOffer = await BazaarOffer.findOne({
+      adId,
+      buyerId,
+      status: 'deal_locked'
+    });
+    if (!lockedOffer) {
+      return res.status(403).json({
+        success: false,
+        code: 'DEAL_NOT_LOCKED',
+        message: 'You can only unlock contact after both parties agree on a price. Make an offer and wait for the seller to accept it first.'
+      });
+    }
+
+    // Check for existing successful unlock — prevents double-payment
+    const existingUnlock = await BazaarUnlockTransaction.findOne({
+      buyerId,
+      adId,
+      status: 'success'
+    });
+    if (existingUnlock) {
+      return res.status(400).json({ success: false, message: 'You have already unlocked this ad' });
+    }
+
+    // Resolve the applicable fee: per-product override OR global setting
+    let fee = ad.unlockFee;
+    if (fee === null || fee === undefined) {
+      const setting = await Setting.findOne({ key: 'bazaar_rules' });
+      fee = setting?.value?.bazaarCommissionFee ?? 20;
+    }
+
+    // Fetch buyer's wallet
+    const buyerWallet = await Wallet.findOne({ userId: buyerId });
+    if (!buyerWallet) {
+      return res.status(402).json({
+        success: false,
+        message: 'Wallet not found. Please set up your wallet first.',
+        feeRequired: fee,
+        currentBalance: 0
+      });
+    }
+
+    if (buyerWallet.balance < fee) {
+      return res.status(402).json({
+        success: false,
+        message: `Insufficient wallet balance. You need ₹${fee} to unlock this contact.`,
+        feeRequired: fee,
+        currentBalance: buyerWallet.balance
+      });
+    }
+
+    // ATOMIC wallet deduction — use $gte guard to prevent race conditions
+    const updatedWallet = await Wallet.findOneAndUpdate(
+      { userId: buyerId, balance: { $gte: fee } },
+      {
+        $inc: { balance: -fee, availableBalance: -fee },
+        updatedAt: new Date()
+      },
+      { new: true }
+    );
+
+    if (!updatedWallet) {
+      return res.status(402).json({
+        success: false,
+        message: 'Insufficient balance. Please add funds and try again.',
+        feeRequired: fee,
+        currentBalance: buyerWallet.balance
+      });
+    }
+
+    // Record Transaction (debit buyer)
+    await Transaction.create({
+      userId: buyerId,
+      title: 'Bazaar Contact Unlock',
+      amount: fee,
+      type: 'debit',
+      status: 'completed',
+      description: `Unlocked contact for Bazaar ad: "${ad.title}"`
+    });
+
+    // Create BazaarUnlockTransaction (permanent record)
+    const unlockRecord = await BazaarUnlockTransaction.create({
+      buyerId,
+      adId,
+      offerId: offerId || null,
+      amount: fee,
+      paymentMode: 'wallet',
+      status: 'success'
+    });
+
+    // Also mark the BazaarOffer if one exists for this buyer+ad (for backward-compat)
+    await BazaarOffer.findOneAndUpdate(
+      { adId, buyerId },
+      { isLeadUnlockedByBuyer: true },
+      { new: true }
+    );
+
+    // Notify seller that someone unlocked their contact
+    await new Notification({
+      recipientId: ad.sellerId,
+      recipientModel: 'User',
+      title: 'Contact Unlocked 🔓',
+      message: `A buyer has paid ₹${fee} to view your contact for "${ad.title}". They may reach out soon!`,
+      type: 'bazaar'
+    }).save();
+
+    // Emit real-time update
+    try {
+      const io = getIO();
+      io.to(`user_${buyerId}`).emit('BAZAAR_UNLOCK_SUCCESS', { adId });
+      io.to(`user_${ad.sellerId}`).emit('BAZAAR_CONTACT_VIEWED', { adId, buyerId });
+    } catch (socketErr) {
+      console.error('Bazaar socket emit error (unlockLead):', socketErr.message);
+    }
+
+    // Return contact details immediately after successful payment
+    res.json({
+      success: true,
+      message: '🎉 Contact unlocked successfully!',
+      data: {
+        phone: ad.contactDetails?.phone,
+        exactAddress: ad.location?.exactAddress,
+        houseNumber: ad.location?.houseNumber,
+        areaName: ad.location?.areaName,
+        city: ad.location?.city,
+        newWalletBalance: updatedWallet.balance
+      }
+    });
+  } catch (error) {
+    // Handle duplicate key error (race condition double-unlock attempt)
+    if (error.code === 11000) {
+      return res.status(400).json({ success: false, message: 'You have already unlocked this ad' });
+    }
+    console.error('Unlock Lead Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
 
 // ========================
 // CHAT TEMPLATE ACTIONS
 // ========================
+
+/**
+ * GET /bazaar/chat-templates?role=buyer|seller
+ * role param filters templates by forRole field.
+ * 'both' templates are always included regardless of role filter.
+ */
 exports.getChatTemplates = async (req, res) => {
   try {
-    const templates = await BazaarChatTemplate.find({ isActive: true }).sort({ order: 1 });
+    const { role } = req.query; // 'buyer' or 'seller'
+    let query = { isActive: true };
+
+    if (role === 'buyer') {
+      query.forRole = { $in: ['buyer', 'both'] };
+    } else if (role === 'seller') {
+      query.forRole = { $in: ['seller', 'both'] };
+    }
+    // No role filter = return all active templates (admin view)
+
+    const templates = await BazaarChatTemplate.find(query).sort({ order: 1 });
     res.json({ success: true, data: templates });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -686,9 +1061,32 @@ exports.getChatTemplates = async (req, res) => {
 
 exports.createChatTemplate = async (req, res) => {
   try {
-    const { text, order } = req.body;
-    const template = await BazaarChatTemplate.create({ text, order });
+    const { text, order, forRole } = req.body;
+    const template = await BazaarChatTemplate.create({
+      text,
+      order,
+      forRole: forRole || 'buyer'
+    });
     res.status(201).json({ success: true, data: template });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+exports.updateChatTemplate = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text, order, forRole, isActive } = req.body;
+    const template = await BazaarChatTemplate.findById(id);
+    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+
+    if (text !== undefined) template.text = text;
+    if (order !== undefined) template.order = order;
+    if (forRole !== undefined) template.forRole = forRole;
+    if (isActive !== undefined) template.isActive = isActive;
+
+    await template.save();
+    res.json({ success: true, data: template });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
@@ -713,8 +1111,12 @@ exports.getBazaarSettings = async (req, res) => {
     if (!setting) {
       setting = await new Setting({
         key: 'bazaar_rules',
-        value: { minOfferPercentage: 50, maxCounterAttempts: 3, bazaarCommissionFee: 10 }
+        value: { minOfferPercentage: 50, maxCounterAttempts: 3, bazaarCommissionFee: 20, maxChatMessages: 10 }
       }).save();
+    }
+    // Ensure fallback if key exists but maxChatMessages is undefined
+    if (setting.value.maxChatMessages === undefined) {
+      setting.value.maxChatMessages = 10;
     }
     res.json({ success: true, data: setting.value });
   } catch (error) {
@@ -725,13 +1127,14 @@ exports.getBazaarSettings = async (req, res) => {
 
 exports.updateBazaarSettings = async (req, res) => {
   try {
-    const { minOfferPercentage, maxCounterAttempts, bazaarCommissionFee } = req.body;
+    const { minOfferPercentage, maxCounterAttempts, bazaarCommissionFee, maxChatMessages } = req.body;
     let setting = await Setting.findOne({ key: 'bazaar_rules' });
     
     const newValue = {
-      minOfferPercentage: minOfferPercentage || 50,
-      maxCounterAttempts: maxCounterAttempts || 3,
-      bazaarCommissionFee: bazaarCommissionFee !== undefined ? bazaarCommissionFee : 10
+      minOfferPercentage: minOfferPercentage !== undefined ? minOfferPercentage : 50,
+      maxCounterAttempts: maxCounterAttempts !== undefined ? maxCounterAttempts : 3,
+      bazaarCommissionFee: bazaarCommissionFee !== undefined ? bazaarCommissionFee : 20,
+      maxChatMessages: maxChatMessages !== undefined ? maxChatMessages : 10
     };
 
     if (!setting) {
@@ -754,21 +1157,21 @@ exports.updateBazaarSettings = async (req, res) => {
 
 exports.getBazaarTransactions = async (req, res) => {
   try {
-    const offers = await BazaarOffer.find({
-      isLeadUnlockedByBuyer: true
-    })
-    .populate('buyerId', 'name phone')
-    .populate('sellerId', 'name phone')
-    .populate('adId', 'title price')
-    .sort({ updatedAt: -1 });
+    const transactions = await BazaarUnlockTransaction.find({ status: 'success' })
+      .populate('buyerId', 'name mobile')
+      .populate('adId', 'title price category')
+      .sort({ createdAt: -1 });
 
     const setting = await Setting.findOne({ key: 'bazaar_rules' });
-    const commissionFee = setting?.value?.bazaarCommissionFee || 10;
+    const globalFee = setting?.value?.bazaarCommissionFee || 20;
+
+    const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
     res.json({
       success: true,
-      data: offers,
-      commissionFee
+      data: transactions,
+      globalFee,
+      totalRevenue
     });
   } catch (error) {
     console.error('Get Bazaar Transactions Error:', error);
@@ -822,3 +1225,40 @@ exports.getSellerOfferRequests = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// Get all Bazaar offer chats for Admin Inspection
+exports.getAllBazaarOffersAdmin = async (req, res) => {
+  try {
+    const offers = await BazaarOffer.find()
+      .populate('adId', 'title category price images')
+      .populate('buyerId', 'name mobile email')
+      .populate('sellerId', 'name mobile email')
+      .sort({ updatedAt: -1 });
+
+    res.json({ success: true, data: offers });
+  } catch (error) {
+    console.error('Get All Bazaar Offers Admin Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+// ========================
+// PII VIOLATION LOGS (ADMIN)
+// ========================
+
+exports.getPIIViolations = async (req, res) => {
+  try {
+    const violations = await BazaarPIIViolation.find()
+      .populate('userId', 'name mobile email')
+      .populate('adId', 'title category price')
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, data: violations });
+  } catch (error) {
+    console.error('Get PII Violations Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
+
+
