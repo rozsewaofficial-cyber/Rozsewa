@@ -16,13 +16,10 @@ const AdminSettings = () => {
 
   const [loading, setLoading] = useState(true);
   const [platformSettings, setPlatformSettings] = useState({
-    commissionRate: 10,
-    minBookingAmount: 199,
     emergencyEnabled: true,
     autoAssign: true,
     vendorCardEnabled: true,
     vendorCardPrice: 99,
-    max_bargain_discount_limit: 20,
     lead_min_wallet_balance: 200,
     lead_unlock_price: 50,
     lead_free_unlock_limit: 3,
@@ -55,13 +52,10 @@ const AdminSettings = () => {
     try {
       const { data } = await API.get("/admin/settings");
       setPlatformSettings({
-        commissionRate: data.commissionRate || 10,
-        minBookingAmount: data.minBookingAmount || 199,
         emergencyEnabled: data.emergencyEnabled !== undefined ? data.emergencyEnabled : true,
         autoAssign: data.autoAssign !== undefined ? data.autoAssign : true,
         vendorCardEnabled: data.vendorCardEnabled !== undefined ? data.vendorCardEnabled : true,
         vendorCardPrice: data.vendorCardPrice || 99,
-        max_bargain_discount_limit: data.max_bargain_discount_limit !== undefined ? data.max_bargain_discount_limit : 20,
         lead_min_wallet_balance: data.lead_min_wallet_balance || 200,
         lead_unlock_price: data.lead_unlock_price || 50,
         lead_free_unlock_limit: data.lead_free_unlock_limit !== undefined ? Number(data.lead_free_unlock_limit) : 3,
@@ -101,19 +95,10 @@ const AdminSettings = () => {
   };
 
   const saveSettingsGroup = async () => {
-    const maxLimit = parseInt(platformSettings.max_bargain_discount_limit);
-    if (isNaN(maxLimit) || maxLimit < 0 || maxLimit > 90) {
-      toast({ title: "Validation Error", description: "Max bargain limit must be between 0% and 90%.", variant: "destructive" });
-      return;
-    }
-
     setLoading(true);
     try {
       const updates = [
-        API.post("/admin/settings", { key: "commissionRate", value: platformSettings.commissionRate }),
-        API.post("/admin/settings", { key: "minBookingAmount", value: platformSettings.minBookingAmount }),
         API.post("/admin/settings", { key: "vendorCardPrice", value: platformSettings.vendorCardPrice }),
-        API.post("/admin/settings", { key: "max_bargain_discount_limit", value: platformSettings.max_bargain_discount_limit }),
       ];
       await Promise.all(updates);
       toast({ title: "Settings Saved", description: "Global rules updated successfully." });
@@ -224,39 +209,7 @@ const AdminSettings = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5"><IndianRupee className="h-3.5 w-3.5" /> Commission Rate (%)</label>
-                <div className="relative">
-                  <input type="number" value={platformSettings.commissionRate} onChange={e => setPlatformSettings({ ...platformSettings, commissionRate: e.target.value })} className="block w-full rounded-xl border border-border bg-muted/20 py-3 px-4 text-sm font-bold focus:border-emerald-500/20 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
-                  <span className="absolute inset-y-0 right-4 flex items-center text-gray-500 font-bold">%</span>
-                </div>
-                <p className="mt-1.5 text-xs text-gray-400 font-medium tracking-tight">Platform's cut from each booking.</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5"><IndianRupee className="h-3.5 w-3.5" /> Min. Order Amount</label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-4 flex items-center text-gray-500 font-bold">₹</span>
-                  <input type="number" value={platformSettings.minBookingAmount} onChange={e => setPlatformSettings({ ...platformSettings, minBookingAmount: e.target.value })} className="block w-full rounded-xl border border-border bg-muted/20 py-3 pl-8 pr-4 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
-                </div>
-                <p className="mt-1.5 text-xs text-gray-400 font-medium tracking-tight">Lowest possible cart checkout value.</p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5"><Settings2 className="h-3.5 w-3.5" /> Max Bargain Limit (%)</label>
-                <div className="relative">
-                  <input type="number" min="0" max="90" value={platformSettings.max_bargain_discount_limit} onChange={e => {
-                    const val = Math.min(90, Math.max(0, parseInt(e.target.value) || 0));
-                    setPlatformSettings({ ...platformSettings, max_bargain_discount_limit: val });
-                  }} className="block w-full rounded-xl border border-border bg-muted/20 py-3 px-4 text-sm font-bold focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20" />
-                  <span className="absolute inset-y-0 right-4 flex items-center text-gray-500 font-bold">%</span>
-                </div>
-                <p className="mt-1.5 text-xs text-gray-400 font-medium tracking-tight">Maximum allowed discount limit (0-90%).</p>
-              </div>
-            </div>
-
-            <div className="mt-8 border-t border-gray-100 pt-6 space-y-5 text-left">
+            <div className="space-y-5 text-left">
               <div className="flex items-center justify-between rounded-xl bg-gray-50/50 p-4 border border-gray-100">
                 <div>
                   <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2"><BellRing className="h-4 w-4 text-amber-500" /> Emergency Service Module</h4>

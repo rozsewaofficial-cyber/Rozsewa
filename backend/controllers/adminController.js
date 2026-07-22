@@ -853,8 +853,6 @@ const getSettings = async (req, res) => {
 
         // Return with defaults if first time
         res.json({
-            commissionRate: config.commissionRate || 10,
-            minBookingAmount: config.minBookingAmount || 199,
             emergencyEnabled: config.emergencyEnabled !== undefined ? (config.emergencyEnabled === 'true' || config.emergencyEnabled === true) : true,
             autoAssign: config.autoAssign !== undefined ? (config.autoAssign === 'true' || config.autoAssign === true) : true,
             vendorCardEnabled: config.vendorCardEnabled !== undefined ? (config.vendorCardEnabled === 'true' || config.vendorCardEnabled === true) : true,
@@ -870,7 +868,6 @@ const getSettings = async (req, res) => {
             terms: config.terms || "Standard Terms",
             privacy: config.privacy || "Standard Privacy",
             cancellation: config.cancellation || "Standard Cancellation",
-            max_bargain_discount_limit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20,
             // Lead Model settings
             lead_min_wallet_balance: config.lead_min_wallet_balance || 200,
             lead_unlock_price: config.lead_unlock_price || 50,
@@ -898,13 +895,6 @@ const getSettings = async (req, res) => {
 const updateSettings = async (req, res) => {
     try {
         const { key, value } = req.body;
-
-        if (key === 'max_bargain_discount_limit') {
-            const numVal = Number(value);
-            if (isNaN(numVal) || numVal < 0 || numVal > 90) {
-                return res.status(400).json({ message: 'Max bargain discount limit must be between 0% and 90%.' });
-            }
-        }
 
         const preSetting = await Setting.findOne({ key });
         const oldValue = preSetting ? preSetting.value : null;

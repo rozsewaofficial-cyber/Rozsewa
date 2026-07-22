@@ -43,7 +43,6 @@ const Checkout = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [serviceNotes, setServiceNotes] = useState("");
   const [appliedCouponData, setAppliedCouponData] = useState(null);
-  const [maxBargainLimit, setMaxBargainLimit] = useState(20);
   const [customerOffer, setCustomerOffer] = useState("");
   const [providerHours, setProviderHours] = useState({ openingTime: "09:00 AM", closingTime: "06:00 PM", availability: [], bookedSlots: [] });
   const [providerDetails, setProviderDetails] = useState(null);
@@ -238,9 +237,6 @@ const Checkout = () => {
     const fetchConfig = async () => {
       try {
         const { data } = await API.get("/public/config");
-        if (data && data.maxBargainLimit !== undefined) {
-          setMaxBargainLimit(data.maxBargainLimit);
-        }
         if (data && data.distanceCharge) {
           setDistanceChargeConfig(data.distanceCharge);
         }
@@ -441,10 +437,6 @@ const Checkout = () => {
 
   // Cap couponDiscount to subtotal
   couponDiscount = Math.min(couponDiscount, subtotal);
-
-  // Maximum allowed discount calculation
-  const maxAllowedDiscount = Math.round(subtotal * (maxBargainLimit / 100));
-  const minAllowedOffer = Math.max(0, subtotal - maxAllowedDiscount);
 
   // Parse bargaining customerOffer
   const hasCustomOffer = customerOffer !== "" && !isNaN(Number(customerOffer));
@@ -1234,10 +1226,9 @@ const Checkout = () => {
           <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500"><Tag className="h-3.5 w-3.5 text-blue-500" /> Bargain & Save</h3>
-              <span className="text-[9px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded uppercase tracking-wider">Max {maxBargainLimit}% Off</span>
             </div>
             <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal">
-              Have a budget in mind? Make a custom Customer Offer for this service (minimum offer of ₹{minAllowedOffer} allowed).
+              Have a budget in mind? Make a custom Customer Offer for this service.
             </p>
             <div className="flex gap-2">
               <div className="relative flex-1">

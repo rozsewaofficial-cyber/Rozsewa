@@ -16,8 +16,7 @@ const initCommissions = async () => {
             { key: 'commission_basic', value: '25', description: 'Commission rate for Basic plan (%)' },
             { key: 'commission_standard', value: '20', description: 'Commission rate for Standard plan (%)' },
             { key: 'commission_premium', value: '15', description: 'Commission rate for Premium plan (%)' },
-            { key: 'subscription_enabled', value: 'true', description: 'Enable subscription discounts' },
-            { key: 'max_bargain_discount_limit', value: '20', description: 'Maximum discount limit for bargaining (%)' }
+            { key: 'subscription_enabled', value: 'true', description: 'Enable subscription discounts' }
         ];
 
         for (const s of settings) {

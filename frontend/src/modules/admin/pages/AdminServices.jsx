@@ -134,7 +134,7 @@ const AdminServices = () => {
         }
     };
 
-    const handleFileUpload = async (e, targetStateSetter, currentState) => {
+    const handleFileUpload = async (e, targetStateSetter) => {
         const file = e.target.files[0];
         if (!file) return;
         const upData = new FormData();
@@ -144,7 +144,7 @@ const AdminServices = () => {
             const { data } = await API.post("/upload", upData, {
                 headers: { "Content-Type": "multipart/form-data" }
             });
-            targetStateSetter({ ...currentState, image: data.url });
+            targetStateSetter(prev => ({ ...prev, image: data.url }));
             toast({ title: "Photo Uploaded" });
         } catch { toast({ title: "Upload Failed", variant: "destructive" }); }
         finally { setIsUploading(false); }
@@ -585,6 +585,81 @@ const AdminServices = () => {
                     </div>
                 </div>
             )}
+
+            {/* Main Category Edit/Create Modal */}
+            <AnimatePresence>
+                {showModal && (
+                    <>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="fixed inset-0 z-[101] flex items-center justify-center p-4">
+                            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-black text-gray-900">{editingCat ? "Edit Main Category" : "New Main Category"}</h3>
+                                    <button type="button" onClick={() => setShowModal(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+                                <form onSubmit={handleSaveCategory} className="space-y-4">
+                                    <InputField label="Category Name">
+                                        <input type="text" value={newCat.name} onChange={e => setNewCat({ ...newCat, name: e.target.value })} className={inputCls} placeholder="e.g. Salon & Wellness" required />
+                                    </InputField>
+                                    <InputField label="Description">
+                                        <textarea value={newCat.description} onChange={e => setNewCat({ ...newCat, description: e.target.value })} className={inputCls} placeholder="Brief summary of category" rows={2} />
+                                    </InputField>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <InputField label="Icon Name">
+                                            <input type="text" value={newCat.icon} onChange={e => setNewCat({ ...newCat, icon: e.target.value })} className={inputCls} placeholder="e.g. Scissors" />
+                                        </InputField>
+                                        <InputField label="Business Model">
+                                            <select value={newCat.businessModel} onChange={e => setNewCat({ ...newCat, businessModel: e.target.value })} className={inputCls}>
+                                                <option value="commission">Commission Based</option>
+                                                <option value="lead">Lead Based</option>
+                                            </select>
+                                        </InputField>
+                                    </div>
+
+                                    {newCat.businessModel === "lead" && (
+                                        <InputField label="Default Lead Price (₹)">
+                                            <input type="number" min="0" value={newCat.defaultLeadPrice} onChange={e => setNewCat({ ...newCat, defaultLeadPrice: Number(e.target.value) })} className={inputCls} />
+                                        </InputField>
+                                    )}
+
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <InputField label="Basic Comm. (%)">
+                                            <input type="number" min="0" max="100" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className={inputCls} />
+                                        </InputField>
+                                        <InputField label="Standard Comm. (%)">
+                                            <input type="number" min="0" max="100" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className={inputCls} />
+                                        </InputField>
+                                        <InputField label="Premium Comm. (%)">
+                                            <input type="number" min="0" max="100" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className={inputCls} />
+                                        </InputField>
+                                    </div>
+
+                                    <InputField label="Category Image / Banner">
+                                        <div className="flex items-center gap-3">
+                                            {newCat.image && (
+                                                <img src={newCat.image} alt="Preview" className="h-12 w-12 rounded-xl object-cover border" />
+                                            )}
+                                            <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setNewCat)} disabled={isUploading} className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                        </div>
+                                    </InputField>
+
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <input type="checkbox" id="isComingSoon" checked={newCat.isComingSoon} onChange={e => setNewCat({ ...newCat, isComingSoon: e.target.checked })} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
+                                        <label htmlFor="isComingSoon" className="text-xs font-bold text-gray-700 cursor-pointer">Mark as "Coming Soon"</label>
+                                    </div>
+
+                                    <div className="flex gap-3 pt-2">
+                                        <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500 hover:bg-gray-50">Cancel</button>
+                                        <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700">{editingCat ? "Update Category" : "Save Category"}</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
 
             {/* Subcategory Edit/Create Modal */}
             <AnimatePresence>

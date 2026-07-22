@@ -341,21 +341,10 @@ const createBooking = async (req, res) => {
         const bargainDiscount = Math.max(0, subtotal - couponDiscount - payableAmount);
         const totalDiscount = couponDiscount + bargainDiscount;
 
-        // --- 4. Validate Maximum Discount Limit ---
-        const limitConfig = await Setting.findOne({ key: 'max_bargain_discount_limit' });
-        const limit = limitConfig && limitConfig.value !== undefined ? Number(limitConfig.value) : 20;
-
-        const maxAllowedDiscount = Math.round(subtotal * (limit / 100));
-        const minAllowedOfferAmount = Math.max(0, subtotal - maxAllowedDiscount);
-
         // Security check: discounts should not exceed subtotal, customerOffer should not be negative
-        if (totalDiscount > maxAllowedDiscount || payableAmount < 0 || totalDiscount > subtotal || bargainDiscount < 0 || couponDiscount < 0) {
-            // Log warning trace for rejected bargaining attempts
-            console.warn(`[BARGAIN REJECTED] User ID: ${req.user._id}, Subtotal: ${subtotal}, Customer Offer: ${customerOffer}, Coupon Code: ${couponCode}, Total Discount: ${totalDiscount}, Configured Limit: ${limit}%`);
+        if (payableAmount < 0 || totalDiscount > subtotal || bargainDiscount < 0 || couponDiscount < 0) {
             return res.status(400).json({
-                message: 'Customer Offer is too low.',
-                minAllowedOffer: minAllowedOfferAmount,
-                maxDiscountLimit: limit
+                message: 'Invalid offer amount.'
             });
         }
 

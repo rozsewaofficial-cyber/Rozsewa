@@ -3,7 +3,8 @@ import { useOutletContext } from 'react-router-dom';
 import {
   Store, Clock, CheckCircle, XCircle, Settings, Tag, MessageSquare,
   IndianRupee, Trash2, Eye, ChevronDown, ChevronUp, Search, RefreshCw,
-  Plus, Edit2, Save, X, PackageCheck, TrendingUp, Users, ShieldAlert
+  Plus, Edit2, Save, X, PackageCheck, TrendingUp, Users, ShieldAlert,
+  Sparkles, SlidersHorizontal, HelpCircle, Package
 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -476,137 +477,641 @@ const TransactionsTab = () => {
   );
 };
 
-// ─── Categories Tab ───────────────────────────────────────────────────────────
+// ─── Categories Tab (Dynamic Metadata Control Engine - Image 2) ───────────────
 const CategoriesTab = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newCat, setNewCat] = useState({ name: '', description: '', icon: 'Package', subCategories: '' });
-  const [creating, setCreating] = useState(false);
+  const [selectedCatId, setSelectedCatId] = useState(null);
+
+  // Category Modal State
+  const [showCatModal, setShowCatModal] = useState(false);
+  const [editingCat, setEditingCat] = useState(null);
+  const [catForm, setCatForm] = useState({ name: '', icon: 'Package', description: '', subCategories: [] });
+  const [subTagInput, setSubTagInput] = useState('');
+  const [savingCat, setSavingCat] = useState(false);
+
+  // Field Modal State
+  const [showFieldModal, setShowFieldModal] = useState(false);
+  const [editingField, setEditingField] = useState(null);
+  const [fieldForm, setFieldForm] = useState({ label: '', name: '', type: 'text', options: '', required: false });
+  const [savingField, setSavingField] = useState(false);
 
   const fetchCategories = async () => {
     setLoading(true);
     try {
       const res = await api.get('/bazaar/categories');
-      if (res.data.success) setCategories(res.data.data);
+      if (res.data.success) {
+        setCategories(res.data.data);
+        if (res.data.data.length > 0 && !selectedCatId) {
+          setSelectedCatId(res.data.data[0]._id);
+        }
+      }
     } catch (e) { toast.error('Failed to load categories'); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchCategories(); }, []);
 
-  const handleCreate = async () => {
-    if (!newCat.name.trim()) return toast.error('Category name is required');
-    setCreating(true);
-    try {
-      await api.post('/bazaar/admin/categories', {
-        ...newCat,
-        subCategories: newCat.subCategories.split(',').map(s => s.trim()).filter(Boolean)
+  const selectedCat = categories.find(c => c._id === selectedCatId) || categories[0];
+
+  // Category Handlers
+  const handleOpenCatModal = (cat = null) => {
+    if (cat) {
+      setEditingCat(cat);
+      setCatForm({
+        name: cat.name || '',
+        icon: cat.icon || 'Package',
+        description: cat.description || '',
+        subCategories: cat.subCategories || []
       });
-      toast.success('Category created');
-      setNewCat({ name: '', description: '', icon: 'Package', subCategories: '' });
-      fetchCategories();
-    } catch (e) { toast.error(e.response?.data?.message || 'Failed'); }
-    finally { setCreating(false); }
+    } else {
+      setEditingCat(null);
+      setCatForm({ name: '', icon: 'Package', description: '', subCategories: [] });
+    }
+    setSubTagInput('');
+    setShowCatModal(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleAddSubTag = () => {
+    const val = subTagInput.trim();
+    if (!val) return;
+    if (catForm.subCategories.includes(val)) return toast.error('Subcategory already added');
+    setCatForm(p => ({ ...p, subCategories: [...p.subCategories, val] }));
+    setSubTagInput('');
+  };
+
+  const handleRemoveSubTag = (tag) => {
+    setCatForm(p => ({ ...p, subCategories: p.subCategories.filter(t => t !== tag) }));
+  };
+
+  const handleSaveCategory = async (e) => {
+    e.preventDefault();
+    if (!catForm.name.trim()) return toast.error('Category name is required');
+    setSavingCat(true);
+    try {
+      if (editingCat) {
+        const res = await api.put(`/bazaar/admin/categories/${editingCat._id}`, catForm);
+        toast.success('Category updated');
+        setCategories(categories.map(c => c._id === editingCat._id ? res.data.data : c));
+      } else {
+        const res = await api.post('/bazaar/admin/categories', catForm);
+        toast.success('Category created');
+        setCategories([...categories, res.data.data]);
+        if (!selectedCatId) setSelectedCatId(res.data.data._id);
+      }
+      setShowCatModal(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Save failed');
+    } finally {
+      setSavingCat(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catId) => {
     if (!confirm('Delete this category?')) return;
     try {
-      await api.delete(`/bazaar/admin/categories/${id}`);
-      toast.success('Deleted');
-      fetchCategories();
+      await api.delete(`/bazaar/admin/categories/${catId}`);
+      toast.success('Category deleted');
+      const updated = categories.filter(c => c._id !== catId);
+      setCategories(updated);
+      if (selectedCatId === catId) {
+        setSelectedCatId(updated[0]?._id || null);
+      }
     } catch (e) { toast.error('Delete failed'); }
   };
 
-  const handleToggle = async (cat) => {
+  // Field Handlers
+  const handleOpenFieldModal = (field = null) => {
+    if (field) {
+      setEditingField(field);
+      setFieldForm({
+        label: field.label || '',
+        name: field.name || '',
+        type: field.type || 'text',
+        options: field.options ? field.options.join(', ') : '',
+        required: field.required || false
+      });
+    } else {
+      setEditingField(null);
+      setFieldForm({ label: '', name: '', type: 'text', options: '', required: false });
+    }
+    setShowFieldModal(true);
+  };
+
+  const handleSaveField = async (e) => {
+    e.preventDefault();
+    if (!selectedCat) return toast.error('No category selected');
+    if (!fieldForm.label.trim()) return toast.error('Field label is required');
+
+    const fieldName = fieldForm.name.trim() || fieldForm.label.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const parsedOptions = fieldForm.type === 'dropdown'
+      ? fieldForm.options.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
+    const newFieldObj = {
+      name: fieldName,
+      label: fieldForm.label.trim(),
+      type: fieldForm.type,
+      options: parsedOptions,
+      required: fieldForm.required
+    };
+
+    let updatedFields = [...(selectedCat.fields || [])];
+    if (editingField) {
+      updatedFields = updatedFields.map(f => (f._id === editingField._id || f.name === editingField.name) ? newFieldObj : f);
+    } else {
+      updatedFields.push(newFieldObj);
+    }
+
+    setSavingField(true);
     try {
-      await api.put(`/bazaar/admin/categories/${cat._id}`, { isActive: !cat.isActive });
-      fetchCategories();
-    } catch (e) { toast.error('Toggle failed'); }
+      const res = await api.put(`/bazaar/admin/categories/${selectedCat._id}`, { fields: updatedFields });
+      toast.success('Field saved successfully');
+      setCategories(categories.map(c => c._id === selectedCat._id ? res.data.data : c));
+      setShowFieldModal(false);
+    } catch (err) {
+      toast.error('Failed to save field');
+    } finally {
+      setSavingField(false);
+    }
+  };
+
+  const handleDeleteField = async (fieldName) => {
+    if (!confirm(`Delete field "${fieldName}"?`)) return;
+    const updatedFields = (selectedCat.fields || []).filter(f => f.name !== fieldName);
+    try {
+      const res = await api.put(`/bazaar/admin/categories/${selectedCat._id}`, { fields: updatedFields });
+      toast.success('Field deleted');
+      setCategories(categories.map(c => c._id === selectedCat._id ? res.data.data : c));
+    } catch (e) { toast.error('Failed to delete field'); }
   };
 
   return (
-    <div className="space-y-4">
-      {/* Create Form */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-        <h4 className="font-black text-slate-800 flex items-center gap-2"><Plus className="w-4 h-4 text-blue-500" /> Add Category</h4>
-        <div className="grid grid-cols-2 gap-3">
-          <input
-            type="text"
-            placeholder="Category name *"
-            value={newCat.name}
-            onChange={e => setNewCat(p => ({ ...p, name: e.target.value }))}
-            className="col-span-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-          />
-          <input
-            type="text"
-            placeholder="Icon name (e.g. Package)"
-            value={newCat.icon}
-            onChange={e => setNewCat(p => ({ ...p, icon: e.target.value }))}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-          />
-          <input
-            type="text"
-            placeholder="Subcategories (comma-separated)"
-            value={newCat.subCategories}
-            onChange={e => setNewCat(p => ({ ...p, subCategories: e.target.value }))}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-          />
-          <input
-            type="text"
-            placeholder="Description"
-            value={newCat.description}
-            onChange={e => setNewCat(p => ({ ...p, description: e.target.value }))}
-            className="col-span-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400"
-          />
+    <div className="space-y-6">
+      {/* Top Banner Header */}
+      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-blue-400">
+              <Sparkles className="w-4 h-4" /> Dynamic Metadata-Driven Form Engine
+            </div>
+            <h2 className="text-xl font-black mt-1">RozSewa Bazaar – Control Engine</h2>
+            <p className="text-xs text-slate-300 font-medium mt-0.5">Configure custom form fields once, and user listing forms will auto-generate for each category!</p>
+          </div>
+          <button
+            onClick={() => handleOpenCatModal()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95 shrink-0"
+          >
+            <Plus className="w-4 h-4" /> Add Category
+          </button>
         </div>
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="w-full py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {creating ? 'Creating...' : 'Create Category'}
-        </button>
       </div>
 
-      {/* List */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center h-24"><div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" /></div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">Name</th>
-                <th className="px-4 py-3 text-left font-bold text-slate-600 hidden md:table-cell">Subcategories</th>
-                <th className="px-4 py-3 text-left font-bold text-slate-600">Status</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {categories.map(cat => (
-                <tr key={cat._id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-bold text-slate-800">{cat.name}</td>
-                  <td className="px-4 py-3 hidden md:table-cell text-slate-500 text-xs">{cat.subCategories?.join(', ') || '—'}</td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleToggle(cat)}
-                      className={`text-[10px] font-black px-2 py-1 rounded-full border transition-colors ${cat.isActive ? 'bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'}`}
-                    >
-                      {cat.isActive ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleDelete(cat._id)} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-48 space-y-3 bg-white rounded-2xl border border-slate-200">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Loading Category Control Engine...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          {/* Left Column: Categories List (4 cols) */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+              <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
+                <Tag className="w-4 h-4 text-blue-600" /> Categories ({categories.length})
+              </h3>
+              <button
+                onClick={() => handleOpenCatModal()}
+                className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" /> New
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+              {categories.map(cat => {
+                const isSelected = selectedCatId === cat._id;
+                return (
+                  <div
+                    key={cat._id}
+                    onClick={() => setSelectedCatId(cat._id)}
+                    className={`p-4 rounded-2xl border cursor-pointer transition-all flex items-center justify-between group ${
+                      isSelected
+                        ? 'bg-blue-50/80 border-blue-500 shadow-md ring-1 ring-blue-400'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm border ${
+                        isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}>
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                          {cat.name}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleToggleActive(cat); }}
+                            className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors ${
+                              cat.isActive ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                            }`}
+                            title="Click to toggle status"
+                          >
+                            {cat.isActive ? 'Active' : 'Inactive'}
+                          </button>
+                        </h4>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 font-medium mt-0.5">
+                          <span>{cat.subCategories?.length || 0} subcats</span>
+                          <span>•</span>
+                          <span className="text-blue-600 font-bold">{cat.fields?.length || 0} fields</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenCatModal(cat); }}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+                        title="Edit Category"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteCategory(cat._id); }}
+                        className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                        title="Delete Category"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Column: Fields Manager for Selected Category (8 cols) */}
+          <div className="lg:col-span-8 space-y-5">
+            {selectedCat ? (
+              <>
+                {/* Selected Category Header & Actions */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Control Engine</span>
+                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                      Fields for: <span className="text-blue-600">{selectedCat.name}</span>
+                    </h3>
+                    {selectedCat.subCategories?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {selectedCat.subCategories.map(sub => (
+                          <span key={sub} className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-lg border border-slate-200">
+                            {sub}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleOpenFieldModal()}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-sm transition-all active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" /> Add Field
+                  </button>
+                </div>
+
+                {/* Fields Table */}
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                  {(!selectedCat.fields || selectedCat.fields.length === 0) ? (
+                    <div className="p-12 text-center space-y-3">
+                      <SlidersHorizontal className="w-10 h-10 text-slate-300 mx-auto" />
+                      <p className="text-xs font-bold text-slate-500">No dynamic form fields configured for "{selectedCat.name}".</p>
+                      <button
+                        onClick={() => handleOpenFieldModal()}
+                        className="px-4 py-2 bg-blue-50 text-blue-600 font-bold text-xs rounded-xl hover:bg-blue-100 transition-colors"
+                      >
+                        + Add First Field
+                      </button>
+                    </div>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Field Label</th>
+                          <th className="px-4 py-3 text-left">Field Type</th>
+                          <th className="px-4 py-3 text-left">Options (if any)</th>
+                          <th className="px-4 py-3 text-center">Required</th>
+                          <th className="px-4 py-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {selectedCat.fields.map((f, i) => (
+                          <tr key={f._id || f.name || i} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="px-4 py-3 font-black text-slate-800">
+                              {f.label}
+                              <span className="block text-[10px] font-mono text-slate-400 font-normal">{f.name}</span>
+                            </td>
+                            <td className="px-4 py-3 font-bold text-slate-700">
+                              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 uppercase text-[9px] tracking-wider">
+                                {f.type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-500">
+                              {f.options?.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {f.options.slice(0, 3).map(opt => (
+                                    <span key={opt} className="text-[10px] bg-blue-50 text-blue-700 font-medium px-2 py-0.5 rounded border border-blue-100">
+                                      {opt}
+                                    </span>
+                                  ))}
+                                  {f.options.length > 3 && <span className="text-[10px] text-slate-400 font-bold">+{f.options.length - 3} more</span>}
+                                </div>
+                              ) : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {f.required ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                  Yes
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400 border border-slate-200">
+                                  No
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => handleOpenFieldModal(f)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteField(f.name)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* System Guide Explanation Cards (Image 2 - English) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Card 1: Field Type Guide */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <HelpCircle className="w-4 h-4 text-blue-500" /> Supported Field Types
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 font-medium">
+                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="font-bold block text-slate-900">Text</span>
+                        Single line text input
+                      </div>
+                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="font-bold block text-slate-900">Number</span>
+                        Numeric value input
+                      </div>
+                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="font-bold block text-slate-900">Dropdown</span>
+                        Options menu selection
+                      </div>
+                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="font-bold block text-slate-900">Checkbox</span>
+                        Yes/No toggle input
+                      </div>
+                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="font-bold block text-slate-900">Text Area</span>
+                        Multi-line text input
+                      </div>
+                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="font-bold block text-slate-900">Date</span>
+                        Date select input
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Mandatory Explanation */}
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
+                    <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-amber-500" /> Mandatory (Required)?
+                    </h4>
+                    <div className="space-y-2 text-[11px]">
+                      <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200">
+                        <span className="font-black uppercase tracking-wider text-[10px] px-1.5 py-0.5 bg-emerald-200 text-emerald-900 rounded mr-2">YES</span>
+                        Users must fill this mandatory field before submitting their listing.
+                      </div>
+                      <div className="p-2.5 bg-slate-50 text-slate-600 rounded-xl border border-slate-200">
+                        <span className="font-black uppercase tracking-wider text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded mr-2">NO</span>
+                        Field is optional. Users can leave this field blank.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400 font-medium">
+                Select a category on the left to manage its dynamic fields.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Category Modal (Add / Edit Category with Subcategory Chips) */}
+      {showCatModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-black text-lg text-slate-900">{editingCat ? 'Edit Category' : 'Add New Category'}</h3>
+              <button onClick={() => setShowCatModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCategory} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Category Name *</label>
+                <input
+                  type="text"
+                  value={catForm.name}
+                  onChange={e => setCatForm({ ...catForm, name: e.target.value })}
+                  placeholder="e.g. Mobile, Property, Bike"
+                  className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Icon Name</label>
+                <input
+                  type="text"
+                  value={catForm.icon}
+                  onChange={e => setCatForm({ ...catForm, icon: e.target.value })}
+                  placeholder="e.g. Smartphone, Package"
+                  className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1">Subcategories (Chips Manager)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={subTagInput}
+                    onChange={e => setSubTagInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubTag(); } }}
+                    placeholder="Type subcategory & press Enter"
+                    className="flex-1 p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSubTag}
+                    className="px-4 bg-slate-800 text-white text-xs font-bold rounded-xl hover:bg-slate-700"
+                  >
+                    Add Tag
+                  </button>
+                </div>
+                {catForm.subCategories.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    {catForm.subCategories.map(tag => (
+                      <span key={tag} className="flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-800 font-bold text-xs rounded-lg shadow-xs">
+                        {tag}
+                        <button type="button" onClick={() => handleRemoveSubTag(tag)} className="text-slate-400 hover:text-red-500">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Description</label>
+                <textarea
+                  value={catForm.description}
+                  onChange={e => setCatForm({ ...catForm, description: e.target.value })}
+                  placeholder="Summary of this category..."
+                  rows={2}
+                  className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-medium focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowCatModal(false)} className="flex-1 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingCat} className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 disabled:opacity-50">
+                  {savingCat ? 'Saving...' : 'Save Category'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Field Modal (Add / Edit Dynamic Field) */}
+      {showFieldModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden space-y-4 p-6">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-black text-lg text-slate-900">{editingField ? 'Edit Field' : 'Add New Dynamic Field'}</h3>
+              <button onClick={() => setShowFieldModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveField} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Field Label (Display Name) *</label>
+                <input
+                  type="text"
+                  value={fieldForm.label}
+                  onChange={e => {
+                    const lbl = e.target.value;
+                    const autoName = lbl.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    setFieldForm(p => ({ ...p, label: lbl, name: editingField ? p.name : autoName }));
+                  }}
+                  placeholder="e.g. Brand, Model, RAM, Warranty"
+                  className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Field Key (System Name)</label>
+                <input
+                  type="text"
+                  value={fieldForm.name}
+                  onChange={e => setFieldForm({ ...fieldForm, name: e.target.value })}
+                  placeholder="e.g. brand, ram, storage"
+                  className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-mono text-slate-700 focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Field Type *</label>
+                <select
+                  value={fieldForm.type}
+                  onChange={e => setFieldForm({ ...fieldForm, type: e.target.value })}
+                  className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-blue-500"
+                >
+                  <option value="text">Text (Single line)</option>
+                  <option value="number">Number (Numeric value)</option>
+                  <option value="dropdown">Dropdown (Options menu)</option>
+                  <option value="checkbox">Checkbox (Yes/No toggle)</option>
+                  <option value="textarea">Text Area (Multi-line text)</option>
+                  <option value="date">Date (Calendar picker)</option>
+                  <option value="image">Image Upload</option>
+                </select>
+              </div>
+
+              {fieldForm.type === 'dropdown' && (
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Dropdown Options (comma-separated)</label>
+                  <input
+                    type="text"
+                    value={fieldForm.options}
+                    onChange={e => setFieldForm({ ...fieldForm, options: e.target.value })}
+                    placeholder="Apple, Samsung, Xiaomi, OnePlus"
+                    className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="reqToggle"
+                  checked={fieldForm.required}
+                  onChange={e => setFieldForm({ ...fieldForm, required: e.target.checked })}
+                  className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="reqToggle" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Mandatory (Required)? Users must fill this field.
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowFieldModal(false)} className="flex-1 py-3 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={savingField} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 disabled:opacity-50">
+                  {savingField ? 'Saving...' : 'Save Field'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

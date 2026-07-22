@@ -261,7 +261,7 @@ const Setting = require('../models/Setting');
 const getPublicConfig = async (req, res) => {
     try {
         const settings = await Setting.find({
-            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber', 'max_bargain_discount_limit', 'distance_charge_config', 'night_charge_config'] }
+            key: { $in: ['vendorCardEnabled', 'vendorCardPrice', 'supportNumber', 'distance_charge_config', 'night_charge_config'] }
         });
 
         const config = {};
@@ -272,7 +272,6 @@ const getPublicConfig = async (req, res) => {
             registrationPrice: config.vendorCardPrice || 99,
             currency: "INR",
             supportNumber: config.supportNumber || "91XXXXXXXXXX",
-            maxBargainLimit: config.max_bargain_discount_limit !== undefined ? Number(config.max_bargain_discount_limit) : 20,
             distanceCharge: config.distance_charge_config || { enabled: false, fallbackCharge: 40 },
             nightCharge: config.night_charge_config || { enabled: false, defaultPercent: 10, startTime: '21:00', endTime: '06:00' }
         });
