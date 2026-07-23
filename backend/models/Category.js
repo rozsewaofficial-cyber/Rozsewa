@@ -21,9 +21,6 @@ const categorySchema = mongoose.Schema({
     icon: { type: String }, // Lucide icon name
     isActive: { type: Boolean, default: true },
     isComingSoon: { type: Boolean, default: false },
-    partnerCommissionBasic: { type: Number, default: 25 },
-    partnerCommissionStandard: { type: Number, default: 20 },
-    partnerCommissionPremium: { type: Number, default: 15 },
     index: { type: Number, default: 0 }, // For ordering
     hasNightCharge: { type: Boolean, default: false },
     nightChargePercent: { type: Number, default: 0 },

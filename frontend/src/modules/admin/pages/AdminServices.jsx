@@ -37,9 +37,6 @@ const AdminServices = () => {
         description: "",
         image: "",
         isComingSoon: false,
-        partnerCommissionBasic: 25,
-        partnerCommissionStandard: 20,
-        partnerCommissionPremium: 15,
         businessModel: "commission",
         defaultLeadPrice: 0,
         services: []
@@ -167,7 +164,7 @@ const AdminServices = () => {
             }
             setShowModal(false);
             setEditingCat(null);
-            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, businessModel: "commission", defaultLeadPrice: 0, services: [] });
+            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, services: [] });
         } catch (err) {
             toast({ title: "Save Failed", variant: "destructive" });
         }
@@ -274,7 +271,7 @@ const AdminServices = () => {
                         <button
                             onClick={() => {
                                 setEditingCat(null);
-                                setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, partnerCommissionBasic: 25, partnerCommissionStandard: 20, partnerCommissionPremium: 15, businessModel: "commission", defaultLeadPrice: 0, services: [] });
+                                setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, services: [] });
                                 setShowModal(true);
                             }}
                             className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95"
@@ -368,9 +365,6 @@ const AdminServices = () => {
                                                     description: cat.description || "",
                                                     image: cat.image || "",
                                                     isComingSoon: cat.isComingSoon || false,
-                                                    partnerCommissionBasic: cat.partnerCommissionBasic || 25,
-                                                    partnerCommissionStandard: cat.partnerCommissionStandard || 20,
-                                                    partnerCommissionPremium: cat.partnerCommissionPremium || 15,
                                                     businessModel: cat.businessModel || "commission",
                                                     defaultLeadPrice: cat.defaultLeadPrice || 0,
                                                     services: cat.services || []
@@ -623,18 +617,6 @@ const AdminServices = () => {
                                             <input type="number" min="0" value={newCat.defaultLeadPrice} onChange={e => setNewCat({ ...newCat, defaultLeadPrice: Number(e.target.value) })} className={inputCls} />
                                         </InputField>
                                     )}
-
-                                    <div className="grid grid-cols-3 gap-3">
-                                        <InputField label="Basic Comm. (%)">
-                                            <input type="number" min="0" max="100" value={newCat.partnerCommissionBasic} onChange={e => setNewCat({ ...newCat, partnerCommissionBasic: Number(e.target.value) })} className={inputCls} />
-                                        </InputField>
-                                        <InputField label="Standard Comm. (%)">
-                                            <input type="number" min="0" max="100" value={newCat.partnerCommissionStandard} onChange={e => setNewCat({ ...newCat, partnerCommissionStandard: Number(e.target.value) })} className={inputCls} />
-                                        </InputField>
-                                        <InputField label="Premium Comm. (%)">
-                                            <input type="number" min="0" max="100" value={newCat.partnerCommissionPremium} onChange={e => setNewCat({ ...newCat, partnerCommissionPremium: Number(e.target.value) })} className={inputCls} />
-                                        </InputField>
-                                    </div>
 
                                     <InputField label="Category Image / Banner">
                                         <div className="flex items-center gap-3">

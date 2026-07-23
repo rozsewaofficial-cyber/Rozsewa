@@ -462,9 +462,6 @@ const updateCategory = async (req, res) => {
         if (req.body.image !== undefined) category.image = req.body.image;
         if (req.body.isActive !== undefined) category.isActive = req.body.isActive;
         if (req.body.isComingSoon !== undefined) category.isComingSoon = req.body.isComingSoon;
-        if (req.body.partnerCommissionBasic !== undefined) category.partnerCommissionBasic = req.body.partnerCommissionBasic;
-        if (req.body.partnerCommissionStandard !== undefined) category.partnerCommissionStandard = req.body.partnerCommissionStandard;
-        if (req.body.partnerCommissionPremium !== undefined) category.partnerCommissionPremium = req.body.partnerCommissionPremium;
         if (req.body.businessModel !== undefined) category.businessModel = req.body.businessModel;
         if (req.body.defaultLeadPrice !== undefined) category.defaultLeadPrice = req.body.defaultLeadPrice;
 
