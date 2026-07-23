@@ -38,7 +38,7 @@ const getPublicSubcategoriesByCategory = async (req, res) => {
 const getPublicServicesBySubcategory = async (req, res) => {
     try {
         const { subcategoryId } = req.params;
-        let query = { visible: true };
+        let query = { visible: true, price: { $gt: 0 } };
 
         if (mongoose.Types.ObjectId.isValid(subcategoryId)) {
             query.subcategoryId = subcategoryId;
@@ -158,6 +158,8 @@ const createAdminService = async (req, res) => {
             return res.status(404).json({ message: 'Subcategory not found' });
         }
 
+        const targetCatId = categoryId || subcategory.categoryId;
+
         const newService = await Service.create({
             name,
             description,
@@ -167,8 +169,24 @@ const createAdminService = async (req, res) => {
             image: image || '',
             subcategoryId: subcategory._id,
             subcategory: subcategory.name,
-            categoryId: categoryId || subcategory.categoryId
+            categoryId: targetCatId
         });
+
+        if (targetCatId) {
+            const cat = await Category.findById(targetCatId);
+            if (cat) {
+                const exists = cat.services.some(s => s.name === name || (s._id && s._id.toString() === newService._id.toString()));
+                if (!exists) {
+                    cat.services.push({
+                        _id: newService._id,
+                        name: newService.name,
+                        basePrice: newService.price || 0,
+                        description: newService.description || ""
+                    });
+                    await cat.save();
+                }
+            }
+        }
 
         res.status(201).json(newService);
     } catch (error) {
@@ -197,6 +215,21 @@ const updateAdminService = async (req, res) => {
         if (categoryId) service.categoryId = categoryId;
 
         const updated = await service.save();
+
+        if (updated.categoryId) {
+            const cat = await Category.findById(updated.categoryId);
+            if (cat) {
+                const idx = cat.services.findIndex(s => (s._id && s._id.toString() === updated._id.toString()) || s.name === updated.name);
+                if (idx !== -1) {
+                    cat.services[idx].name = updated.name;
+                    cat.services[idx].basePrice = updated.price;
+                    cat.services[idx].description = updated.description || "";
+                    cat.markModified('services');
+                    await cat.save();
+                }
+            }
+        }
+
         res.json(updated);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -213,6 +246,16 @@ const deleteAdminService = async (req, res) => {
             return res.status(404).json({ message: 'Service not found' });
         }
         await service.deleteOne();
+
+        if (service.categoryId) {
+            const cat = await Category.findById(service.categoryId);
+            if (cat) {
+                cat.services = cat.services.filter(s => (s._id && s._id.toString() !== service._id.toString()) && s.name !== service.name);
+                cat.markModified('services');
+                await cat.save();
+            }
+        }
+
         res.json({ message: 'Service removed' });
     } catch (error) {
         res.status(500).json({ message: error.message });

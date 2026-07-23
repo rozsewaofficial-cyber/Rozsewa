@@ -295,7 +295,7 @@ const getPublicServiceByProvider = async (req, res) => {
         let combos = [];
 
         if (isSewak) {
-            const categoryServices = provider.vendorType?.services || [];
+            const categoryServices = (provider.vendorType?.services || []).filter(s => Number(s.basePrice) > 0);
             const categoryCombos = provider.vendorType?.combos || [];
             const categoryName = provider.vendorType?.name || 'Category';
 
@@ -306,7 +306,7 @@ const getPublicServiceByProvider = async (req, res) => {
                 duration: "1 hour",
                 visible: true,
                 category: categoryName,
-                price: catSvc.basePrice ?? 299
+                price: Number(catSvc.basePrice)
             }));
 
             combos = categoryCombos.map(catCombo => ({
@@ -321,7 +321,7 @@ const getPublicServiceByProvider = async (req, res) => {
                 })
             }));
         } else {
-            services = await Service.find({ providerId: req.params.providerId, visible: true });
+            services = await Service.find({ providerId: req.params.providerId, visible: true, price: { $gt: 0 } });
             combos = await Combo.find({
                 providerId: req.params.providerId,
                 isActive: true,

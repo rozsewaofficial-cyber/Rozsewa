@@ -67,7 +67,7 @@ const AdminServices = () => {
     const [newService, setNewService] = useState({
         name: "",
         description: "",
-        price: 199,
+        price: 0,
         duration: "30 min",
         image: "",
         visible: true
@@ -507,7 +507,7 @@ const AdminServices = () => {
                                     <button
                                         onClick={() => {
                                             setEditingService(null);
-                                            setNewService({ name: "", description: "", price: 199, duration: "30 min", image: "", visible: true });
+                                            setNewService({ name: "", description: "", price: 0, duration: "30 min", image: "", visible: true });
                                             setShowServiceModal(true);
                                         }}
                                         className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
@@ -531,7 +531,7 @@ const AdminServices = () => {
                                     <button
                                         onClick={() => {
                                             setEditingService(null);
-                                            setNewService({ name: "", description: "", price: 199, duration: "30 min", image: "", visible: true });
+                                            setNewService({ name: "", description: "", price: 0, duration: "30 min", image: "", visible: true });
                                             setShowServiceModal(true);
                                         }}
                                         className="mt-3 text-xs font-bold text-blue-600 hover:underline"
@@ -547,8 +547,12 @@ const AdminServices = () => {
                                                 <h4 className="text-sm font-bold text-gray-900">{svc.name}</h4>
                                                 <p className="text-xs text-gray-500 line-clamp-1">{svc.description || "No description"}</p>
                                                 <div className="flex items-center gap-3 mt-1 text-[11px] font-bold text-emerald-600">
-                                                    <span>₹{svc.price}</span>
-                                                    <span className="text-gray-400">•</span>
+                                                    {svc.price > 0 && (
+                                                        <>
+                                                            <span>₹{svc.price}</span>
+                                                            <span className="text-gray-400">•</span>
+                                                        </>
+                                                    )}
                                                     <span className="text-gray-500">{svc.duration}</span>
                                                 </div>
                                             </div>
@@ -684,10 +688,7 @@ const AdminServices = () => {
                                     <InputField label="Short Description">
                                         <textarea value={newService.description} onChange={e => setNewService({ ...newService, description: e.target.value })} className={inputCls} />
                                     </InputField>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <InputField label="Starting Price (₹)">
-                                            <input type="number" min="0" value={newService.price} onChange={e => setNewService({ ...newService, price: Number(e.target.value) })} className={inputCls} required />
-                                        </InputField>
+                                    <div className="grid grid-cols-1 gap-4">
                                         <InputField label="Duration">
                                             <input type="text" value={newService.duration} onChange={e => setNewService({ ...newService, duration: e.target.value })} className={inputCls} placeholder="e.g. 30 min" />
                                         </InputField>

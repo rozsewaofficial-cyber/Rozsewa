@@ -5,6 +5,7 @@ const Booking = require('../models/Booking');
 const Setting = require('../models/Setting');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 const Category = require('../models/Category');
+const Subcategory = require('../models/Subcategory');
 const AuditLog = require('../models/AuditLog');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Employee = require('../models/Employee');
@@ -424,13 +425,85 @@ const resolveProviderReport = async (req, res) => {
 const Service = require('../models/Service');
 const Combo = require('../models/Combo');
 
-// @desc    Get all categories
+// @desc    Get all categories with dynamically merged services
 // @route   GET /api/admin/categories
 // @access  Private/Admin
 const getCategories = async (req, res) => {
     try {
-        const categories = await Category.find().sort({ index: 1 });
-        res.json(categories);
+        const categories = await Category.find().sort({ index: 1 }).lean();
+        const catIds = categories.map(c => c._id);
+
+        const subcategories = await Subcategory.find({ categoryId: { $in: catIds } }).select('_id categoryId name').lean();
+        const subMap = {};
+        const subIds = [];
+        subcategories.forEach(sub => {
+            if (sub.categoryId) {
+                subMap[sub._id.toString()] = sub.categoryId.toString();
+            }
+            subIds.push(sub._id);
+        });
+
+        const services = await Service.find({
+            $or: [
+                { categoryId: { $in: catIds } },
+                { subcategoryId: { $in: subIds } }
+            ]
+        }).lean();
+
+        const servicesByCat = {};
+        services.forEach(svc => {
+            let catIdStr = svc.categoryId ? svc.categoryId.toString() : (svc.subcategoryId ? subMap[svc.subcategoryId.toString()] : null);
+            if (catIdStr) {
+                if (!servicesByCat[catIdStr]) servicesByCat[catIdStr] = [];
+                servicesByCat[catIdStr].push(svc);
+            }
+        });
+
+        const result = categories.map(cat => {
+            const catIdStr = cat._id.toString();
+            const dbServices = servicesByCat[catIdStr] || [];
+            const embeddedServices = cat.services || [];
+
+            const combinedMap = new Map();
+
+            embeddedServices.forEach(s => {
+                const key = (s._id && s._id.toString()) || s.name;
+                combinedMap.set(key, {
+                    _id: s._id,
+                    name: s.name,
+                    basePrice: Number(s.basePrice) || 0,
+                    description: s.description || ""
+                });
+            });
+
+            dbServices.forEach(s => {
+                const key = s._id ? s._id.toString() : s.name;
+                const existingKey = Array.from(combinedMap.keys()).find(k => k === key || combinedMap.get(k)?.name === s.name);
+                const existing = existingKey ? combinedMap.get(existingKey) : null;
+
+                const serviceItem = {
+                    _id: s._id,
+                    name: s.name,
+                    basePrice: s.price !== undefined ? Number(s.price) : (existing?.basePrice || 0),
+                    description: s.description || existing?.description || "",
+                    subcategoryId: s.subcategoryId,
+                    subcategory: s.subcategory
+                };
+
+                if (existingKey) {
+                    combinedMap.set(existingKey, serviceItem);
+                } else {
+                    combinedMap.set(key, serviceItem);
+                }
+            });
+
+            return {
+                ...cat,
+                services: Array.from(combinedMap.values())
+            };
+        });
+
+        res.json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -476,6 +549,20 @@ const updateCategory = async (req, res) => {
                 };
             });
             category.markModified('services');
+
+            for (const s of req.body.services) {
+                if (s._id && mongoose.Types.ObjectId.isValid(s._id)) {
+                    await Service.findByIdAndUpdate(s._id, {
+                        price: Number(s.basePrice) || 0,
+                        name: s.name,
+                        description: s.description || ""
+                    });
+                }
+                await Service.updateMany(
+                    { categoryId: category._id, name: s.name },
+                    { price: Number(s.basePrice) || 0 }
+                );
+            }
         }
         if (req.body.combos) {
             category.combos = req.body.combos.map(c => {

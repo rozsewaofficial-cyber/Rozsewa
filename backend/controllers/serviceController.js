@@ -19,15 +19,16 @@ const getMyServices = async (req, res) => {
         const categoryName = provider?.vendorType?.name || 'Your Category';
 
         if (isSewak) {
-            // For Sewaks, we override the services list with category services using admin prices
-            services = categoryServices.map(catSvc => ({
+            // For Sewaks, we override the services list with category services using admin prices (only basePrice > 0)
+            const validCategoryServices = categoryServices.filter(catSvc => Number(catSvc.basePrice) > 0);
+            services = validCategoryServices.map(catSvc => ({
                 _id: catSvc._id,
                 name: catSvc.name,
                 description: catSvc.description || `Professional ${catSvc.name} service`,
                 duration: "1 hour",
                 visible: true,
                 category: categoryName,
-                price: catSvc.basePrice ?? 299
+                price: Number(catSvc.basePrice)
             }));
 
             // Map category combos to the format expected by frontend

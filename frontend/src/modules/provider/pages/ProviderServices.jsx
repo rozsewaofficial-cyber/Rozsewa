@@ -523,7 +523,7 @@ const ProviderServices = () => {
                       className={`w-full rounded-2xl border border-border p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
                     >
                       <option value="">Select a service...</option>
-                      {categoryServices.map(s => (
+                      {categoryServices.filter(s => user?.providerCategory !== 'sewak' || Number(s.basePrice) > 0).map(s => (
                         <option key={s._id} value={s.name}>{s.name}</option>
                       ))}
                     </select>
