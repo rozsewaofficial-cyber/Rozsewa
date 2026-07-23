@@ -46,7 +46,9 @@ const getPublicCategoryByName = async (req, res) => {
             console.log(`[getPublicCategoryByName] Not found: "${req.params.name}"`);
             return res.status(404).json({ message: 'Category not found' });
         }
-        res.json(category);
+        const catObj = category.toObject();
+        catObj.services = (catObj.services || []).filter(s => Number(s.basePrice) > 0 || Number(s.price) > 0);
+        res.json(catObj);
     } catch (error) {
         console.error(`[getPublicCategoryByName] Error:`, error);
         res.status(500).json({ message: error.message });
@@ -58,8 +60,12 @@ const getPublicCategoryByName = async (req, res) => {
 // @access  Public
 const getPublicCategories = async (req, res) => {
     try {
-        const categories = await Category.find({ isActive: true }).sort({ name: 1 });
-        res.json(categories);
+        const categories = await Category.find({ isActive: true }).sort({ name: 1 }).lean();
+        const result = categories.map(cat => ({
+            ...cat,
+            services: (cat.services || []).filter(s => Number(s.basePrice) > 0 || Number(s.price) > 0)
+        }));
+        res.json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

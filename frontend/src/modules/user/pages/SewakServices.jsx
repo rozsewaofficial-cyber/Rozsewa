@@ -60,12 +60,12 @@ const SewakServices = () => {
       setCategoryData(data);
       
       if (data.services) {
-        setServicesList(data.services.map(s => ({
+        setServicesList(data.services.filter(s => Number(s.basePrice || s.price) > 0).map(s => ({
           id: s._id,
           name: s.name,
-          price: s.basePrice,
+          price: s.basePrice || s.price,
           description: s.description,
-          duration: "Varries"
+          duration: "Varies"
         })));
       }
 

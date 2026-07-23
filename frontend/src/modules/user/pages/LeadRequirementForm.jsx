@@ -1090,7 +1090,8 @@ const LeadRequirementForm = () => {
           {/* Dynamic sub-services rendering */}
           {(() => {
             const selectedCategory = categories.find(c => c._id === selectedCategoryId);
-            if (!selectedCategory?.services?.length) return null;
+            const activeServices = (selectedCategory?.services || []).filter(s => Number(s.basePrice) > 0 || Number(s.price) > 0);
+            if (!activeServices.length) return null;
             return (
               <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Select Specific Service *</label>
@@ -1101,7 +1102,7 @@ const LeadRequirementForm = () => {
                   className="w-full px-4 py-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 outline-none text-slate-900 dark:text-slate-100 transition-all"
                 >
                   <option value="">— Select a Specific Service —</option>
-                  {selectedCategory.services.map(srv => (
+                  {activeServices.map(srv => (
                     <option key={srv._id} value={srv._id}>{srv.name}</option>
                   ))}
                 </select>
