@@ -122,7 +122,7 @@ const AdminServices = () => {
     const fetchServicesForSubcategory = async (subId) => {
         setLoadingServices(true);
         try {
-            const { data } = await API.get(`/public/subcategories/${subId}/services`);
+            const { data } = await API.get(`/admin/subcategories/${subId}/services`);
             setSubServices(data || []);
         } catch (err) {
             toast({ title: "Fetch Services Failed", variant: "destructive" });

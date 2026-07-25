@@ -293,6 +293,7 @@ router.post('/partner-policies', protect, admin, partnerPolicyController.savePol
 // Subcategories & Services Management
 const subcategoryController = require('../controllers/subcategoryController');
 router.get('/subcategories', protect, admin, subcategoryController.getAdminSubcategories);
+router.get('/subcategories/:subcategoryId/services', protect, admin, subcategoryController.getAdminServicesBySubcategory);
 router.post('/subcategories', protect, admin, subcategoryController.createSubcategory);
 router.put('/subcategories/:id', protect, admin, subcategoryController.updateSubcategory);
 router.delete('/subcategories/:id', protect, admin, subcategoryController.deleteSubcategory);

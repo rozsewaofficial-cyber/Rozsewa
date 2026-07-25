@@ -38,7 +38,12 @@ const getPublicSubcategoriesByCategory = async (req, res) => {
 const getPublicServicesBySubcategory = async (req, res) => {
     try {
         const { subcategoryId } = req.params;
-        let query = { visible: true, price: { $gt: 0 } };
+        const { includeZeroPrice } = req.query;
+        let query = { visible: true };
+
+        if (includeZeroPrice !== 'true') {
+            query.price = { $gt: 0 };
+        }
 
         if (mongoose.Types.ObjectId.isValid(subcategoryId)) {
             query.subcategoryId = subcategoryId;
@@ -57,6 +62,25 @@ const getPublicServicesBySubcategory = async (req, res) => {
         res.json(services);
     } catch (error) {
         console.error("Error fetching services by subcategory:", error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get services under subcategory for Admin
+// @route   GET /api/admin/subcategories/:subcategoryId/services
+// @access  Private/Admin
+const getAdminServicesBySubcategory = async (req, res) => {
+    try {
+        const { subcategoryId } = req.params;
+        let query = {};
+        if (mongoose.Types.ObjectId.isValid(subcategoryId)) {
+            query.subcategoryId = subcategoryId;
+        } else {
+            query.subcategory = subcategoryId;
+        }
+        const services = await Service.find(query).sort({ createdAt: -1 });
+        res.json(services);
+    } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
@@ -265,6 +289,7 @@ const deleteAdminService = async (req, res) => {
 module.exports = {
     getPublicSubcategoriesByCategory,
     getPublicServicesBySubcategory,
+    getAdminServicesBySubcategory,
     getAdminSubcategories,
     createSubcategory,
     updateSubcategory,
