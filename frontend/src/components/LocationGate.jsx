@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { MapPin, Navigation, AlertTriangle, Loader2, X, Search, MapPin as MapPinIcon } from "lucide-react";
+import {
+  MapPin,
+  Navigation,
+  AlertTriangle,
+  Loader2,
+  X,
+  Search,
+  MapPin as MapPinIcon,
+} from "lucide-react";
 import { useJsApiLoader } from "@react-google-maps/api";
 
 const libraries = ["places"];
@@ -23,14 +31,15 @@ const LocationGate = () => {
   const autocompleteService = React.useRef(null);
 
   const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
+    id: "google-map-script",
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
-    libraries
+    libraries,
   });
 
   useEffect(() => {
     if (isLoaded && window.google && !autocompleteService.current) {
-      autocompleteService.current = new window.google.maps.places.AutocompleteService();
+      autocompleteService.current =
+        new window.google.maps.places.AutocompleteService();
     }
   }, [isLoaded]);
 
@@ -40,15 +49,17 @@ const LocationGate = () => {
       setSuggestions([]);
       return;
     }
-    
+
     try {
       // Use Nominatim as a reliable free fallback for city search
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=in&limit=5`);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=in&limit=5`,
+      );
       const data = await res.json();
       if (data && data.length > 0) {
-        const formatted = data.map(item => ({
+        const formatted = data.map((item) => ({
           place_id: item.place_id,
-          description: item.display_name
+          description: item.display_name,
         }));
         setSuggestions(formatted);
       } else {
@@ -96,9 +107,11 @@ const LocationGate = () => {
       console.error("Location detection error:", err);
       let msg = "Could not fetch your location.";
       if (err.code === 1) {
-        msg = "Location permission denied. Please allow location access in your browser/device settings to use RozSewa.";
+        msg =
+          "Location permission denied. Please allow location access in your browser/device settings to use RozSewa.";
       } else if (err.code === 2) {
-        msg = "Location unavailable. Please make sure your GPS is turned on and your device has a clear signal.";
+        msg =
+          "Location unavailable. Please make sure your GPS is turned on and your device has a clear signal.";
       } else if (err.code === 3) {
         msg = "Location request timed out. Please try again.";
       }
@@ -110,8 +123,16 @@ const LocationGate = () => {
   useEffect(() => {
     const savedCity = sessionStorage.getItem("rozsewa_user_city");
     const savedLoc = sessionStorage.getItem("rozsewa_user_location");
-    if (sessionStorage.getItem("location_gate_passed") === "true" || userLocation || savedLoc || savedCity) {
-      if ((userLocation || savedLoc || savedCity) && sessionStorage.getItem("location_gate_passed") !== "true") {
+    if (
+      sessionStorage.getItem("location_gate_passed") === "true" ||
+      userLocation ||
+      savedLoc ||
+      savedCity
+    ) {
+      if (
+        (userLocation || savedLoc || savedCity) &&
+        sessionStorage.getItem("location_gate_passed") !== "true"
+      ) {
         sessionStorage.setItem("location_gate_passed", "true");
       }
       setStatus("success");
@@ -160,7 +181,9 @@ const LocationGate = () => {
 
             <div className="w-full flex items-center gap-4 mb-4">
               <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
-              <span className="text-xs font-bold text-slate-400 uppercase">OR</span>
+              <span className="text-xs font-bold text-slate-400 uppercase">
+                OR
+              </span>
               <div className="h-px bg-slate-200 dark:bg-slate-800 flex-1" />
             </div>
 
@@ -170,7 +193,7 @@ const LocationGate = () => {
                 placeholder="Enter your city manually..."
                 value={manualCity}
                 onChange={(e) => handleCityInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
+                onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
                 className="w-full h-14 bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl px-5 text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none pr-14"
               />
               <button
@@ -179,7 +202,7 @@ const LocationGate = () => {
               >
                 <Search className="w-4 h-4" />
               </button>
-              
+
               {/* Autocomplete Suggestions Dropdown */}
               {suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden z-50 text-left">
@@ -215,12 +238,14 @@ const LocationGate = () => {
               Setting up your experience
             </p>
             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed mb-6 max-w-xs">
-              We are finding your current coordinates to match you with the nearest and best service partners.
+              We are finding your current coordinates to match you with the
+              nearest and best service partners.
             </p>
 
             <div className="bg-blue-50 dark:bg-blue-950/30 rounded-2xl p-4 mb-6 border border-blue-100 dark:border-blue-900/30 w-full">
               <p className="text-xs font-bold text-blue-800 dark:text-blue-300 leading-relaxed">
-                हमें आपके आस-पास की सेवाएं दिखाने के लिए आपकी लोकेशन की आवश्यकता है। कृपया लोकेशन एक्सेस की अनुमति दें।
+                हमें आपके आस-पास की सेवाएं दिखाने के लिए आपकी लोकेशन की आवश्यकता
+                है। कृपया लोकेशन एक्सेस की अनुमति दें।
               </p>
             </div>
 
@@ -244,10 +269,17 @@ const LocationGate = () => {
             </p>
 
             <div className="bg-rose-50/50 dark:bg-rose-950/10 rounded-2xl p-4 mb-6 border border-rose-100/50 dark:border-rose-900/20 w-full text-left text-xs font-medium text-slate-500 dark:text-slate-400">
-              <p className="font-bold text-rose-800 dark:text-rose-400 mb-1">How to enable permission:</p>
+              <p className="font-bold text-rose-800 dark:text-rose-400 mb-1">
+                How to enable permission:
+              </p>
               <ul className="list-disc pl-4 space-y-1">
-                <li>Click the lock/settings icon next to the URL in your browser's address bar.</li>
-                <li>Change the Location permission to <strong>Allow</strong>.</li>
+                <li>
+                  Click the lock/settings icon next to the URL in your browser's
+                  address bar.
+                </li>
+                <li>
+                  Change the Location permission to <strong>Allow</strong>.
+                </li>
                 <li>Reload the page or click "Try Again" below.</li>
               </ul>
             </div>

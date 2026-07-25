@@ -7,18 +7,29 @@ import API from "@/lib/api";
 import { toast } from "sonner";
 import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
-import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
+import {
+  validateName,
+  sanitizeName,
+  sanitizeNameOnChange,
+} from "@/lib/nameValidation";
 
 const CustomerLogin = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state?.from?.pathname || "/") + (location.state?.from?.search || "");
-  const { login, signup, loginWithOTP, detectLocation, isAuthenticated } = useAuth();
+  const from =
+    (location.state?.from?.pathname || "/") +
+    (location.state?.from?.search || "");
+  const { login, signup, loginWithOTP, detectLocation, isAuthenticated } =
+    useAuth();
 
-  const draft = JSON.parse(sessionStorage.getItem("customer-signup-draft") || "{}");
+  const draft = JSON.parse(
+    sessionStorage.getItem("customer-signup-draft") || "{}",
+  );
 
   const [mode, setMode] = useState(draft.mode || "email"); // email | signup
-  const [loginMethod, setLoginMethod] = useState(draft.loginMethod || "password"); // password | otp
+  const [loginMethod, setLoginMethod] = useState(
+    draft.loginMethod || "password",
+  ); // password | otp
   const [countdown, setCountdown] = useState(0);
   const [name, setName] = useState(draft.name || "");
   const [phone, setPhone] = useState(draft.phone || "");
@@ -43,15 +54,25 @@ const CustomerLogin = () => {
   useEffect(() => {
     let timer;
     if (countdown > 0) {
-      timer = setInterval(() => setCountdown(c => c - 1), 1000);
+      timer = setInterval(() => setCountdown((c) => c - 1), 1000);
     }
     return () => clearInterval(timer);
   }, [countdown]);
 
   useEffect(() => {
-    sessionStorage.setItem("customer-signup-draft", JSON.stringify({
-      mode, loginMethod, name, phone, email, address, city, state
-    }));
+    sessionStorage.setItem(
+      "customer-signup-draft",
+      JSON.stringify({
+        mode,
+        loginMethod,
+        name,
+        phone,
+        email,
+        address,
+        city,
+        state,
+      }),
+    );
   }, [mode, loginMethod, name, phone, email, address, city, state]);
 
   const clearDraftAndNavigate = () => {
@@ -73,8 +94,11 @@ const CustomerLogin = () => {
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
-    if (!email || !password) { setError("Fill all fields"); return; }
-    if (email.includes('@') && !validateEmail(email)) {
+    if (!email || !password) {
+      setError("Fill all fields");
+      return;
+    }
+    if (email.includes("@") && !validateEmail(email)) {
       setError("Please enter a valid email address.");
       return;
     }
@@ -86,9 +110,10 @@ const CustomerLogin = () => {
       try {
         const loc = await detectLocation();
         if (loc && result.data?.token) {
-          await API.put("/auth/profile",
-            { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } },
-            { headers: { Authorization: `Bearer ${result.data.token}` } }
+          await API.put(
+            "/auth/profile",
+            { location: { type: "Point", coordinates: [loc.lng, loc.lat] } },
+            { headers: { Authorization: `Bearer ${result.data.token}` } },
           );
         }
       } catch (err) {
@@ -103,7 +128,10 @@ const CustomerLogin = () => {
 
   const handleOtpLogin = async (e) => {
     e.preventDefault();
-    if (!email) { setError("Enter mobile number"); return; }
+    if (!email) {
+      setError("Enter mobile number");
+      return;
+    }
 
     if (!showOtpInput) {
       const phoneValidation = validatePhone(email);
@@ -124,7 +152,10 @@ const CustomerLogin = () => {
         setIsVerifying(false);
       }
     } else {
-      if (!otp) { setError("Please enter OTP"); return; }
+      if (!otp) {
+        setError("Please enter OTP");
+        return;
+      }
       setIsVerifying(true);
       setError("");
       const result = await loginWithOTP(email, otp, "customer");
@@ -132,9 +163,10 @@ const CustomerLogin = () => {
         try {
           const loc = await detectLocation();
           if (loc && result.data?.token) {
-            await API.put("/auth/profile",
-              { location: { type: 'Point', coordinates: [loc.lng, loc.lat] } },
-              { headers: { Authorization: `Bearer ${result.data.token}` } }
+            await API.put(
+              "/auth/profile",
+              { location: { type: "Point", coordinates: [loc.lng, loc.lat] } },
+              { headers: { Authorization: `Bearer ${result.data.token}` } },
             );
           }
         } catch (err) {
@@ -150,9 +182,14 @@ const CustomerLogin = () => {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    if (!name || !email || !password || !phone) { setError("Fill all fields"); return; }
+    if (!name || !email || !password || !phone) {
+      setError("Fill all fields");
+      return;
+    }
     if (!address || address.trim().length < 8) {
-      setError("Please enter a valid detailed address (at least 8 characters).");
+      setError(
+        "Please enter a valid detailed address (at least 8 characters).",
+      );
       return;
     }
 
@@ -164,7 +201,10 @@ const CustomerLogin = () => {
       return;
     }
 
-    if (!validateEmail(email)) { setError("Please enter a valid email address."); return; }
+    if (!validateEmail(email)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
 
     const phoneValidation = validatePhone(phone);
     if (!phoneValidation.isValid) {
@@ -177,7 +217,9 @@ const CustomerLogin = () => {
       setError("");
       try {
         // Check if user already exists
-        const { data: existData } = await API.post("/auth/check-existence", { mobile: phone });
+        const { data: existData } = await API.post("/auth/check-existence", {
+          mobile: phone,
+        });
         if (existData.exists) {
           setError("Mobile number already registered. Please login.");
           setIsVerifying(false);
@@ -196,11 +238,17 @@ const CustomerLogin = () => {
       }
     } else {
       // Verify OTP and Register
-      if (!otp) { setError("Please enter OTP"); return; }
+      if (!otp) {
+        setError("Please enter OTP");
+        return;
+      }
       setIsVerifying(true);
       setError("");
       try {
-        const { data: verifyData } = await API.post("/auth/verify-otp", { mobile: phone, otp });
+        const { data: verifyData } = await API.post("/auth/verify-otp", {
+          mobile: phone,
+          otp,
+        });
         if (verifyData.success) {
           let currentCoords = coords;
           try {
@@ -211,8 +259,14 @@ const CustomerLogin = () => {
           }
 
           const result = await signup({
-            name, email, password, mobile: phone, address, city, state,
-            location: { type: 'Point', coordinates: currentCoords }
+            name,
+            email,
+            password,
+            mobile: phone,
+            address,
+            city,
+            state,
+            location: { type: "Point", coordinates: currentCoords },
           });
           if (result.success) {
             clearDraftAndNavigate();
@@ -238,31 +292,54 @@ const CustomerLogin = () => {
         <div className="absolute -bottom-48 -left-48 h-[500px] w-[500px] rounded-full bg-emerald-500/5 blur-3xl" />
       </div>
 
-      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-        className="relative z-10 w-full max-w-md space-y-8 my-auto">
-
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="relative z-10 w-full max-w-md space-y-8 my-auto"
+      >
         {/* Logo + Welcome */}
         <div className="text-center">
           <div className="flex justify-center mb-6 mt-4">
-            <img src="/RozSewa.png" alt="RojSewa" className="h-[4.5rem] w-auto object-contain" />
+            <img
+              src="/RozSewa.png"
+              alt="RojSewa"
+              className="h-[4.5rem] w-auto object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-foreground">Welcome Back</h1>
-          <p className="mt-2 text-sm font-medium text-muted-foreground">Book trusted services in seconds</p>
+          <h1 className="text-3xl font-black tracking-tight text-foreground">
+            Welcome Back
+          </h1>
+          <p className="mt-2 text-sm font-medium text-muted-foreground">
+            Book trusted services in seconds
+          </p>
         </div>
 
         {/* Card */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="overflow-hidden rounded-3xl border border-border bg-card/80 backdrop-blur-xl shadow-2xl shadow-black/5">
-
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="overflow-hidden rounded-3xl border border-border bg-card/80 backdrop-blur-xl shadow-2xl shadow-black/5"
+        >
           {/* Mode Tabs */}
           <div className="flex border-b border-border">
             {[
               { id: "email", label: "Login", icon: Mail },
               { id: "signup", label: "Sign Up", icon: Sparkles },
-            ].map(t => (
-              <button key={t.id} onClick={() => { setMode(t.id); setError(""); }}
-                className={`flex flex-1 items-center justify-center gap-2 py-4 text-sm font-bold transition-all ${mode === t.id ? "border-b-2 border-primary text-primary bg-primary/5" : "text-muted-foreground hover:text-foreground"
-                  }`}>
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setMode(t.id);
+                  setError("");
+                }}
+                className={`flex flex-1 items-center justify-center gap-2 py-4 text-sm font-bold transition-all ${
+                  mode === t.id
+                    ? "border-b-2 border-primary text-primary bg-primary/5"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
                 <t.icon className="h-4 w-4" /> {t.label}
               </button>
             ))}
@@ -272,60 +349,111 @@ const CustomerLogin = () => {
             <AnimatePresence mode="wait">
               {/* SIGN UP */}
               {mode === "signup" && (
-                <motion.form key="signup-form" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }}
-                  onSubmit={handleSignup} className="space-y-4">
+                <motion.form
+                  key="signup-form"
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 20, opacity: 0 }}
+                  onSubmit={handleSignup}
+                  className="space-y-4"
+                >
                   <div>
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Full Name</label>
-                    <input type="text" value={name} onChange={(e) => {
-                      const val = sanitizeNameOnChange(e.target.value);
-                      setName(val);
-                      e.target.value = val;
-                    }}
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => {
+                        const val = sanitizeNameOnChange(e.target.value);
+                        setName(val);
+                        e.target.value = val;
+                      }}
                       className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                      placeholder="Enter your name" />
+                      placeholder="Enter your name"
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Email</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(sanitizeEmail(e.target.value))}
                       className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                      placeholder="you@example.com" />
+                      placeholder="you@example.com"
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Mobile Number</label>
-                    <input type="tel" value={phone}
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={phone}
                       onChange={(e) => setPhone(sanitizePhone(e.target.value))}
                       maxLength="10"
                       inputMode="numeric"
                       className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                      placeholder="10-digit number" />
+                      placeholder="10-digit number"
+                    />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Password</label>
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                      Password
+                    </label>
                     <div className="relative">
-                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         className="h-11 w-full rounded-xl border border-border bg-background px-4 pr-12 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                        placeholder="Create password" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        placeholder="Create password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </button>
                     </div>
                   </div>
 
                   {showOtpInput && (
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Authentication Code</label>
-                      <input type="text" value={otp}
-                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
+                        Authentication Code
+                      </label>
+                      <input
+                        type="text"
+                        value={otp}
+                        onChange={(e) =>
+                          setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                        }
                         maxLength="6"
                         inputMode="numeric"
                         className="w-full text-center tracking-[0.4em] rounded-xl border border-primary bg-background py-3 text-xl font-bold focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-muted-foreground/30"
-                        placeholder="••••••" />
+                        placeholder="••••••"
+                      />
                       <div className="flex justify-between items-center px-1 mt-2">
-                        <span className="text-[10px] font-bold text-muted-foreground">Didn't receive the code?</span>
-                        <button type="button" disabled={countdown > 0} onClick={handleResendOtp}
-                          className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors hover:underline">
-                          {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                          Didn't receive the code?
+                        </span>
+                        <button
+                          type="button"
+                          disabled={countdown > 0}
+                          onClick={handleResendOtp}
+                          className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors hover:underline"
+                        >
+                          {countdown > 0
+                            ? `Resend in ${countdown}s`
+                            : "Resend OTP"}
                         </button>
                       </div>
                     </div>
@@ -333,54 +461,82 @@ const CustomerLogin = () => {
 
                   <div className="space-y-4 pt-2">
                     <div className="flex items-center justify-between">
-                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Service Location</label>
+                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
+                        Service Location
+                      </label>
                       <button
                         type="button"
                         onClick={async () => {
                           if ("geolocation" in navigator) {
-                            navigator.geolocation.getCurrentPosition(async (pos) => {
-                              const { latitude, longitude } = pos.coords;
-                              setCoords([longitude, latitude]);
-                              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
-                              const data = await res.json();
-                              const addr = data.address || {};
-                              setAddress(data.display_name || "");
-                              setCity(addr.city || addr.town || addr.village || "");
-                              setState(addr.state || "");
-                            });
+                            navigator.geolocation.getCurrentPosition(
+                              async (pos) => {
+                                const { latitude, longitude } = pos.coords;
+                                setCoords([longitude, latitude]);
+                                const res = await fetch(
+                                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+                                );
+                                const data = await res.json();
+                                const addr = data.address || {};
+                                setAddress(data.display_name || "");
+                                setCity(
+                                  addr.city || addr.town || addr.village || "",
+                                );
+                                setState(addr.state || "");
+                              },
+                            );
                           }
                         }}
-                        className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter transition-colors ${coords[0] !== 0 ? 'bg-emerald-500 text-white' : 'text-primary bg-primary/5 hover:bg-primary/10'}`}
+                        className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter transition-colors ${coords[0] !== 0 ? "bg-emerald-500 text-white" : "text-primary bg-primary/5 hover:bg-primary/10"}`}
                       >
-                        {coords[0] !== 0 ? 'Detected ✓' : 'Use Live Location'}
+                        {coords[0] !== 0 ? "Detected ✓" : "Use Live Location"}
                       </button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">State</label>
-                        <input type="text" value={state} onChange={(e) => {
-                          const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-                          setState(val);
-                          e.target.value = val;
-                        }}
+                        <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">
+                          State
+                        </label>
+                        <input
+                          type="text"
+                          value={state}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(
+                              /[^a-zA-Z\s]/g,
+                              "",
+                            );
+                            setState(val);
+                            e.target.value = val;
+                          }}
                           className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          placeholder="e.g. Maharashtra" />
+                          placeholder="e.g. Maharashtra"
+                        />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">City</label>
-                        <input type="text" value={city} onChange={(e) => {
-                          const val = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-                          setCity(val);
-                          e.target.value = val;
-                        }}
+                        <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={city}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(
+                              /[^a-zA-Z\s]/g,
+                              "",
+                            );
+                            setCity(val);
+                            e.target.value = val;
+                          }}
                           className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                          placeholder="e.g. Mumbai" />
+                          placeholder="e.g. Mumbai"
+                        />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">Detailed Address</label>
+                      <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">
+                        Detailed Address
+                      </label>
                       <textarea
                         required
                         value={address}
@@ -390,81 +546,162 @@ const CustomerLogin = () => {
                       />
                     </div>
                   </div>
-                  {error && <p className="text-xs font-semibold text-destructive">{error}</p>}
-                  <motion.button whileTap={{ scale: 0.97 }} type="submit" disabled={isVerifying}
-                    className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-primary/20">
-                    {isVerifying ? "Processing..." : showOtpInput ? "Complete Registration" : "Send OTP"}
+                  {error && (
+                    <p className="text-xs font-semibold text-destructive">
+                      {error}
+                    </p>
+                  )}
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    type="submit"
+                    disabled={isVerifying}
+                    className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-primary/20"
+                  >
+                    {isVerifying
+                      ? "Processing..."
+                      : showOtpInput
+                        ? "Complete Registration"
+                        : "Send OTP"}
                   </motion.button>
                 </motion.form>
               )}
 
               {/* LOGIN (Email or Phone) */}
               {mode === "email" && (
-                <motion.form key="email-form" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }}
-                  onSubmit={loginMethod === "password" ? handleEmailLogin : handleOtpLogin} className="space-y-5">
+                <motion.form
+                  key="email-form"
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: 20, opacity: 0 }}
+                  onSubmit={
+                    loginMethod === "password"
+                      ? handleEmailLogin
+                      : handleOtpLogin
+                  }
+                  className="space-y-5"
+                >
                   <div>
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Mobile Number</label>
-                    <input type="text" value={email} onChange={(e) => {
-                      const val = e.target.value;
-                      setEmail(val.includes('@') ? sanitizeEmail(val) : val);
-                    }}
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                      Mobile Number
+                    </label>
+                    <input
+                      type="text"
+                      value={email}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEmail(val.includes("@") ? sanitizeEmail(val) : val);
+                      }}
                       className="h-12 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                      placeholder="Enter phone number" autoFocus />
+                      placeholder="Enter phone number"
+                      autoFocus
+                    />
                   </div>
 
                   {loginMethod === "password" ? (
                     <div>
-                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">Password</label>
+                      <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                        Password
+                      </label>
                       <div className="relative">
-                        <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
                           className="h-12 w-full rounded-xl border border-border bg-background px-4 pr-12 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
-                          placeholder="Enter password" />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)}
-                          className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground">
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          placeholder="Enter password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
                         </button>
                       </div>
                     </div>
                   ) : (
                     showOtpInput && (
                       <div className="space-y-2">
-                        <label className="block text-xs font-bold text-foreground uppercase tracking-wider">Authentication Code</label>
-                        <input type="text" value={otp}
-                          onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
+                          Authentication Code
+                        </label>
+                        <input
+                          type="text"
+                          value={otp}
+                          onChange={(e) =>
+                            setOtp(
+                              e.target.value.replace(/\D/g, "").slice(0, 6),
+                            )
+                          }
                           maxLength="6"
                           inputMode="numeric"
                           className="w-full text-center tracking-[0.4em] rounded-xl border border-primary bg-background py-3 text-xl font-bold focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-muted-foreground/30"
-                          placeholder="••••••" />
+                          placeholder="••••••"
+                        />
                         <div className="flex justify-between items-center px-1 mt-2">
-                          <span className="text-[10px] font-bold text-muted-foreground">Didn't receive the code?</span>
-                          <button type="button" disabled={countdown > 0} onClick={handleResendOtp}
-                            className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors hover:underline">
-                            {countdown > 0 ? `Resend in ${countdown}s` : "Resend OTP"}
+                          <span className="text-[10px] font-bold text-muted-foreground">
+                            Didn't receive the code?
+                          </span>
+                          <button
+                            type="button"
+                            disabled={countdown > 0}
+                            onClick={handleResendOtp}
+                            className="text-[11px] font-black text-emerald-600 hover:text-emerald-700 disabled:text-muted-foreground transition-colors hover:underline"
+                          >
+                            {countdown > 0
+                              ? `Resend in ${countdown}s`
+                              : "Resend OTP"}
                           </button>
                         </div>
                       </div>
                     )
                   )}
 
-                  {error && <p className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
+                  {error && (
+                    <p className="mt-2 text-xs font-semibold text-destructive">
+                      {error}
+                    </p>
+                  )}
 
-                  <motion.button whileTap={{ scale: 0.97 }} type="submit" disabled={isVerifying}
-                    className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-4 text-sm font-extrabold text-white shadow-xl shadow-primary/20 disabled:opacity-60">
-                    {isVerifying ? "Processing..." : (
-                      loginMethod === "password" ?
-                        <>Login <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></> :
-                        (showOtpInput ? "Verify & Login" : "Send OTP")
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    type="submit"
+                    disabled={isVerifying}
+                    className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-4 text-sm font-extrabold text-white shadow-xl shadow-primary/20 disabled:opacity-60"
+                  >
+                    {isVerifying ? (
+                      "Processing..."
+                    ) : loginMethod === "password" ? (
+                      <>
+                        Login{" "}
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      </>
+                    ) : showOtpInput ? (
+                      "Verify & Login"
+                    ) : (
+                      "Send OTP"
                     )}
                   </motion.button>
 
                   <div className="text-center pt-2">
-                    <button type="button" onClick={() => {
-                      setLoginMethod(loginMethod === "password" ? "otp" : "password");
-                      setShowOtpInput(false);
-                      setError("");
-                    }}
-                      className="text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
-                      {loginMethod === "password" ? "Login with OTP instead" : "Login with Password instead"}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginMethod(
+                          loginMethod === "password" ? "otp" : "password",
+                        );
+                        setShowOtpInput(false);
+                        setError("");
+                      }}
+                      className="text-sm font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
+                    >
+                      {loginMethod === "password"
+                        ? "Login with OTP instead"
+                        : "Login with Password instead"}
                     </button>
                   </div>
                 </motion.form>
@@ -472,13 +709,14 @@ const CustomerLogin = () => {
             </AnimatePresence>
 
             {/* Social Logins */}
-            {/* <div className="mt-6 space-y-3">
+            <div className="mt-6 space-y-3">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
                 <div className="relative flex justify-center text-xs"><span className="bg-card px-3 font-semibold text-muted-foreground">Or continue with</span></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <button
+                  type="button"
                   onClick={() => setError("Google Login is coming soon! Please use email/password.")}
                   className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-bold text-foreground hover:bg-muted transition-all active:scale-95"
                 >
@@ -486,6 +724,7 @@ const CustomerLogin = () => {
                   Google
                 </button>
                 <button
+                  type="button"
                   onClick={() => setError("Apple Login is coming soon!")}
                   className="relative flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-bold text-foreground hover:bg-muted transition-all active:scale-95 overflow-hidden"
                 >
@@ -494,13 +733,34 @@ const CustomerLogin = () => {
                   <span className="absolute -right-7 top-0.5 rotate-45 bg-primary/80 px-7 py-0.5 text-[8px] font-black uppercase text-white">Soon</span>
                 </button>
               </div>
-            </div> */}
+            </div>
           </div>
         </motion.div>
 
         {/* Footer */}
         <div className="text-center space-y-2">
-          <p className="text-xs text-muted-foreground">By continuing, you agree to our <button onClick={() => { window.scrollTo(0, 0); navigate('/terms'); }} className="font-semibold text-foreground hover:underline">Terms & Conditions</button> & <button onClick={() => { window.scrollTo(0, 0); navigate('/privacy'); }} className="font-semibold text-foreground hover:underline">Privacy Policy</button></p>
+          <p className="text-xs text-muted-foreground">
+            By continuing, you agree to our{" "}
+            <button
+              onClick={() => {
+                window.scrollTo(0, 0);
+                navigate("/terms");
+              }}
+              className="font-semibold text-foreground hover:underline"
+            >
+              Terms & Conditions
+            </button>{" "}
+            &{" "}
+            <button
+              onClick={() => {
+                window.scrollTo(0, 0);
+                navigate("/privacy");
+              }}
+              className="font-semibold text-foreground hover:underline"
+            >
+              Privacy Policy
+            </button>
+          </p>
         </div>
       </motion.div>
     </div>

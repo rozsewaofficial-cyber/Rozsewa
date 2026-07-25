@@ -1,6 +1,18 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Camera, Check, Star, Loader2, ShieldCheck, CreditCard, Banknote, Sparkles, ThumbsUp, AlertCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Check,
+  Star,
+  Loader2,
+  ShieldCheck,
+  CreditCard,
+  Banknote,
+  Sparkles,
+  ThumbsUp,
+  AlertCircle,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import { useToast } from "@/components/ui/use-toast";
@@ -9,7 +21,14 @@ import BottomNav from "@/modules/user/components/BottomNav";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 
-const tags = ["On Time", "Clean Work", "Polite", "Professional", "Affordable", "Expert"];
+const tags = [
+  "On Time",
+  "Clean Work",
+  "Polite",
+  "Professional",
+  "Affordable",
+  "Expert",
+];
 
 const PostService = () => {
   const navigate = useNavigate();
@@ -31,13 +50,17 @@ const PostService = () => {
 
   const fetchBooking = async () => {
     try {
-      const { data } = await API.get('/bookings');
-      const active = data.find(b => ['completed', 'started'].includes(b.status) && (!b.rating || b.rating === 0));
+      const { data } = await API.get("/bookings");
+      const active = data.find(
+        (b) =>
+          ["completed", "started"].includes(b.status) &&
+          (!b.rating || b.rating === 0),
+      );
       if (active) {
         setBooking(active);
-        setPaymentDone(active.paymentStatus === 'paid');
-        if (active.extraStatus === 'pending') setShowApproval(true);
-        if (active.extraStatus === 'approved') setApproved(true);
+        setPaymentDone(active.paymentStatus === "paid");
+        if (active.extraStatus === "pending") setShowApproval(true);
+        if (active.extraStatus === "approved") setApproved(true);
       }
     } catch (err) {
       console.error("Fetch failed", err);
@@ -46,135 +69,202 @@ const PostService = () => {
     }
   };
 
-  useEffect(() => { fetchBooking(); }, []);
+  useEffect(() => {
+    fetchBooking();
+  }, []);
 
   useEffect(() => {
     if (socket) {
       const handleExtraPending = (data) => {
         if (booking && data.bookingId === booking._id) {
-            fetchBooking();
+          fetchBooking();
         } else if (!booking) {
-            fetchBooking();
+          fetchBooking();
         }
       };
-      
+
       socket.on("EXTRA_CHARGES_PENDING", handleExtraPending);
-      
+
       return () => {
         socket.off("EXTRA_CHARGES_PENDING", handleExtraPending);
       };
     }
   }, [socket, booking]);
 
-  const loadRazorpay = () => new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
+  const loadRazorpay = () =>
+    new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
 
   const handleRazorpayPayment = async () => {
     if (!booking) return;
     setIsPaying(true);
-    toast({ title: "Payment Successful! (Simulated)" });
-    setPaymentDone(true); setShowConfetti(true);
-    setTimeout(() => setShowConfetti(false), 3000);
-    setIsPaying(false);
-    return;
-    /*
     const res = await loadRazorpay();
-    if (!res) { toast({ title: "SDK failed to load.", variant: "destructive" }); setIsPaying(false); return; }
+    if (!res) {
+      toast({ title: "SDK failed to load.", variant: "destructive" });
+      setIsPaying(false);
+      return;
+    }
     try {
-      const { data: order } = await API.post("/payment/order", { amount: finalTotal, currency: "INR" });
+      const { data: order } = await API.post("/payment/order", {
+        amount: finalTotal,
+        currency: "INR",
+      });
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
-        amount: order.amount, currency: order.currency,
-        name: "RozSewa", description: `Payment for ${booking.serviceName}`, order_id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa",
+        description: `Payment for ${booking.serviceName}`,
+        order_id: order.id,
         handler: async (response) => {
           try {
-            const { data: verification } = await API.post("/payment/verify", { ...response, bookingId: booking._id });
+            const { data: verification } = await API.post("/payment/verify", {
+              ...response,
+              bookingId: booking._id,
+            });
             if (verification.success) {
               toast({ title: "Payment Successful!" });
-              setPaymentDone(true); setShowConfetti(true);
+              setPaymentDone(true);
+              setShowConfetti(true);
               setTimeout(() => setShowConfetti(false), 3000);
             }
-          } catch { toast({ title: "Verification Failed", variant: "destructive" }); }
+          } catch {
+            toast({ title: "Verification Failed", variant: "destructive" });
+          }
         },
-        prefill: { name: user?.name, email: user?.email, contact: user?.mobile },
+        prefill: {
+          name: user?.name,
+          email: user?.email,
+          contact: user?.mobile,
+        },
         theme: { color: "#2563eb" },
       };
       new window.Razorpay(options).open();
     } catch (err) {
-      toast({ title: "Payment Failed", description: err.message, variant: "destructive" });
-    } finally { setIsPaying(false); }
-    */
+      toast({
+        title: "Payment Failed",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsPaying(false);
+    }
   };
 
-  const extraTotal = booking?.extraCharges?.reduce((sum, item) => sum + item.amount, 0) || 0;
+  const extraTotal =
+    booking?.extraCharges?.reduce((sum, item) => sum + item.amount, 0) || 0;
   const baseAmount = booking?.totalAmount || 0;
   const finalTotal = baseAmount + (approved ? extraTotal : 0);
 
   const handleExtraAction = async (status) => {
     try {
-      await API.patch(`/bookings/${booking._id}/status`, { extraStatus: status });
-      if (status === 'approved') setApproved(true);
+      await API.patch(`/bookings/${booking._id}/status`, {
+        extraStatus: status,
+      });
+      if (status === "approved") setApproved(true);
       setShowApproval(false);
       fetchBooking();
-    } catch { toast({ title: "Failed to update", variant: "destructive" }); }
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
   };
 
   const handlePayment = async (method) => {
     try {
-      if (method === 'cod') {
-        await API.patch(`/bookings/${booking._id}/status`, { paymentMode: 'after', status: 'completed' });
+      if (method === "cod") {
+        await API.patch(`/bookings/${booking._id}/status`, {
+          paymentMode: "after",
+          status: "completed",
+        });
       } else {
-        await API.patch(`/bookings/${booking._id}/status`, { paymentStatus: 'paid', status: 'completed' });
+        await API.patch(`/bookings/${booking._id}/status`, {
+          paymentStatus: "paid",
+          status: "completed",
+        });
       }
-      setPaymentDone(true); setShowConfetti(true);
+      setPaymentDone(true);
+      setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 3000);
-      toast({ title: method === 'cod' ? "Please pay the provider in cash" : "Payment Successful!" });
-    } catch { toast({ title: "Failed to update payment status", variant: "destructive" }); }
+      toast({
+        title:
+          method === "cod"
+            ? "Please pay the provider in cash"
+            : "Payment Successful!",
+      });
+    } catch {
+      toast({
+        title: "Failed to update payment status",
+        variant: "destructive",
+      });
+    }
   };
 
-  const toggleTag = (tag) => setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  const toggleTag = (tag) =>
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
 
-  if (loading) return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
-      <div className="h-12 w-12 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
-      <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Preparing Summary...</p>
-    </div>
-  );
-
-  if (!booking) return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950 p-10 text-center">
-      <div className="w-20 h-20 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-        <AlertCircle className="h-8 w-8 text-slate-400" />
+  if (loading)
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
+        <div className="h-12 w-12 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">
+          Preparing Summary...
+        </p>
       </div>
-      <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No active service record found.</p>
-      <button onClick={() => navigate('/')} className="text-[12px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 dark:bg-blue-900/20 px-6 py-2.5 rounded-full">Back to Home</button>
-    </div>
-  );
+    );
 
-  const starLabels = { 1: "Poor", 2: "Fair", 3: "Good", 4: "Great", 5: "Excellent!" };
+  if (!booking)
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950 p-10 text-center">
+        <div className="w-20 h-20 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+          <AlertCircle className="h-8 w-8 text-slate-400" />
+        </div>
+        <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+          No active service record found.
+        </p>
+        <button
+          onClick={() => navigate("/")}
+          className="text-[12px] font-black uppercase text-blue-600 tracking-widest bg-blue-50 dark:bg-blue-900/20 px-6 py-2.5 rounded-full"
+        >
+          Back to Home
+        </button>
+      </div>
+    );
+
+  const starLabels = {
+    1: "Poor",
+    2: "Fair",
+    3: "Good",
+    4: "Great",
+    5: "Excellent!",
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 md:pb-8">
       <TopNav />
       <main className="max-w-xl mx-auto px-4 py-6 space-y-4">
-
         {/* Header */}
         <div className="flex items-center gap-3">
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => navigate('/profile')}
+            onClick={() => navigate("/profile")}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm transition-all"
           >
             <ArrowLeft className="h-5 w-5 text-slate-700 dark:text-white" />
           </motion.button>
           <div>
-            <h1 className="text-xl font-black text-slate-900 dark:text-white">Service Completed</h1>
-            <p className="text-[12px] font-medium text-slate-400 dark:text-slate-500">Review & pay for the work done</p>
+            <h1 className="text-xl font-black text-slate-900 dark:text-white">
+              Service Completed
+            </h1>
+            <p className="text-[12px] font-medium text-slate-400 dark:text-slate-500">
+              Review & pay for the work done
+            </p>
           </div>
         </div>
 
@@ -184,26 +274,44 @@ const PostService = () => {
             <div className="h-8 w-8 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
               <Camera className="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <h3 className="text-[14px] font-black text-slate-900 dark:text-white">Work Verification</h3>
+            <h3 className="text-[14px] font-black text-slate-900 dark:text-white">
+              Work Verification
+            </h3>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Before Work", img: booking?.beforeImage, color: "amber" },
-              { label: "After Work", img: booking?.afterImage, color: "emerald" },
+              {
+                label: "Before Work",
+                img: booking?.beforeImage,
+                color: "amber",
+              },
+              {
+                label: "After Work",
+                img: booking?.afterImage,
+                color: "emerald",
+              },
             ].map(({ label, img, color }) => (
-              <div key={label} className={`flex flex-col items-center gap-2 rounded-[20px] border-2 border-dashed overflow-hidden ${color === 'amber' ? 'border-amber-200 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10' : 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-900/10'}`}>
+              <div
+                key={label}
+                className={`flex flex-col items-center gap-2 rounded-[20px] border-2 border-dashed overflow-hidden ${color === "amber" ? "border-amber-200 dark:border-amber-900/40 bg-amber-50/50 dark:bg-amber-900/10" : "border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/50 dark:bg-emerald-900/10"}`}
+              >
                 {img ? (
                   <img
-                    src={img} alt={label}
+                    src={img}
+                    alt={label}
                     className="w-full h-36 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => window.open(img, '_blank')}
+                    onClick={() => window.open(img, "_blank")}
                   />
                 ) : (
                   <div className="w-full h-36 flex items-center justify-center">
                     <Camera className="h-8 w-8 text-slate-300 dark:text-slate-700" />
                   </div>
                 )}
-                <span className={`text-[10px] font-black uppercase tracking-wider pb-3 ${color === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{label}</span>
+                <span
+                  className={`text-[10px] font-black uppercase tracking-wider pb-3 ${color === "amber" ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}
+                >
+                  {label}
+                </span>
               </div>
             ))}
           </div>
@@ -223,32 +331,44 @@ const PostService = () => {
                   <AlertCircle className="h-4 w-4 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="text-[14px] font-black text-slate-900 dark:text-white">Extra Charges Added</h3>
-                  <p className="text-[11px] text-slate-400 dark:text-slate-500">Technician added spare parts cost</p>
+                  <h3 className="text-[14px] font-black text-slate-900 dark:text-white">
+                    Extra Charges Added
+                  </h3>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    Technician added spare parts cost
+                  </p>
                 </div>
               </div>
               <div className="rounded-[16px] bg-slate-50 dark:bg-slate-800 p-4 space-y-2 mb-4">
                 {booking?.extraCharges?.map((item, idx) => (
                   <div key={idx} className="flex justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">{item.item}</span>
-                    <span className="font-bold text-slate-900 dark:text-white">₹{item.amount}</span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {item.item}
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      ₹{item.amount}
+                    </span>
                   </div>
                 ))}
                 <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between">
-                  <span className="text-[13px] font-black text-slate-900 dark:text-white">Extra Total</span>
-                  <span className="text-[13px] font-black text-amber-600 dark:text-amber-400">₹{extraTotal}</span>
+                  <span className="text-[13px] font-black text-slate-900 dark:text-white">
+                    Extra Total
+                  </span>
+                  <span className="text-[13px] font-black text-amber-600 dark:text-amber-400">
+                    ₹{extraTotal}
+                  </span>
                 </div>
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={() => handleExtraAction('declined')}
+                  onClick={() => handleExtraAction("declined")}
                   className="flex-1 py-3 rounded-[16px] border-2 border-slate-200 dark:border-slate-700 text-[13px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   Decline
                 </button>
                 <motion.button
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => handleExtraAction('approved')}
+                  onClick={() => handleExtraAction("approved")}
                   className="flex-1 py-3 rounded-[16px] bg-amber-500 text-[13px] font-black text-white shadow-md shadow-amber-500/30 hover:bg-amber-600 transition-colors"
                 >
                   Approve ₹{extraTotal}
@@ -260,21 +380,35 @@ const PostService = () => {
 
         {/* Final Bill */}
         <section className="bg-white dark:bg-slate-900 rounded-[24px] p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm">
-          <h3 className="text-[14px] font-black text-slate-900 dark:text-white mb-4">Final Bill</h3>
+          <h3 className="text-[14px] font-black text-slate-900 dark:text-white mb-4">
+            Final Bill
+          </h3>
           <div className="space-y-2.5">
             <div className="flex justify-between items-center">
-              <span className="text-[13px] text-slate-500 dark:text-slate-400">Booking Amount</span>
-              <span className="text-[13px] font-bold text-slate-900 dark:text-white">₹{baseAmount}</span>
+              <span className="text-[13px] text-slate-500 dark:text-slate-400">
+                Booking Amount
+              </span>
+              <span className="text-[13px] font-bold text-slate-900 dark:text-white">
+                ₹{baseAmount}
+              </span>
             </div>
             {approved && (
               <div className="flex justify-between items-center">
-                <span className="text-[13px] text-slate-500 dark:text-slate-400">Extra Parts</span>
-                <span className="text-[13px] font-bold text-amber-600 dark:text-amber-400">+₹{extraTotal}</span>
+                <span className="text-[13px] text-slate-500 dark:text-slate-400">
+                  Extra Parts
+                </span>
+                <span className="text-[13px] font-bold text-amber-600 dark:text-amber-400">
+                  +₹{extraTotal}
+                </span>
               </div>
             )}
             <div className="border-t border-slate-100 dark:border-slate-800 pt-3 flex justify-between items-center">
-              <span className="text-[15px] font-black text-slate-900 dark:text-white">Total Payable</span>
-              <span className="text-[22px] font-black text-blue-600 dark:text-blue-400">₹{finalTotal}</span>
+              <span className="text-[15px] font-black text-slate-900 dark:text-white">
+                Total Payable
+              </span>
+              <span className="text-[22px] font-black text-blue-600 dark:text-blue-400">
+                ₹{finalTotal}
+              </span>
             </div>
           </div>
         </section>
@@ -289,14 +423,19 @@ const PostService = () => {
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-[20px] bg-blue-600 hover:bg-blue-700 text-white text-[15px] font-black shadow-lg shadow-blue-500/30 transition-all disabled:opacity-70"
             >
               {isPaying ? (
-                <><div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" /> Processing...</>
+                <>
+                  <div className="h-5 w-5 rounded-full border-2 border-white border-t-transparent animate-spin" />{" "}
+                  Processing...
+                </>
               ) : (
-                <><CreditCard className="h-5 w-5" /> Pay Online ₹{finalTotal}</>
+                <>
+                  <CreditCard className="h-5 w-5" /> Pay Online ₹{finalTotal}
+                </>
               )}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.98 }}
-              onClick={() => handlePayment('cod')}
+              onClick={() => handlePayment("cod")}
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-[20px] border-2 border-emerald-500 text-emerald-600 dark:text-emerald-400 text-[15px] font-black hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all"
             >
               <Banknote className="h-5 w-5" /> Confirm Cash Payment
@@ -310,24 +449,58 @@ const PostService = () => {
           >
             <div className="absolute inset-0 opacity-10">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="absolute rounded-full bg-white" style={{ width: 60 + i * 20, height: 60 + i * 20, top: `${Math.random() * 100}%`, left: `${Math.random() * 100}%`, opacity: 0.1 }} />
+                <div
+                  key={i}
+                  className="absolute rounded-full bg-white"
+                  style={{
+                    width: 60 + i * 20,
+                    height: 60 + i * 20,
+                    top: `${Math.random() * 100}%`,
+                    left: `${Math.random() * 100}%`,
+                    opacity: 0.1,
+                  }}
+                />
               ))}
             </div>
-            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: 2, duration: 0.4 }} className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
+            <motion.div
+              animate={{ scale: [1, 1.2, 1] }}
+              transition={{ repeat: 2, duration: 0.4 }}
+              className="h-16 w-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3"
+            >
               <Check className="h-9 w-9 text-white" strokeWidth={3} />
             </motion.div>
             <h3 className="text-xl font-black">Payment Successful!</h3>
-            <p className="text-[13px] text-white/80 mt-1">Your service is complete</p>
+            <p className="text-[13px] text-white/80 mt-1">
+              Your service is complete
+            </p>
             {showConfetti && (
               <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[24px]">
                 {Array.from({ length: 30 }).map((_, i) => (
                   <motion.div
                     key={i}
                     initial={{ x: "50%", y: "100%", opacity: 1, scale: 0 }}
-                    animate={{ x: `${Math.random() * 100}%`, y: `${-Math.random() * 200}%`, opacity: 0, scale: 1, rotate: Math.random() * 720 }}
-                    transition={{ duration: 1.5 + Math.random(), ease: "easeOut" }}
+                    animate={{
+                      x: `${Math.random() * 100}%`,
+                      y: `${-Math.random() * 200}%`,
+                      opacity: 0,
+                      scale: 1,
+                      rotate: Math.random() * 720,
+                    }}
+                    transition={{
+                      duration: 1.5 + Math.random(),
+                      ease: "easeOut",
+                    }}
                     className="absolute h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: ["#22c55e", "#eab308", "#ef4444", "#3b82f6", "#a855f7", "#f97316"][i % 6] }}
+                    style={{
+                      backgroundColor: [
+                        "#22c55e",
+                        "#eab308",
+                        "#ef4444",
+                        "#3b82f6",
+                        "#a855f7",
+                        "#f97316",
+                      ][i % 6],
+                    }}
                   />
                 ))}
               </div>
@@ -346,7 +519,9 @@ const PostService = () => {
               <div className="h-8 w-8 bg-amber-50 dark:bg-amber-900/20 rounded-full flex items-center justify-center">
                 <Star className="h-4 w-4 text-amber-500" />
               </div>
-              <h3 className="text-[14px] font-black text-slate-900 dark:text-white">Rate Your Experience</h3>
+              <h3 className="text-[14px] font-black text-slate-900 dark:text-white">
+                Rate Your Experience
+              </h3>
             </div>
 
             {/* Stars */}
@@ -361,12 +536,16 @@ const PostService = () => {
                     onMouseLeave={() => setHoveredStar(0)}
                     onClick={() => setRating(s)}
                   >
-                    <Star className={`h-10 w-10 transition-all ${s <= (hoveredStar || rating) ? "fill-amber-400 text-amber-400 drop-shadow-md" : "text-slate-200 dark:text-slate-700"}`} />
+                    <Star
+                      className={`h-10 w-10 transition-all ${s <= (hoveredStar || rating) ? "fill-amber-400 text-amber-400 drop-shadow-md" : "text-slate-200 dark:text-slate-700"}`}
+                    />
                   </motion.button>
                 ))}
               </div>
               {(hoveredStar || rating) > 0 && (
-                <p className="text-[12px] font-black text-amber-500 uppercase tracking-wider">{starLabels[hoveredStar || rating]}</p>
+                <p className="text-[12px] font-black text-amber-500 uppercase tracking-wider">
+                  {starLabels[hoveredStar || rating]}
+                </p>
               )}
             </div>
 
@@ -383,7 +562,9 @@ const PostService = () => {
                       : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-blue-300"
                   }`}
                 >
-                  {selectedTags.includes(tag) && <Check className="h-3 w-3" strokeWidth={3} />}
+                  {selectedTags.includes(tag) && (
+                    <Check className="h-3 w-3" strokeWidth={3} />
+                  )}
                   {tag}
                 </motion.button>
               ))}
@@ -402,10 +583,19 @@ const PostService = () => {
               whileTap={{ scale: 0.97 }}
               onClick={async () => {
                 try {
-                  await API.post(`/bookings/${booking._id}/review`, { rating, comment: review, tags: selectedTags });
+                  await API.post(`/bookings/${booking._id}/review`, {
+                    rating,
+                    comment: review,
+                    tags: selectedTags,
+                  });
                   toast({ title: "Review submitted!" });
                   navigate("/");
-                } catch { toast({ title: "Failed to submit review", variant: "destructive" }); }
+                } catch {
+                  toast({
+                    title: "Failed to submit review",
+                    variant: "destructive",
+                  });
+                }
               }}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-[18px] bg-blue-600 text-[14px] font-black text-white shadow-md shadow-blue-500/30 hover:bg-blue-700 transition-colors"
             >

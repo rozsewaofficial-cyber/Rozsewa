@@ -1,6 +1,19 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Phone, MessageCircle, AlertOctagon, Check, Clock, User, Star, Shield, CreditCard, X, MapPin } from "lucide-react";
+import {
+  ArrowLeft,
+  Phone,
+  MessageCircle,
+  AlertOctagon,
+  Check,
+  Clock,
+  User,
+  Star,
+  Shield,
+  CreditCard,
+  X,
+  MapPin,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -8,8 +21,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 import ChatModal from "@/components/ChatModal";
-
-
 
 const LiveTracking = () => {
   const navigate = useNavigate();
@@ -28,25 +39,55 @@ const LiveTracking = () => {
     const formatTimestamp = (dateString) => {
       if (!dateString) return "";
       const d = new Date(dateString);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     };
 
-    if (bookingDetails?.serviceLocation === 'shop') {
+    if (bookingDetails?.serviceLocation === "shop") {
       return [
-        { label: "Booking Placed", time: formatTimestamp(bookingDetails?.createdAt) },
-        { label: "Provider Accepted", time: formatTimestamp(bookingDetails?.acceptedAt) },
-        { label: "Ready for Visit", time: formatTimestamp(bookingDetails?.onTheWayAt) },
-        { label: "Service Started", time: formatTimestamp(bookingDetails?.startedAt) },
-        { label: "Completed", time: formatTimestamp(bookingDetails?.completedAt) },
+        {
+          label: "Booking Placed",
+          time: formatTimestamp(bookingDetails?.createdAt),
+        },
+        {
+          label: "Provider Accepted",
+          time: formatTimestamp(bookingDetails?.acceptedAt),
+        },
+        {
+          label: "Ready for Visit",
+          time: formatTimestamp(bookingDetails?.onTheWayAt),
+        },
+        {
+          label: "Service Started",
+          time: formatTimestamp(bookingDetails?.startedAt),
+        },
+        {
+          label: "Completed",
+          time: formatTimestamp(bookingDetails?.completedAt),
+        },
       ];
     }
 
     return [
-      { label: "Booking Placed", time: formatTimestamp(bookingDetails?.createdAt) },
-      { label: "Provider Accepted", time: formatTimestamp(bookingDetails?.acceptedAt) },
-      { label: "On the Way", time: formatTimestamp(bookingDetails?.onTheWayAt) },
-      { label: "Service Started", time: formatTimestamp(bookingDetails?.startedAt) },
-      { label: "Completed", time: formatTimestamp(bookingDetails?.completedAt) },
+      {
+        label: "Booking Placed",
+        time: formatTimestamp(bookingDetails?.createdAt),
+      },
+      {
+        label: "Provider Accepted",
+        time: formatTimestamp(bookingDetails?.acceptedAt),
+      },
+      {
+        label: "On the Way",
+        time: formatTimestamp(bookingDetails?.onTheWayAt),
+      },
+      {
+        label: "Service Started",
+        time: formatTimestamp(bookingDetails?.startedAt),
+      },
+      {
+        label: "Completed",
+        time: formatTimestamp(bookingDetails?.completedAt),
+      },
     ];
   };
 
@@ -74,11 +115,6 @@ const LiveTracking = () => {
   const handleRazorpayPayment = async () => {
     if (!bookingDetails) return;
     setIsPaying(true);
-    toast({ title: "Payment Successful!", description: "Your booking is now fully confirmed. (Simulated)" });
-    fetchBookingStatus();
-    setIsPaying(false);
-    return;
-    /*
     const res = await loadRazorpay();
 
     if (!res) {
@@ -88,10 +124,15 @@ const LiveTracking = () => {
     }
 
     try {
-      const finalAmount = (bookingDetails.totalAmount || 0) + (bookingDetails.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
+      const finalAmount =
+        (bookingDetails.totalAmount || 0) +
+        (bookingDetails.extraCharges?.reduce(
+          (sum, c) => sum + (c.amount || 0),
+          0,
+        ) || 0);
       const { data: order } = await API.post("/payment/order", {
         amount: finalAmount,
-        currency: "INR"
+        currency: "INR",
       });
 
       const options = {
@@ -105,10 +146,13 @@ const LiveTracking = () => {
           try {
             const { data: verification } = await API.post("/payment/verify", {
               ...response,
-              bookingId: bookingDetails._id
+              bookingId: bookingDetails._id,
             });
             if (verification.success) {
-              toast({ title: "Payment Successful!", description: "Your booking is now fully confirmed." });
+              toast({
+                title: "Payment Successful!",
+                description: "Your booking is now fully confirmed.",
+              });
               fetchBookingStatus(); // Refresh to update paymentStatus
             }
           } catch (err) {
@@ -126,38 +170,54 @@ const LiveTracking = () => {
       const paymentObject = new window.Razorpay(options);
       paymentObject.open();
     } catch (err) {
-      toast({ title: "Payment Failed", description: err.message, variant: "destructive" });
+      toast({
+        title: "Payment Failed",
+        description: err.message,
+        variant: "destructive",
+      });
     } finally {
       setIsPaying(false);
     }
-    */
   };
 
-  const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const formatTime = (s) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   const fetchBookingStatus = async () => {
     try {
-      const { data } = await API.get('/bookings');
+      const { data } = await API.get("/bookings");
       // Find the most recent active booking prioritizing non-cancelled ones
-      let active = data.find(b => ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status));
+      let active = data.find((b) =>
+        ["pending", "confirmed", "on_the_way", "started"].includes(b.status),
+      );
       if (!active) {
-        active = data.find(b => b.status === 'completed' && (!b.rating || b.rating === 0));
+        active = data.find(
+          (b) => b.status === "completed" && (!b.rating || b.rating === 0),
+        );
       }
-      
+
       // If we are currently tracking a booking, see if it is in the data list and is cancelled
       if (!active && bookingDetailsRef.current?._id) {
-        active = data.find(b => b._id === bookingDetailsRef.current._id && b.status === 'cancelled');
+        active = data.find(
+          (b) =>
+            b._id === bookingDetailsRef.current._id && b.status === "cancelled",
+        );
       }
 
       if (!active) {
-        active = data.find(b => {
-          if (b.status !== 'cancelled') return false;
+        active = data.find((b) => {
+          if (b.status !== "cancelled") return false;
           let dl = [];
-          try { dl = JSON.parse(localStorage.getItem('rozsewa_dismissed_bookings') || '[]'); } catch (e) {}
+          try {
+            dl = JSON.parse(
+              localStorage.getItem("rozsewa_dismissed_bookings") || "[]",
+            );
+          } catch (e) {}
           if (dl.includes(b._id)) return false;
           const timeToCheck = b.updatedAt || b.createdAt;
           if (timeToCheck) {
-            const diffMinutes = Math.abs(new Date() - new Date(timeToCheck)) / (1000 * 60);
+            const diffMinutes =
+              Math.abs(new Date() - new Date(timeToCheck)) / (1000 * 60);
             if (diffMinutes > 15) return false;
           }
           return true;
@@ -167,21 +227,24 @@ const LiveTracking = () => {
         const current = active.status;
         updateBookingDetails(active);
 
-        if (active.proposedSchedule && active.proposedSchedule.status === 'pending') {
+        if (
+          active.proposedSchedule &&
+          active.proposedSchedule.status === "pending"
+        ) {
           setProposedSchedule(active.proposedSchedule);
         } else {
           setProposedSchedule(null);
         }
 
         // Map status to currentStep
-        if (current === 'pending') setCurrentStep(0);
-        else if (active.status === 'confirmed') setCurrentStep(1);
-        else if (active.status === 'on_the_way') setCurrentStep(2);
-        else if (active.status === 'started') setCurrentStep(3);
-        else if (active.status === 'cancelled') setCurrentStep(-1);
-        else if (active.status === 'completed') {
+        if (current === "pending") setCurrentStep(0);
+        else if (active.status === "confirmed") setCurrentStep(1);
+        else if (active.status === "on_the_way") setCurrentStep(2);
+        else if (active.status === "started") setCurrentStep(3);
+        else if (active.status === "cancelled") setCurrentStep(-1);
+        else if (active.status === "completed") {
           setCurrentStep(4);
-          navigate('/post-service');
+          navigate("/post-service");
         }
 
         // Calculate cancel timer (5 mins from creation)
@@ -196,15 +259,20 @@ const LiveTracking = () => {
         }
 
         // Calculate counter-offer timer
-        if (active.offerStatus === 'countered' && active.counterOfferExpiresAt) {
+        if (
+          active.offerStatus === "countered" &&
+          active.counterOfferExpiresAt
+        ) {
           const expiryTime = new Date(active.counterOfferExpiresAt).getTime();
           const nowTime = new Date().getTime();
-          const remaining = Math.max(0, Math.floor((expiryTime - nowTime) / 1000));
+          const remaining = Math.max(
+            0,
+            Math.floor((expiryTime - nowTime) / 1000),
+          );
           setCounterTimer(remaining);
         } else {
           setCounterTimer(0);
         }
-
       } else {
         updateBookingDetails(null);
       }
@@ -217,12 +285,17 @@ const LiveTracking = () => {
 
   const handleCancelBooking = async () => {
     if (!bookingDetails) return;
-    const confirmCancel = window.confirm("Are you sure you want to cancel this booking?");
+    const confirmCancel = window.confirm(
+      "Are you sure you want to cancel this booking?",
+    );
     if (!confirmCancel) return;
 
     try {
-      await API.put(`/bookings/${bookingDetails._id}`, { status: 'cancelled' });
-      toast({ title: "Booking Cancelled", description: "Your booking has been cancelled successfully." });
+      await API.put(`/bookings/${bookingDetails._id}`, { status: "cancelled" });
+      toast({
+        title: "Booking Cancelled",
+        description: "Your booking has been cancelled successfully.",
+      });
       navigate("/my-bookings");
     } catch (err) {
       toast({ title: "Failed to cancel booking", variant: "destructive" });
@@ -233,15 +306,16 @@ const LiveTracking = () => {
     name: "Loading...",
     rating: 4.8,
     jobs: 120,
-    mobile: ""
+    mobile: "",
   });
 
   useEffect(() => {
     if (bookingDetails?.providerId) {
       const p = bookingDetails.providerId;
       let tags = [];
-      if (p.planType === 'premium' || p.planType === 'pro') tags.push("Expert Professional");
-      if (p.status === 'verified') tags.push("Verified Partner");
+      if (p.planType === "premium" || p.planType === "pro")
+        tags.push("Expert Professional");
+      if (p.status === "verified") tags.push("Verified Partner");
       if (tags.length === 0) tags.push("Service Provider");
 
       setProviderInfo({
@@ -252,7 +326,7 @@ const LiveTracking = () => {
         profileImage: p.profileImage,
         address: p.address,
         city: p.city,
-        tags: tags.join(" • ")
+        tags: tags.join(" • "),
       });
     }
   }, [bookingDetails]);
@@ -266,7 +340,7 @@ const LiveTracking = () => {
   useEffect(() => {
     if (cancelTimer <= 0) return;
     const timer = setInterval(() => {
-      setCancelTimer(prev => (prev > 0 ? prev - 1 : 0));
+      setCancelTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
   }, [cancelTimer]);
@@ -274,7 +348,7 @@ const LiveTracking = () => {
   useEffect(() => {
     if (counterTimer <= 0) return;
     const timer = setInterval(() => {
-      setCounterTimer(prev => (prev > 0 ? prev - 1 : 0));
+      setCounterTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
   }, [counterTimer]);
@@ -282,11 +356,19 @@ const LiveTracking = () => {
   const handleCounterDecision = async (decision) => {
     if (!bookingDetails) return;
     try {
-      await API.put(`/bookings/${bookingDetails._id}`, { counterDecision: decision });
+      await API.put(`/bookings/${bookingDetails._id}`, {
+        counterDecision: decision,
+      });
       toast({
-        title: decision === 'accept' ? "Counter-Offer Accepted!" : "Counter-Offer Rejected",
-        description: decision === 'accept' ? "Your booking is now confirmed." : "Your booking has been cancelled.",
-        variant: "default"
+        title:
+          decision === "accept"
+            ? "Counter-Offer Accepted!"
+            : "Counter-Offer Rejected",
+        description:
+          decision === "accept"
+            ? "Your booking is now confirmed."
+            : "Your booking has been cancelled.",
+        variant: "default",
       });
       fetchBookingStatus();
     } catch (err) {
@@ -294,13 +376,13 @@ const LiveTracking = () => {
         toast({
           title: "Offer Expired",
           description: "This counter-offer has expired.",
-          variant: "destructive"
+          variant: "destructive",
         });
       } else {
         toast({
           title: "Error",
           description: err.response?.data?.message || err.message,
-          variant: "destructive"
+          variant: "destructive",
         });
       }
       fetchBookingStatus();
@@ -311,11 +393,14 @@ const LiveTracking = () => {
     const handleRejected = (e) => {
       const data = e.detail || {};
       toast({
-        title: data.cancelledBy === 'provider' ? "Booking Cancelled" : "Request Rejected",
+        title:
+          data.cancelledBy === "provider"
+            ? "Booking Cancelled"
+            : "Request Rejected",
         description: data.cancellationReason
           ? `Reason: "${data.cancellationReason}"`
           : "The provider has rejected your request.",
-        variant: "destructive"
+        variant: "destructive",
       });
       fetchBookingStatus();
     };
@@ -342,48 +427,82 @@ const LiveTracking = () => {
       }
     };
 
-    window.addEventListener('BOOKING_REJECTED', handleRejected);
-    window.addEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
-    window.addEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
-    window.addEventListener('EXTRA_CHARGES_PENDING', handleExtraChargesPending);
-    
+    window.addEventListener("BOOKING_REJECTED", handleRejected);
+    window.addEventListener("SCHEDULE_PROPOSED", handleScheduleProposed);
+    window.addEventListener(
+      "COUNTER_OFFER_RECEIVED",
+      handleCounterOfferReceived,
+    );
+    window.addEventListener("EXTRA_CHARGES_PENDING", handleExtraChargesPending);
+
     return () => {
-      window.removeEventListener('BOOKING_REJECTED', handleRejected);
-      window.removeEventListener('SCHEDULE_PROPOSED', handleScheduleProposed);
-      window.removeEventListener('COUNTER_OFFER_RECEIVED', handleCounterOfferReceived);
-      window.removeEventListener('EXTRA_CHARGES_PENDING', handleExtraChargesPending);
+      window.removeEventListener("BOOKING_REJECTED", handleRejected);
+      window.removeEventListener("SCHEDULE_PROPOSED", handleScheduleProposed);
+      window.removeEventListener(
+        "COUNTER_OFFER_RECEIVED",
+        handleCounterOfferReceived,
+      );
+      window.removeEventListener(
+        "EXTRA_CHARGES_PENDING",
+        handleExtraChargesPending,
+      );
     };
   }, [bookingDetails]);
 
   const handleAcceptSchedule = async () => {
     try {
       await API.patch(`/bookings/${bookingDetails._id}/accept-schedule`);
-      toast({ title: "Schedule Accepted", description: "Your booking is now confirmed." });
+      toast({
+        title: "Schedule Accepted",
+        description: "Your booking is now confirmed.",
+      });
       setProposedSchedule(null);
       fetchBookingStatus();
     } catch (err) {
-      toast({ title: "Error", description: "Failed to accept schedule", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to accept schedule",
+        variant: "destructive",
+      });
     }
   };
 
   const handleRejectSchedule = async () => {
     try {
       await API.patch(`/bookings/${bookingDetails._id}/reject-schedule`);
-      toast({ title: "Schedule Rejected", description: "Provider has been notified.", variant: "default" });
+      toast({
+        title: "Schedule Rejected",
+        description: "Provider has been notified.",
+        variant: "default",
+      });
       setProposedSchedule(null);
       fetchBookingStatus();
     } catch (err) {
-      toast({ title: "Error", description: "Failed to reject schedule", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to reject schedule",
+        variant: "destructive",
+      });
     }
   };
 
   const handleExtraAction = async (status) => {
     try {
-      await API.patch(`/bookings/${bookingDetails._id}/status`, { extraStatus: status });
-      toast({ title: status === 'approved' ? 'Extra Charges Approved' : 'Extra Charges Declined' });
+      await API.patch(`/bookings/${bookingDetails._id}/status`, {
+        extraStatus: status,
+      });
+      toast({
+        title:
+          status === "approved"
+            ? "Extra Charges Approved"
+            : "Extra Charges Declined",
+      });
       fetchBookingStatus();
     } catch {
-      toast({ title: "Failed to update extra charges", variant: "destructive" });
+      toast({
+        title: "Failed to update extra charges",
+        variant: "destructive",
+      });
     }
   };
 
@@ -401,7 +520,10 @@ const LiveTracking = () => {
       setIsVerifying(true);
       try {
         // Use different endpoints for Start vs Completion
-        const endpoint = currentStep === 2 ? `/bookings/${bookingDetails._id}/start` : `/bookings/${bookingDetails._id}/complete`;
+        const endpoint =
+          currentStep === 2
+            ? `/bookings/${bookingDetails._id}/start`
+            : `/bookings/${bookingDetails._id}/complete`;
         await API.post(endpoint, { otp: fullOtp });
 
         if (currentStep === 2) {
@@ -409,13 +531,20 @@ const LiveTracking = () => {
           toast({ title: "OTP Verified", description: "Service has started!" });
         } else {
           setCurrentStep(4);
-          toast({ title: "Work Completed", description: "Technician has confirmed the work!" });
+          toast({
+            title: "Work Completed",
+            description: "Technician has confirmed the work!",
+          });
         }
 
         setShowOTP(false);
         setOtp(["", "", "", ""]);
       } catch (err) {
-        toast({ title: "Verification Failed", description: "Invalid OTP. Please check with technician.", variant: "destructive" });
+        toast({
+          title: "Verification Failed",
+          description: "Invalid OTP. Please check with technician.",
+          variant: "destructive",
+        });
         setOtp(["", "", "", ""]);
       } finally {
         setIsVerifying(false);
@@ -430,12 +559,23 @@ const LiveTracking = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/my-bookings')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate("/my-bookings")}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+            >
               <ArrowLeft className="h-5 w-5" />
             </motion.button>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Live Tracking</h1>
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Booking #{bookingDetails?._id ? bookingDetails._id.slice(-6).toUpperCase() : "..."}</p>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                Live Tracking
+              </h1>
+              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                Booking #
+                {bookingDetails?._id
+                  ? bookingDetails._id.slice(-6).toUpperCase()
+                  : "..."}
+              </p>
             </div>
           </div>
           {cancelTimer > 0 && currentStep === 0 && (
@@ -446,7 +586,7 @@ const LiveTracking = () => {
         </div>
 
         {/* Cancelled Warning UI */}
-        {bookingDetails?.status === 'cancelled' && (
+        {bookingDetails?.status === "cancelled" && (
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -457,11 +597,13 @@ const LiveTracking = () => {
             </div>
             <div>
               <h3 className="text-xl font-black text-rose-700 dark:text-rose-500">
-                {bookingDetails.cancelledBy === 'provider' ? 'Cancelled by Provider' : 'Request Not Accepted'}
+                {bookingDetails.cancelledBy === "provider"
+                  ? "Cancelled by Provider"
+                  : "Request Not Accepted"}
               </h3>
               <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-2">
-                {bookingDetails.cancellationReason 
-                  ? `Reason: "${bookingDetails.cancellationReason}"` 
+                {bookingDetails.cancellationReason
+                  ? `Reason: "${bookingDetails.cancellationReason}"`
                   : "Unfortunately, no providers accepted your request. Please try booking again."}
               </p>
             </div>
@@ -486,26 +628,42 @@ const LiveTracking = () => {
                 <Clock className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-amber-700 dark:text-amber-500">New Time Proposed</h3>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">Provider requested a change</p>
+                <h3 className="text-lg font-black text-amber-700 dark:text-amber-500">
+                  New Time Proposed
+                </h3>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                  Provider requested a change
+                </p>
               </div>
             </div>
 
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-4">
               <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Date</p>
-                  <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.date}</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                    Date
+                  </p>
+                  <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">
+                    {proposedSchedule.date}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Time</p>
-                  <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">{proposedSchedule.time}</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                    Time
+                  </p>
+                  <p className="font-bold text-[13px] text-slate-900 dark:text-white mt-0.5">
+                    {proposedSchedule.time}
+                  </p>
                 </div>
               </div>
               {proposedSchedule.message && (
                 <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Message</p>
-                  <p className="text-[13px] font-medium italic text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl mt-1.5 border border-slate-100 dark:border-slate-700">"{proposedSchedule.message}"</p>
+                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                    Message
+                  </p>
+                  <p className="text-[13px] font-medium italic text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl mt-1.5 border border-slate-100 dark:border-slate-700">
+                    "{proposedSchedule.message}"
+                  </p>
                 </div>
               )}
             </div>
@@ -528,156 +686,197 @@ const LiveTracking = () => {
         )}
 
         {/* Counter-Offer Proposal UI */}
-        {bookingDetails?.status === 'pending' && bookingDetails?.offerStatus === 'countered' && (
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="rounded-[24px] border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 shadow-inner">
-                <CreditCard className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-black text-purple-700 dark:text-purple-500">Counter-Offer Received</h3>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
-                  Partner proposed a new price
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Original Price</p>
-                  <p className="font-bold text-[13px] text-slate-500 line-through mt-0.5">₹{bookingDetails.originalFixedPrice}</p>
+        {bookingDetails?.status === "pending" &&
+          bookingDetails?.offerStatus === "countered" && (
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="rounded-[24px] border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
+            >
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 shadow-inner">
+                  <CreditCard className="h-6 w-6" />
                 </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">Your Offer</p>
-                  <p className="font-bold text-[13px] text-slate-500 mt-0.5">₹{bookingDetails.customerOffer}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-purple-600 uppercase font-black tracking-wider">Partner Counter</p>
-                  <p className="font-black text-lg text-purple-700 dark:text-purple-400 mt-0.5">₹{bookingDetails.partnerCounterOffer}</p>
+                <div className="flex-1">
+                  <h3 className="text-lg font-black text-purple-700 dark:text-purple-500">
+                    Counter-Offer Received
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                    Partner proposed a new price
+                  </p>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
-                <span className="font-bold text-slate-500">Expires in:</span>
-                <span className="font-black text-purple-600 animate-pulse">
-                  {formatTime(counterTimer)}
-                </span>
-              </div>
-            </div>
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                      Original Price
+                    </p>
+                    <p className="font-bold text-[13px] text-slate-500 line-through mt-0.5">
+                      ₹{bookingDetails.originalFixedPrice}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                      Your Offer
+                    </p>
+                    <p className="font-bold text-[13px] text-slate-500 mt-0.5">
+                      ₹{bookingDetails.customerOffer}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-purple-600 uppercase font-black tracking-wider">
+                      Partner Counter
+                    </p>
+                    <p className="font-black text-lg text-purple-700 dark:text-purple-400 mt-0.5">
+                      ₹{bookingDetails.partnerCounterOffer}
+                    </p>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <button
-                onClick={() => handleCounterDecision('reject')}
-                className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
-              >
-                <X className="h-4 w-4" /> Reject & Cancel
-              </button>
-              <button
-                onClick={() => handleCounterDecision('accept')}
-                disabled={counterTimer <= 0}
-                className="h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px] disabled:opacity-50"
-              >
-                <Check className="h-4 w-4" /> Accept Counter
-              </button>
-            </div>
-          </motion.div>
-        )}
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
+                  <span className="font-bold text-slate-500">Expires in:</span>
+                  <span className="font-black text-purple-600 animate-pulse">
+                    {formatTime(counterTimer)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <button
+                  onClick={() => handleCounterDecision("reject")}
+                  className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
+                >
+                  <X className="h-4 w-4" /> Reject & Cancel
+                </button>
+                <button
+                  onClick={() => handleCounterDecision("accept")}
+                  disabled={counterTimer <= 0}
+                  className="h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px] disabled:opacity-50"
+                >
+                  <Check className="h-4 w-4" /> Accept Counter
+                </button>
+              </div>
+            </motion.div>
+          )}
 
         {/* Extra Charges Proposal UI */}
-        {bookingDetails?.status === 'started' && bookingDetails?.extraStatus === 'pending' && (
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="rounded-[24px] border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
-          >
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 shadow-inner">
-                <AlertOctagon className="h-6 w-6" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-black text-amber-700 dark:text-amber-500">Extra Charges Added</h3>
-                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
-                  Technician added extra items
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-3">
-              {bookingDetails?.extraCharges?.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-[13px]">
-                  <span className="text-slate-500 dark:text-slate-400">{item.item}</span>
-                  <span className="font-bold text-slate-900 dark:text-white">₹{item.amount}</span>
+        {bookingDetails?.status === "started" &&
+          bookingDetails?.extraStatus === "pending" && (
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="rounded-[24px] border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
+            >
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 shadow-inner">
+                  <AlertOctagon className="h-6 w-6" />
                 </div>
-              ))}
-              <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between">
-                <span className="text-[13px] font-black text-slate-900 dark:text-white">Extra Total</span>
-                <span className="text-[14px] font-black text-amber-600 dark:text-amber-500">
-                  ₹{bookingDetails?.extraCharges?.reduce((sum, item) => sum + (item.amount || 0), 0)}
-                </span>
+                <div className="flex-1">
+                  <h3 className="text-lg font-black text-amber-700 dark:text-amber-500">
+                    Extra Charges Added
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                    Technician added extra items
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              <button
-                onClick={() => handleExtraAction('declined')}
-                className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
-              >
-                <X className="h-4 w-4" /> Decline
-              </button>
-              <button
-                onClick={() => handleExtraAction('approved')}
-                className="h-12 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px]"
-              >
-                <Check className="h-4 w-4" /> Approve
-              </button>
-            </div>
-          </motion.div>
-        )}
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-3">
+                {bookingDetails?.extraCharges?.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-[13px]">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {item.item}
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      ₹{item.amount}
+                    </span>
+                  </div>
+                ))}
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between">
+                  <span className="text-[13px] font-black text-slate-900 dark:text-white">
+                    Extra Total
+                  </span>
+                  <span className="text-[14px] font-black text-amber-600 dark:text-amber-500">
+                    ₹
+                    {bookingDetails?.extraCharges?.reduce(
+                      (sum, item) => sum + (item.amount || 0),
+                      0,
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <button
+                  onClick={() => handleExtraAction("declined")}
+                  className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
+                >
+                  <X className="h-4 w-4" /> Decline
+                </button>
+                <button
+                  onClick={() => handleExtraAction("approved")}
+                  className="h-12 rounded-full bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px]"
+                >
+                  <Check className="h-4 w-4" /> Approve
+                </button>
+              </div>
+            </motion.div>
+          )}
 
         {/* Accepted Extra Charges UI */}
-        {bookingDetails?.extraCharges?.length > 0 && bookingDetails?.extraStatus !== 'pending' && (
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="rounded-[24px] border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
-          >
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600">
-                <Check className="h-5 w-5" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-base font-black text-emerald-700 dark:text-emerald-500">Additional Charges</h3>
-                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
-                  Included in your final bill
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-1 space-y-3">
-              {bookingDetails?.extraCharges?.map((item, idx) => (
-                <div key={idx} className="flex justify-between text-[13px]">
-                  <span className="text-slate-500 dark:text-slate-400">{item.item}</span>
-                  <span className="font-bold text-slate-900 dark:text-white">₹{item.amount}</span>
+        {bookingDetails?.extraCharges?.length > 0 &&
+          bookingDetails?.extraStatus !== "pending" && (
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="rounded-[24px] border border-emerald-200 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 p-6 flex flex-col gap-4 shadow-sm mb-6"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600">
+                  <Check className="h-5 w-5" />
                 </div>
-              ))}
-              <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between">
-                <span className="text-[13px] font-black text-slate-900 dark:text-white">Extra Total</span>
-                <span className="text-[14px] font-black text-emerald-600 dark:text-emerald-500">
-                  ₹{bookingDetails?.extraCharges?.reduce((sum, item) => sum + (item.amount || 0), 0)}
-                </span>
+                <div className="flex-1">
+                  <h3 className="text-base font-black text-emerald-700 dark:text-emerald-500">
+                    Additional Charges
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
+                    Included in your final bill
+                  </p>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
+
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-1 space-y-3">
+                {bookingDetails?.extraCharges?.map((item, idx) => (
+                  <div key={idx} className="flex justify-between text-[13px]">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {item.item}
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      ₹{item.amount}
+                    </span>
+                  </div>
+                ))}
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between">
+                  <span className="text-[13px] font-black text-slate-900 dark:text-white">
+                    Extra Total
+                  </span>
+                  <span className="text-[14px] font-black text-emerald-600 dark:text-emerald-500">
+                    ₹
+                    {bookingDetails?.extraCharges?.reduce(
+                      (sum, item) => sum + (item.amount || 0),
+                      0,
+                    )}
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
         {/* Payment section removed as per requirement: provider will collect payment */}
 
-        {bookingDetails?.status !== 'cancelled' && (
+        {bookingDetails?.status !== "cancelled" && (
           <>
             {/* Technician Card */}
             <motion.div
@@ -691,11 +890,19 @@ const LiveTracking = () => {
                     <motion.div
                       className="absolute inset-0 rounded-[20px] border-[3px] border-blue-500"
                       animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
-                      transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                      transition={{
+                        repeat: Infinity,
+                        duration: 2,
+                        ease: "easeInOut",
+                      }}
                     />
                     <div className="h-full w-full overflow-hidden rounded-[20px] bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/50 relative z-10">
                       {providerInfo.profileImage ? (
-                        <img src={providerInfo.profileImage} alt={providerInfo.name} className="h-full w-full object-cover" />
+                        <img
+                          src={providerInfo.profileImage}
+                          alt={providerInfo.name}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-xl font-black text-blue-600 dark:text-blue-500 bg-blue-50/50">
                           {providerInfo.name.substring(0, 2).toUpperCase()}
@@ -705,31 +912,58 @@ const LiveTracking = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{providerInfo.name}</h3>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                        {providerInfo.name}
+                      </h3>
                       <Shield className="h-4 w-4 text-emerald-500 shrink-0" />
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                      <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">{providerInfo.rating}</span>
-                      <span className="text-[11px] font-bold text-slate-400">({providerInfo.jobs} jobs)</span>
+                      <span className="text-[13px] font-bold text-slate-700 dark:text-slate-300">
+                        {providerInfo.rating}
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-400">
+                        ({providerInfo.jobs} jobs)
+                      </span>
                     </div>
-                    <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">{providerInfo.tags || "Expert Professional"}</p>
-                    
-                    {bookingDetails?.serviceLocation === 'shop' && providerInfo.address && (
-                      <a 
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(providerInfo.address + (providerInfo.city ? `, ${providerInfo.city}` : ''))}`}
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="mt-2 block bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-blue-700 dark:text-blue-300 p-2 rounded-lg border border-blue-100 dark:border-blue-800"
-                      >
-                        <span className="text-[11px] font-bold flex items-center gap-1"><MapPin className="h-3 w-3" /> Shop Address:</span>
-                        <span className="text-[11px] mt-0.5 block">{providerInfo.address} {providerInfo.city ? `, ${providerInfo.city}` : ''}</span>
-                      </a>
-                    )}
+                    <p className="mt-1 text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                      {providerInfo.tags || "Expert Professional"}
+                    </p>
+
+                    {bookingDetails?.serviceLocation === "shop" &&
+                      providerInfo.address && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(providerInfo.address + (providerInfo.city ? `, ${providerInfo.city}` : ""))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 block bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors text-blue-700 dark:text-blue-300 p-2 rounded-lg border border-blue-100 dark:border-blue-800"
+                        >
+                          <span className="text-[11px] font-bold flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> Shop Address:
+                          </span>
+                          <span className="text-[11px] mt-0.5 block">
+                            {providerInfo.address}{" "}
+                            {providerInfo.city ? `, ${providerInfo.city}` : ""}
+                          </span>
+                        </a>
+                      )}
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
-                    <button onClick={() => { if (providerInfo.mobile) window.location.href = `tel:${providerInfo.mobile}` }} className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"><Phone className="h-4 w-4" /></button>
-                    <button onClick={() => setIsChatOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"><MessageCircle className="h-4 w-4" /></button>
+                    <button
+                      onClick={() => {
+                        if (providerInfo.mobile)
+                          window.location.href = `tel:${providerInfo.mobile}`;
+                      }}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                    >
+                      <Phone className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => setIsChatOpen(true)}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -738,18 +972,27 @@ const LiveTracking = () => {
                     <motion.div
                       className="absolute inset-0 border-[3px] border-transparent rounded-[20px] border-t-emerald-500 border-l-emerald-500 opacity-70"
                       animate={{ rotate: 360 }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
                     />
                     <User className="h-6 w-6 text-slate-300 dark:text-slate-600" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">Finding a Sewak...</h3>
-                    <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">Please wait while we assign the best professional near you.</p>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Finding a Sewak...
+                    </h3>
+                    <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                      Please wait while we assign the best professional near
+                      you.
+                    </p>
                   </div>
                 </div>
               )}
               {/* Cancel Button */}
-              {bookingDetails?.status === 'pending' && (
+              {bookingDetails?.status === "pending" && (
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   onClick={handleCancelBooking}
@@ -763,7 +1006,9 @@ const LiveTracking = () => {
 
             {/* Timeline */}
             <section className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-              <h3 className="mb-5 text-sm font-bold text-card-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Order Status</h3>
+              <h3 className="mb-5 text-sm font-bold text-card-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-primary" /> Order Status
+              </h3>
               <div className="space-y-0">
                 {dynamicSteps.map((step, i) => (
                   <div key={step.label} className="flex gap-4">
@@ -772,26 +1017,42 @@ const LiveTracking = () => {
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        transition={{ delay: i * 0.15, type: "spring", stiffness: 300 }}
-                        className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${i < currentStep
-                          ? "bg-primary text-primary-foreground"
-                          : i === currentStep
-                            ? "bg-primary text-primary-foreground ring-4 ring-primary/30"
-                            : "border-2 border-border bg-background text-muted-foreground"
-                          }`}
+                        transition={{
+                          delay: i * 0.15,
+                          type: "spring",
+                          stiffness: 300,
+                        }}
+                        className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          i < currentStep
+                            ? "bg-primary text-primary-foreground"
+                            : i === currentStep
+                              ? "bg-primary text-primary-foreground ring-4 ring-primary/30"
+                              : "border-2 border-border bg-background text-muted-foreground"
+                        }`}
                       >
                         {i === currentStep && (
                           <motion.div
                             className="absolute inset-0 rounded-full border-[3px] border-primary"
-                            animate={{ scale: [1, 1.6, 1], opacity: [0.8, 0, 0.8] }}
-                            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                            animate={{
+                              scale: [1, 1.6, 1],
+                              opacity: [0.8, 0, 0.8],
+                            }}
+                            transition={{
+                              repeat: Infinity,
+                              duration: 2,
+                              ease: "easeInOut",
+                            }}
                           />
                         )}
                         {i <= currentStep ? (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            transition={{ delay: i * 0.15 + 0.1, type: "spring", stiffness: 500 }}
+                            transition={{
+                              delay: i * 0.15 + 0.1,
+                              type: "spring",
+                              stiffness: 500,
+                            }}
                           >
                             <Check className="h-4 w-4" />
                           </motion.div>
@@ -803,7 +1064,9 @@ const LiveTracking = () => {
                         <div className="relative h-10 w-0.5 bg-border">
                           <motion.div
                             initial={{ height: 0 }}
-                            animate={{ height: i < currentStep ? "100%" : "0%" }}
+                            animate={{
+                              height: i < currentStep ? "100%" : "0%",
+                            }}
                             transition={{ delay: i * 0.2, duration: 0.5 }}
                             className="absolute left-0 top-0 w-full bg-primary"
                           />
@@ -812,23 +1075,41 @@ const LiveTracking = () => {
                     </div>
                     {/* Label */}
                     <div className="pb-8">
-                      <p className={`text-sm font-semibold ${i <= currentStep ? "text-foreground" : "text-muted-foreground"}`}>{step.label}</p>
-                      {step.time && <p className="text-xs text-muted-foreground">{step.time}</p>}
+                      <p
+                        className={`text-sm font-semibold ${i <= currentStep ? "text-foreground" : "text-muted-foreground"}`}
+                      >
+                        {step.label}
+                      </p>
+                      {step.time && (
+                        <p className="text-xs text-muted-foreground">
+                          {step.time}
+                        </p>
+                      )}
                       {/* Start OTP Display */}
                       {i === currentStep && i === 2 && (
                         <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-100 w-fit">
-                          <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Share this OTP to Start Service</p>
-                          <p className="text-2xl font-black tracking-[0.5em] text-blue-700">{bookingDetails?.startOTP || "----"}</p>
+                          <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">
+                            Share this OTP to Start Service
+                          </p>
+                          <p className="text-2xl font-black tracking-[0.5em] text-blue-700">
+                            {bookingDetails?.startOTP || "----"}
+                          </p>
                         </div>
                       )}
 
                       {/* Completion OTP Display */}
-                      {i === currentStep && i === 3 && bookingDetails?.endOTP && (
-                        <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 w-fit">
-                          <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Share this OTP to Complete Service</p>
-                          <p className="text-2xl font-black tracking-[0.5em] text-emerald-700">{bookingDetails?.endOTP || "----"}</p>
-                        </div>
-                      )}
+                      {i === currentStep &&
+                        i === 3 &&
+                        bookingDetails?.endOTP && (
+                          <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 w-fit">
+                            <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">
+                              Share this OTP to Complete Service
+                            </p>
+                            <p className="text-2xl font-black tracking-[0.5em] text-emerald-700">
+                              {bookingDetails?.endOTP || "----"}
+                            </p>
+                          </div>
+                        )}
                       {i === currentStep && i === 4 && (
                         <motion.button
                           whileTap={{ scale: 0.95 }}
@@ -845,7 +1126,6 @@ const LiveTracking = () => {
             </section>
           </>
         )}
-
       </main>
       <BottomNav />
 
@@ -854,7 +1134,11 @@ const LiveTracking = () => {
         onClose={() => setIsChatOpen(false)}
         bookingId={bookingDetails?._id || bookingDetails?.id}
         userType="User"
-        recipientName={bookingDetails?.providerId?.shopName || bookingDetails?.providerId?.ownerName || bookingDetails?.providerId?.name}
+        recipientName={
+          bookingDetails?.providerId?.shopName ||
+          bookingDetails?.providerId?.ownerName ||
+          bookingDetails?.providerId?.name
+        }
       />
     </div>
   );
