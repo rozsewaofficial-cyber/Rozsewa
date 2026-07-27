@@ -57,6 +57,13 @@ const getMyServices = async (req, res) => {
 const createService = async (req, res) => {
     const { name, description, price, duration, category, visible, image, amenities, serviceDetails } = req.body;
 
+    if (!name) {
+        return res.status(400).json({ message: 'Service name is required' });
+    }
+    if (price === undefined || price === null || price === "" || Number(price) <= 0) {
+        return res.status(400).json({ message: 'Service price is required and must be greater than 0' });
+    }
+
     try {
         const service = await Service.create({
             providerId: req.user._id,
