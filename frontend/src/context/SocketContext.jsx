@@ -40,6 +40,7 @@ export const SocketProvider = ({ children }) => {
 
     const playAlarmSound = () => {
         if (alarmAudioRef.current) {
+            alarmAudioRef.current.muted = false;
             alarmAudioRef.current.currentTime = 0;
             alarmAudioRef.current.play()
                 .then(() => {
@@ -69,6 +70,7 @@ export const SocketProvider = ({ children }) => {
 
         const unlockAudio = () => {
             if (alarmAudioRef.current) {
+                alarmAudioRef.current.muted = true;
                 alarmAudioRef.current.play()
                     .then(() => {
                         alarmAudioRef.current.pause();
