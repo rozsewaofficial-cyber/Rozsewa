@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ArrowLeft, Search, Sparkles, Loader2, Layers, X, Grid, SlidersHorizontal, 
-  ChevronRight
+  ChevronRight, Check
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
@@ -20,7 +20,7 @@ const SubcategoryPage = () => {
   const [search, setSearch] = useState("");
   const [subFilterSearch, setSubFilterSearch] = useState("");
   const [subcategories, setSubcategories] = useState([]);
-  const [selectedSubcategory, setSelectedSubcategory] = useState("all");
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
   const [services, setServices] = useState([]);
   const [loadingSubcategories, setLoadingSubcategories] = useState(true);
   const [loadingServices, setLoadingServices] = useState(false);
@@ -66,7 +66,7 @@ const SubcategoryPage = () => {
   const fetchServices = async () => {
     setLoadingServices(true);
     try {
-      const url = `/public/subcategories/all/services?categoryId=${categoryId}&category=${encodeURIComponent(categoryName)}`;
+      const url = `/public/subcategories/all/services?categoryId=${categoryId}&category=${encodeURIComponent(categoryName)}&includeZeroPrice=true`;
       const { data } = await API.get(url);
       setServices(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -78,7 +78,7 @@ const SubcategoryPage = () => {
   };
 
   const handleBookNow = (service) => {
-    navigate(`/shops?category=${encodeURIComponent(categoryName)}&search=${encodeURIComponent(service.name)}&mode=${mode}`);
+    navigate(`/shops?category=${encodeURIComponent(categoryName)}&serviceName=${encodeURIComponent(service.name)}&serviceId=${service._id || service.id}&mode=${mode}`);
   };
 
   // Smart subcategory matcher to handle acronyms (AC, RO, TV), brand variations, and descriptions
@@ -225,7 +225,7 @@ const SubcategoryPage = () => {
       <TopNav />
 
       {/* Header Banner */}
-      <div className="relative pt-6 pb-8 px-4 sm:px-8 bg-gradient-to-b from-emerald-950/10 via-emerald-500/5 to-transparent dark:from-emerald-950/50 dark:via-slate-900/60 dark:to-slate-950 border-b border-slate-200/60 dark:border-slate-800/80 mb-6">
+      <div className="relative pt-6 px-4 sm:px-8 bg-gradient-to-b from-emerald-950/10 via-emerald-500/5 to-transparent dark:from-emerald-950/50 dark:via-slate-900/60 dark:to-slate-950 border-b border-slate-200/60 dark:border-slate-800/80 pb-4 mb-3">
         <div className="max-w-7xl mx-auto flex flex-col gap-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
@@ -249,36 +249,19 @@ const SubcategoryPage = () => {
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-1">
                   {categoryName}
                 </h1>
+                {selectedSubcategory === null && (
+                  <div className="flex items-center gap-2 mt-3">
+                    <div className="h-7 w-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                      <Layers className="h-3.5 w-3.5" />
+                    </div>
+                    <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                      Choose a Subcategory
+                    </h2>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Quick Stats Summary */}
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 shadow-sm">
-                <Grid className="h-3.5 w-3.5 text-emerald-500" />
-                <span>{subcategories.length} Subcategories</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Search bar */}
-          <div className="relative max-w-2xl">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder={`Search services in ${categoryName}...`}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 py-3.5 pl-11 pr-10 text-xs font-bold text-slate-900 dark:text-white shadow-lg shadow-slate-900/5 backdrop-blur-md transition-all focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10 placeholder:text-slate-400"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -315,6 +298,24 @@ const SubcategoryPage = () => {
 
               {/* Subcategory List Buttons */}
               <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 custom-scrollbar">
+                {/* Subcategories Overview option */}
+                <button
+                  onClick={() => setSelectedSubcategory(null)}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-black transition-all ${
+                    selectedSubcategory === null
+                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
+                      : "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Layers className={`h-4 w-4 ${selectedSubcategory === null ? "text-white" : "text-emerald-500"}`} />
+                    <span>View Subcategories</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${selectedSubcategory === null ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400"}`}>
+                    {subcategories.length}
+                  </span>
+                </button>
+
                 {/* All Services option */}
                 <button
                   onClick={() => setSelectedSubcategory("all")}
@@ -362,62 +363,56 @@ const SubcategoryPage = () => {
             </div>
           </aside>
 
-          {/* MOBILE FILTER HEADER: Horizontal Scroll + Grid Sheet Toggle */}
-          <div className="lg:hidden col-span-1 space-y-3 mb-6">
-            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-3xl p-3.5 border border-slate-200/80 dark:border-slate-800 shadow-lg shadow-slate-900/5">
-              <div className="flex items-center justify-between mb-2.5 px-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Select Subcategory</span>
-                <button
-                  onClick={() => setShowSubModal(true)}
-                  className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full hover:bg-emerald-500/20 transition-colors"
-                >
-                  <Grid className="h-3.5 w-3.5" />
-                  <span>All ({subcategories.length}) ▾</span>
-                </button>
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                <button
-                  onClick={() => setSelectedSubcategory("all")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs font-black shrink-0 border transition-all ${
-                    selectedSubcategory === "all"
-                      ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/30"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                  }`}
-                >
-                  <Grid className="h-3.5 w-3.5" />
-                  <span>All ({services.length})</span>
-                </button>
-
-                {subcategories.map(sub => {
-                  const isSelected = selectedSubcategory === sub._id;
-                  const count = subcategoryCounts[sub._id] || 0;
-                  return (
-                    <button
-                      key={sub._id}
-                      onClick={() => setSelectedSubcategory(sub._id)}
-                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold shrink-0 border transition-all ${
-                        isSelected
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/30"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
-                      }`}
-                    >
-                      <Sparkles className={`h-3 w-3 ${isSelected ? "text-white" : "text-emerald-500"}`} />
-                      <span>{sub.name}</span>
-                      {count > 0 && <span className="opacity-70 text-[10px]">({count})</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
 
           {/* RIGHT MAIN CONTENT AREA: Grouped Services or Filtered Subcategory Services */}
-          <div className="lg:col-span-3 space-y-8">
+          <div className="lg:col-span-3 space-y-6">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <input
+                type="text"
+                placeholder={`Search for services in ${categoryName}...`}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all shadow-sm"
+              />
+            </div>
+
             {loadingServices ? (
               <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mb-3" />
                 <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Loading services...</p>
+              </div>
+            ) : selectedSubcategory === null ? (
+              // GRID OF SUBCATEGORIES
+              <div className="space-y-4">
+                <div className="flex flex-col gap-3">
+                  {subcategories.length > 0 ? subcategories.map(sub => (
+                    <button
+                      key={sub._id}
+                      onClick={() => setSelectedSubcategory(sub._id)}
+                      className="flex items-center gap-4 bg-white dark:bg-[#151c2c] rounded-2xl border border-slate-200 dark:border-slate-800/80 p-3 transition-all hover:border-emerald-500/50 active:scale-[0.98] text-left w-full shadow-sm group"
+                    >
+                      <div className="h-12 w-16 bg-slate-50 dark:bg-[#1a2333] rounded-xl flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                        {sub.image ? (
+                            <img src={sub.image} alt={sub.name} className="h-full w-full object-cover" />
+                        ) : (
+                            <Sparkles className="h-5 w-5 text-emerald-500" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                          <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1">{sub.name}</h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{sub.description || `${subcategoryCounts[sub._id] || 0} Services`}</p>
+                      </div>
+                      <div className="w-5 h-5 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center group-hover:border-emerald-500 transition-colors mr-1"></div>
+                    </button>
+                  )) : (
+                    <div className="col-span-full flex flex-col items-center justify-center py-16 text-slate-400">
+                      <Layers className="w-12 h-12 mb-3 opacity-20" />
+                      <p className="font-bold text-sm">No subcategories found.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : selectedSubcategory === "all" ? (
               // ALL SERVICES MODE: Grouped by Subcategory Sections
@@ -554,6 +549,24 @@ const SubcategoryPage = () => {
               <div className="py-4 overflow-y-auto flex-1 grid grid-cols-2 gap-3 custom-scrollbar">
                 <button
                   onClick={() => {
+                    setSelectedSubcategory(null);
+                    setShowSubModal(false);
+                  }}
+                  className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                    selectedSubcategory === null
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
+                      : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                  }`}
+                >
+                  <Layers className="h-5 w-5 mb-2" />
+                  <div>
+                    <p className="text-xs font-black">Subcategories</p>
+                    <p className="text-[10px] opacity-80 mt-0.5">{subcategories.length} Categories</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
                     setSelectedSubcategory("all");
                     setShowSubModal(false);
                   }}
@@ -580,17 +593,30 @@ const SubcategoryPage = () => {
                         setSelectedSubcategory(sub._id);
                         setShowSubModal(false);
                       }}
-                      className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      className={`flex items-center gap-4 p-3 rounded-2xl border text-left transition-all active:scale-[0.98] w-full ${
                         isSelected
-                          ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
-                          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                          ? "bg-emerald-50 dark:bg-[#151c2c] border-emerald-500"
+                          : "bg-white dark:bg-[#151c2c] border-slate-200 dark:border-slate-800/80 hover:border-emerald-500/50"
                       }`}
                     >
-                      <Sparkles className={`h-5 w-5 mb-2 ${isSelected ? "text-white" : "text-emerald-500"}`} />
-                      <div>
-                        <p className="text-xs font-black truncate">{sub.name}</p>
-                        <p className="text-[10px] opacity-80 mt-0.5">{count} Services</p>
+                      <div className="h-12 w-16 bg-slate-50 dark:bg-[#1a2333] rounded-xl flex items-center justify-center overflow-hidden shrink-0">
+                        {sub.image ? (
+                            <img src={sub.image} alt={sub.name} className="h-full w-full object-cover" />
+                        ) : (
+                            <Sparkles className="h-5 w-5 text-emerald-500" />
+                        )}
                       </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{sub.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{sub.description || `${count} Services`}</p>
+                      </div>
+                      {isSelected ? (
+                        <div className="shrink-0 h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center mr-1">
+                            <Check className="h-3.5 w-3.5 text-white" />
+                        </div>
+                      ) : (
+                        <div className="shrink-0 h-5 w-5 rounded-full border border-slate-200 dark:border-slate-700 mr-1"></div>
+                      )}
                     </button>
                   );
                 })}

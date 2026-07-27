@@ -20,7 +20,7 @@ const LocationGate = () => {
   // Set BYPASS_LOCATION_GATE = true to skip location prompt and go directly to Home.
   // Set BYPASS_LOCATION_GATE = false to revert back to original location gate flow.
   // ============================================================================
-  const BYPASS_LOCATION_GATE = true;
+  const BYPASS_LOCATION_GATE = false;
 
   const { userLocation, detectLocation } = useAuth();
   const [status, setStatus] = useState("prompt"); // 'prompt' | 'checking' | 'success' | 'error'

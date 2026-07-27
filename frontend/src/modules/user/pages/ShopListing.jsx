@@ -36,21 +36,7 @@ const ShopListing = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(filterOpenParam);
   const [activeFilterTab, setActiveFilterTab] = useState("sort");
 
-  useEffect(() => {
-    const checkCategoryModel = async () => {
-      if (!category) return;
-      try {
-        const { data } = await API.get("/public/categories");
-        const found = data.find(c => c.name.toLowerCase() === category.toLowerCase() || c._id === category);
-        if (found && found.businessModel === 'lead') {
-          navigate(`/submit-lead?category=${found._id}&name=${encodeURIComponent(found.name)}`, { replace: true });
-        }
-      } catch (err) {
-        console.error("Error checking category business model", err);
-      }
-    };
-    checkCategoryModel();
-  }, [category, navigate]);
+
 
   useEffect(() => {
     if (filterOpenParam) {

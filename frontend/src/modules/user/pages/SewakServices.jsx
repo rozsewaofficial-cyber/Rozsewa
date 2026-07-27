@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Loader2, Plus, Minus, Package, Activity, Info, Briefcase } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, Minus, Package, Activity, Info, Briefcase, Search } from "lucide-react";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import API from "@/lib/api";
@@ -18,6 +18,10 @@ const SewakServices = () => {
   const [combosList, setCombosList] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  const [subcategories, setSubcategories] = useState([]);
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const [cart, setCart] = useState(() => {
     try {
       const category = new URLSearchParams(window.location.search).get("category");
@@ -65,6 +69,7 @@ const SewakServices = () => {
           name: s.name,
           price: s.basePrice || s.price,
           description: s.description,
+          image: s.image,
           duration: "Varies"
         })));
       }
@@ -78,6 +83,15 @@ const SewakServices = () => {
           image: c.image,
           services: c.services
         })));
+      }
+
+      try {
+        const subRes = await API.get(`/public/categories/${encodeURIComponent(categoryName)}/subcategories`);
+        if (Array.isArray(subRes.data)) {
+          setSubcategories(subRes.data);
+        }
+      } catch (e) {
+        console.error("Failed to load subcategories", e);
       }
     } catch (error) {
       console.error("Error loading category details:", error);
@@ -109,6 +123,62 @@ const SewakServices = () => {
     if (combo) return { serviceName: combo.name, planName: "Combo Offer", price: combo.price, duration: "Varries", expressPrice: 0 };
     return null;
   };
+
+  const matchServiceToSubcategory = (service, sub) => {
+    if (!service || !sub) return false;
+    if (service.subcategoryId) {
+      const sId = typeof service.subcategoryId === 'object' ? service.subcategoryId._id : service.subcategoryId;
+      if (sId && (sId.toString() === sub._id?.toString() || sId.toString() === sub.id?.toString())) return true;
+    }
+    const subNameLower = (sub.name || "").toLowerCase().trim();
+    const serviceSubLower = (service.subcategory || "").toLowerCase().trim();
+    if (serviceSubLower) {
+      if (serviceSubLower === subNameLower) return true;
+      if (serviceSubLower.includes(subNameLower) || subNameLower.includes(serviceSubLower)) return true;
+    }
+    const serviceText = `${service.name || ""} ${service.description || ""}`.toLowerCase();
+    const rawParts = subNameLower.replace(/[()]/g, ' ').split(/[,&/\\-]+/).map(p => p.trim()).filter(p => p.length > 0);
+    const tokens = [];
+    rawParts.forEach(part => {
+      tokens.push(part);
+      const words = part.split(/\s+/).filter(w => w.length > 1);
+      words.forEach(w => {
+        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water'].includes(w)) {
+          tokens.push(w);
+        }
+      });
+    });
+    if (subNameLower.includes("air conditioner") || subNameLower.includes("ac")) tokens.push("ac", "air conditioner", "split ac", "window ac", "cassette ac");
+    if (subNameLower.includes("ro") || subNameLower.includes("purifier")) tokens.push("ro", "purifier", "water purifier", "filter");
+    if (subNameLower.includes("television") || subNameLower.includes("tv")) tokens.push("tv", "television", "led", "lcd", "oled", "smart tv");
+    if (subNameLower.includes("geyser") || subNameLower.includes("water heater")) tokens.push("geyser", "heater", "water heater");
+    if (subNameLower.includes("refrigerator") || subNameLower.includes("fridge")) tokens.push("refrigerator", "fridge", "freezer", "single door", "double door");
+    if (subNameLower.includes("washing machine") || subNameLower.includes("washer")) tokens.push("washing", "washer", "dryer", "laundry", "top load", "front load");
+    if (subNameLower.includes("chimney")) tokens.push("chimney", "kitchen chimney", "hood");
+    if (subNameLower.includes("microwave") || subNameLower.includes("oven")) tokens.push("microwave", "oven", "otg", "toaster", "griller");
+    if (subNameLower.includes("cctv") || subNameLower.includes("security")) tokens.push("cctv", "camera", "dvr", "nvr", "security");
+    if (subNameLower.includes("small appliance") || subNameLower.includes("small")) tokens.push("mixer", "grinder", "iron", "kettle", "induction", "juicer", "blender", "sandwich", "fan", "heata");
+
+    return tokens.some(token => {
+      if (token.length <= 2) {
+        const wordRegex = new RegExp(`\\b${token}\\b`, 'i');
+        return wordRegex.test(serviceText);
+      }
+      return serviceText.includes(token);
+    });
+  };
+
+  const activeSubObj = selectedSubcategory === 'all' ? null : subcategories.find(s => s._id === selectedSubcategory);
+
+  const filteredServices = (selectedSubcategory === 'all' 
+    ? servicesList 
+    : servicesList.filter(s => matchServiceToSubcategory(s, activeSubObj || { _id: selectedSubcategory, name: selectedSubcategory })))
+    .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase())));
+
+  const filteredCombos = (selectedSubcategory === 'all'
+    ? combosList
+    : combosList.filter(c => matchServiceToSubcategory(c, activeSubObj || { _id: selectedSubcategory, name: selectedSubcategory })))
+    .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase())));
 
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
   const cartTotal = Object.entries(cart).reduce((sum, [id, qty]) => {
@@ -177,12 +247,76 @@ const SewakServices = () => {
 
       <main className="container max-w-3xl px-4 sm:px-6 pt-2 pb-36 space-y-6">
 
-        {/* Combos Section */}
-        {combosList.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest"><Package className="h-4 w-4 text-blue-500" /> Discounted Combos</h2>
-            <div className="grid grid-cols-1 gap-3">
-              {combosList.map((combo) => (
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder={`Search for services in ${categoryName}...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm"
+          />
+        </div>
+
+        {selectedSubcategory === null ? (
+          // SUBCATEGORY GRID
+          <div className="space-y-4">
+            <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest">
+              <Briefcase className="h-4 w-4 text-blue-500" /> Choose a Subcategory
+            </h2>
+            <div className="flex flex-col gap-3">
+              {subcategories.length > 0 ? subcategories.map(sub => (
+                <button
+                  key={sub._id}
+                  onClick={() => setSelectedSubcategory(sub._id)}
+                  className="flex items-center gap-4 bg-white dark:bg-[#151c2c] rounded-2xl border border-slate-200 dark:border-slate-800/80 p-3 transition-all hover:border-blue-500/50 active:scale-[0.98] text-left w-full shadow-sm group"
+                >
+                  <div className="h-12 w-16 bg-blue-50 dark:bg-[#1a2333] rounded-xl flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                    {sub.image ? (
+                        <img src={sub.image} alt={sub.name} className="h-full w-full object-cover" />
+                    ) : (
+                        <Briefcase className="h-5 w-5 text-blue-500" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                      <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1">{sub.name}</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{sub.description || `View Services`}</p>
+                  </div>
+                  <div className="w-5 h-5 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center group-hover:border-blue-500 transition-colors mr-1"></div>
+                </button>
+              )) : (
+                <button
+                  onClick={() => setSelectedSubcategory('all')}
+                  className="flex items-center gap-4 bg-white dark:bg-[#151c2c] rounded-2xl border border-slate-200 dark:border-slate-800/80 p-3 transition-all hover:border-blue-500/50 active:scale-[0.98] text-left w-full shadow-sm group"
+                >
+                  <div className="h-12 w-16 bg-blue-50 dark:bg-[#1a2333] rounded-xl flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                    <Briefcase className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div className="flex-1">
+                      <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1">View All Services</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">Browse all available services</p>
+                  </div>
+                  <div className="w-5 h-5 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center group-hover:border-blue-500 transition-colors mr-1"></div>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <button 
+              onClick={() => setSelectedSubcategory(null)}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 mb-2"
+            >
+               <ArrowLeft className="h-3.5 w-3.5" /> Back to Subcategories
+            </button>
+
+            {/* Combos Section */}
+            {filteredCombos.length > 0 && (
+              <div className="space-y-3">
+                <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest"><Package className="h-4 w-4 text-blue-500" /> Discounted Combos</h2>
+                <div className="grid grid-cols-1 gap-3">
+                  {filteredCombos.map((combo) => (
                 <motion.div key={combo.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className="relative rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all">
                   <div className="p-3.5 flex gap-3.5">
@@ -229,14 +363,19 @@ const SewakServices = () => {
         )}
 
         {/* Individual Services Section */}
-        {servicesList.length > 0 && (
+        {filteredServices.length > 0 && (
           <div className="space-y-3">
             <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest"><Briefcase className="h-4 w-4 text-blue-500" /> Individual Services</h2>
 
             <div className="grid grid-cols-1 gap-3">
-              {servicesList.map((service) => (
+              {filteredServices.map((service) => (
                 <div key={service.id} className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm transition-all hover:border-blue-500/30">
                   <div className="p-4 flex flex-row items-center justify-between gap-4">
+                    {service.image && (
+                      <div className="h-16 w-16 shrink-0 rounded-[12px] overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                        <img src={service.image} className="h-full w-full object-cover" alt={service.name} />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <h4 className="text-[14px] font-bold text-slate-900 dark:text-white truncate">{service.name}</h4>
                       {service.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{service.description}</p>}
@@ -262,8 +401,10 @@ const SewakServices = () => {
           </div>
         )}
 
-        {servicesList.length === 0 && combosList.length === 0 && (
+        {filteredServices.length === 0 && filteredCombos.length === 0 && (
           <p className="text-center text-sm font-medium text-slate-500 py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">No services available for this category.</p>
+        )}
+        </div>
         )}
 
       </main>

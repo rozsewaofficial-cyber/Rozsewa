@@ -462,9 +462,18 @@ const AdminServices = () => {
                                                         : "bg-white border-gray-200 hover:border-gray-300"
                                                 }`}
                                             >
-                                                <div>
-                                                    <h4 className="text-sm font-bold text-gray-900">{sub.name}</h4>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{sub.description || "No description"}</p>
+                                                <div className="flex items-center gap-3">
+                                                    {sub.image ? (
+                                                        <img src={sub.image} alt={sub.name} className="h-10 w-10 rounded-lg object-cover border border-gray-100 shrink-0" />
+                                                    ) : (
+                                                        <div className="h-10 w-10 rounded-lg bg-gray-50 flex items-center justify-center border border-gray-100 shrink-0">
+                                                            <FolderTree className="h-4 w-4 text-gray-400" />
+                                                        </div>
+                                                    )}
+                                                    <div>
+                                                        <h4 className="text-sm font-bold text-gray-900">{sub.name}</h4>
+                                                        <p className="text-xs text-gray-500 mt-0.5">{sub.description || "No description"}</p>
+                                                    </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <button
@@ -662,6 +671,14 @@ const AdminServices = () => {
                                     <InputField label="Description">
                                         <textarea value={newSub.description} onChange={e => setNewSub({ ...newSub, description: e.target.value })} className={inputCls} />
                                     </InputField>
+                                    <InputField label="Subcategory Image">
+                                        <div className="flex items-center gap-3">
+                                            {newSub.image && (
+                                                <img src={newSub.image} alt="Preview" className="h-12 w-12 rounded-xl object-cover border" />
+                                            )}
+                                            <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setNewSub)} disabled={isUploading} className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                        </div>
+                                    </InputField>
                                     <div className="flex gap-3">
                                         <button type="button" onClick={() => setShowSubModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500">Cancel</button>
                                         <button type="submit" className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs">Save Subcategory</button>
@@ -688,11 +705,23 @@ const AdminServices = () => {
                                     <InputField label="Short Description">
                                         <textarea value={newService.description} onChange={e => setNewService({ ...newService, description: e.target.value })} className={inputCls} />
                                     </InputField>
-                                    <div className="grid grid-cols-1 gap-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <InputField label="Price (₹)">
+                                            <input type="number" value={newService.price} onChange={e => setNewService({ ...newService, price: Number(e.target.value) })} className={inputCls} min="0" required />
+                                        </InputField>
                                         <InputField label="Duration">
                                             <input type="text" value={newService.duration} onChange={e => setNewService({ ...newService, duration: e.target.value })} className={inputCls} placeholder="e.g. 30 min" />
                                         </InputField>
                                     </div>
+                                    <InputField label="Service Image">
+                                        <div className="flex items-center gap-4">
+                                            {newService.image && (
+                                                <img src={newService.image} alt="Preview" className="h-12 w-12 rounded-xl object-cover border" />
+                                            )}
+                                            <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setNewService)} disabled={isUploading} className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                            {isUploading && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                                        </div>
+                                    </InputField>
                                     <div className="flex gap-3 pt-2">
                                         <button type="button" onClick={() => setShowServiceModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500">Cancel</button>
                                         <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs">Save Service Item</button>

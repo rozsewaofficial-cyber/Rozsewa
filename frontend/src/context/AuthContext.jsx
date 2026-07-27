@@ -77,11 +77,13 @@ export const AuthProvider = ({ children }) => {
   });
 
   const [serviceMode, setServiceMode] = useState(() => {
-    return localStorage.getItem("rozsewa_service_mode") || "partner";
+    return sessionStorage.getItem("rozsewa_service_mode") || null;
   });
 
   useEffect(() => {
-    localStorage.setItem("rozsewa_service_mode", serviceMode);
+    if (serviceMode) {
+      sessionStorage.setItem("rozsewa_service_mode", serviceMode);
+    }
   }, [serviceMode]);
 
   const detectLocation = () => {

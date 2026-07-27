@@ -342,7 +342,15 @@ const ShopDetail = () => {
                 <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Individual Services</h2>
 
                 {servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').length === 0 ? (
-                  <p className="text-center text-sm font-medium text-slate-500 py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">No services found for this filter.</p>
+                  <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">
+                    <p className="text-sm font-medium text-slate-500 mb-4">No specific services listed.</p>
+                    <button 
+                      onClick={() => navigate(`/submit-lead?category=${provider?.vendorType?._id || provider?.vendorType}`)} 
+                      className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                    >
+                      Post Your Requirement
+                    </button>
+                  </div>
                 ) : (
                   servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').map((service, idx) => (
                     <div key={service.id} className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm transition-all hover:border-blue-500/30">
