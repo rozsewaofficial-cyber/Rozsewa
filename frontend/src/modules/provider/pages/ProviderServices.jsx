@@ -75,14 +75,20 @@ const ProviderServices = () => {
     }
   };
 
+  const [allCategories, setAllCategories] = useState([]);
+
   const fetchProviderInfoAndServices = async (showLoader = true) => {
     if (showLoader) setLoading(true);
     try {
-      const { data } = await API.get("/services");
-      setServices(data.services || []);
-      setCombos(data.combos || []);
-      setCategoryServices(data.categoryServices || []);
-      setCategoryName(data.categoryName || "Your Category");
+      const [servicesRes, catRes] = await Promise.all([
+        API.get("/services"),
+        API.get("/provider/categories").catch(() => ({ data: [] }))
+      ]);
+      setServices(servicesRes.data.services || []);
+      setCombos(servicesRes.data.combos || []);
+      setCategoryServices(servicesRes.data.categoryServices || []);
+      setCategoryName(servicesRes.data.categoryName || "Your Category");
+      setAllCategories(catRes.data || []);
     } catch (err) {
       toast({ title: "Failed to load data", variant: "destructive" });
     } finally {
@@ -118,7 +124,7 @@ const ProviderServices = () => {
       image: form.image,
       amenities: form.amenities || [],
       serviceDetails: form.serviceDetails || [],
-      category: categoryName, // Force match provider's category
+      category: form.category || categoryName,
       price: Number(form.price) || 0,
     };
 
@@ -200,7 +206,7 @@ const ProviderServices = () => {
     setForm({
       name: s.name,
       description: s.description || `Professional ${s.name} service`,
-      price: isSewak ? (s.basePrice || 299) : "",
+      price: s.basePrice ? s.basePrice : "",
       duration: "1 hour",
       visible: true,
       image: "",
@@ -466,7 +472,7 @@ const ProviderServices = () => {
           <motion.div key="service-form-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} transition={{ type: "tween", duration: 0.3 }}
-              className="w-full bg-card max-w-md mx-auto rounded-[32px] border border-border shadow-2xl flex flex-col max-h-[90vh]">
+              className="w-full bg-card max-w-md mx-auto rounded-[32px] overflow-hidden border border-border shadow-2xl flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between border-b border-border px-5 py-3 bg-card shrink-0">
                 <h3 className="text-lg font-black uppercase tracking-tighter">{editId ? "Edit Service" : "Add Service"}</h3>
                 <button type="button" onClick={resetForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
@@ -501,6 +507,27 @@ const ProviderServices = () => {
                 </div>
 
                 <div className="text-left">
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Category *</label>
+                  <select
+                    value={form.category || categoryName}
+                    onChange={e => {
+                      const newCat = e.target.value;
+                      setForm({
+                        ...form,
+                        category: newCat,
+                        name: "",
+                        price: ""
+                      });
+                    }}
+                    className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none"
+                  >
+                    {Array.from(new Set([categoryName, ...allCategories.map(c => c.name)].filter(Boolean))).map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="text-left">
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Name *</label>
                   <div className="relative space-y-3">
                     <select
@@ -508,13 +535,18 @@ const ProviderServices = () => {
                       value={form.name}
                       onChange={e => {
                         const val = e.target.value;
-                        const selected = categoryServices.find(s => s.name === val);
+                        const selectedCatName = form.category || categoryName;
+                        const selectedCatObj = allCategories.find(c => c.name === selectedCatName);
+                        const currentSvcs = (selectedCatName === categoryName)
+                          ? categoryServices
+                          : (selectedCatObj?.services || categoryServices);
+                        const selected = currentSvcs.find(s => s.name === val);
                         const isSewak = user?.providerCategory === 'sewak';
                         setForm({
                           ...form,
                           name: val,
                           customName: "",
-                          price: isSewak ? (selected?.basePrice) : "",
+                          price: isSewak ? (selected?.basePrice) : (selected?.basePrice || ""),
                           amenities: selected?.amenities || [],
                           serviceDetails: selected?.serviceDetails || [],
                           serviceType: selected?.serviceType || "home"
@@ -523,8 +555,11 @@ const ProviderServices = () => {
                       className={`w-full rounded-2xl border border-border p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
                     >
                       <option value="">Select a service...</option>
-                      {categoryServices.filter(s => user?.providerCategory !== 'sewak' || Number(s.basePrice) > 0).map(s => (
-                        <option key={s._id} value={s.name}>{s.name}</option>
+                      {((form.category || categoryName) === categoryName
+                        ? categoryServices
+                        : (allCategories.find(c => c.name === (form.category || categoryName))?.services || categoryServices)
+                      ).filter(s => user?.providerCategory !== 'sewak' || Number(s.basePrice) > 0).map(s => (
+                        <option key={s._id || s.name} value={s.name}>{s.name}</option>
                       ))}
                     </select>
                     {errors.name && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.name}</p>}
@@ -540,13 +575,13 @@ const ProviderServices = () => {
                 <div className="grid grid-cols-2 gap-3 text-left">
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground flex items-center justify-between">
-                      Service Price (₹)
+                      Service Price (₹) *
                       {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded uppercase">Master Rate</span>}
                     </label>
                     <input type="number" min="1" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
                       onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
                       readOnly={user?.providerCategory === 'sewak'}
-                      className={`w-full rounded-2xl border ${errors.price ? 'border-rose-500' : 'border-border'} p-4 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} placeholder="299" />
+                      className={`w-full rounded-2xl border ${errors.price ? 'border-rose-500' : 'border-border'} p-4 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} />
                     {errors.price && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.price}</p>}
                   </div>
                   <div>
@@ -692,7 +727,7 @@ const ProviderServices = () => {
           <motion.div key="combo-form-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} transition={{ type: "tween", duration: 0.3 }}
-              className="w-full bg-card max-w-md mx-auto rounded-[32px] border border-border shadow-2xl flex flex-col max-h-[90vh]">
+              className="w-full bg-card max-w-md mx-auto rounded-[32px] overflow-hidden border border-border shadow-2xl flex flex-col max-h-[90vh]">
               <div className="flex items-center justify-between border-b border-border px-5 py-3 bg-card shrink-0 text-foreground">
                 <h3 className="text-lg font-black uppercase tracking-tighter">{editId ? "Edit Combo" : "Create Combo"}</h3>
                 <button type="button" onClick={resetComboForm} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>

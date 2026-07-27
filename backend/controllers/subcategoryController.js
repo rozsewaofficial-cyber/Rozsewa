@@ -3,6 +3,11 @@ const Category = require('../models/Category');
 const Service = require('../models/Service');
 const mongoose = require('mongoose');
 
+const escapeRegex = (str) => {
+    if (!str) return '';
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // @desc    Get active subcategories for a category
 // @route   GET /api/public/categories/:categoryId/subcategories
 // @access  Public
@@ -14,8 +19,12 @@ const getPublicSubcategoriesByCategory = async (req, res) => {
         if (mongoose.Types.ObjectId.isValid(categoryId)) {
             query.categoryId = categoryId;
         } else {
+            const cleanCatName = categoryId.trim();
             const cat = await Category.findOne({
-                name: { $regex: new RegExp(`^${categoryId.trim()}$`, 'i') }
+                $or: [
+                    { name: cleanCatName },
+                    { name: { $regex: new RegExp(`^${escapeRegex(cleanCatName)}$`, 'i') } }
+                ]
             });
             if (cat) {
                 query.categoryId = cat._id;
@@ -38,28 +47,145 @@ const getPublicSubcategoriesByCategory = async (req, res) => {
 const getPublicServicesBySubcategory = async (req, res) => {
     try {
         const { subcategoryId } = req.params;
-        const { includeZeroPrice } = req.query;
-        let query = { visible: true };
+        const { includeZeroPrice, categoryId, category } = req.query;
 
+        // 1. If requesting "all" services under the category
+        if (subcategoryId === 'all' || !subcategoryId) {
+            let catObj = null;
+            if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+                catObj = await Category.findById(categoryId);
+            }
+            if (!catObj && category) {
+                const cleanCatName = category.trim();
+                catObj = await Category.findOne({
+                    $or: [
+                        { name: cleanCatName },
+                        { name: { $regex: new RegExp(`^${escapeRegex(cleanCatName)}$`, 'i') } }
+                    ]
+                });
+            }
+
+            let categoryQuery = { visible: true };
+            if (includeZeroPrice !== 'true') {
+                categoryQuery.price = { $gt: 0 };
+            }
+
+            if (catObj) {
+                const subDocs = await Subcategory.find({ categoryId: catObj._id });
+                const subIds = subDocs.map(s => s._id);
+                const subNames = subDocs.map(s => s.name);
+
+                categoryQuery.$or = [
+                    { categoryId: catObj._id },
+                    { category: catObj.name },
+                    { category: { $regex: new RegExp(`^${escapeRegex(catObj.name)}$`, 'i') } },
+                    { subcategoryId: { $in: subIds } },
+                    { subcategory: { $in: subNames } }
+                ];
+            } else if (category) {
+                const cleanCatName = category.trim();
+                categoryQuery.$or = [
+                    { category: cleanCatName },
+                    { category: { $regex: new RegExp(`^${escapeRegex(cleanCatName)}$`, 'i') } }
+                ];
+            }
+
+            let services = await Service.find(categoryQuery).sort({ createdAt: -1 });
+
+            // If no individual Service docs found, fallback to Category's pre-defined services array
+            if ((!services || services.length === 0) && catObj && catObj.services && catObj.services.length > 0) {
+                services = catObj.services.map(s => ({
+                    _id: s._id || new mongoose.Types.ObjectId(),
+                    name: s.name,
+                    description: s.description || `Professional ${s.name} service`,
+                    price: s.basePrice || 299,
+                    duration: "30 min",
+                    serviceType: "home",
+                    visible: true,
+                    category: catObj.name
+                }));
+            }
+            return res.json(services || []);
+        }
+
+        // 2. Specific Subcategory requested
+        let subDoc = null;
+        if (mongoose.Types.ObjectId.isValid(subcategoryId)) {
+            subDoc = await Subcategory.findById(subcategoryId);
+        }
+        if (!subDoc) {
+            const cleanSubName = subcategoryId.trim();
+            subDoc = await Subcategory.findOne({
+                $or: [
+                    { name: cleanSubName },
+                    { name: { $regex: new RegExp(`^${escapeRegex(cleanSubName)}$`, 'i') } }
+                ]
+            });
+        }
+
+        let query = { visible: true };
         if (includeZeroPrice !== 'true') {
             query.price = { $gt: 0 };
         }
 
-        if (mongoose.Types.ObjectId.isValid(subcategoryId)) {
-            query.subcategoryId = subcategoryId;
+        if (subDoc) {
+            query.$or = [
+                { subcategoryId: subDoc._id },
+                { subcategory: subDoc.name },
+                { subcategoryId: subDoc._id.toString() },
+                { name: { $regex: new RegExp(escapeRegex(subDoc.name), 'i') } }
+            ];
         } else {
-            const sub = await Subcategory.findOne({
-                name: { $regex: new RegExp(`^${subcategoryId.trim()}$`, 'i') }
-            });
-            if (sub) {
-                query.subcategoryId = sub._id;
-            } else {
-                query.subcategory = subcategoryId;
+            const cleanSub = subcategoryId.trim();
+            query.$or = [
+                { subcategoryId: cleanSub },
+                { subcategory: cleanSub },
+                { name: { $regex: new RegExp(escapeRegex(cleanSub), 'i') } }
+            ];
+        }
+
+        let services = await Service.find(query).sort({ createdAt: -1 });
+
+        // Fallback: If 0 services found for specific subcategory, check parent Category services
+        if ((!services || services.length === 0) && (subDoc || categoryId || category)) {
+            let catObj = null;
+            if (subDoc) catObj = await Category.findById(subDoc.categoryId);
+            if (!catObj && categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+                catObj = await Category.findById(categoryId);
+            }
+            if (!catObj && category) {
+                catObj = await Category.findOne({
+                    $or: [
+                        { name: category.trim() },
+                        { name: { $regex: new RegExp(`^${escapeRegex(category.trim())}$`, 'i') } }
+                    ]
+                });
+            }
+
+            if (catObj && catObj.services && catObj.services.length > 0) {
+                const subName = subDoc ? subDoc.name.toLowerCase() : "";
+                const matchedCatServices = subName
+                    ? catObj.services.filter(s =>
+                        s.name.toLowerCase().includes(subName) || subName.includes(s.name.toLowerCase())
+                    )
+                    : catObj.services;
+
+                const targetList = matchedCatServices.length > 0 ? matchedCatServices : catObj.services;
+                services = targetList.map(s => ({
+                    _id: s._id || new mongoose.Types.ObjectId(),
+                    name: s.name,
+                    description: s.description || `Professional ${s.name} service`,
+                    price: s.basePrice || 299,
+                    duration: "30 min",
+                    serviceType: "home",
+                    visible: true,
+                    category: catObj.name,
+                    subcategory: subDoc ? subDoc.name : ""
+                }));
             }
         }
 
-        const services = await Service.find(query).sort({ createdAt: -1 });
-        res.json(services);
+        res.json(services || []);
     } catch (error) {
         console.error("Error fetching services by subcategory:", error);
         res.status(500).json({ message: error.message });
