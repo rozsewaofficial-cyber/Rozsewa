@@ -102,7 +102,8 @@ const getPublicServicesBySubcategory = async (req, res) => {
                     duration: "30 min",
                     serviceType: "home",
                     visible: true,
-                    category: catObj.name
+                    category: catObj.name,
+                    image: s.image
                 }));
             }
             return res.json(services || []);
@@ -180,7 +181,8 @@ const getPublicServicesBySubcategory = async (req, res) => {
                     serviceType: "home",
                     visible: true,
                     category: catObj.name,
-                    subcategory: subDoc ? subDoc.name : ""
+                    subcategory: subDoc ? subDoc.name : "",
+                    image: s.image
                 }));
             }
         }
@@ -331,7 +333,8 @@ const createAdminService = async (req, res) => {
                         _id: newService._id,
                         name: newService.name,
                         basePrice: newService.price || 0,
-                        description: newService.description || ""
+                        description: newService.description || "",
+                        image: newService.image || ""
                     });
                     await cat.save();
                 }
@@ -374,6 +377,9 @@ const updateAdminService = async (req, res) => {
                     cat.services[idx].name = updated.name;
                     cat.services[idx].basePrice = updated.price;
                     cat.services[idx].description = updated.description || "";
+                    if (updated.image !== undefined) {
+                        cat.services[idx].image = updated.image;
+                    }
                     cat.markModified('services');
                     await cat.save();
                 }

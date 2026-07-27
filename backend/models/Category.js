@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const subServiceSchema = mongoose.Schema({
     name: { type: String, required: true },
     basePrice: { type: Number, default: 0 },
-    description: { type: String }
+    description: { type: String },
+    image: { type: String }
 });
 
 const comboTemplateSchema = mongoose.Schema({
