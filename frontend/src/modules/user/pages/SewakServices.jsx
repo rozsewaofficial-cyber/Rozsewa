@@ -170,14 +170,25 @@ const SewakServices = () => {
 
   const activeSubObj = selectedSubcategory === 'all' ? null : subcategories.find(s => s._id === selectedSubcategory);
 
-  const filteredServices = (selectedSubcategory === 'all' 
-    ? servicesList 
-    : servicesList.filter(s => matchServiceToSubcategory(s, activeSubObj || { _id: selectedSubcategory, name: selectedSubcategory })))
+  // Try to filter by subcategory; if nothing matches (services don't have subcategory info), show all
+  const subcategoryFilteredServices = (selectedSubcategory === 'all' || !activeSubObj)
+    ? servicesList
+    : (() => {
+        const matched = servicesList.filter(s => matchServiceToSubcategory(s, activeSubObj));
+        return matched.length > 0 ? matched : servicesList; // fallback to all if no match
+      })();
+
+  const subcategoryFilteredCombos = (selectedSubcategory === 'all' || !activeSubObj)
+    ? combosList
+    : (() => {
+        const matched = combosList.filter(c => matchServiceToSubcategory(c, activeSubObj));
+        return matched.length > 0 ? matched : combosList; // fallback to all if no match
+      })();
+
+  const filteredServices = subcategoryFilteredServices
     .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase())));
 
-  const filteredCombos = (selectedSubcategory === 'all'
-    ? combosList
-    : combosList.filter(c => matchServiceToSubcategory(c, activeSubObj || { _id: selectedSubcategory, name: selectedSubcategory })))
+  const filteredCombos = subcategoryFilteredCombos
     .filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()) || (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase())));
 
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);

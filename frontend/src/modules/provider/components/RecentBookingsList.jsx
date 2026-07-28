@@ -23,6 +23,34 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   }, [activeTab]);
   const [staffList, setStaffList] = useState([]);
   const [activeTracking, setActiveTracking] = useState(null);
+  const [pollingIntervalId, setPollingIntervalId] = useState(null);
+
+  // Poll for online payment completion if any booking is waiting
+  useEffect(() => {
+    const isWaitingForOnlinePayment = requests.some(
+      (req) => req.status === 'completed' && req.paymentMode === 'now' && req.paymentStatus !== 'paid'
+    );
+
+    if (isWaitingForOnlinePayment) {
+      if (!pollingIntervalId) {
+        const id = setInterval(() => {
+          fetchBookings();
+        }, 3000);
+        setPollingIntervalId(id);
+      }
+    } else {
+      if (pollingIntervalId) {
+        clearInterval(pollingIntervalId);
+        setPollingIntervalId(null);
+      }
+    }
+
+    return () => {
+      if (pollingIntervalId) {
+        clearInterval(pollingIntervalId);
+      }
+    };
+  }, [requests, pollingIntervalId]);
   const [activeChatBookingId, setActiveChatBookingId] = useState(null);
   const { toast } = useToast();
   const { socket } = useSocket();
@@ -165,7 +193,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
     if (action === 'reject') {
       setRequests(prev => prev.filter(req => req._id !== id));
     } else {
-      setRequests(prev => prev.map(req => req._id === id ? { ...req, status: newStatus } : req));
+      setRequests(prev => prev.map(req => req._id === id ? { ...req, status: newStatus, ...extraData } : req));
     }
 
     try {
@@ -1026,8 +1054,13 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
 
                     {req.paymentMode === 'now' ? (
                       <div className="space-y-3">
-                        <div className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 py-3 text-xs font-black text-blue-600 uppercase tracking-widest shadow-sm">
-                          <Loader2 className="h-4 w-4 animate-spin" /> Waiting for Online Payment
+                        <div className="w-full flex flex-col items-center justify-center gap-2 rounded-xl bg-blue-50 border border-blue-200 p-3 shadow-sm">
+                          <div className="flex items-center gap-2 text-xs font-black text-blue-600 uppercase tracking-widest">
+                            <Clock className="h-4 w-4 animate-pulse" /> Waiting for Online Payment
+                          </div>
+                          <button onClick={fetchBookings} className="text-[10px] bg-white border border-blue-200 text-blue-600 px-3 py-1 rounded-lg hover:bg-blue-100 transition-all font-bold">
+                            Refresh Status
+                          </button>
                         </div>
                         <button
                           onClick={() => handleAction(req._id, 'completed', { paymentStatus: 'paid', paymentMode: 'after' })}

@@ -81,25 +81,25 @@ const SubcategoryPage = () => {
     navigate(`/shops?category=${encodeURIComponent(categoryName)}&serviceName=${encodeURIComponent(service.name)}&serviceId=${service._id || service.id}&mode=${mode}`);
   };
 
-  // Smart subcategory matcher to handle acronyms (AC, RO, TV), brand variations, and descriptions
-  const matchServiceToSubcategory = (service, sub) => {
-    if (!service || !sub) return false;
+  // Stricter subcategory matcher to avoid false positives (e.g. Groom Package matching Hair Care because of "hair" in description)
+  const matchServiceToSubcategory = (service, subcategory) => {
+    if (!service || !subcategory) return false;
 
     if (service.subcategoryId) {
       const sId = typeof service.subcategoryId === 'object' ? service.subcategoryId._id : service.subcategoryId;
-      if (sId && (sId.toString() === sub._id?.toString() || sId.toString() === sub.id?.toString())) return true;
+      if (sId && (sId.toString() === subcategory._id?.toString() || sId.toString() === subcategory.id?.toString())) return true;
     }
+    
+    if (service.subcategory && service.subcategory === subcategory._id) return true;
+    if (service.subcategoryName && service.subcategoryName.toLowerCase() === subcategory.name.toLowerCase()) return true;
 
-    const subNameLower = (sub.name || "").toLowerCase().trim();
-    const serviceSubLower = (service.subcategory || "").toLowerCase().trim();
+    const subNameLower = subcategory.name.toLowerCase();
+    const serviceName = (service.name || "").toLowerCase();
 
-    if (serviceSubLower) {
-      if (serviceSubLower === subNameLower) return true;
-      if (serviceSubLower.includes(subNameLower) || subNameLower.includes(serviceSubLower)) return true;
-    }
+    // Check if subcategory name is fully present in service name
+    if (serviceName.includes(subNameLower.replace(' & ', ' '))) return true;
 
-    const serviceText = `${service.name || ""} ${service.description || ""}`.toLowerCase();
-
+    // Fallback: smart matching based on service names ONLY (not description, which causes false positives)
     const rawParts = subNameLower
       .replace(/[()]/g, ' ')
       .split(/[,&/\\-]+/)
@@ -111,14 +111,14 @@ const SubcategoryPage = () => {
       tokens.push(part);
       const words = part.split(/\s+/).filter(w => w.length > 1);
       words.forEach(w => {
-        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water'].includes(w)) {
+        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water', 'care', 'styling'].includes(w)) {
           tokens.push(w);
         }
       });
     });
 
     if (subNameLower.includes("air conditioner") || subNameLower.includes("ac")) {
-      tokens.push("ac", "air conditioner", "split ac", "window ac", "cassette ac");
+      tokens.push("ac", "split ac", "window ac", "cassette ac");
     }
     if (subNameLower.includes("ro") || subNameLower.includes("purifier")) {
       tokens.push("ro", "purifier", "water purifier", "filter");
@@ -130,30 +130,31 @@ const SubcategoryPage = () => {
       tokens.push("geyser", "heater", "water heater");
     }
     if (subNameLower.includes("refrigerator") || subNameLower.includes("fridge")) {
-      tokens.push("refrigerator", "fridge", "freezer", "single door", "double door");
+      tokens.push("refrigerator", "fridge", "freezer");
     }
     if (subNameLower.includes("washing machine") || subNameLower.includes("washer")) {
-      tokens.push("washing", "washer", "dryer", "laundry", "top load", "front load");
+      tokens.push("washing", "washer", "dryer", "laundry");
     }
     if (subNameLower.includes("chimney")) {
       tokens.push("chimney", "kitchen chimney", "hood");
     }
     if (subNameLower.includes("microwave") || subNameLower.includes("oven")) {
-      tokens.push("microwave", "oven", "otg", "toaster", "griller");
+      tokens.push("microwave", "oven", "otg", "toaster");
     }
     if (subNameLower.includes("cctv") || subNameLower.includes("security")) {
       tokens.push("cctv", "camera", "dvr", "nvr", "security");
     }
     if (subNameLower.includes("small appliance") || subNameLower.includes("small")) {
-      tokens.push("mixer", "grinder", "iron", "kettle", "induction", "juicer", "blender", "sandwich", "fan", "heata");
+      tokens.push("mixer", "grinder", "iron", "kettle", "induction", "juicer", "blender", "sandwich", "fan");
     }
 
+    // Only match against serviceName, not description
     return tokens.some(token => {
       if (token.length <= 2) {
         const wordRegex = new RegExp(`\\b${token}\\b`, 'i');
-        return wordRegex.test(serviceText);
+        return wordRegex.test(serviceName);
       }
-      return serviceText.includes(token);
+      return serviceName.includes(token);
     });
   };
 
@@ -232,7 +233,13 @@ const SubcategoryPage = () => {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  if (selectedSubcategory !== "all") {
+                    setSelectedSubcategory("all");
+                  } else {
+                    navigate(-1);
+                  }
+                }}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white dark:bg-slate-900 shadow-md shadow-slate-900/5 border border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-200 transition-all hover:bg-slate-50"
               >
                 <ArrowLeft className="h-5 w-5" />

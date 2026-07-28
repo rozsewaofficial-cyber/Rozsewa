@@ -34,12 +34,6 @@ const HierarchicalServiceCard = ({ service, onBookNow }) => {
             <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
               {name}
             </h3>
-            {duration && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2.5 py-1 rounded-full shrink-0">
-                <Clock className="h-3 w-3" />
-                {duration}
-              </span>
-            )}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
             {description || "Professional service delivered at your doorstep by verified partner experts."}

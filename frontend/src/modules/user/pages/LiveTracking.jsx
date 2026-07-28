@@ -321,7 +321,7 @@ const LiveTracking = () => {
       setProviderInfo({
         name: p.shopName || p.ownerName || "Technician",
         rating: p.rating !== undefined ? p.rating : 0,
-        jobs: p.reviewCount !== undefined ? p.reviewCount : 0,
+        jobs: p.completedBookingsCount !== undefined ? p.completedBookingsCount : (p.reviewCount !== undefined ? p.reviewCount : 0),
         mobile: p.mobile || "",
         profileImage: p.profileImage,
         address: p.address,
