@@ -672,7 +672,7 @@ const createBooking = async (req, res) => {
 const getUserBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ userId: req.user._id })
-            .populate('providerId', 'shopName ownerName rating reviewCount mobile profileImage status planType address city state location')
+            .populate('providerId', 'shopName ownerName rating reviewCount completedBookingsCount mobile profileImage status planType address city state location')
             .sort({ createdAt: -1 });
         res.json(bookings);
     } catch (error) {
@@ -1819,8 +1819,8 @@ const verifyEndOTP = async (req, res) => {
                         provider.commissionWaiver.bookingsWaivedCount = (provider.commissionWaiver.bookingsWaivedCount || 0) + 1;
                     }
 
-                    // Increment bookingsCount
-                    provider.bookingsCount = (provider.bookingsCount || 0) + 1;
+                    // Increment completedBookingsCount
+                    provider.completedBookingsCount = (provider.completedBookingsCount || 0) + 1;
 
                     // Save snapshot on booking
                     bookingSession.status = 'completed';
@@ -2183,6 +2183,21 @@ const submitReview = async (req, res) => {
         booking.tags = tags || [];
 
         await booking.save();
+
+        // Dynamically update Provider's average rating and review count
+        if (booking.providerId) {
+            const Provider = require('../models/Provider');
+            const allReviews = await Booking.find({ providerId: booking.providerId, rating: { $gt: 0 } });
+            
+            const totalReviews = allReviews.length;
+            const sumRatings = allReviews.reduce((sum, b) => sum + b.rating, 0);
+            const averageRating = totalReviews > 0 ? (sumRatings / totalReviews).toFixed(1) : 0;
+
+            await Provider.findByIdAndUpdate(booking.providerId, {
+                rating: parseFloat(averageRating),
+                reviewCount: totalReviews
+            });
+        }
 
         // Push Notification for Provider (New Review)
         try {
