@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, deleteToken } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDrT4xqWq8xIxz9Ye4bBLZ0UztSRFWnx_A",
@@ -28,15 +28,32 @@ export const requestForToken = async () => {
         console.warn('Firebase VAPID key is missing from environment variables.');
       }
       
-      const token = await getToken(messaging, { 
-        vapidKey: vapidKey ? vapidKey.trim() : undefined,
-        serviceWorkerRegistration: registration
-      });
-      if (token) {
-        console.log('FCM Token:', token);
-        return token;
-      } else {
-        console.log('No registration token available.');
+      try {
+        const token = await getToken(messaging, { 
+          vapidKey: vapidKey ? vapidKey.trim() : undefined,
+          serviceWorkerRegistration: registration
+        });
+        if (token) {
+          console.log('FCM Token:', token);
+          return token;
+        } else {
+          console.log('No registration token available.');
+        }
+      } catch (tokenError) {
+        if (tokenError.name === 'InvalidAccessError' || (tokenError.message && tokenError.message.includes('applicationServerKey'))) {
+          console.warn('VAPID key mismatch detected. Clearing old subscription...');
+          try {
+            await deleteToken(messaging);
+            if (registration) {
+              await registration.unregister();
+            }
+            console.log('Old subscription cleared. Please refresh the page to get a new token.');
+            // Optionally, you can force a reload here: window.location.reload();
+          } catch (clearError) {
+            console.error('Failed to clear old subscription:', clearError);
+          }
+        }
+        throw tokenError;
       }
     }
   } catch (error) {
