@@ -23,8 +23,13 @@ export const requestForToken = async () => {
         registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
         await navigator.serviceWorker.ready;
       }
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+      if (!vapidKey) {
+        console.warn('Firebase VAPID key is missing from environment variables.');
+      }
+      
       const token = await getToken(messaging, { 
-        vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+        vapidKey: vapidKey ? vapidKey.trim() : undefined,
         serviceWorkerRegistration: registration
       });
       if (token) {
