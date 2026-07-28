@@ -234,8 +234,8 @@ const SubcategoryPage = () => {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
-                  if (selectedSubcategory !== "all") {
-                    setSelectedSubcategory("all");
+                  if (selectedSubcategory !== null) {
+                    setSelectedSubcategory(null);
                   } else {
                     navigate(-1);
                   }
