@@ -23,10 +23,7 @@ export const requestForToken = async () => {
         registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
         await navigator.serviceWorker.ready;
       }
-      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-      if (!vapidKey) {
-        console.warn('Firebase VAPID key is missing from environment variables.');
-      }
+      const vapidKey = "BKaj1FRPsv0u1cXLSKSpl3VDotbIgrN_pPn_3v7wwowIRshUWm6o1q__yd1FYZMV_k7COJf71bS5PHRZx3FDFPY";
       
       try {
         const token = await getToken(messaging, { 
@@ -41,14 +38,22 @@ export const requestForToken = async () => {
         }
       } catch (tokenError) {
         if (tokenError.name === 'InvalidAccessError' || (tokenError.message && tokenError.message.includes('applicationServerKey'))) {
-          console.warn('VAPID key mismatch detected. Clearing old subscription...');
+          console.warn('VAPID key mismatch detected. Force clearing all subscriptions...');
           try {
-            await deleteToken(messaging);
             if (registration) {
               await registration.unregister();
             }
-            console.log('Old subscription cleared. Please refresh the page to get a new token.');
-            // Optionally, you can force a reload here: window.location.reload();
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (let r of regs) {
+              await r.unregister();
+            }
+            // Aggressively delete Firebase Messaging IndexedDB
+            indexedDB.deleteDatabase('firebase-messaging-database');
+            
+            console.log('Aggressive cleanup finished. Reloading page...');
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
           } catch (clearError) {
             console.error('Failed to clear old subscription:', clearError);
           }
