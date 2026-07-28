@@ -230,6 +230,8 @@ const getPublicProviders = async (req, res) => {
 
             const isSewak = p.providerCategory === 'sewak';
             let startingPrice = 199;
+            let hasAnyServices = true;
+            
             if (isSewak) {
                 const categoryServices = p.vendorType?.services || [];
                 if (categoryServices.length > 0) {
@@ -239,6 +241,8 @@ const getPublicProviders = async (req, res) => {
                 const services = await Service.find({ providerId: p._id, visible: true }).select('price');
                 if (services.length > 0) {
                     startingPrice = Math.min(...services.map(s => s.price));
+                } else {
+                    hasAnyServices = false;
                 }
             }
             providerObj.startingPrice = startingPrice;
@@ -248,6 +252,11 @@ const getPublicProviders = async (req, res) => {
 
             if (hasCombo === 'true' && !providerObj.hasCombo) {
                 continue; // Skip if filter requires combo and provider has none
+            }
+
+            // Skip non-sewak providers that have no services and no combos
+            if (!isSewak && !hasAnyServices && !providerObj.hasCombo) {
+                continue;
             }
 
             enrichedProviders.push(providerObj);
