@@ -84,6 +84,8 @@ const Checkout = () => {
   const [userProposedAmount, setUserProposedAmount] = useState("");
   const [drivingDistanceKm, setDrivingDistanceKm] = useState(null);
   const [serviceLocation, setServiceLocation] = useState("home");
+  const [gstPercent, setGstPercent] = useState(0);
+  const [platformFee, setPlatformFee] = useState(0);
 
   const checkoutData = JSON.parse(
     localStorage.getItem("rozsewa_checkout_data"),
@@ -118,6 +120,23 @@ const Checkout = () => {
     };
     fetchProviderHours();
   }, [checkoutData.providerId]);
+
+  useEffect(() => {
+    const fetchCategoryFees = async () => {
+      if (checkoutData.category && checkoutData.category !== "General") {
+        try {
+          const { data } = await API.get(`/public/categories/${encodeURIComponent(checkoutData.category)}`);
+          if (data) {
+            setGstPercent(data.gstPercent || 0);
+            setPlatformFee(data.platformFee || 0);
+          }
+        } catch (error) {
+          console.error("Failed to fetch category fees:", error);
+        }
+      }
+    };
+    fetchCategoryFees();
+  }, [checkoutData.category]);
 
   const defaultAddresses = [
     {
@@ -337,12 +356,12 @@ const Checkout = () => {
       return;
     }
 
-    const bLon = selectedAddress.location.coordinates[0];
-    const bLat = selectedAddress.location.coordinates[1];
-    const pLon = providerDetails.location.coordinates[0];
-    const pLat = providerDetails.location.coordinates[1];
+    const bLon = Number(selectedAddress.location.coordinates[0]);
+    const bLat = Number(selectedAddress.location.coordinates[1]);
+    const pLon = Number(providerDetails.location.coordinates[0]);
+    const pLat = Number(providerDetails.location.coordinates[1]);
 
-    if (bLon === undefined || pLon === undefined) {
+    if (isNaN(bLon) || isNaN(pLon)) {
       setDrivingDistanceKm(null);
       return;
     }
@@ -683,11 +702,15 @@ const Checkout = () => {
 
   const nightChargeAmount = getNightChargeAmount();
 
+  const calculatedGstAmount = Math.round((payableSubtotal * gstPercent) / 100);
+
   const total =
     payableSubtotal +
     (isExpress ? EXPRESS_FEE : 0) +
     estimatedTravelCharge +
-    nightChargeAmount;
+    nightChargeAmount +
+    calculatedGstAmount +
+    platformFee;
 
   // Validation flags for custom offer
   const isOfferTooLow = hasCustomOffer && payableSubtotal < minAllowedOffer;
@@ -1724,7 +1747,7 @@ const Checkout = () => {
                       appliedDistanceConfig &&
                       providerDetails && (
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                          {calculatedDistanceKm.toFixed(1)} km
+                          {calculatedDistanceKm < 0.1 ? "<0.1" : calculatedDistanceKm.toFixed(1)} km
                           {calculatedDistanceKm <=
                           appliedDistanceConfig.baseDistance
                             ? ` (Base fare applied)`
@@ -1751,6 +1774,30 @@ const Checkout = () => {
                   </div>
                   <span className="font-black text-slate-900 dark:text-white mt-0.5">
                     ₹{nightChargeAmount}
+                  </span>
+                </div>
+              )}
+              {calculatedGstAmount > 0 && (
+                <div className="flex justify-between text-sm items-start">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      GST ({gstPercent}%)
+                    </span>
+                  </div>
+                  <span className="font-black text-slate-900 dark:text-white mt-0.5">
+                    ₹{calculatedGstAmount}
+                  </span>
+                </div>
+              )}
+              {platformFee > 0 && (
+                <div className="flex justify-between text-sm items-start">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-semibold flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                      Platform Fee
+                    </span>
+                  </div>
+                  <span className="font-black text-slate-900 dark:text-white mt-0.5">
+                    ₹{platformFee}
                   </span>
                 </div>
               )}

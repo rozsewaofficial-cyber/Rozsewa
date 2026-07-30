@@ -127,6 +127,7 @@ import AdminSewakIncentives from "./modules/admin/pages/AdminSewakIncentives";
 import DistanceCharges from "./modules/admin/pages/DistanceCharges";
 import AdminServiceRadius from "./modules/admin/pages/AdminServiceRadius";
 import AdminUnauthorizedPayments from "./modules/admin/pages/AdminUnauthorizedPayments";
+import AdminFeeSettings from "./modules/admin/pages/AdminFeeSettings";
 
 // Admin Layout
 import AdminLayout from "./modules/admin/components/AdminLayout";
@@ -264,6 +265,7 @@ const App = () => (
                         <Route path="settings/service-radius" element={<AdminServiceRadius />} />
                         <Route path="sewak-incentives" element={<AdminSewakIncentives />} />
                         <Route path="unauthorized-payments" element={<AdminUnauthorizedPayments />} />
+                        <Route path="fee-settings" element={<AdminFeeSettings />} />
 
                         <Route path="zones" element={<AdminZones />} />
                         <Route path="dispatch" element={<AdminDispatch />} />
