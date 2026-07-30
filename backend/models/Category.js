@@ -28,7 +28,9 @@ const categorySchema = mongoose.Schema({
     services: [subServiceSchema], // Pre-defined services in this category
     combos: [comboTemplateSchema], // Pre-defined combos in this category
     businessModel: { type: String, enum: ['commission', 'lead'], default: 'commission' },
-    defaultLeadPrice: { type: Number, default: 0 }
+    defaultLeadPrice: { type: Number, default: 0 },
+    gstPercent: { type: Number, default: 0, min: 0 },
+    platformFee: { type: Number, default: 0, min: 0 }
 }, {
     timestamps: true
 });

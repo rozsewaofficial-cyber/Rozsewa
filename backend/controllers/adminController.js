@@ -537,6 +537,8 @@ const updateCategory = async (req, res) => {
         if (req.body.isComingSoon !== undefined) category.isComingSoon = req.body.isComingSoon;
         if (req.body.businessModel !== undefined) category.businessModel = req.body.businessModel;
         if (req.body.defaultLeadPrice !== undefined) category.defaultLeadPrice = req.body.defaultLeadPrice;
+        if (req.body.gstPercent !== undefined) category.gstPercent = req.body.gstPercent;
+        if (req.body.platformFee !== undefined) category.platformFee = req.body.platformFee;
 
         if (req.body.services) {
             category.services = req.body.services.map(s => {

@@ -348,42 +348,65 @@ const createBooking = async (req, res) => {
             });
         }
 
-        // --- 5. Calculate Night Charge & Express Fee ---
+        // --- 5. Calculate Night Charge, GST & Platform Fee ---
         let finalTotalAmount = payableAmount;
         let nightChargeAmount = 0;
         let appliedNightChargePercent = 0;
+        let gstAmount = 0;
+        let platformFee = 0;
+        let appliedGstPercent = 0;
 
         try {
-            const config = await Setting.findOne({ key: 'night_charge_config' });
-            if (config && config.value.enabled) {
-                const { startTime, endTime, defaultPercent } = config.value;
+            // First find the category to get fees
+            let categoryForFee = null;
+            if (mongoose.Types.ObjectId.isValid(serviceId)) {
+                const service = await Service.findById(serviceId);
+                if (service) {
+                    categoryForFee = await Category.findOne({ name: service.category });
+                } else {
+                    categoryForFee = await Category.findOne({
+                        $or: [
+                            { "services._id": serviceId },
+                            { "combos._id": serviceId }
+                        ]
+                    });
+                }
+            }
+            
+            if (categoryForFee) {
+                appliedGstPercent = categoryForFee.gstPercent || 0;
+                platformFee = categoryForFee.platformFee || 0;
+                gstAmount = Math.round((payableAmount * appliedGstPercent) / 100);
 
-                if (isNightTime(bookingTime, startTime, endTime)) {
-                    if (mongoose.Types.ObjectId.isValid(serviceId)) {
-                        const service = await Service.findById(serviceId);
-                        if (service) {
-                            const category = await Category.findOne({ name: service.category });
-                            let percent = defaultPercent;
-
-                            if (category && category.hasNightCharge) {
-                                percent = category.nightChargePercent;
-                            }
-
-                            appliedNightChargePercent = percent;
-                            nightChargeAmount = (payableAmount * percent) / 100;
-                            finalTotalAmount = payableAmount + nightChargeAmount;
+                // Night charge logic
+                const config = await Setting.findOne({ key: 'night_charge_config' });
+                if (config && config.value.enabled) {
+                    const { startTime, endTime, defaultPercent } = config.value;
+                    if (isNightTime(bookingTime, startTime, endTime)) {
+                        let percent = defaultPercent;
+                        if (categoryForFee.hasNightCharge) {
+                            percent = categoryForFee.nightChargePercent;
                         }
+                        appliedNightChargePercent = percent;
+                        nightChargeAmount = Math.round((payableAmount * percent) / 100);
                     }
                 }
             }
+            finalTotalAmount = payableAmount + nightChargeAmount + gstAmount + platformFee;
+
         } catch (err) {
-            console.error("Night charge calculation error:", err);
+            console.error("Fee calculation error:", err);
+            finalTotalAmount = payableAmount + gstAmount + platformFee;
         }
 
         let originalFixedPrice = subtotal - couponDiscount;
         if (nightChargeAmount > 0 && appliedNightChargePercent > 0) {
-            originalFixedPrice += (originalFixedPrice * appliedNightChargePercent) / 100;
+            originalFixedPrice += Math.round((originalFixedPrice * appliedNightChargePercent) / 100);
         }
+        if (appliedGstPercent > 0) {
+            originalFixedPrice += Math.round(((subtotal - couponDiscount) * appliedGstPercent) / 100);
+        }
+        originalFixedPrice += platformFee;
         originalFixedPrice = Math.round(originalFixedPrice);
 
         const newBooking = new Booking({
@@ -395,6 +418,9 @@ const createBooking = async (req, res) => {
             bookingDate,
             bookingTime,
             totalAmount: finalTotalAmount,
+            baseServiceAmount: payableAmount,
+            gstAmount: gstAmount,
+            platformFee: platformFee,
             address,
             location: req.body.location,
             couponCode,
