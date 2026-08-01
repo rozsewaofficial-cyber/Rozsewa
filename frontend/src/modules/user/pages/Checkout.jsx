@@ -1032,111 +1032,167 @@ const Checkout = () => {
 
   // ─── MAIN CHECKOUT ────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-28 md:pb-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans pb-32 md:pb-12 text-slate-900 dark:text-slate-100">
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800">
-            <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
-          </motion.button>
-          <div>
-            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Checkout</h1>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{serviceNames}</p>
+        
+        {/* Header Banner */}
+        <div className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 p-4 md:p-5 rounded-3xl shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => navigate('/')}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-slate-700 dark:text-slate-300 hover:text-emerald-600 transition-colors shadow-sm cursor-pointer"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </motion.button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Checkout</h1>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800/40 px-2.5 py-0.5 rounded-full">
+                  Fast Match
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{serviceNames}</p>
+            </div>
           </div>
         </div>
 
         {/* Service Preference Toggle */}
         {checkoutData.requiredProviderCategory !== 'sewak' && (
-          <section className="bg-white dark:bg-slate-800 rounded-[20px] p-4 border border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Where would you like your service?
+          <section className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-emerald-500" /> Where would you like your service?
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("home")}
-                className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "home" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
-                  }`}>
+              <motion.div
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setServiceLocation("home")}
+                className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all duration-200 overflow-hidden ${
+                  serviceLocation === "home"
+                    ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 shadow-md shadow-emerald-500/10 ring-4 ring-emerald-500/15"
+                    : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-emerald-300 dark:hover:border-emerald-700"
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-1">
-                  <Home className={`h-4 w-4 ${serviceLocation === "home" ? "text-blue-600" : "text-slate-400"}`} />
-                  <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Home</h3>
+                  <div className={`p-1.5 rounded-xl ${serviceLocation === "home" ? "bg-emerald-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-500"}`}>
+                    <Home className="h-4 w-4" />
+                  </div>
+                  <h3 className="text-xs font-black text-slate-900 dark:text-white">At Home</h3>
                 </div>
-                <p className="text-[10px] font-bold text-slate-500 leading-tight">Provider visits you</p>
+                <p className="text-[10px] font-bold text-slate-500 leading-tight">Provider visits your address</p>
               </motion.div>
               
-              <motion.div whileTap={{ scale: 0.98 }} onClick={() => setServiceLocation("shop")}
-                className={`relative flex cursor-pointer flex-col p-4 rounded-[16px] border-2 transition-all overflow-hidden ${serviceLocation === "shop" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-blue-300"
-                  }`}>
+              <motion.div
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setServiceLocation("shop")}
+                className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all duration-200 overflow-hidden ${
+                  serviceLocation === "shop"
+                    ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 shadow-md shadow-emerald-500/10 ring-4 ring-emerald-500/15"
+                    : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-emerald-300 dark:hover:border-emerald-700"
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-1">
-                  <Briefcase className={`h-4 w-4 ${serviceLocation === "shop" ? "text-blue-600" : "text-slate-400"}`} />
-                  <h3 className="text-[13px] font-black text-slate-900 dark:text-white">At Shop</h3>
+                  <div className={`p-1.5 rounded-xl ${serviceLocation === "shop" ? "bg-emerald-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-500"}`}>
+                    <Briefcase className="h-4 w-4" />
+                  </div>
+                  <h3 className="text-xs font-black text-slate-900 dark:text-white">At Shop</h3>
                 </div>
-                <p className="text-[10px] font-bold text-slate-500 leading-tight">You visit provider</p>
+                <p className="text-[10px] font-bold text-slate-500 leading-tight">You visit provider shop</p>
               </motion.div>
             </div>
           </section>
         )}
 
-        {/* Feature Toggles */}
+        {/* Feature Toggles (Express Service Fee) */}
         {EXPRESS_FEE > 0 && (
           <section className="grid grid-cols-2 gap-3">
-            <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsExpress(false); }}
-              className={`relative flex cursor-pointer flex-col p-4 rounded-[20px] border-2 transition-all overflow-hidden ${!isExpress ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-300"
-                }`}>
+            <motion.div
+              whileTap={{ scale: 0.98 }}
+              onClick={() => { setIsExpress(false); }}
+              className={`relative flex cursor-pointer flex-col p-4 rounded-3xl border-2 transition-all overflow-hidden ${
+                !isExpress
+                  ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 shadow-md ring-4 ring-emerald-500/15"
+                  : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-emerald-300"
+              }`}
+            >
               <div className="flex items-center justify-between mb-2">
-                <div className={`p-2 rounded-[12px] ${!isExpress ? "bg-blue-500 text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-400"}`}><Clock className="h-4 w-4" /></div>
-                {!isExpress && <Check className="h-4 w-4 text-blue-600" />}
+                <div className={`p-2 rounded-xl ${!isExpress ? "bg-emerald-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-400"}`}>
+                  <Clock className="h-4 w-4" />
+                </div>
+                {!isExpress && <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 stroke-[3]" />}
               </div>
-              <h3 className="text-[13px] font-black text-slate-900 dark:text-white">Standard Service</h3>
+              <h3 className="text-xs font-black text-slate-900 dark:text-white">Standard Service</h3>
               <p className="text-[10px] font-bold text-slate-500 leading-tight mt-1">Book for scheduled time</p>
             </motion.div>
 
-            <motion.div whileTap={{ scale: 0.98 }} onClick={() => { setIsExpress(true); }}
-              className={`relative flex cursor-pointer flex-col p-4 rounded-[20px] border-2 transition-all overflow-hidden ${isExpress ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20 shadow-sm" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-300"
-                }`}>
+            <motion.div
+              whileTap={{ scale: 0.98 }}
+              onClick={() => { setIsExpress(true); }}
+              className={`relative flex cursor-pointer flex-col p-4 rounded-3xl border-2 transition-all overflow-hidden ${
+                isExpress
+                  ? "border-amber-500 bg-amber-50/60 dark:bg-amber-950/30 shadow-md ring-4 ring-amber-500/15"
+                  : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-amber-300"
+              }`}
+            >
               <div className="flex items-center justify-between mb-2">
-                <div className={`p-2 rounded-[12px] ${isExpress ? "bg-amber-500 text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-400"}`}><Zap className="h-4 w-4" /></div>
-                {isExpress && <Check className="h-4 w-4 text-amber-600" />}
+                <div className={`p-2 rounded-xl ${isExpress ? "bg-amber-500 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-400"}`}>
+                  <Zap className="h-4 w-4" />
+                </div>
+                {isExpress && <Check className="h-4 w-4 text-amber-600 dark:text-amber-400 stroke-[3]" />}
               </div>
-              <h3 className="text-[13px] font-black text-slate-900 dark:text-white">Express Service</h3>
-              <p className="text-[10px] font-bold text-slate-500 leading-tight mt-1">In 45 mins (+₹{EXPRESS_FEE})</p>
+              <h3 className="text-xs font-black text-slate-900 dark:text-white">Express Service</h3>
+              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 leading-tight mt-1">In 45 mins (+₹{EXPRESS_FEE})</p>
             </motion.div>
           </section>
         )}
 
+        {/* Scheduling Section */}
         <AnimatePresence mode="wait">
-          <motion.div key="scheduling" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
-            <section className={isExpress ? "opacity-40 grayscale-[0.5]" : ""}>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
-                  <Clock className="h-3.5 w-3.5 text-blue-500" /> Select Date
+          <motion.div key="scheduling" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-5 overflow-hidden">
+            <section className={`bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm ${isExpress ? "opacity-40 grayscale-[0.5]" : ""}`}>
+              <div className="flex items-center justify-between mb-3.5">
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-emerald-500" /> Select Date
                 </h2>
                 {isExpress && (
-                  <span className="text-[9px] font-black text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-[6px] uppercase tracking-widest">Not Required</span>
+                  <span className="text-[10px] font-black text-amber-600 bg-amber-50 dark:bg-amber-950/60 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                    Express Arrival
+                  </span>
                 )}
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+              <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
                 {dates.map((d) => (
-                  <motion.button key={d.full} whileTap={{ scale: 0.93 }}
+                  <motion.button
+                    key={d.full}
+                    whileTap={{ scale: 0.93 }}
                     onClick={() => {
                       setSelectedDate(d.full);
                       setIsExpress(false);
                     }}
-                    className={`flex min-w-[72px] shrink-0 flex-col items-center justify-center rounded-[20px] border-2 py-3.5 transition-all ${selectedDate === d.full ? "border-blue-600 bg-blue-600 shadow-[0_8px_20px_rgba(37,99,235,0.2)] text-white" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:border-blue-300"
-                      }`}>
+                    className={`flex min-w-[76px] shrink-0 flex-col items-center justify-center rounded-2xl border-2 py-3.5 transition-all duration-150 cursor-pointer ${
+                      selectedDate === d.full
+                        ? "border-emerald-600 bg-emerald-600 shadow-md shadow-emerald-500/25 text-white"
+                        : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 hover:border-emerald-300 dark:hover:border-emerald-700"
+                    }`}
+                  >
                     <span className="text-[10px] font-bold uppercase opacity-80 mb-1">{d.day}</span>
-                    <span className="text-xl font-black">{d.date}</span>
+                    <span className="text-lg font-black">{d.date}</span>
                   </motion.button>
                 ))}
               </div>
             </section>
 
-            <section>
+            <section className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+              <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
+                <Clock className="h-4 w-4 text-emerald-500" /> Preferred Time Slot
+              </h2>
               {availableSlots.length === 0 ? (
-                <div className="rounded-[20px] border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-5 text-center shadow-inner">
-                  <p className="text-[13px] font-bold text-slate-500">Provider is not available for booking on this date.</p>
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 text-center">
+                  <p className="text-xs font-bold text-slate-500">No time slots available for this date.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2.5">
                   {availableSlots.map((t) => (
                     <motion.button
                       key={t}
@@ -1145,10 +1201,11 @@ const Checkout = () => {
                         setSelectedTime(t);
                         setIsExpress(false);
                       }}
-                      className={`rounded-[14px] py-3 px-2 text-[12px] font-bold transition-all border ${selectedTime === t
-                        ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/20"
-                        : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-blue-300"
-                        }`}
+                      className={`rounded-2xl py-3 px-2 text-xs font-bold transition-all border cursor-pointer ${
+                        selectedTime === t
+                          ? "border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+                          : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 hover:border-emerald-300 dark:hover:border-emerald-700"
+                      }`}
                     >
                       {t}
                     </motion.button>
@@ -1159,34 +1216,44 @@ const Checkout = () => {
           </motion.div>
         </AnimatePresence>
 
-        {/* Address */}
-        <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+        {/* Address Card */}
+        <section className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3.5">
           {serviceLocation === 'shop' ? (
-            <div className="text-center py-4">
-              <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-center gap-2">
-                <Briefcase className="h-5 w-5 text-blue-600 dark:text-blue-400" /> You will visit the provider's shop
+            <div className="text-center py-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-center gap-2">
+                <Briefcase className="h-4 w-4 text-emerald-500" /> You will visit the provider's shop
               </h3>
-              <p className="text-xs font-bold text-slate-400 dark:text-slate-500">The provider's shop address will be shown after booking confirmation.</p>
+              <p className="text-xs font-medium text-slate-400 dark:text-slate-500">The provider's full shop address will be shared upon booking confirmation.</p>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2"><MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" /> Location</h3>
-                <button onClick={() => setShowAddressModal(true)} className="rounded-full bg-blue-50 dark:bg-blue-900/30 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors">Change</button>
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-emerald-500" /> Service Location
+                </h3>
+                <button
+                  onClick={() => setShowAddressModal(true)}
+                  className="rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 transition-colors cursor-pointer"
+                >
+                  Change
+                </button>
               </div>
               {selectedAddress ? (
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-slate-100 dark:bg-slate-800">
-                    {selectedAddress.icon === "office" ? <Briefcase className="h-6 w-6 text-slate-900 dark:text-white" /> : <Home className="h-6 w-6 text-slate-900 dark:text-white" />}
+                <div className="flex items-center gap-4 pt-1">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40">
+                    {selectedAddress.icon === "office" ? <Briefcase className="h-5 w-5" /> : <Home className="h-5 w-5" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black text-slate-900 dark:text-white">{selectedAddress.label}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedAddress.label}</p>
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5 leading-snug truncate">{selectedAddress.address}</p>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setShowAddressModal(true)} className="w-full flex items-center justify-center gap-2 py-4 rounded-[20px] border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 text-sm font-bold text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">
-                  <Plus className="h-5 w-5" /> Add Delivery Address
+                <button
+                  onClick={() => setShowAddressModal(true)}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" /> Add Service Address
                 </button>
               )}
             </>
@@ -1194,76 +1261,95 @@ const Checkout = () => {
         </section>
 
         {/* Notes */}
-        <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
-          <h3 className="mb-3 text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Service Notes / Instructions</h3>
-          <textarea placeholder="Any special instructions for the provider..." rows={2} value={serviceNotes} onChange={(e) => setServiceNotes(e.target.value)}
-            className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3 text-sm font-medium placeholder:text-slate-400 dark:text-slate-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all" />
+        <section className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Service Notes / Special Instructions</h3>
+          <textarea
+            placeholder="Any specific directions, landmark notes, or special instructions for your provider..."
+            rows={2}
+            value={serviceNotes}
+            onChange={(e) => setServiceNotes(e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 px-4 py-3 text-xs font-medium placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 transition-all leading-relaxed"
+          />
         </section>
 
         <>
           {/* Coupon */}
-          <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500"><Tag className="h-3.5 w-3.5 text-emerald-500" /> Apply Promo</h3>
+          <section className="relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <Tag className="h-4 w-4 text-emerald-500" /> Apply Promo Code
+              </h3>
               <button
                 onClick={() => navigate("/offers")}
-                className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline transition-all"
+                className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:underline transition-all cursor-pointer"
               >
                 View Offers
               </button>
             </div>
             <div className="flex gap-2">
-              <input type="text" value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="ENTER COUPON CODE" disabled={couponApplied}
-                className="flex-1 rounded-[14px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3 text-[13px] font-black uppercase tracking-wider placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 transition-all" />
-              <motion.button whileTap={{ scale: 0.95 }} onClick={applyCoupon} disabled={couponApplied || !coupon}
-                className="rounded-[14px] bg-[#82e2c0] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-[0_8px_20px_rgba(130,226,192,0.4)] disabled:opacity-50 transition-all hover:bg-[#68d8b1]">
+              <input
+                type="text"
+                value={coupon}
+                onChange={(e) => setCoupon(e.target.value)}
+                placeholder="ENTER PROMO CODE"
+                disabled={couponApplied}
+                className="flex-1 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 px-4 py-3 text-xs font-bold uppercase tracking-wider placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 disabled:opacity-50 transition-all"
+              />
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={applyCoupon}
+                disabled={couponApplied || !coupon}
+                className="rounded-2xl bg-emerald-600 hover:bg-emerald-700 px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-emerald-500/20 disabled:opacity-50 transition-all cursor-pointer"
+              >
                 {couponApplied ? "Applied ✓" : "Apply"}
               </motion.button>
             </div>
           </section>
 
           {/* Bargain & Save */}
-          <section className="relative rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-5 shadow-sm space-y-3">
+          <section className="relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-slate-500"><Tag className="h-3.5 w-3.5 text-blue-500" /> Bargain & Save</h3>
+              <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <Tag className="h-4 w-4 text-emerald-500" /> Bargain & Save
+              </h3>
             </div>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal">
-              Have a budget in mind? Make a custom Customer Offer for this service.
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-normal">
+              Have a budget in mind? Propose a custom customer offer for this service request.
             </p>
             <div className="flex gap-2">
               <div className="relative flex-1">
-                <span className="absolute inset-y-0 left-4 flex items-center text-slate-500 font-bold text-sm">₹</span>
+                <span className="absolute inset-y-0 left-4 flex items-center text-emerald-600 dark:text-emerald-400 font-bold text-sm">₹</span>
                 <input
                   type="number"
                   value={customerOffer}
                   onChange={(e) => setCustomerOffer(e.target.value)}
                   placeholder={`Original Price: ₹${subtotal}`}
-                  className="w-full rounded-[14px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-8 pr-4 py-3 text-[13px] font-bold focus:border-blue-500 focus:outline-none transition-all"
+                  className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 pl-8 pr-4 py-3 text-xs font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 transition-all"
                 />
               </div>
               {hasCustomOffer && (
                 <button
                   onClick={() => setCustomerOffer("")}
-                  className="rounded-[14px] bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:text-white px-4 py-3 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700"
+                  className="rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 px-4 py-3 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 cursor-pointer"
                 >
                   Reset
                 </button>
               )}
             </div>
             {hasCustomOffer && (
-              <div className="text-[11px] font-bold">
+              <div className="text-xs font-bold pt-1">
                 {isOfferTooLow && (
-                  <p className="text-red-500">Customer Offer is too low! Minimum allowed offer: ₹{minAllowedOffer}.</p>
+                  <p className="text-red-500 bg-red-50 dark:bg-red-950/60 px-3 py-2 rounded-xl">Customer Offer is too low! Minimum allowed offer: ₹{minAllowedOffer}.</p>
                 )}
                 {isOfferTooHigh && (
-                  <p className="text-red-500">Offer cannot exceed ₹{subtotal - couponDiscount} (subtotal after coupon).</p>
+                  <p className="text-red-500 bg-red-50 dark:bg-red-950/60 px-3 py-2 rounded-xl">Offer cannot exceed ₹{subtotal - couponDiscount} (subtotal after coupon).</p>
                 )}
                 {isOfferNegative && (
-                  <p className="text-red-500">Offer cannot be negative.</p>
+                  <p className="text-red-500 bg-red-50 dark:bg-red-950/60 px-3 py-2 rounded-xl">Offer cannot be negative.</p>
                 )}
                 {!isOfferInvalid && (
-                  <p className="text-emerald-500">
-                    Offer within rules! You save a custom bargain discount of ₹{bargainDiscount} (Total savings: ₹{totalDiscount}).
+                  <p className="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-3 py-2 rounded-xl">
+                    Offer valid! You save a custom bargain discount of ₹{bargainDiscount} (Total savings: ₹{totalDiscount}).
                   </p>
                 )}
               </div>
@@ -1271,18 +1357,31 @@ const Checkout = () => {
           </section>
 
           {/* Price Summary */}
-          <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-3">
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400"><span>Subtotal ({checkoutData.items.length} items)</span><span className="font-semibold text-slate-900 dark:text-white">₹{subtotal}</span></div>
-              {isExpress && <div className="flex justify-between text-sm"><span className="font-semibold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-amber-500" /> Express Fee</span><span className="font-black text-slate-900 dark:text-white">₹{EXPRESS_FEE}</span></div>}
+          <section className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3.5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              Payment Summary
+            </h3>
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                <span>Subtotal ({checkoutData.items.length} items)</span>
+                <span className="font-bold text-slate-900 dark:text-white">₹{subtotal}</span>
+              </div>
+              {isExpress && (
+                <div className="flex justify-between">
+                  <span className="font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <Zap className="h-3.5 w-3.5" /> Express Fee
+                  </span>
+                  <span className="font-black text-slate-900 dark:text-white">₹{EXPRESS_FEE}</span>
+                </div>
+              )}
               {distanceChargeConfig?.enabled && (
-                <div className="flex justify-between text-sm items-start">
+                <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-semibold flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                      {providerDetails ? "Travel Charge" : "Estimated Travel Charge (To be finalized by provider)"}
+                    <span className="font-semibold text-slate-600 dark:text-slate-400">
+                      {providerDetails ? "Travel Charge" : "Estimated Travel Charge"}
                     </span>
                     {calculatedDistanceKm !== null && appliedDistanceConfig && providerDetails && (
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                      <span className="text-[10px] text-slate-400 font-medium">
                         {calculatedDistanceKm.toFixed(1)} km 
                         {calculatedDistanceKm <= appliedDistanceConfig.baseDistance 
                           ? ` (Base fare applied)` 
@@ -1294,76 +1393,120 @@ const Checkout = () => {
                 </div>
               )}
               {nightChargeAmount > 0 && (
-                <div className="flex justify-between text-sm items-start">
+                <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-semibold flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                      <Moon className="h-3.5 w-3.5 text-indigo-500" /> Night Convenience Charge
+                    <span className="font-semibold flex items-center gap-1.5 text-indigo-500">
+                      <Moon className="h-3.5 w-3.5" /> Night Convenience Charge
                     </span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                    <span className="text-[10px] text-slate-400 font-medium">
                       Applied for service timing {nightChargeConfig.startTime} - {nightChargeConfig.endTime}
                     </span>
                   </div>
                   <span className="font-black text-slate-900 dark:text-white mt-0.5">₹{nightChargeAmount}</span>
                 </div>
               )}
-              {couponApplied && <div className="flex justify-between text-sm text-emerald-500"><span className="font-bold">Coupon Discount</span><span className="font-black">-₹{couponDiscount}</span></div>}
-              {bargainDiscount > 0 && <div className="flex justify-between text-sm text-blue-500"><span className="font-bold">Bargain Discount</span><span className="font-black">-₹{bargainDiscount}</span></div>}
-              {totalDiscount > 0 && <div className="flex justify-between text-sm text-emerald-600 font-bold"><span className="font-bold">Total Savings</span><span className="font-black">-₹{totalDiscount}</span></div>}
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
-                <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total To Pay</span>
-                <span className="text-xl font-black text-blue-600 dark:text-blue-400">₹{userProposedAmount || total}</span>
+              {couponApplied && (
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span>Coupon Discount</span>
+                  <span>-₹{couponDiscount}</span>
+                </div>
+              )}
+              {bargainDiscount > 0 && (
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                  <span>Bargain Discount</span>
+                  <span>-₹{bargainDiscount}</span>
+                </div>
+              )}
+              {totalDiscount > 0 && (
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 p-2.5 rounded-xl border border-emerald-200/50 dark:border-emerald-800/40">
+                  <span>Total Savings</span>
+                  <span>-₹{totalDiscount}</span>
+                </div>
+              )}
+              <div className="border-t border-slate-200 dark:border-slate-800 pt-3 flex justify-between items-center">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">Total Amount</span>
+                <span className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{userProposedAmount || total}</span>
               </div>
             </div>
           </section>
 
           {/* Payment Mode Selection */}
-          <section className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">Payment Method</h3>
+          <section className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3.5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Payment Method</h3>
             <div className="flex flex-col gap-3">
-              <label className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMode === 'now' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800'}`}>
+              <label className={`flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer ${
+                paymentMode === 'now'
+                  ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-4 ring-emerald-500/15'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 bg-slate-50/40 dark:bg-slate-950/40'
+              }`}>
                 <input type="radio" name="paymentMode" value="now" checked={paymentMode === 'now'} onChange={() => setPaymentMode('now')} className="hidden" />
                 <div className="flex-1">
-                  <p className="font-bold text-slate-900 dark:text-white">Pay Online</p>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay securely via UPI/Card after provider acceptance</p>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Pay Online</p>
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay securely via UPI / Credit / Debit Cards</p>
                 </div>
-                {paymentMode === 'now' ? <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center shadow-md"><Check className="h-3 w-3 text-white" /></div> : <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}
+                {paymentMode === 'now' ? (
+                  <div className="h-5 w-5 rounded-full bg-emerald-600 flex items-center justify-center shadow-md">
+                    <Check className="h-3 w-3 text-white stroke-[3]" />
+                  </div>
+                ) : (
+                  <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-700"></div>
+                )}
               </label>
               
-              <label className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all cursor-pointer ${paymentMode === 'after' ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800'}`}>
+              <label className={`flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer ${
+                paymentMode === 'after'
+                  ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-4 ring-emerald-500/15'
+                  : 'border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 bg-slate-50/40 dark:bg-slate-950/40'
+              }`}>
                 <input type="radio" name="paymentMode" value="after" checked={paymentMode === 'after'} onChange={() => setPaymentMode('after')} className="hidden" />
                 <div className="flex-1">
-                  <p className="font-bold text-slate-900 dark:text-white">Cash on Delivery</p>
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay in cash when the service is completed</p>
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">Pay After Service</p>
+                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Pay directly when service is completed</p>
                 </div>
-                {paymentMode === 'after' ? <div className="h-5 w-5 rounded-full bg-blue-600 flex items-center justify-center shadow-md"><Check className="h-3 w-3 text-white" /></div> : <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>}
+                {paymentMode === 'after' ? (
+                  <div className="h-5 w-5 rounded-full bg-emerald-600 flex items-center justify-center shadow-md">
+                    <Check className="h-3 w-3 text-white stroke-[3]" />
+                  </div>
+                ) : (
+                  <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-700"></div>
+                )}
               </label>
             </div>
           </section>
         </>
       </main>
 
-      {/* Bottom Bar */}
+      {/* Bottom Floating Bar */}
       {(availableSlots.length > 0 || isExpress) && (
-        <div className="checkout-bottom-bar fixed bottom-0 left-0 right-0 z-40 bg-slate-50 dark:bg-slate-900/80 backdrop-blur-xl border-t border-slate-200 dark:border-slate-700 p-4 pb-navbar md:pb-4 md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
-          <motion.button whileTap={{ scale: 0.98 }} onClick={handleConfirmBooking} disabled={isProcessing}
-            className={`flex w-full items-center justify-between rounded-[20px] py-4 px-6 shadow-2xl transition-all ${isProcessing ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600'} text-white shadow-blue-600/30`}>
+        <div className="checkout-bottom-bar fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border-t border-slate-200/80 dark:border-slate-800 p-4 shadow-2xl md:relative md:bg-transparent md:border-0 md:p-0 md:max-w-2xl md:mx-auto">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={handleConfirmBooking}
+            disabled={isProcessing}
+            className={`flex w-full items-center justify-between rounded-2xl py-4 px-6 shadow-xl transition-all duration-200 cursor-pointer ${
+              isProcessing
+                ? 'bg-emerald-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-emerald-500/25 active:scale-[0.98]'
+            }`}
+          >
             <div className="flex flex-col items-start">
-              <span className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
-                Grand Total
+              <span className="text-[10px] uppercase tracking-wider font-bold opacity-80">
+                Total Payable
               </span>
               <span className="text-xl font-black">
                 ₹{userProposedAmount || total}
               </span>
             </div>
-            <div className="flex items-center gap-2 font-black text-lg">
+            <div className="flex items-center gap-2 font-black text-sm uppercase tracking-wider">
               {isProcessing ? (
                 <>
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Sending...
+                  <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                  <span>Processing...</span>
                 </>
               ) : (
                 <>
-                  Send Request <ArrowLeft className="h-4 w-4 rotate-180" />
+                  <span>Confirm Booking</span>
+                  <ArrowLeft className="h-4 w-4 rotate-180 stroke-[2.5]" />
                 </>
               )}
             </div>
@@ -1376,28 +1519,28 @@ const Checkout = () => {
       <AnimatePresence>
         {showAddressModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/50 backdrop-blur-sm p-4">
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className={`w-full max-w-md rounded-t-[32px] sm:rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${showNewAddressForm ? 'h-full max-h-full sm:max-h-[90vh]' : 'max-h-[85vh]'}`}>
-              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-5 shrink-0">
+              className={`w-full max-w-md rounded-t-[36px] sm:rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${showNewAddressForm ? 'h-full max-h-full sm:max-h-[90vh]' : 'max-h-[85vh]'}`}>
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 p-5 shrink-0">
                 <h3 className="text-base font-black text-slate-900 dark:text-white">Select Address</h3>
-                <button onClick={() => { setShowAddressModal(false); setShowNewAddressForm(false); }} className="rounded-full p-2 hover:bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-white transition-colors"><X className="h-5 w-5" /></button>
+                <button onClick={() => { setShowAddressModal(false); setShowNewAddressForm(false); }} className="rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"><X className="h-5 w-5" /></button>
               </div>
               <div className={`flex-1 min-h-0 p-5 overflow-y-auto ${showNewAddressForm ? 'flex flex-col' : 'space-y-3'}`}>
                 {!showNewAddressForm && addresses.map(addr => (
                   <button key={addr.id} onClick={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
-                    className={`w-full flex items-center gap-4 rounded-[20px] border-2 p-4 text-left transition-all ${selectedAddress?.id === addr.id ? "border-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-md shadow-blue-600/5" : "border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:bg-slate-800 hover:border-slate-200 dark:border-slate-700/80"
+                    className={`w-full flex items-center gap-4 rounded-2xl border-2 p-4 text-left transition-all cursor-pointer ${selectedAddress?.id === addr.id ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 shadow-md shadow-emerald-500/10" : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-950/50"
                       }`}>
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[20px] bg-slate-100 dark:bg-slate-800">
-                      {addr.icon === "office" ? <Briefcase className="h-6 w-6 text-slate-900 dark:text-white" /> : <Home className="h-6 w-6 text-slate-900 dark:text-white" />}
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/40">
+                      {addr.icon === "office" ? <Briefcase className="h-5 w-5" /> : <Home className="h-5 w-5" />}
                     </div>
-                    <div className="flex-1 min-w-0 pr-4">
-                      <p className="text-sm font-black text-slate-900 dark:text-white">{addr.label}</p>
+                    <div className="flex-1 min-w-0 pr-2">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{addr.label}</p>
                       <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate leading-relaxed">{addr.address}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {selectedAddress?._id === addr._id && <div className="rounded-full bg-blue-100 dark:bg-blue-900/40 p-1"><Check className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" /></div>}
-                      <button onClick={(e) => handleDeleteAddress(e, addr._id)} className="p-2 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 transition-colors">
+                      {selectedAddress?._id === addr._id && <div className="rounded-full bg-emerald-100 dark:bg-emerald-950/80 p-1"><Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 stroke-[3]" /></div>}
+                      <button onClick={(e) => handleDeleteAddress(e, addr._id)} className="p-2 rounded-full text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 transition-colors cursor-pointer">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -1406,15 +1549,15 @@ const Checkout = () => {
 
                 {!showNewAddressForm ? (
                   <button onClick={() => setShowNewAddressForm(true)}
-                    className="w-full flex items-center justify-center gap-2 py-4 rounded-[20px] border-2 border-dashed border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-sm font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:bg-blue-900/30 transition-colors mt-2">
-                    <Plus className="h-5 w-5" /> Add New Address
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border-2 border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer mt-2">
+                    <Plus className="h-4 w-4" /> Add New Address
                   </button>
                 ) : (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col min-h-0 space-y-3 sm:space-y-4 rounded-3xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 sm:p-5 mt-0">
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex-1 flex flex-col min-h-0 space-y-3.5 rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/80 p-4 sm:p-5 mt-0">
                     <h4 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">New Address</h4>
 
                     {isLoaded && (
-                      <div className="rounded-[20px] overflow-hidden border border-slate-200 dark:border-slate-700 flex-1 relative min-h-[200px]">
+                      <div className="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex-1 relative min-h-[180px]">
                         <GoogleMap
                           mapContainerStyle={{ width: '100%', height: '100%' }}
                           center={newAddress.location ? { lat: newAddress.location.coordinates[1], lng: newAddress.location.coordinates[0] } : center}
@@ -1427,7 +1570,7 @@ const Checkout = () => {
                           )}
                         </GoogleMap>
                         <div className="absolute top-2 left-2 right-2">
-                          <p className="bg-white/90 dark:bg-slate-800/90 backdrop-blur text-[9px] font-black text-slate-700 dark:text-slate-200 text-center py-1.5 rounded-lg shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+                          <p className="bg-white/90 dark:bg-slate-900/90 backdrop-blur text-[10px] font-bold text-slate-700 dark:text-slate-200 text-center py-1.5 rounded-xl shadow-sm border border-slate-200/50 dark:border-slate-800/50">
                             Tap on map to pin exact service location
                           </p>
                         </div>
@@ -1436,29 +1579,29 @@ const Checkout = () => {
 
                     <input type="text" placeholder="Label (e.g. Home, Office)" value={newAddress.label}
                       onChange={(e) => setNewAddress(prev => ({ ...prev, label: e.target.value }))}
-                      className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 py-3.5 text-sm font-bold focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all" />
+                      className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-xs font-bold focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 transition-all" />
                     <div className="relative">
                       {isLoaded ? (
                         <Autocomplete onLoad={onLoadAutocomplete} onPlaceChanged={onPlaceChanged}>
                           <input type="text" placeholder={isFetchingLocation ? "Detecting location..." : "Search places or type full address"} value={newAddress.address}
                             onChange={(e) => setNewAddress(prev => ({ ...prev, address: e.target.value }))} disabled={isFetchingLocation}
-                            className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 pr-12 text-sm font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all disabled:opacity-70" />
+                            className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 pr-12 text-xs font-medium focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 transition-all disabled:opacity-70" />
                         </Autocomplete>
                       ) : (
                         <input type="text" placeholder={isFetchingLocation ? "Detecting location..." : "Search places or type full address"} value={newAddress.address}
                           onChange={(e) => setNewAddress(prev => ({ ...prev, address: e.target.value }))} disabled={isFetchingLocation}
-                          className="w-full rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4 pr-12 text-sm font-medium focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all disabled:opacity-70" />
+                          className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 pr-12 text-xs font-medium focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/15 transition-all disabled:opacity-70" />
                       )}
                       <button type="button" onClick={handleDetectLocation}
-                        className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors" title="Detect location">
+                        className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 transition-colors cursor-pointer" title="Detect location">
                         <Navigation className={`h-4 w-4 ${isFetchingLocation ? "animate-pulse" : ""}`} />
                       </button>
                     </div>
                     <div className="flex gap-2 pt-2">
                       <button onClick={() => setShowNewAddressForm(false)}
-                        className="flex-1 rounded-[16px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white hover:bg-slate-100 dark:bg-slate-800 transition-colors">Cancel</button>
+                        className="flex-1 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-3 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">Cancel</button>
                       <button onClick={handleSaveNewAddress}
-                        className="flex-1 rounded-[16px] bg-blue-600 py-3.5 text-xs font-bold uppercase tracking-wider text-white shadow-lg shadow-blue-600/20 transition-all hover:shadow-xl">Save</button>
+                        className="flex-1 rounded-2xl bg-emerald-600 hover:bg-emerald-700 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-md shadow-emerald-500/20 transition-all cursor-pointer">Save</button>
                     </div>
                   </motion.div>
                 )}

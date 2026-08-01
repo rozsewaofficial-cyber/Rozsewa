@@ -82,25 +82,38 @@ const SubcategoryPage = () => {
   };
 
   // Smart subcategory matcher to handle acronyms (AC, RO, TV), brand variations, and descriptions
+  // Helper to strip emojis and non-alphanumeric symbols
+  const stripEmojis = (str) => {
+    if (!str) return '';
+    return str
+      .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDFFF])/g, '')
+      .replace(/[^\w\s&,/\\-]/gi, ' ')
+      .trim();
+  };
+
+  // Smart subcategory matcher to handle acronyms, emojis, and descriptions
   const matchServiceToSubcategory = (service, sub) => {
     if (!service || !sub) return false;
 
+    // 1. Direct ID Match
     if (service.subcategoryId) {
       const sId = typeof service.subcategoryId === 'object' ? service.subcategoryId._id : service.subcategoryId;
       if (sId && (sId.toString() === sub._id?.toString() || sId.toString() === sub.id?.toString())) return true;
     }
 
-    const subNameLower = (sub.name || "").toLowerCase().trim();
-    const serviceSubLower = (service.subcategory || "").toLowerCase().trim();
+    // 2. Direct Subcategory Name Match (Stripped of emojis)
+    const cleanSubName = stripEmojis(sub.name || '').toLowerCase();
+    const cleanServiceSub = stripEmojis(service.subcategory || '').toLowerCase();
 
-    if (serviceSubLower) {
-      if (serviceSubLower === subNameLower) return true;
-      if (serviceSubLower.includes(subNameLower) || subNameLower.includes(serviceSubLower)) return true;
+    if (cleanServiceSub) {
+      if (cleanServiceSub === cleanSubName) return true;
+      if (cleanServiceSub.includes(cleanSubName) || cleanSubName.includes(cleanServiceSub)) return true;
     }
 
+    // 3. Text Token Match (Name & Description against clean Subcategory tokens)
     const serviceText = `${service.name || ""} ${service.description || ""}`.toLowerCase();
 
-    const rawParts = subNameLower
+    const rawParts = cleanSubName
       .replace(/[()]/g, ' ')
       .split(/[,&/\\-]+/)
       .map(p => p.trim())
@@ -108,56 +121,82 @@ const SubcategoryPage = () => {
 
     const tokens = [];
     rawParts.forEach(part => {
-      tokens.push(part);
+      if (part.length > 1) tokens.push(part);
       const words = part.split(/\s+/).filter(w => w.length > 1);
       words.forEach(w => {
-        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water'].includes(w)) {
+        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water', 'care', 'pack', 'package', 'packages', 'styling', 'grooming'].includes(w)) {
           tokens.push(w);
         }
       });
     });
 
-    if (subNameLower.includes("air conditioner") || subNameLower.includes("ac")) {
-      tokens.push("ac", "air conditioner", "split ac", "window ac", "cassette ac");
+    // Industry Synonym/Keyword mappings
+    if (cleanSubName.includes("makeup") || cleanSubName.includes("grooming")) {
+      tokens.push("makeup", "draping", "outfit", "saree draping", "outfit draping", "bridal", "cosmetics", "face makeup", "beauty", "party makeup", "threading", "waxing", "bleach", "glow");
     }
-    if (subNameLower.includes("ro") || subNameLower.includes("purifier")) {
+    if (cleanSubName.includes("hair")) {
+      tokens.push("hair", "haircut", "hair styling", "cut", "hair color", "highlights", "keratin", "hair spa", "blowdry", "hair trim", "smoothing", "straightening");
+    }
+    if (cleanSubName.includes("skin") || cleanSubName.includes("facial")) {
+      tokens.push("skin", "facial", "cleanup", "bleach", "glow", "detan", "face", "scrub", "mask");
+    }
+    if (cleanSubName.includes("mehendi") || cleanSubName.includes("henna")) {
+      tokens.push("mehendi", "henna", "arabic", "bridal mehendi");
+    }
+    if (cleanSubName.includes("hand") || cleanSubName.includes("foot") || cleanSubName.includes("pedicure") || cleanSubName.includes("manicure")) {
+      tokens.push("hand", "foot", "pedicure", "manicure", "nail", "polish", "feet");
+    }
+    if (cleanSubName.includes("body") || cleanSubName.includes("spa") || cleanSubName.includes("massage")) {
+      tokens.push("body", "spa", "massage", "scrub", "waxing", "detan", "therapy", "relax");
+    }
+    if (cleanSubName.includes("nail")) {
+      tokens.push("nail", "extensions", "gel", "art", "acrylic", "polish");
+    }
+    if (cleanSubName.includes("beard") || cleanSubName.includes("shave") || cleanSubName.includes("mustache")) {
+      tokens.push("beard", "shave", "mustache", "stubble", "beard styling", "mustache styling", "beard trim", "shaving");
+    }
+    if (cleanSubName.includes("air conditioner") || cleanSubName.includes("ac")) {
+      tokens.push("ac", "air conditioner", "split ac", "window ac", "cassette ac", "ac gas", "ac service", "ac repair", "ac installation");
+    }
+    if (cleanSubName.includes("ro") || cleanSubName.includes("purifier")) {
       tokens.push("ro", "purifier", "water purifier", "filter");
     }
-    if (subNameLower.includes("television") || subNameLower.includes("tv")) {
+    if (cleanSubName.includes("television") || cleanSubName.includes("tv")) {
       tokens.push("tv", "television", "led", "lcd", "oled", "smart tv");
     }
-    if (subNameLower.includes("geyser") || subNameLower.includes("water heater")) {
+    if (cleanSubName.includes("geyser") || cleanSubName.includes("water heater")) {
       tokens.push("geyser", "heater", "water heater");
     }
-    if (subNameLower.includes("refrigerator") || subNameLower.includes("fridge")) {
+    if (cleanSubName.includes("refrigerator") || cleanSubName.includes("fridge")) {
       tokens.push("refrigerator", "fridge", "freezer", "single door", "double door");
     }
-    if (subNameLower.includes("washing machine") || subNameLower.includes("washer")) {
+    if (cleanSubName.includes("washing machine") || cleanSubName.includes("washer")) {
       tokens.push("washing", "washer", "dryer", "laundry", "top load", "front load");
     }
-    if (subNameLower.includes("chimney")) {
+    if (cleanSubName.includes("small") || cleanSubName.includes("appliance")) {
+      tokens.push("small", "appliance", "appliances", "toaster", "mixer", "grinder", "iron", "kettle", "induction", "juicer", "blender", "sandwich", "fan", "heater", "stabilizer", "inverter");
+    }
+    if (cleanSubName.includes("cooler") || cleanSubName.includes("air cooler")) {
+      tokens.push("cooler", "air cooler", "desert cooler", "personal cooler");
+    }
+    if (cleanSubName.includes("chimney")) {
       tokens.push("chimney", "kitchen chimney", "hood");
     }
-    if (subNameLower.includes("microwave") || subNameLower.includes("oven")) {
-      tokens.push("microwave", "oven", "otg", "toaster", "griller");
+    if (cleanSubName.includes("laptop") || cleanSubName.includes("computer")) {
+      tokens.push("laptop", "computer", "pc", "desktop", "macbook", "ram", "software");
     }
-    if (subNameLower.includes("cctv") || subNameLower.includes("security")) {
-      tokens.push("cctv", "camera", "dvr", "nvr", "security");
-    }
-    if (subNameLower.includes("small appliance") || subNameLower.includes("small")) {
-      tokens.push("mixer", "grinder", "iron", "kettle", "induction", "juicer", "blender", "sandwich", "fan", "heata");
+    if (cleanSubName.includes("cctv") || cleanSubName.includes("camera") || cleanSubName.includes("security")) {
+      tokens.push("cctv", "camera", "dvr", "nvr", "security", "surveillance");
     }
 
     return tokens.some(token => {
-      if (token.length <= 2) {
-        const wordRegex = new RegExp(`\\b${token}\\b`, 'i');
-        return wordRegex.test(serviceText);
-      }
-      return serviceText.includes(token);
+      if (!token || token.length < 2) return false;
+      const escapedToken = escapeRegex(token);
+      const wordRegex = new RegExp(`\\b${escapedToken}\\b`, 'i');
+      return wordRegex.test(serviceText);
     });
   };
 
-  // Filter services by main search query
   const filteredServices = useMemo(() => {
     if (!search.trim()) return services;
     const q = search.toLowerCase();
