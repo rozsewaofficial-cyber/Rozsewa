@@ -1059,29 +1059,46 @@ const Checkout = () => {
         </div>
 
         {/* Service Preference Toggle */}
-        {checkoutData.requiredProviderCategory !== 'sewak' && (
-          <section className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-emerald-500" /> Where would you like your service?
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <motion.div
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setServiceLocation("home")}
-                className={`relative flex cursor-pointer flex-col p-4 rounded-2xl border-2 transition-all duration-200 overflow-hidden ${
-                  serviceLocation === "home"
-                    ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 shadow-md shadow-emerald-500/10 ring-4 ring-emerald-500/15"
-                    : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-emerald-300 dark:hover:border-emerald-700"
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <div className={`p-1.5 rounded-xl ${serviceLocation === "home" ? "bg-emerald-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-500"}`}>
-                    <Home className="h-4 w-4" />
+        {checkoutData.requiredProviderCategory !== 'sewak' && (() => {
+          const isHomeVisitDisabled = providerDetails && providerDetails.isHomeVisitAvailable === false;
+
+          return (
+            <section className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-emerald-500" /> Where would you like your service?
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <motion.div
+                  whileTap={{ scale: isHomeVisitDisabled ? 1 : 0.98 }}
+                  onClick={() => {
+                    if (isHomeVisitDisabled) {
+                      toast({
+                        title: "Home Visit Unavailable",
+                        description: "This provider currently operates for At-Shop visits only.",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    setServiceLocation("home");
+                  }}
+                  className={`relative flex flex-col p-4 rounded-2xl border-2 transition-all duration-200 overflow-hidden ${
+                    isHomeVisitDisabled
+                      ? "opacity-50 border-slate-200 dark:border-slate-800 cursor-not-allowed bg-slate-100/50 dark:bg-slate-900/30"
+                      : serviceLocation === "home"
+                      ? "border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 shadow-md shadow-emerald-500/10 ring-4 ring-emerald-500/15 cursor-pointer"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-emerald-300 dark:hover:border-emerald-700 cursor-pointer"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={`p-1.5 rounded-xl ${serviceLocation === "home" && !isHomeVisitDisabled ? "bg-emerald-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-500"}`}>
+                      <Home className="h-4 w-4" />
+                    </div>
+                    <h3 className="text-xs font-black text-slate-900 dark:text-white">At Home</h3>
                   </div>
-                  <h3 className="text-xs font-black text-slate-900 dark:text-white">At Home</h3>
-                </div>
-                <p className="text-[10px] font-bold text-slate-500 leading-tight">Provider visits your address</p>
-              </motion.div>
+                  <p className="text-[10px] font-bold text-slate-500 leading-tight">
+                    {isHomeVisitDisabled ? "Not offered by this provider" : "Provider visits your address"}
+                  </p>
+                </motion.div>
               
               <motion.div
                 whileTap={{ scale: 0.98 }}
@@ -1102,7 +1119,8 @@ const Checkout = () => {
               </motion.div>
             </div>
           </section>
-        )}
+        );
+      })()}
 
         {/* Feature Toggles (Express Service Fee) */}
         {EXPRESS_FEE > 0 && (

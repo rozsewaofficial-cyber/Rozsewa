@@ -65,18 +65,18 @@ const registerProvider = async (req, res) => {
                 if (employee.role === 'field_staff') {
                     onboardedByStaff = employee.ownCode;
                 }
-                
+
                 employee.referralCount = (employee.referralCount || 0) + 1;
                 employee.totalEarnings = (employee.totalEarnings || 0) + (employee.registrationCommission || 50);
                 await employee.save();
                 console.log(`Bonus: Commission added to ${employee.role} ${employee.ownCode}`);
             } else if (registrationType === 'vendor_referral') {
-                 // Existing vendor referral logic
-                 const referringVendor = await Provider.findOne({ vendorCode: referredBy });
-                 if (referringVendor) {
-                     referringVendor.freeServicesLeft = (referringVendor.freeServicesLeft || 0) + 3;
-                     await referringVendor.save();
-                 }
+                // Existing vendor referral logic
+                const referringVendor = await Provider.findOne({ vendorCode: referredBy });
+                if (referringVendor) {
+                    referringVendor.freeServicesLeft = (referringVendor.freeServicesLeft || 0) + 3;
+                    await referringVendor.save();
+                }
             } else {
                 return res.status(400).json({ message: 'Invalid referral or staff code' });
             }
@@ -127,9 +127,9 @@ const registerProvider = async (req, res) => {
         try {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
-            
+
             const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
-            
+
             for (const admin of admins) {
                 await sendNotificationToUser(admin._id, 'admin', {
                     title: 'New KYC Request',
@@ -255,7 +255,7 @@ const getProviderProfile = async (req, res) => {
             let debtLimitExceeded = false;
             let currentDebt = 0;
             let allowedLimit = 0;
-            
+
             const wallet = await Wallet.findOne({ providerId: provider._id });
             if (wallet && wallet.balance < 0) {
                 const configSetting = await Setting.findOne({ key: 'cash_limits_config' });
@@ -293,7 +293,7 @@ const getProviderProfile = async (req, res) => {
 // @route   PATCH /api/provider/status
 // @access  Private (Provider)
 const updateProviderStatus = async (req, res) => {
-    const { isOnline, isEmergencyEnabled } = req.body;
+    const { isOnline, isEmergencyEnabled, isHomeVisitAvailable } = req.body;
 
     try {
         const provider = await Provider.findById(req.user._id);
@@ -301,12 +301,14 @@ const updateProviderStatus = async (req, res) => {
         if (provider) {
             if (isOnline !== undefined) provider.isOnline = isOnline;
             if (isEmergencyEnabled !== undefined) provider.isEmergencyEnabled = isEmergencyEnabled;
+            if (isHomeVisitAvailable !== undefined) provider.isHomeVisitAvailable = isHomeVisitAvailable;
 
             await provider.save();
             res.json({
                 message: 'Status updated',
                 isOnline: provider.isOnline,
-                isEmergencyEnabled: provider.isEmergencyEnabled
+                isEmergencyEnabled: provider.isEmergencyEnabled,
+                isHomeVisitAvailable: provider.isHomeVisitAvailable
             });
         } else {
             res.status(404).json({ message: 'Provider not found' });
@@ -372,7 +374,7 @@ const updateProviderProfile = async (req, res) => {
             provider.profileImage = req.body.profileImage || provider.profileImage;
             provider.openingTime = req.body.openingTime || provider.openingTime;
             provider.closingTime = req.body.closingTime || provider.closingTime;
-            
+
             if (req.body.availability) {
                 provider.availability = req.body.availability;
             }
@@ -574,7 +576,7 @@ const checkProviderExistence = async (req, res) => {
         if (provider) {
             return res.json({ exists: true, message: 'Mobile number is already registered as a Provider' });
         }
-        
+
         const User = require('../models/User');
         const user = await User.findOne({ mobile });
         if (user) {
@@ -628,9 +630,9 @@ const uploadDocument = async (req, res) => {
         try {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
-            
+
             const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
-            
+
             for (const admin of admins) {
                 await sendNotificationToUser(admin._id, 'admin', {
                     title: 'New KYC Request',
@@ -676,12 +678,12 @@ const getSubscriptionPlans = async (req, res) => {
     try {
         const SubscriptionPlan = require('../models/SubscriptionPlan');
         const Provider = require('../models/Provider');
-        
+
         const provider = await Provider.findById(req.user._id);
         if (!provider) return res.status(404).json({ message: 'Provider not found' });
 
         const Category = require('../models/Category');
-        
+
         const mongoose = require('mongoose');
         let catId = null;
         if (provider.vendorType) {
@@ -709,8 +711,8 @@ const getSubscriptionPlans = async (req, res) => {
             { providerCategory: userCategory }
         ];
 
-        const plans = await SubscriptionPlan.find({ 
-            status: 'active', 
+        const plans = await SubscriptionPlan.find({
+            status: 'active',
             $or: queryOr,
             $and: [{ $or: roleQueryOr }]
         }).sort({ displayOrder: 1 });
@@ -724,7 +726,7 @@ const getProviderMenu = async (req, res) => {
     try {
         const Setting = require('../models/Setting');
         const menuSetting = await Setting.findOne({ key: 'provider_dashboard_menu' });
-        
+
         if (menuSetting) {
             return res.json(menuSetting.value);
         }
@@ -887,7 +889,7 @@ const submitKYC = async (req, res) => {
 
         const isReSubmission = provider.kycSubmitted;
         provider.kycSubmitted = true;
-        
+
         // Change status of documents and video to 'pending' if they were draft
         provider.documents.forEach(doc => {
             if (doc.status === 'draft') {
@@ -921,7 +923,7 @@ const submitKYC = async (req, res) => {
         try {
             const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
             const title = isReSubmission ? 'KYC Re-submitted' : 'New KYC Request';
-            const body = isReSubmission 
+            const body = isReSubmission
                 ? `Partner ${provider.ownerName} has re-submitted their rejected KYC items.`
                 : `New Partner ${provider.ownerName} has submitted their KYC application.`;
 
@@ -974,7 +976,7 @@ const reapplyKYC = async (req, res) => {
                 doc.status = 'pending';
             }
         });
-        
+
         await provider.save();
         res.json({ message: 'Reapplied successfully', status: provider.status });
     } catch (error) {
