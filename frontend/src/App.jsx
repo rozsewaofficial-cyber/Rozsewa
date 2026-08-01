@@ -72,6 +72,7 @@ import ProviderSupport from "./modules/provider/pages/ProviderSupport";
 import ProviderNotifications from "./modules/provider/pages/ProviderNotifications";
 import ProviderWallet from "./modules/provider/pages/ProviderWallet";
 import ProviderSubscriptions from "./modules/provider/pages/ProviderSubscriptions";
+import ProviderBannerPromotion from "./modules/provider/pages/ProviderBannerPromotion";
 
 // Admin Pages
 import AdminLogin from "./modules/admin/pages/AdminLogin";
@@ -93,6 +94,7 @@ import PartnerProgramConfig from "./modules/admin/pages/PartnerProgramConfig";
 import AdminCommissionAnalytics from "./modules/admin/pages/AdminCommissionAnalytics";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
 import AdminBanners from "./modules/admin/pages/AdminBanners";
+import AdminProviderBanners from "./modules/admin/pages/AdminProviderBanners";
 import AdminNotifications from "./modules/admin/pages/AdminNotifications";
 import AdminActivityLog from "./modules/admin/pages/AdminActivityLog";
 import AdminProviderSubscriptions from "./modules/admin/pages/AdminProviderSubscriptions";
@@ -222,6 +224,7 @@ const App = () => (
                       <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
                       <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
                       <Route path="/provider/leads" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderLeads /></ProtectedRoute>} />
+                      <Route path="/provider/banner-promotions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBannerPromotion /></ProtectedRoute>} />
 
                       {/* Admin Routes with Persistent Layout */}
                       <Route path="/admin" element={<AdminLayout />}>
@@ -254,6 +257,7 @@ const App = () => (
                         <Route path="benefit-policies" element={<AdminBenefitPolicies />} />
                         <Route path="disputes" element={<AdminDisputes />} />
                         <Route path="banners" element={<AdminBanners />} />
+                        <Route path="provider-banners" element={<AdminProviderBanners />} />
                         <Route path="notifications" element={<AdminNotifications />} />
                         <Route path="activity-log" element={<AdminActivityLog />} />
                         <Route path="kyc" element={<AdminKYC />} />

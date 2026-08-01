@@ -16,6 +16,33 @@ import PartnerLeaderboard from "../components/earnings/PartnerLeaderboard";
 import PaymentAnalytics from "../components/earnings/PaymentAnalytics";
 import TransactionsTable from "../components/earnings/TransactionsTable";
 import FiltersDrawer from "../components/earnings/FiltersDrawer";
+import { Megaphone, TrendingUp } from "lucide-react";
+
+const PromotionsWidget = ({ data, isLoading }) => {
+    if (isLoading) {
+        return (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 animate-pulse">
+                <div className="h-4 bg-slate-200 rounded w-1/4 mb-4"></div>
+                <div className="h-8 bg-slate-200 rounded w-1/2"></div>
+            </div>
+        );
+    }
+    return (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex items-center justify-between border-l-4 border-l-purple-500">
+            <div>
+                <div className="flex items-center gap-2 mb-2">
+                    <Megaphone className="w-4 h-4 text-purple-500" />
+                    <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Banner Promotions Revenue</h3>
+                </div>
+                <p className="text-3xl font-black text-slate-900">₹{data?.bannerRevenue?.toLocaleString() || 0}</p>
+                <p className="text-xs text-slate-500 mt-2 font-medium">Total Banners Sold: <span className="font-bold text-slate-700">{data?.totalBanners || 0}</span></p>
+            </div>
+            <div className="h-16 w-16 bg-purple-50 rounded-full flex items-center justify-center">
+                <TrendingUp className="w-8 h-8 text-purple-500" />
+            </div>
+        </div>
+    );
+};
 
 const AdminEarnings = () => {
     const { setTitle } = useOutletContext();
@@ -252,6 +279,9 @@ const AdminEarnings = () => {
 
             {/* KPI Cards (6 metrics) */}
             <KpiCards data={analyticsData?.overview} isLoading={isLoading} />
+
+            {/* Promotions Widget */}
+            <PromotionsWidget data={analyticsData?.promotions} isLoading={isLoading} />
 
             {/* Grid 1: Revenue Trends & Commission Trends */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

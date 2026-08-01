@@ -46,6 +46,7 @@ export const adminSidebarLinks = [
   { path: "/admin/services", label: "Services Catalog", icon: Briefcase },
   { path: "/admin/benefit-policies", label: "Benefit Policies", icon: ShieldCheck },
   { path: "/admin/banners", label: "App Banners", icon: Image },
+  { path: "/admin/provider-banners", label: "Provider Banners", icon: Megaphone },
   { path: "/admin/help-training", label: "Help & Training", icon: HelpCircle },
   { path: "/admin/activity-log", label: "System Logs", icon: Terminal },
   { path: "/admin/commission-analytics", label: "Commission Analytics", icon: TrendingUp },

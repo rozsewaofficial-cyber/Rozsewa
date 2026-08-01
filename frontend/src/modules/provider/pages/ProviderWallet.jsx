@@ -97,7 +97,17 @@ const ProviderWallet = () => {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
 
-  useScrollLock(isWithdrawing || isAddingBank);
+  const [rechargeAmount, setRechargeAmount] = useState("");
+  const [rechargeError, setRechargeError] = useState("");
+  const isRecharging = searchParams.get("modal") === "recharge";
+  const openRechargeModal = () => setSearchParams({ modal: "recharge" });
+  const closeRechargeModal = () => {
+    setSearchParams({});
+    setRechargeAmount("");
+    setRechargeError("");
+  };
+
+  useScrollLock(isWithdrawing || isAddingBank || isRecharging);
 
   const handleWithdraw = async () => {
     if (availableBalance <= 0) {
@@ -183,6 +193,87 @@ const ProviderWallet = () => {
             });
             toast({ title: "Debt cleared successfully!", variant: "default" });
             fetchWallet();
+            window.dispatchEvent(new CustomEvent("WALLET_UPDATED"));
+          } catch (error) {
+            toast({
+              title: "Payment verification failed",
+              description:
+                error.response?.data?.message || "Please contact support.",
+              variant: "destructive",
+            });
+          }
+        },
+        prefill: {
+          name: provider?.ownerName,
+          email: provider?.email,
+          contact: provider?.mobile,
+        },
+        theme: { color: "#059669" }, // Emerald color
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.on("payment.failed", function (response) {
+        toast({
+          title: "Payment Failed",
+          description: response.error.description,
+          variant: "destructive",
+        });
+      });
+      paymentObject.open();
+    } catch (error) {
+      toast({
+        title: "Failed to initialize payment",
+        description: error.response?.data?.message || "Server error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRecharge = async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(rechargeAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setRechargeError("Please enter a valid amount.");
+      return;
+    }
+    setRechargeError("");
+    setIsProcessing(true);
+
+    const res = await loadRazorpay();
+
+    if (!res) {
+      toast({
+        title: "Razorpay SDK failed to load. Are you online?",
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      const { data: order } = await API.post("/payment/order", {
+        amount: amount,
+        currency: "INR",
+      });
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa Wallet Recharge",
+        description: "Add money to wallet",
+        order_id: order.id,
+        handler: async function (response) {
+          try {
+            await API.post("/payment/verify-wallet", {
+              ...response,
+              amount: amount,
+            });
+            toast({ title: "Wallet recharged successfully!", variant: "default" });
+            fetchWallet();
+            closeRechargeModal();
             window.dispatchEvent(new CustomEvent("WALLET_UPDATED"));
           } catch (error) {
             toast({
@@ -405,13 +496,19 @@ const ProviderWallet = () => {
                     </p>
                   </div>
                 )}
-                <div className="mt-auto">
+                <div className="mt-auto flex gap-2">
                   <button
                     onClick={handleWithdraw}
                     disabled={availableBalance <= 0}
-                    className={`w-full py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${availableBalance <= 0 ? "bg-white/20 text-emerald-100/50 cursor-not-allowed" : "bg-white text-emerald-900 shadow-md hover:bg-emerald-50 active:scale-95"}`}
+                    className={`flex-1 py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${availableBalance <= 0 ? "bg-white/20 text-emerald-100/50 cursor-not-allowed" : "bg-white text-emerald-900 shadow-md hover:bg-emerald-50 active:scale-95"}`}
                   >
-                    Request Withdrawal
+                    Withdraw
+                  </button>
+                  <button
+                    onClick={() => openRechargeModal()}
+                    className="flex-1 py-2.5 md:py-3 rounded-xl font-black text-xs transition-all bg-white text-emerald-900 shadow-md hover:bg-emerald-50 active:scale-95"
+                  >
+                    Recharge
                   </button>
                 </div>
               </div>
@@ -977,6 +1074,94 @@ const ProviderWallet = () => {
                 className="w-full h-16 mt-4 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all"
               >
                 Submit Request
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Recharge Modal */}
+      {isRecharging && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-md rounded-[40px] bg-card p-8 border border-border shadow-2xl relative"
+          >
+            <button
+              onClick={() => closeRechargeModal()}
+              className="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-muted hover:bg-accent transition-colors"
+            >
+              <ArrowDownRight className="h-5 w-5 rotate-45" />
+            </button>
+            <h2 className="text-2xl font-black tracking-tighter mb-1">
+              Recharge Wallet
+            </h2>
+            <p className="text-sm text-muted-foreground mb-8">
+              Add money to your wallet to pay for commission dues or leads.
+            </p>
+
+            <form onSubmit={handleRecharge} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">
+                  Amount (₹)
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={rechargeAmount}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "" || parseFloat(v) > 0) {
+                      setRechargeAmount(v);
+                      setRechargeError("");
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "-" || e.key === "e" || e.key === "E")
+                      e.preventDefault();
+                  }}
+                  className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 focus:bg-background transition-all outline-none font-bold text-sm"
+                  placeholder="500"
+                />
+
+                {rechargeError && (
+                  <p className="text-[11px] font-bold text-rose-500 px-1 mt-1">
+                    {rechargeError}
+                  </p>
+                )}
+                {/* Quick Presets */}
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setRechargeAmount("500")}
+                    className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors"
+                  >
+                    ₹500
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRechargeAmount("1000")}
+                    className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors"
+                  >
+                    ₹1000
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRechargeAmount("2000")}
+                    className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors"
+                  >
+                    ₹2000
+                  </button>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={isProcessing}
+                className="w-full h-16 mt-4 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {isProcessing ? "Processing..." : "Proceed to Pay"}
               </button>
             </form>
           </motion.div>

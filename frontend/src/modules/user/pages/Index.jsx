@@ -82,8 +82,9 @@ const Index = () => {
       }
       const providersEndpoint = `/public/featured-providers?${params.toString()}`;
 
-      const [bannersRes, providersRes] = await Promise.all([
+      const [bannersRes, providerBannersRes, providersRes] = await Promise.all([
         API.get("/public/banners"),
+        API.get(`/public/provider-banners/active?${params.toString()}`),
         API.get(providersEndpoint)
       ]);
       const apiBanners = bannersRes.data?.map((b, i) => {
@@ -98,8 +99,20 @@ const Index = () => {
           link: b.ctaLink || b.link || "/shops",
           image: imageUrl || defaultBanners[i % defaultBanners.length].image
         };
-      });
-      setBanners(apiBanners?.length > 0 ? apiBanners : defaultBanners);
+      }) || [];
+
+      // Add provider banners
+      const pBanners = providerBannersRes.data?.banners?.map((b) => ({
+        id: b._id,
+        isProviderBanner: true,
+        title: "",
+        subtitle: "",
+        link: `/shops/${b.provider}`,
+        image: b.imageUrl
+      })) || [];
+
+      const mergedBanners = [...apiBanners, ...pBanners];
+      setBanners(mergedBanners.length > 0 ? mergedBanners : defaultBanners);
 
       if (user) {
         try {
@@ -174,6 +187,17 @@ const Index = () => {
     url = url.replace(/&$/, '');
 
     navigate(url);
+  };
+
+  const handleBannerClick = async (banner) => {
+    if (banner.isProviderBanner) {
+      try {
+        await API.post(`/public/provider-banners/${banner.id}/click`);
+      } catch (e) {
+        console.error("Failed to track banner click", e);
+      }
+    }
+    navigate(banner.link);
   };
 
   return (
@@ -266,7 +290,11 @@ const Index = () => {
               style={{ scrollBehavior: 'smooth' }}
             >
               {banners.map((banner, idx) => (
-                <div key={`${banner.id}-${idx}`} className="w-full h-full shrink-0 snap-center snap-always relative">
+                <div 
+                  key={`${banner.id}-${idx}`} 
+                  onClick={() => handleBannerClick(banner)}
+                  className="w-full h-full shrink-0 snap-center snap-always relative cursor-pointer"
+                >
                   <img
                     src={banner.image}
                     className="w-full h-full object-cover pointer-events-none"

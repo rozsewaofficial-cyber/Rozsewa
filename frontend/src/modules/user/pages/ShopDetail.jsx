@@ -111,7 +111,7 @@ const ShopDetail = () => {
         description: s.description,
         duration: s.duration || "30 min",
         image: s.image,
-        serviceType: s.serviceType || "home",
+        serviceType: Array.isArray(s.serviceType) ? s.serviceType : (s.serviceType ? [s.serviceType] : ["home"]),
         expressPrice: 0,
         amenities: s.amenities || [],
         serviceDetails: s.serviceDetails || [],
@@ -341,7 +341,12 @@ const ShopDetail = () => {
               <div className="space-y-3">
                 <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Individual Services</h2>
 
-                {servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').length === 0 ? (
+                {servicesList.filter(s => {
+                  const types = Array.isArray(s.serviceType) ? s.serviceType : [s.serviceType];
+                  if (serviceFilter === 'all') return true;
+                  if (serviceFilter === 'both') return types.includes('home') && types.includes('shop');
+                  return types.includes(serviceFilter) || types.includes('both');
+                }).length === 0 ? (
                   <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">
                     <p className="text-sm font-medium text-slate-500 mb-4">No specific services listed.</p>
                     <button 
@@ -352,7 +357,12 @@ const ShopDetail = () => {
                     </button>
                   </div>
                 ) : (
-                  servicesList.filter(s => serviceFilter === 'all' || s.serviceType === serviceFilter || s.serviceType === 'both').map((service, idx) => (
+                  servicesList.filter(s => {
+                    const types = Array.isArray(s.serviceType) ? s.serviceType : [s.serviceType];
+                    if (serviceFilter === 'all') return true;
+                    if (serviceFilter === 'both') return types.includes('home') && types.includes('shop');
+                    return types.includes(serviceFilter) || types.includes('both');
+                  }).map((service, idx) => (
                     <div key={service.id} className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm transition-all hover:border-blue-500/30">
                       <div className="p-3.5" onClick={() => setExpandedPlan(expandedPlan === service.id ? null : service.id)}>
                         <div className="flex items-start justify-between gap-3 cursor-pointer">
@@ -366,11 +376,11 @@ const ShopDetail = () => {
                               </h3>
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                 <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-[6px] tracking-widest uppercase">{service.duration}</span>
-                                {service.serviceType !== 'home' && (
-                                  <span className={`text-[9px] px-2 py-0.5 rounded-[6px] uppercase tracking-widest font-black ${service.serviceType === '24x7' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
-                                    {service.serviceType}
+                                {(Array.isArray(service.serviceType) ? service.serviceType : [service.serviceType]).filter(t => t && t !== 'home').map(t => (
+                                  <span key={t} className={`text-[9px] px-2 py-0.5 rounded-[6px] uppercase tracking-widest font-black ${t === '24x7' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
+                                    {t === 'both' ? 'Shop Visit' : t}
                                   </span>
-                                )}
+                                ))}
                               </div>
                               {service.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{service.description}</p>}
                             </div>

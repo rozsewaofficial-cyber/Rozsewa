@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Edit3, Trash2, Eye, EyeOff, X, Save, IndianRupee, Loader2, Gift, Camera, Zap } from "lucide-react";
+import { ArrowLeft, Plus, Edit3, Trash2, Eye, EyeOff, X, Save, IndianRupee, Loader2, Gift, Camera, Zap, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
@@ -23,7 +23,7 @@ const ProviderServices = () => {
   const [showComboForm, setShowComboForm] = useState(draft.showComboForm || false);
   const [errors, setErrors] = useState({});
   const [editId, setEditId] = useState(draft.editId || null);
-  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", serviceType: "home", visible: true, image: "", amenities: [], serviceDetails: [] });
+  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", serviceType: ["home"], visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" });
   const [viewService, setViewService] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -59,7 +59,7 @@ const ProviderServices = () => {
     try {
       const { compressImage } = await import('@/lib/imageCompression');
       const compressedFile = await compressImage(file, 800, 800, 0.7);
-      
+
       const formData = new FormData();
       formData.append("image", compressedFile);
 
@@ -76,6 +76,32 @@ const ProviderServices = () => {
   };
 
   const [allCategories, setAllCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [subcategoryServices, setSubcategoryServices] = useState([]);
+
+  useEffect(() => {
+    const catName = form.category || categoryName;
+    const catObj = allCategories.find(c => c.name === catName);
+    if (catObj && catObj._id) {
+      API.get(`/public/categories/${catObj._id}/subcategories`)
+        .then(res => setSubcategories(res.data || []))
+        .catch(() => setSubcategories([]));
+    } else {
+      setSubcategories([]);
+    }
+  }, [form.category, categoryName, allCategories]);
+
+  useEffect(() => {
+    const subName = form.subcategory;
+    const subObj = subcategories.find(s => s.name === subName);
+    if (subObj && subObj._id) {
+      API.get(`/public/subcategories/${subObj._id}/services`)
+        .then(res => setSubcategoryServices(res.data || []))
+        .catch(() => setSubcategoryServices([]));
+    } else {
+      setSubcategoryServices([]);
+    }
+  }, [form.subcategory, subcategories]);
 
   const fetchProviderInfoAndServices = async (showLoader = true) => {
     if (showLoader) setLoading(true);
@@ -100,7 +126,7 @@ const ProviderServices = () => {
     e.preventDefault();
     if (saving) return;
     const finalName = form.name === "custom" ? form.customName : form.name;
-    
+
     const newErrors = {};
     if (!finalName) newErrors.name = "Service Name is required";
     if (!form.price) newErrors.price = "Price is required";
@@ -118,12 +144,13 @@ const ProviderServices = () => {
       name: finalName,
       description: form.description,
       duration: form.duration,
-      serviceType: form.serviceType || "home",
+      serviceType: form.serviceType && form.serviceType.length > 0 ? form.serviceType : ["home"],
       visible: form.visible,
       image: form.image,
       amenities: form.amenities || [],
       serviceDetails: form.serviceDetails || [],
       category: form.category || categoryName,
+      subcategory: form.subcategory,
       price: Number(form.price) || 0,
     };
 
@@ -216,7 +243,7 @@ const ProviderServices = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [] }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
+  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
   const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); clearDraft(); setErrors({}); };
 
   const handleEdit = (s) => {
@@ -230,7 +257,8 @@ const ProviderServices = () => {
       visible: s.visible,
       image: s.image || "",
       amenities: s.amenities || [],
-      serviceDetails: s.serviceDetails || []
+      serviceDetails: s.serviceDetails || [],
+      subcategory: s.subcategory || ""
     });
     setEditId(s._id);
     setShowForm(true);
@@ -507,23 +535,37 @@ const ProviderServices = () => {
                 <div className="text-left">
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Category *</label>
                   <select
-                    value={form.category || categoryName}
-                    onChange={e => {
-                      const newCat = e.target.value;
-                      setForm({
-                        ...form,
-                        category: newCat,
-                        name: "",
-                        price: ""
-                      });
-                    }}
-                    className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none"
+                    disabled
+                    value={categoryName}
+                    className="w-full rounded-2xl border border-border bg-slate-50 dark:bg-slate-900 p-4 text-xs font-bold focus:outline-none appearance-none cursor-not-allowed opacity-80"
                   >
-                    {Array.from(new Set([categoryName, ...allCategories.map(c => c.name)].filter(Boolean))).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
+                    <option value={categoryName}>{categoryName}</option>
                   </select>
                 </div>
+
+                {subcategories.length > 0 && (
+                  <div className="text-left">
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Subcategory</label>
+                    <select
+                      disabled={!!editId}
+                      value={form.subcategory || ""}
+                      onChange={e => {
+                        setForm({
+                          ...form,
+                          subcategory: e.target.value,
+                          name: "",
+                          price: ""
+                        });
+                      }}
+                      className={`w-full rounded-2xl border border-border p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
+                    >
+                      <option value="">Select a subcategory...</option>
+                      {subcategories.map(sub => (
+                        <option key={sub._id} value={sub.name}>{sub.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="text-left">
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Name *</label>
@@ -533,30 +575,41 @@ const ProviderServices = () => {
                       value={form.name}
                       onChange={e => {
                         const val = e.target.value;
-                        const selectedCatName = form.category || categoryName;
-                        const selectedCatObj = allCategories.find(c => c.name === selectedCatName);
-                        const currentSvcs = (selectedCatName === categoryName)
-                          ? categoryServices
-                          : (selectedCatObj?.services || categoryServices);
+                        let currentSvcs = [];
+                        if (form.subcategory && subcategoryServices.length > 0) {
+                          currentSvcs = subcategoryServices;
+                        } else {
+                          const selectedCatName = form.category || categoryName;
+                          const selectedCatObj = allCategories.find(c => c.name === selectedCatName);
+                          currentSvcs = (selectedCatName === categoryName)
+                            ? categoryServices
+                            : (selectedCatObj?.services || categoryServices);
+                        }
                         const selected = currentSvcs.find(s => s.name === val);
                         const isSewak = user?.providerCategory === 'sewak';
+                        const p = selected?.basePrice !== undefined ? selected?.basePrice : selected?.price;
                         setForm({
                           ...form,
                           name: val,
                           customName: "",
-                          price: isSewak ? (selected?.basePrice) : (selected?.basePrice || ""),
+                          price: isSewak ? p : (p || ""),
                           amenities: selected?.amenities || [],
                           serviceDetails: selected?.serviceDetails || [],
-                          serviceType: selected?.serviceType || "home"
+                          serviceType: Array.isArray(selected?.serviceType) ? selected.serviceType : (selected?.serviceType ? [selected.serviceType] : ["home"])
                         });
                       }}
                       className={`w-full rounded-2xl border border-border p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
                     >
                       <option value="">Select a service...</option>
-                      {((form.category || categoryName) === categoryName
-                        ? categoryServices
-                        : (allCategories.find(c => c.name === (form.category || categoryName))?.services || categoryServices)
-                      ).filter(s => user?.providerCategory !== 'sewak' || Number(s.basePrice) > 0).map(s => (
+                      {(() => {
+                        if (form.subcategory && subcategoryServices.length > 0) return subcategoryServices;
+                        const catName = form.category || categoryName;
+                        if (catName === categoryName) return categoryServices;
+                        return allCategories.find(c => c.name === catName)?.services || categoryServices;
+                      })().filter(s => {
+                        const p = s.basePrice !== undefined ? s.basePrice : s.price;
+                        return user?.providerCategory !== 'sewak' || Number(p) > 0;
+                      }).map(s => (
                         <option key={s._id || s.name} value={s.name}>{s.name}</option>
                       ))}
                     </select>
@@ -583,14 +636,34 @@ const ProviderServices = () => {
                     {errors.price && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.price}</p>}
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Type</label>
-                    <select value={form.serviceType} onChange={e => setForm({ ...form, serviceType: e.target.value })}
-                      className={`w-full rounded-2xl border border-border bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none`}>
-                      <option value="home">Home Visit</option>
-                      <option value="shop">Shop Visit</option>
-                      <option value="24x7">24x7 Emergency</option>
-                      <option value="both">Both (Home & Shop)</option>
-                    </select>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Types</label>
+                    <div className="flex flex-col gap-2">
+                      {[
+                        { id: 'home', label: 'Home Visit' },
+                        { id: 'shop', label: 'Shop Visit' },
+                        { id: '24x7', label: '24x7 Emergency' }
+                      ].map(type => (
+                        <label key={type.id} className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${form.serviceType?.includes(type.id) ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}>
+                          <input
+                            type="checkbox"
+                            className="hidden"
+                            checked={form.serviceType?.includes(type.id) || false}
+                            onChange={(e) => {
+                              const current = Array.isArray(form.serviceType) ? form.serviceType : [form.serviceType].filter(Boolean);
+                              if (e.target.checked) {
+                                setForm({ ...form, serviceType: [...current, type.id] });
+                              } else {
+                                setForm({ ...form, serviceType: current.filter(t => t !== type.id) });
+                              }
+                            }}
+                          />
+                          <div className={`h-4 w-4 rounded-[6px] border flex items-center justify-center ${form.serviceType?.includes(type.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-slate-300 dark:border-slate-600'}`}>
+                            {form.serviceType?.includes(type.id) && <CheckCircle2 className="h-3 w-3" />}
+                          </div>
+                          <span className="text-xs font-bold text-foreground">{type.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
