@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const bannerController = require('../controllers/providerBannerController');
 const {
     registerProvider,
     authProvider,
@@ -41,6 +42,28 @@ router.get('/service-radius-limits', async (req, res) => {
     }
 });
 
+router.get('/banner-plans', async (req, res) => {
+    try {
+        const Setting = require('../models/Setting');
+        const planSetting = await Setting.findOne({ key: 'provider_banner_plans' });
+        const durationSetting = await Setting.findOne({ key: 'provider_banner_durations' });
+        const defaultPlans = [
+          { id: 'Local', title: 'Local Promotion', desc: 'Show to users in your PIN code', price: 199 },
+          { id: 'City', title: 'City Level', desc: 'Promote across your entire city', price: 499 },
+          { id: 'District', title: 'District Level', desc: 'Maximum reach in your district', price: 999 },
+          { id: 'State', title: 'State Level', desc: 'Dominant state-wide visibility', price: 1999 },
+          { id: 'Premium Top', title: 'Premium Top', desc: 'Top featured banner on Home Page', price: 2999 }
+        ];
+        
+        const plans = (planSetting && Array.isArray(planSetting.value)) ? planSetting.value : defaultPlans;
+        const durations = (durationSetting && Array.isArray(durationSetting.value) && durationSetting.value.length > 0) ? durationSetting.value : [7];
+        
+        return res.json({ plans, durations });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // Protected routes
 router.get('/profile', protect, getProviderProfile);
 router.put('/profile', protect, updateProviderProfile);
@@ -67,5 +90,9 @@ router.patch('/staff/:id/status', protect, toggleStaffStatus);
 // Withdrawal routes
 router.post('/withdraw', protect, requestWithdrawal);
 router.get('/withdrawals', protect, getProviderWithdrawals);
+
+// Banner routes
+router.post('/banners', protect, bannerController.createBannerRequest);
+router.get('/banners', protect, bannerController.getMyBanners);
 
 module.exports = router;

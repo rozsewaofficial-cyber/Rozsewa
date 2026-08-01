@@ -1350,32 +1350,9 @@ const updateBookingStatusByProvider = async (req, res) => {
                         note: 'Provider confirmed cash collection after booking completion.'
                     });
 
-                    // Credit providerPayout to Available Balance (cash settlement)
+                    // (Cash collected by provider. Do not add to availableBalance since they already have the cash in hand)
                     if (booking.providerPayout > 0) {
-                        try {
-                            const { Wallet, Transaction } = require('../models/Wallet');
-                            let wallet = await Wallet.findOne({ providerId: booking.providerId });
-                            if (!wallet) {
-                                wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
-                            }
-                            wallet.availableBalance += booking.providerPayout;
-                            wallet.updatedAt = Date.now();
-                            await wallet.save();
-
-                            await Transaction.create({
-                                providerId: booking.providerId,
-                                title: `Cash Collected: ${booking.serviceName}`,
-                                amount: booking.providerPayout,
-                                type: 'credit',
-                                status: 'completed',
-                                bookingId: booking._id,
-                                description: `Cash payment collected from customer. Commission (₹${booking.adminCommission || 0}) already deducted separately.`
-                            });
-
-                            console.log(`[Cash Settlement] Provider ${booking.providerId} credited ₹${booking.providerPayout} for booking ${booking._id}`);
-                        } catch (walletErr) {
-                            console.error('[Cash Settlement] Wallet update failed:', walletErr.message);
-                        }
+                        console.log(`[Cash Settlement] Provider ${booking.providerId} collected ₹${booking.providerPayout} in cash for booking ${booking._id}. (No wallet credit issued)`);
                     }
                 } else if (requestedStatus !== 'paid') {
                     // Admin/Staff may set other statuses (e.g. refunded, failed)

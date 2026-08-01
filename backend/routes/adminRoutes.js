@@ -159,6 +159,12 @@ router.put('/banners/:id', protect, admin, updateBanner);
 router.delete('/banners/:id', protect, admin, deleteBanner);
 router.patch('/banners/:id/status', protect, admin, toggleBannerStatus);
 
+// Provider Banner management
+const providerBannerController = require('../controllers/providerBannerController');
+router.get('/provider-banners', protect, admin, providerBannerController.getAllBanners);
+router.put('/provider-banners/:id/status', protect, admin, providerBannerController.updateBannerStatus);
+router.delete('/provider-banners/:id', protect, admin, providerBannerController.deleteBanner);
+
 // Dashboard stats
 router.get('/stats', protect, employee, getAdminStats);
 

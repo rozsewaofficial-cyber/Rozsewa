@@ -206,14 +206,15 @@ const verifyWalletRecharge = async (req, res) => {
             wallet = await Wallet.create({ providerId: req.user._id, balance: 0 });
         }
 
+        const isDebtSettlement = wallet.balance < 0;
         const rechargeAmount = Number(amount);
         wallet.balance += rechargeAmount;
-        wallet.cashCommissionDues = Math.max(0, wallet.cashCommissionDues - rechargeAmount);
+        wallet.cashCommissionDues = Math.max(0, (wallet.cashCommissionDues || 0) - rechargeAmount);
         await wallet.save();
 
         await Transaction.create({
             providerId: req.user._id,
-            title: 'Debt Settlement',
+            title: isDebtSettlement ? 'Debt Settlement' : 'Wallet Recharge',
             amount: rechargeAmount,
             type: 'credit',
             status: 'completed',

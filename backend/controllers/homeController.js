@@ -5,6 +5,7 @@ const Service = require('../models/Service');
 const Coupon = require('../models/Coupon');
 const Zone = require('../models/Zone');
 const Combo = require('../models/Combo');
+const ProviderBanner = require('../models/ProviderBanner');
 
 // @desc    Get all active zones/cities
 // @route   GET /api/public/zones
@@ -261,6 +262,32 @@ const getPublicProviders = async (req, res) => {
 
             enrichedProviders.push(providerObj);
         }
+
+        // Fetch active banners for this location to boost those providers
+        const activeBanners = await ProviderBanner.find({ status: 'Active' });
+        // Create a Set of provider IDs that have an active banner in this location
+        // Here we could filter banners by location (like in getActiveBannersByLocation)
+        const boostedProviderIds = new Set();
+        for (const banner of activeBanners) {
+            if (banner.planType === 'Premium Top') {
+                boostedProviderIds.add(banner.provider.toString());
+            } else if (city && banner.locationValue && city.toLowerCase().includes(banner.locationValue.toLowerCase())) {
+                boostedProviderIds.add(banner.provider.toString());
+            } else if (lat && lng) {
+                // If we have precise lat/lng, we could check pin code, but for now just boost if any match
+                boostedProviderIds.add(banner.provider.toString());
+            }
+        }
+
+        enrichedProviders.sort((a, b) => {
+            const aBoosted = boostedProviderIds.has(a._id.toString()) ? 1 : 0;
+            const bBoosted = boostedProviderIds.has(b._id.toString()) ? 1 : 0;
+            if (aBoosted !== bBoosted) {
+                return bBoosted - aBoosted; // Boosted first
+            }
+            // Fallback to original order (which is distance or rating)
+            return 0;
+        });
 
         res.json(enrichedProviders);
     } catch (error) {

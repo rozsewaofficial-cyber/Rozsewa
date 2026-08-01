@@ -964,6 +964,8 @@ const getSettings = async (req, res) => {
             lead_dispute_enabled: config.lead_dispute_enabled !== undefined ? (config.lead_dispute_enabled === 'true' || config.lead_dispute_enabled === true) : true,
             lead_refund_enabled: config.lead_refund_enabled !== undefined ? (config.lead_refund_enabled === 'true' || config.lead_refund_enabled === true) : true,
             lead_pay_per_lead_enabled: config.lead_pay_per_lead_enabled !== undefined ? (config.lead_pay_per_lead_enabled === 'true' || config.lead_pay_per_lead_enabled === true) : true,
+            provider_banner_plans: config.provider_banner_plans,
+            provider_banner_durations: config.provider_banner_durations,
             adminProfile: {
                 name: req.user.name,
                 email: req.user.email,

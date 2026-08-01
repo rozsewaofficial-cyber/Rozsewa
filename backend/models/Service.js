@@ -20,7 +20,7 @@ const serviceSchema = mongoose.Schema({
     subcategory: { type: String },
     price: { type: Number, required: true },
     duration: { type: String, default: '30 min' },
-    serviceType: { type: String, default: 'home' }, // 'home', 'shop', '24x7', 'both'
+    serviceType: { type: [String], default: ['home'] }, // 'home', 'shop', '24x7'
     visible: { type: Boolean, default: true },
     image: { type: String },
     amenities: [{ type: String }],

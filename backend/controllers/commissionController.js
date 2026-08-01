@@ -5,6 +5,7 @@ const Setting = require('../models/Setting');
 const EarningsAnalyticsService = require('../services/EarningsAnalyticsService');
 const mongoose = require('mongoose');
 const AuditLog = require('../models/AuditLog');
+const ProviderBanner = require('../models/ProviderBanner');
 
 // @desc    Get commission and settlement data
 // @route   GET /api/admin/commission
@@ -408,7 +409,15 @@ const getEarningsData = async (req, res) => {
         }
         let prevWithdrawals = await Withdrawal.find(prevWithdrawalMatch);
 
-        const hasHistoricalData = currentBookings.length > 0 || currentWithdrawals.length > 0;
+        // Fetch Banner Promotions Revenue
+        const currentBanners = await ProviderBanner.find({
+            createdAt: { $gte: currentStart, $lte: currentEnd },
+            paymentId: { $ne: null }
+        });
+        // pricePaid stores the base price, so we multiply by 1.18 to get exact Total Payload collected
+        const bannerRevenue = Math.round(currentBanners.reduce((sum, b) => sum + (b.pricePaid || 0) * 1.18, 0));
+
+        const hasHistoricalData = currentBookings.length > 0 || currentWithdrawals.length > 0 || currentBanners.length > 0;
 
         if (!hasHistoricalData) {
             return res.json({
@@ -446,7 +455,11 @@ const getEarningsData = async (req, res) => {
                     topPartners: [],
                     topCategories: []
                 },
-                transactions: []
+                transactions: [],
+                promotions: {
+                    bannerRevenue: 0,
+                    totalBanners: 0
+                }
             });
         }
 
@@ -508,7 +521,11 @@ const getEarningsData = async (req, res) => {
                 topPartners,
                 topCategories
             },
-            transactions
+            transactions,
+            promotions: {
+                bannerRevenue,
+                totalBanners: currentBanners.length
+            }
         });
     } catch (error) {
         console.error('getEarningsData error:', error);

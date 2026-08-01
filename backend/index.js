@@ -104,10 +104,12 @@ const { startCronJobs } = require('./cron/payouts');
 const startBookingReminderCron = require('./cron/bookingReminders');
 const { startSubscriptionCheckCron } = require('./cron/subscriptionCheck');
 const { startLeadJobsCron } = require('./cron/leadJobs');
+const startBannerCronJobs = require('./cron/bannerJobs');
 startCronJobs();
 startBookingReminderCron();
 startSubscriptionCheckCron();
 startLeadJobsCron();
+startBannerCronJobs();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });

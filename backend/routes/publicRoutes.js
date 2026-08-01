@@ -21,4 +21,8 @@ router.get('/benefit-policies', require('../controllers/benefitPolicyController'
 router.get('/categories/:categoryId/subcategories', require('../controllers/subcategoryController').getPublicSubcategoriesByCategory);
 router.get('/subcategories/:subcategoryId/services', require('../controllers/subcategoryController').getPublicServicesBySubcategory);
 
+const providerBannerController = require('../controllers/providerBannerController');
+router.get('/provider-banners/active', providerBannerController.getActiveBannersByLocation);
+router.post('/provider-banners/:id/click', providerBannerController.trackClick);
+
 module.exports = router;
