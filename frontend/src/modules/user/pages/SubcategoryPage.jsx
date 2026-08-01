@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  ArrowLeft, Search, Sparkles, Loader2, Layers, X, Grid, SlidersHorizontal, 
+import {
+  ArrowLeft, Search, Sparkles, Loader2, Layers, X, Grid, SlidersHorizontal,
   ChevronRight, Check
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -81,26 +81,39 @@ const SubcategoryPage = () => {
     navigate(`/shops?category=${encodeURIComponent(categoryName)}&serviceName=${encodeURIComponent(service.name)}&serviceId=${service._id || service.id}&mode=${mode}`);
   };
 
-  // Stricter subcategory matcher to avoid false positives (e.g. Groom Package matching Hair Care because of "hair" in description)
-  const matchServiceToSubcategory = (service, subcategory) => {
-    if (!service || !subcategory) return false;
+  // Smart subcategory matcher to handle acronyms (AC, RO, TV), brand variations, and descriptions
+  // Helper to strip emojis and non-alphanumeric symbols
+  const stripEmojis = (str) => {
+    if (!str) return '';
+    return str
+      .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDFFF])/g, '')
+      .replace(/[^\w\s&,/\\-]/gi, ' ')
+      .trim();
+  };
 
+  // Smart subcategory matcher to handle acronyms, emojis, and descriptions
+  const matchServiceToSubcategory = (service, sub) => {
+    if (!service || !sub) return false;
+
+    // 1. Direct ID Match
     if (service.subcategoryId) {
       const sId = typeof service.subcategoryId === 'object' ? service.subcategoryId._id : service.subcategoryId;
-      if (sId && (sId.toString() === subcategory._id?.toString() || sId.toString() === subcategory.id?.toString())) return true;
+      if (sId && (sId.toString() === sub._id?.toString() || sId.toString() === sub.id?.toString())) return true;
     }
-    
-    if (service.subcategory && service.subcategory === subcategory._id) return true;
-    if (service.subcategoryName && service.subcategoryName.toLowerCase() === subcategory.name.toLowerCase()) return true;
 
-    const subNameLower = subcategory.name.toLowerCase();
-    const serviceName = (service.name || "").toLowerCase();
+    // 2. Direct Subcategory Name Match (Stripped of emojis)
+    const cleanSubName = stripEmojis(sub.name || '').toLowerCase();
+    const cleanServiceSub = stripEmojis(service.subcategory || '').toLowerCase();
 
-    // Check if subcategory name is fully present in service name
-    if (serviceName.includes(subNameLower.replace(' & ', ' '))) return true;
+    if (cleanServiceSub) {
+      if (cleanServiceSub === cleanSubName) return true;
+      if (cleanServiceSub.includes(cleanSubName) || cleanSubName.includes(cleanServiceSub)) return true;
+    }
 
-    // Fallback: smart matching based on service names ONLY (not description, which causes false positives)
-    const rawParts = subNameLower
+    // 3. Text Token Match (Name & Description against clean Subcategory tokens)
+    const serviceText = `${service.name || ""} ${service.description || ""}`.toLowerCase();
+
+    const rawParts = cleanSubName
       .replace(/[()]/g, ' ')
       .split(/[,&/\\-]+/)
       .map(p => p.trim())
@@ -108,62 +121,91 @@ const SubcategoryPage = () => {
 
     const tokens = [];
     rawParts.forEach(part => {
-      tokens.push(part);
+      if (part.length > 1) tokens.push(part);
       const words = part.split(/\s+/).filter(w => w.length > 1);
       words.forEach(w => {
-        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water', 'care', 'styling'].includes(w)) {
+        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water', 'care', 'pack', 'package', 'packages', 'styling', 'grooming'].includes(w)) {
           tokens.push(w);
         }
       });
     });
 
-    if (subNameLower.includes("air conditioner") || subNameLower.includes("ac")) {
-      tokens.push("ac", "split ac", "window ac", "cassette ac");
+    // Industry Synonym/Keyword mappings
+    if (cleanSubName.includes("makeup") || cleanSubName.includes("grooming")) {
+      tokens.push("makeup", "draping", "outfit", "saree draping", "outfit draping", "bridal", "cosmetics", "face makeup", "beauty", "party makeup", "threading", "waxing", "bleach", "glow");
     }
-    if (subNameLower.includes("ro") || subNameLower.includes("purifier")) {
+    if (cleanSubName.includes("hair")) {
+      tokens.push("hair", "haircut", "hair styling", "cut", "hair color", "highlights", "keratin", "hair spa", "blowdry", "hair trim", "smoothing", "straightening");
+    }
+    if (cleanSubName.includes("skin") || cleanSubName.includes("facial")) {
+      tokens.push("skin", "facial", "cleanup", "bleach", "glow", "detan", "face", "scrub", "mask");
+    }
+    if (cleanSubName.includes("mehendi") || cleanSubName.includes("henna")) {
+      tokens.push("mehendi", "henna", "arabic", "bridal mehendi");
+    }
+    if (cleanSubName.includes("hand") || cleanSubName.includes("foot") || cleanSubName.includes("pedicure") || cleanSubName.includes("manicure")) {
+      tokens.push("hand", "foot", "pedicure", "manicure", "nail", "polish", "feet");
+    }
+    if (cleanSubName.includes("body") || cleanSubName.includes("spa") || cleanSubName.includes("massage")) {
+      tokens.push("body", "spa", "massage", "scrub", "waxing", "detan", "therapy", "relax");
+    }
+    if (cleanSubName.includes("nail")) {
+      tokens.push("nail", "extensions", "gel", "art", "acrylic", "polish");
+    }
+    if (cleanSubName.includes("beard") || cleanSubName.includes("shave") || cleanSubName.includes("mustache")) {
+      tokens.push("beard", "shave", "mustache", "stubble", "beard styling", "mustache styling", "beard trim", "shaving");
+    }
+    if (cleanSubName.includes("air conditioner") || cleanSubName.includes("ac")) {
+      tokens.push("ac", "air conditioner", "split ac", "window ac", "cassette ac", "ac gas", "ac service", "ac repair", "ac installation");
+    }
+    if (cleanSubName.includes("ro") || cleanSubName.includes("purifier")) {
       tokens.push("ro", "purifier", "water purifier", "filter");
     }
-    if (subNameLower.includes("television") || subNameLower.includes("tv")) {
+    if (cleanSubName.includes("television") || cleanSubName.includes("tv")) {
       tokens.push("tv", "television", "led", "lcd", "oled", "smart tv");
     }
-    if (subNameLower.includes("geyser") || subNameLower.includes("water heater")) {
+    if (cleanSubName.includes("geyser") || cleanSubName.includes("water heater")) {
       tokens.push("geyser", "heater", "water heater");
     }
-    if (subNameLower.includes("refrigerator") || subNameLower.includes("fridge")) {
-      tokens.push("refrigerator", "fridge", "freezer");
+    if (cleanSubName.includes("refrigerator") || cleanSubName.includes("fridge")) {
+      tokens.push("refrigerator", "fridge", "freezer", "single door", "double door");
     }
-    if (subNameLower.includes("washing machine") || subNameLower.includes("washer")) {
-      tokens.push("washing", "washer", "dryer", "laundry");
+    if (cleanSubName.includes("washing machine") || cleanSubName.includes("washer")) {
+      tokens.push("washing", "washer", "dryer", "laundry", "top load", "front load");
     }
-    if (subNameLower.includes("chimney")) {
+    if (cleanSubName.includes("small") || cleanSubName.includes("appliance")) {
+      tokens.push("small", "appliance", "appliances", "toaster", "mixer", "grinder", "iron", "kettle", "induction", "juicer", "blender", "sandwich", "fan", "heater", "stabilizer", "inverter");
+    }
+    if (cleanSubName.includes("cooler") || cleanSubName.includes("air cooler")) {
+      tokens.push("cooler", "air cooler", "desert cooler", "personal cooler");
+    }
+    if (cleanSubName.includes("chimney")) {
       tokens.push("chimney", "kitchen chimney", "hood");
     }
-    if (subNameLower.includes("microwave") || subNameLower.includes("oven")) {
-      tokens.push("microwave", "oven", "otg", "toaster");
+    if (cleanSubName.includes("laptop") || cleanSubName.includes("computer")) {
+      tokens.push("laptop", "computer", "pc", "desktop", "macbook", "ram", "software");
     }
-    if (subNameLower.includes("cctv") || subNameLower.includes("security")) {
-      tokens.push("cctv", "camera", "dvr", "nvr", "security");
+    if (cleanSubName.includes("cctv") || cleanSubName.includes("camera") || cleanSubName.includes("security")) {
+      tokens.push("cctv", "camera", "dvr", "nvr", "security", "surveillance");
     }
-    if (subNameLower.includes("small appliance") || subNameLower.includes("small")) {
-      tokens.push("mixer", "grinder", "iron", "kettle", "induction", "juicer", "blender", "sandwich", "fan");
-    }
+
+    // Helper to escape regex special characters
+    const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     // Only match against serviceName, not description
     return tokens.some(token => {
-      if (token.length <= 2) {
-        const wordRegex = new RegExp(`\\b${token}\\b`, 'i');
-        return wordRegex.test(serviceName);
-      }
-      return serviceName.includes(token);
+      if (!token || token.length < 2) return false;
+      const escapedToken = escapeRegex(token);
+      const wordRegex = new RegExp(`\\b${escapedToken}\\b`, 'i');
+      return wordRegex.test(serviceText);
     });
   };
 
-  // Filter services by main search query
   const filteredServices = useMemo(() => {
     if (!search.trim()) return services;
     const q = search.toLowerCase();
-    return services.filter(s => 
-      s.name.toLowerCase().includes(q) || 
+    return services.filter(s =>
+      s.name.toLowerCase().includes(q) ||
       (s.description && s.description.toLowerCase().includes(q)) ||
       (s.subcategory && s.subcategory.toLowerCase().includes(q))
     );
@@ -308,11 +350,10 @@ const SubcategoryPage = () => {
                 {/* Subcategories Overview option */}
                 <button
                   onClick={() => setSelectedSubcategory(null)}
-                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-black transition-all ${
-                    selectedSubcategory === null
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-black transition-all ${selectedSubcategory === null
                       ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
                       : "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Layers className={`h-4 w-4 ${selectedSubcategory === null ? "text-white" : "text-emerald-500"}`} />
@@ -326,11 +367,10 @@ const SubcategoryPage = () => {
                 {/* All Services option */}
                 <button
                   onClick={() => setSelectedSubcategory("all")}
-                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-black transition-all ${
-                    selectedSubcategory === "all"
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-black transition-all ${selectedSubcategory === "all"
                       ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
                       : "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Grid className={`h-4 w-4 ${selectedSubcategory === "all" ? "text-white" : "text-emerald-500"}`} />
@@ -350,11 +390,10 @@ const SubcategoryPage = () => {
                     <button
                       key={sub._id}
                       onClick={() => setSelectedSubcategory(sub._id)}
-                      className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold transition-all ${
-                        isSelected
+                      className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold transition-all ${isSelected
                           ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
                           : "bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 pr-2">
                         <Sparkles className={`h-3.5 w-3.5 shrink-0 ${isSelected ? "text-white" : "text-emerald-500"}`} />
@@ -402,14 +441,14 @@ const SubcategoryPage = () => {
                     >
                       <div className="h-12 w-16 bg-slate-50 dark:bg-[#1a2333] rounded-xl flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
                         {sub.image ? (
-                            <img src={sub.image} alt={sub.name} className="h-full w-full object-cover" />
+                          <img src={sub.image} alt={sub.name} className="h-full w-full object-cover" />
                         ) : (
-                            <Sparkles className="h-5 w-5 text-emerald-500" />
+                          <Sparkles className="h-5 w-5 text-emerald-500" />
                         )}
                       </div>
                       <div className="flex-1">
-                          <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1">{sub.name}</h3>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{sub.description || `${subcategoryCounts[sub._id] || 0} Services`}</p>
+                        <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1">{sub.name}</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{sub.description || `${subcategoryCounts[sub._id] || 0} Services`}</p>
                       </div>
                       <div className="w-5 h-5 rounded-full border border-slate-200 dark:border-slate-700 flex items-center justify-center group-hover:border-emerald-500 transition-colors mr-1"></div>
                     </button>
@@ -559,11 +598,10 @@ const SubcategoryPage = () => {
                     setSelectedSubcategory(null);
                     setShowSubModal(false);
                   }}
-                  className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                    selectedSubcategory === null
+                  className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${selectedSubcategory === null
                       ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
                       : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-                  }`}
+                    }`}
                 >
                   <Layers className="h-5 w-5 mb-2" />
                   <div>
@@ -577,11 +615,10 @@ const SubcategoryPage = () => {
                     setSelectedSubcategory("all");
                     setShowSubModal(false);
                   }}
-                  className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${
-                    selectedSubcategory === "all"
+                  className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between ${selectedSubcategory === "all"
                       ? "bg-emerald-600 text-white border-emerald-600 shadow-md"
                       : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-                  }`}
+                    }`}
                 >
                   <Grid className="h-5 w-5 mb-2" />
                   <div>
@@ -600,17 +637,16 @@ const SubcategoryPage = () => {
                         setSelectedSubcategory(sub._id);
                         setShowSubModal(false);
                       }}
-                      className={`flex items-center gap-4 p-3 rounded-2xl border text-left transition-all active:scale-[0.98] w-full ${
-                        isSelected
+                      className={`flex items-center gap-4 p-3 rounded-2xl border text-left transition-all active:scale-[0.98] w-full ${isSelected
                           ? "bg-emerald-50 dark:bg-[#151c2c] border-emerald-500"
                           : "bg-white dark:bg-[#151c2c] border-slate-200 dark:border-slate-800/80 hover:border-emerald-500/50"
-                      }`}
+                        }`}
                     >
                       <div className="h-12 w-16 bg-slate-50 dark:bg-[#1a2333] rounded-xl flex items-center justify-center overflow-hidden shrink-0">
                         {sub.image ? (
-                            <img src={sub.image} alt={sub.name} className="h-full w-full object-cover" />
+                          <img src={sub.image} alt={sub.name} className="h-full w-full object-cover" />
                         ) : (
-                            <Sparkles className="h-5 w-5 text-emerald-500" />
+                          <Sparkles className="h-5 w-5 text-emerald-500" />
                         )}
                       </div>
                       <div className="flex-1">
@@ -619,7 +655,7 @@ const SubcategoryPage = () => {
                       </div>
                       {isSelected ? (
                         <div className="shrink-0 h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center mr-1">
-                            <Check className="h-3.5 w-3.5 text-white" />
+                          <Check className="h-3.5 w-3.5 text-white" />
                         </div>
                       ) : (
                         <div className="shrink-0 h-5 w-5 rounded-full border border-slate-200 dark:border-slate-700 mr-1"></div>

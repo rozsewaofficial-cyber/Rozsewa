@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { Link, useNavigate } from "react-router-dom";
-import { User, Building, Landmark, Lock, Bell, HelpCircle, FileText, ChevronRight, LogOut, Loader2, Power, Zap, ShieldCheck } from "lucide-react";
+import { User, Building, Landmark, Lock, Bell, HelpCircle, FileText, ChevronRight, LogOut, Loader2, Power, Zap, ShieldCheck, Home } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -38,14 +38,16 @@ const ProviderSettings = () => {
     try {
       const payload = type === 'online'
         ? { isOnline: !provider.isOnline }
-        : { isEmergencyEnabled: !provider.isEmergencyEnabled };
+        : type === 'emergency'
+        ? { isEmergencyEnabled: !provider.isEmergencyEnabled }
+        : { isHomeVisitAvailable: !provider.isHomeVisitAvailable };
 
       const { data } = await API.patch("/provider/status", payload);
       setProvider({ ...provider, ...data });
       updateUser(data); // Sync global auth context
       toast({
         title: "Status Updated",
-        description: `${type === 'online' ? 'Visibility' : 'Emergency service'} changed successfully.`
+        description: `${type === 'online' ? 'Duty visibility' : type === 'emergency' ? '24/7 service' : 'Home visit service'} changed successfully.`
       });
     } catch (err) {
       toast({ title: "Update Failed", description: "Check your connection.", variant: "destructive" });
@@ -90,17 +92,17 @@ const ProviderSettings = () => {
         </section>
 
         {/* Live Status Toggles */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-2.5">
           <button
             disabled={statusLoading}
             onClick={() => handleToggleStatus('online')}
-            className={`rounded-2xl p-4 border text-left transition-all ${provider?.isOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-muted/30 border-border opacity-70'}`}
+            className={`rounded-2xl p-3 sm:p-4 border text-left transition-all cursor-pointer ${provider?.isOnline ? 'bg-emerald-50 border-emerald-200/80 dark:bg-emerald-950/40 dark:border-emerald-800/40' : 'bg-muted/30 border-border opacity-70'}`}
           >
-            <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${provider?.isOnline ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`h-8 w-8 rounded-xl flex items-center justify-center mb-2 ${provider?.isOnline ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'bg-muted text-muted-foreground'}`}>
               <Power className="h-4 w-4" />
             </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Duty Status</p>
-            <h4 className={`text-sm font-black ${provider?.isOnline ? 'text-emerald-700' : 'text-foreground'}`}>
+            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">Duty Status</p>
+            <h4 className={`text-xs sm:text-sm font-black mt-0.5 ${provider?.isOnline ? 'text-emerald-700 dark:text-emerald-400' : 'text-foreground'}`}>
               {provider?.isOnline ? 'ONLINE' : 'OFFLINE'}
             </h4>
           </button>
@@ -108,14 +110,28 @@ const ProviderSettings = () => {
           <button
             disabled={statusLoading}
             onClick={() => handleToggleStatus('emergency')}
-            className={`rounded-2xl p-4 border text-left transition-all ${provider?.isEmergencyEnabled ? 'bg-amber-50 border-amber-100' : 'bg-muted/30 border-border opacity-70'}`}
+            className={`rounded-2xl p-3 sm:p-4 border text-left transition-all cursor-pointer ${provider?.isEmergencyEnabled ? 'bg-amber-50 border-amber-200/80 dark:bg-amber-950/40 dark:border-amber-800/40' : 'bg-muted/30 border-border opacity-70'}`}
           >
-            <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${provider?.isEmergencyEnabled ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`h-8 w-8 rounded-xl flex items-center justify-center mb-2 ${provider?.isEmergencyEnabled ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 'bg-muted text-muted-foreground'}`}>
               <Zap className="h-4 w-4" />
             </div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">24/7 Service</p>
-            <h4 className={`text-sm font-black ${provider?.isEmergencyEnabled ? 'text-amber-700' : 'text-foreground'}`}>
+            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">24/7 Service</p>
+            <h4 className={`text-xs sm:text-sm font-black mt-0.5 ${provider?.isEmergencyEnabled ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'}`}>
               {provider?.isEmergencyEnabled ? 'ACTIVE' : 'INACTIVE'}
+            </h4>
+          </button>
+
+          <button
+            disabled={statusLoading}
+            onClick={() => handleToggleStatus('homeVisit')}
+            className={`rounded-2xl p-3 sm:p-4 border text-left transition-all cursor-pointer ${provider?.isHomeVisitAvailable ? 'bg-blue-50 border-blue-200/80 dark:bg-blue-950/40 dark:border-blue-800/40' : 'bg-muted/30 border-border opacity-70'}`}
+          >
+            <div className={`h-8 w-8 rounded-xl flex items-center justify-center mb-2 ${provider?.isHomeVisitAvailable ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-muted text-muted-foreground'}`}>
+              <Home className="h-4 w-4" />
+            </div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">Home Visit</p>
+            <h4 className={`text-xs sm:text-sm font-black mt-0.5 ${provider?.isHomeVisitAvailable ? 'text-blue-700 dark:text-blue-400' : 'text-foreground'}`}>
+              {provider?.isHomeVisitAvailable ? 'ACTIVE' : 'INACTIVE'}
             </h4>
           </button>
         </div>

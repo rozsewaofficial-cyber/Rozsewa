@@ -103,7 +103,8 @@ const getPublicServicesBySubcategory = async (req, res) => {
                     serviceType: "home",
                     visible: true,
                     category: catObj.name,
-                    image: s.image
+                    subcategoryId: s.subcategoryId || null,
+                    subcategory: s.subcategory || ""
                 }));
             }
             return res.json(services || []);
