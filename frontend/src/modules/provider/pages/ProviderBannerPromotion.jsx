@@ -79,10 +79,13 @@ const ProviderBannerPromotion = () => {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(val)}&countrycodes=in&limit=10&addressdetails=1`);
       const data = await res.json();
       
-      // Filter out states and countries from city/district search results
+      // Filter strictly based on the field type
       const filteredData = data.filter(d => {
-        if (field === 'city' || field === 'district') {
-          return d.addresstype !== 'state' && d.addresstype !== 'country';
+        if (field === 'district') {
+          return ['state_district', 'county', 'district'].includes(d.addresstype);
+        }
+        if (field === 'city') {
+          return !['state', 'country', 'state_district', 'county', 'region', 'postcode'].includes(d.addresstype);
         }
         return true;
       });
@@ -113,10 +116,10 @@ const ProviderBannerPromotion = () => {
   };
 
   const selectMapSuggestion = (s) => {
-    if (activeSearchField === 'state') setTargetState(s.address?.state || s.display_name);
-    if (activeSearchField === 'district') setTargetDistrict(s.address?.state_district || s.address?.county || s.display_name);
-    if (activeSearchField === 'city') setTargetCity(s.address?.city || s.address?.town || s.address?.village || s.display_name);
-    if (activeSearchField === 'pincode') setTargetPincode(s.address?.postcode || s.display_name);
+    if (activeSearchField === 'state') setTargetState(s.address?.state || s.name || s.display_name.split(',')[0]);
+    if (activeSearchField === 'district') setTargetDistrict(s.address?.state_district || s.address?.county || s.name || s.display_name.split(',')[0]);
+    if (activeSearchField === 'city') setTargetCity(s.address?.city || s.address?.town || s.address?.village || s.name || s.display_name.split(',')[0]);
+    if (activeSearchField === 'pincode') setTargetPincode(s.address?.postcode || s.name || s.display_name.split(',')[0]);
     setMapSuggestions([]);
     setActiveSearchField(null);
   };
@@ -365,17 +368,17 @@ const ProviderBannerPromotion = () => {
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Select Plan</label>
               <div className="space-y-3">
                 {plans.map(plan => (
-                  <label key={plan.id} className={`flex items-center p-4 border-2 rounded-2xl cursor-pointer transition-all ${planType === plan.id ? 'border-blue-500 bg-blue-50/50 shadow-md' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
+                  <label key={plan.id} className={`flex items-center p-4 border-2 rounded-2xl cursor-pointer transition-all ${planType === plan.id ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 shadow-md' : 'border-slate-100 bg-white hover:border-slate-200 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700'}`}>
                     <input type="radio" name="planType" value={plan.id} checked={planType === plan.id} onChange={(e) => setPlanType(e.target.value)} className="hidden" />
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mr-4 ${planType === plan.id ? 'bg-blue-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500'}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mr-4 ${planType === plan.id ? 'bg-blue-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
                       {getIcon(plan.id)}
                     </div>
                     <div className="flex-1">
-                      <p className="font-black text-sm">{plan.title}</p>
-                      <p className="text-[10px] font-medium text-slate-500">{plan.desc}</p>
+                      <p className="font-black text-sm text-slate-900 dark:text-white">{plan.title}</p>
+                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{plan.desc}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-blue-600">₹{plan.price}</p>
+                      <p className="font-black text-blue-600 dark:text-blue-400">₹{plan.price}</p>
                       <p className="text-[9px] text-slate-400 uppercase">/{availableDurations[0] || 7} Days</p>
                     </div>
                   </label>
@@ -394,7 +397,7 @@ const ProviderBannerPromotion = () => {
                     {stateSuggestions.length > 0 && (
                       <ul className="absolute z-10 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-48 overflow-y-auto overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
                         {stateSuggestions.map((s, i) => (
-                          <li key={i} onClick={() => selectState(s)} className="p-3 text-xs font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors">
+                          <li key={i} onClick={() => selectState(s)} className="p-3 text-xs font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors">
                             {s}
                           </li>
                         ))}
@@ -409,7 +412,7 @@ const ProviderBannerPromotion = () => {
                     {activeSearchField === 'district' && mapSuggestions.length > 0 && (
                       <ul className="absolute z-10 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-48 overflow-y-auto overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
                         {mapSuggestions.map((s, i) => (
-                          <li key={i} onClick={() => selectMapSuggestion(s)} className="p-3 text-xs font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors">
+                          <li key={i} onClick={() => selectMapSuggestion(s)} className="p-3 text-xs font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors">
                             {s.display_name}
                           </li>
                         ))}
@@ -424,7 +427,7 @@ const ProviderBannerPromotion = () => {
                     {activeSearchField === 'city' && mapSuggestions.length > 0 && (
                       <ul className="absolute z-10 w-full mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-48 overflow-y-auto overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
                         {mapSuggestions.map((s, i) => (
-                          <li key={i} onClick={() => selectMapSuggestion(s)} className="p-3 text-xs font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors">
+                          <li key={i} onClick={() => selectMapSuggestion(s)} className="p-3 text-xs font-medium cursor-pointer hover:bg-blue-50 dark:hover:bg-slate-700 dark:text-slate-200 transition-colors">
                             {s.display_name}
                           </li>
                         ))}
@@ -445,7 +448,7 @@ const ProviderBannerPromotion = () => {
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Duration</label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {availableDurations.map(days => (
-                  <div key={days} className={`py-3 rounded-xl border-2 font-black text-sm text-center flex flex-col items-center justify-center gap-1 ${durationDays === days ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'}`}>
+                  <div key={days} className={`py-3 rounded-xl border-2 font-black text-sm text-center flex flex-col items-center justify-center gap-1 cursor-pointer transition-all ${durationDays === days ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 shadow-sm' : 'border-slate-200 bg-white text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'}`} onClick={() => setDurationDays(days)}>
                     <span className="flex items-center gap-2">
                       {durationDays === days && <CheckCircle2 className="w-4 h-4" />} {days} Days
                     </span>

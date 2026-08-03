@@ -75,6 +75,15 @@ export const AuthProvider = ({ children }) => {
   const [userCity, setUserCity] = useState(() => {
     return sessionStorage.getItem("rozsewa_user_city") || "";
   });
+  const [userState, setUserState] = useState(() => {
+    return sessionStorage.getItem("rozsewa_user_state") || "";
+  });
+  const [userDistrict, setUserDistrict] = useState(() => {
+    return sessionStorage.getItem("rozsewa_user_district") || "";
+  });
+  const [userPincode, setUserPincode] = useState(() => {
+    return sessionStorage.getItem("rozsewa_user_pincode") || "";
+  });
 
   const [serviceMode, setServiceMode] = useState(() => {
     return sessionStorage.getItem("rozsewa_service_mode") || null;
@@ -110,10 +119,25 @@ export const AuthProvider = ({ children }) => {
                 const addressComponents = data.results[0].address_components;
                 const cityComponent = addressComponents.find(c => c.types.includes('locality')) || 
                                       addressComponents.find(c => c.types.includes('administrative_area_level_2'));
+                const districtComponent = addressComponents.find(c => c.types.includes('administrative_area_level_2'));
+                const stateComponent = addressComponents.find(c => c.types.includes('administrative_area_level_1'));
+                const pinComponent = addressComponents.find(c => c.types.includes('postal_code'));
                 
                 if (cityComponent) {
                   sessionStorage.setItem("rozsewa_user_city", cityComponent.long_name);
                   setUserCity(cityComponent.long_name);
+                }
+                if (districtComponent) {
+                  sessionStorage.setItem("rozsewa_user_district", districtComponent.long_name);
+                  setUserDistrict(districtComponent.long_name);
+                }
+                if (stateComponent) {
+                  sessionStorage.setItem("rozsewa_user_state", stateComponent.long_name);
+                  setUserState(stateComponent.long_name);
+                }
+                if (pinComponent) {
+                  sessionStorage.setItem("rozsewa_user_pincode", pinComponent.long_name);
+                  setUserPincode(pinComponent.long_name);
                 }
               }
             } else {
@@ -121,9 +145,25 @@ export const AuthProvider = ({ children }) => {
               const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}`);
               const data = await res.json();
               const detectedCity = data.address?.city || data.address?.town || data.address?.village || "";
+              const detectedDistrict = data.address?.state_district || data.address?.county || "";
+              const detectedState = data.address?.state || "";
+              const detectedPin = data.address?.postcode || "";
+
               if (detectedCity) {
                 sessionStorage.setItem("rozsewa_user_city", detectedCity);
                 setUserCity(detectedCity);
+              }
+              if (detectedDistrict) {
+                sessionStorage.setItem("rozsewa_user_district", detectedDistrict);
+                setUserDistrict(detectedDistrict);
+              }
+              if (detectedState) {
+                sessionStorage.setItem("rozsewa_user_state", detectedState);
+                setUserState(detectedState);
+              }
+              if (detectedPin) {
+                sessionStorage.setItem("rozsewa_user_pincode", detectedPin);
+                setUserPincode(detectedPin);
               }
             }
           } catch (e) {
@@ -449,6 +489,12 @@ export const AuthProvider = ({ children }) => {
     userLocation,
     userCity,
     setUserCity,
+    userState,
+    setUserState,
+    userDistrict,
+    setUserDistrict,
+    userPincode,
+    setUserPincode,
     detectLocation,
     loading,
     login,

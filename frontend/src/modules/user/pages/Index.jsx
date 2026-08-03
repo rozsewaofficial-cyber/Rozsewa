@@ -20,7 +20,7 @@ const defaultBanners = [
 
 const Index = () => {
   const navigate = useNavigate();
-  const { userLocation, userCity, detectLocation, serviceMode, setServiceMode, user } = useAuth();
+  const { userLocation, userCity, userState, userDistrict, userPincode, detectLocation, serviceMode, setServiceMode, user } = useAuth();
   const userName = user ? (user.name || user.ownerName || "Guest").split(" ")[0] : "Guest";
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
@@ -47,7 +47,7 @@ const Index = () => {
 
   useEffect(() => {
     fetchHomeData();
-  }, [userLocation, userCity]);
+  }, [userLocation, userCity, userState, userDistrict, userPincode]);
 
   // Scroll Restoration Logic
   useEffect(() => {
@@ -77,9 +77,13 @@ const Index = () => {
         params.append("lat", userLocation.lat);
         params.append("lng", userLocation.lng);
         params.append("radius", 15);
-      } else if (userCity) {
-        params.append("city", userCity);
-      }
+      } 
+      
+      if (userCity) params.append("city", userCity);
+      if (userState) params.append("state", userState);
+      if (userDistrict) params.append("district", userDistrict);
+      if (userPincode) params.append("pincode", userPincode);
+
       const providersEndpoint = `/public/featured-providers?${params.toString()}`;
 
       const [bannersRes, providerBannersRes, providersRes] = await Promise.all([
