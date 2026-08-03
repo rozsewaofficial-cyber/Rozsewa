@@ -39,7 +39,24 @@ exports.createBannerRequest = async (req, res) => {
 // @desc Get all banners for logged in provider
 exports.getMyBanners = async (req, res) => {
     try {
-        const banners = await ProviderBanner.find({ provider: req.user.id }).sort({ createdAt: -1 });
+        let banners = await ProviderBanner.find({ provider: req.user.id }).sort({ createdAt: -1 });
+        
+        // Dynamically update expired banners
+        const now = new Date();
+        let changed = false;
+        
+        for (let banner of banners) {
+            if (banner.status === 'Active' && banner.endDate && new Date(banner.endDate) < now) {
+                banner.status = 'Expired';
+                await banner.save();
+                changed = true;
+            }
+        }
+        
+        if (changed) {
+            banners = await ProviderBanner.find({ provider: req.user.id }).sort({ createdAt: -1 });
+        }
+
         res.json({ success: true, banners });
     } catch (error) {
         console.error(error);
@@ -53,9 +70,28 @@ exports.getMyBanners = async (req, res) => {
 // @desc Get all provider banners for admin review
 exports.getAllBanners = async (req, res) => {
     try {
-        const banners = await ProviderBanner.find()
+        let banners = await ProviderBanner.find()
             .populate('provider', 'ownerName shopName mobile vendorCode address city state')
             .sort({ createdAt: -1 });
+
+        // Dynamically update expired banners
+        const now = new Date();
+        let changed = false;
+        
+        for (let banner of banners) {
+            if (banner.status === 'Active' && banner.endDate && new Date(banner.endDate) < now) {
+                banner.status = 'Expired';
+                await banner.save();
+                changed = true;
+            }
+        }
+        
+        if (changed) {
+            banners = await ProviderBanner.find()
+                .populate('provider', 'ownerName shopName mobile vendorCode address city state')
+                .sort({ createdAt: -1 });
+        }
+
         res.json({ success: true, banners });
     } catch (error) {
         console.error(error);
@@ -114,9 +150,9 @@ exports.getActiveBannersByLocation = async (req, res) => {
         ];
 
         if (pincode) locationConditions.push({ planType: 'Local', locationValue: pincode });
-        if (city) locationConditions.push({ planType: 'City', locationValue: city });
-        if (district) locationConditions.push({ planType: 'District', locationValue: district });
-        if (state) locationConditions.push({ planType: 'State', locationValue: state });
+        if (city) locationConditions.push({ planType: 'City', locationValue: { $regex: new RegExp(`^${city}$`, 'i') } });
+        if (district) locationConditions.push({ planType: 'District', locationValue: { $regex: new RegExp(`^${district}$`, 'i') } });
+        if (state) locationConditions.push({ planType: 'State', locationValue: { $regex: new RegExp(`^${state}$`, 'i') } });
 
         query.$or = locationConditions;
 
