@@ -151,13 +151,23 @@ export const SocketProvider = ({ children }) => {
             });
         });
 
+        const playPingSound = () => {
+            const pingAudio = new Audio('/sounds/alert.mp3');
+            pingAudio.volume = 0.7;
+            pingAudio.play().then(() => {
+                setTimeout(() => { pingAudio.pause(); pingAudio.currentTime = 0; }, 1500);
+            }).catch(e => console.log("Ping sound failed:", e));
+        };
+
         newSocket.on("BOOKING_REJECTED", (data) => {
             console.log("Global Socket: Booking rejected", data);
+            playPingSound();
             window.dispatchEvent(new CustomEvent('BOOKING_REJECTED', { detail: data }));
         });
 
         newSocket.on("COUNTER_OFFER_RECEIVED", (data) => {
             console.log("Global Socket: Counter offer received", data);
+            playPingSound();
             window.dispatchEvent(new CustomEvent('COUNTER_OFFER_RECEIVED', { detail: data }));
             toast({
                 title: "New Counter-Offer!",
@@ -168,6 +178,7 @@ export const SocketProvider = ({ children }) => {
 
         newSocket.on("SCHEDULE_PROPOSED", (data) => {
             console.log("Global Socket: Schedule Proposed", data);
+            playPingSound();
             window.dispatchEvent(new CustomEvent('SCHEDULE_PROPOSED', { detail: data }));
             toast({
                 title: "New Schedule Proposed",
@@ -178,11 +189,13 @@ export const SocketProvider = ({ children }) => {
 
         newSocket.on("SCHEDULE_ACCEPTED", (data) => {
             console.log("Global Socket: Schedule Accepted", data);
+            playPingSound();
             setScheduleAcceptedData(data);
         });
 
         newSocket.on("BOOKING_REMINDER", (data) => {
             console.log("Global Socket: Booking Reminder", data);
+            playPingSound();
             setReminderData(data);
         });
 
@@ -194,6 +207,16 @@ export const SocketProvider = ({ children }) => {
         newSocket.on("NEW_NOTIFICATION", (data) => {
             console.log("Global Socket: New Notification", data);
             
+            // Play a short ping sound (stop after 1.5s since alert.mp3 is an alarm)
+            const pingAudio = new Audio('/sounds/alert.mp3');
+            pingAudio.volume = 0.7;
+            pingAudio.play().then(() => {
+                setTimeout(() => {
+                    pingAudio.pause();
+                    pingAudio.currentTime = 0;
+                }, 1500);
+            }).catch(e => console.log("Notification sound failed:", e));
+
             // Show toast using sonner
             import('sonner').then(({ toast }) => {
                 toast(data.title, {
