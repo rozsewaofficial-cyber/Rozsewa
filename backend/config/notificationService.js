@@ -233,7 +233,11 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                 body: payload.body || ''
             },
             android: {
-                priority: 'high'
+                priority: 'high',
+                notification: {
+                    channelId: typeKey, // Maps 'booking' type to 'booking' channel in Flutter
+                    sound: 'default'    // Ensures the system triggers the channel's sound
+                }
             },
             apns: {
                 headers: {
