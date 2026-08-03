@@ -56,8 +56,11 @@ exports.getMyBanners = async (req, res) => {
         if (changed) {
             banners = await ProviderBanner.find({ provider: req.user.id }).sort({ createdAt: -1 });
         }
+        
+        // Filter out Expired banners so they don't show in the provider's dashboard
+        const activeBanners = banners.filter(b => b.status !== 'Expired');
 
-        res.json({ success: true, banners });
+        res.json({ success: true, banners: activeBanners });
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: 'Server error' });
