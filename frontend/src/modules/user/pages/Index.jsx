@@ -111,7 +111,7 @@ const Index = () => {
         isProviderBanner: true,
         title: "",
         subtitle: "",
-        link: `/shops/${b.provider}`,
+        link: `/shop/${b.provider?._id || b.provider}`,
         image: b.imageUrl
       })) || [];
 
