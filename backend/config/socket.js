@@ -70,7 +70,7 @@ const initSocket = (server) => {
                         io.to(`user_${booking.userId}`).emit('BOOKING_STATUS_UPDATED', { bookingId, status: 'cancelled' });
 
                         try {
-                            const { notifyUser } = require('../services/notificationService');
+                            const { notifyUser } = require('../config/notificationService');
                             const User = require('../models/User');
                             const user = await User.findById(booking.userId);
                             if (user) {
