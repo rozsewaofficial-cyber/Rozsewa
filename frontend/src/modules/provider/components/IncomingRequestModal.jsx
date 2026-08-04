@@ -42,18 +42,8 @@ const IncomingRequestModal = ({ request, onAction }) => {
 
     const notificationRef = useRef(null);
 
-    const playSound = (e) => {
-        playAlarmSound();
-    };
-
     useEffect(() => {
-        playAlarmSound();
-
-        const ensurePlay = setInterval(() => {
-            if (!alarmSoundPlaying) {
-                playAlarmSound();
-            }
-        }, 2000);
+        // Sound playing has been disabled per user request to let Flutter handle it
 
         if ('Notification' in window && Notification.permission === 'granted') {
             try {
@@ -72,7 +62,6 @@ const IncomingRequestModal = ({ request, onAction }) => {
         }
 
         return () => {
-            clearInterval(ensurePlay);
             if (notificationRef.current && typeof notificationRef.current.close === 'function') {
                 notificationRef.current.close();
             }
@@ -219,15 +208,6 @@ const IncomingRequestModal = ({ request, onAction }) => {
                             />
                             <Bell className="h-10 w-10 text-emerald-600 animate-bounce" />
                         </div>
-
-                        {!alarmSoundPlaying && (
-                            <button
-                                onClick={playSound}
-                                className="px-4 py-2 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase flex items-center gap-2 animate-pulse border border-amber-200"
-                            >
-                                <Volume2 className="h-3 w-3" /> Tap to Enable Sound
-                            </button>
-                        )}
 
                         <div className="space-y-1">
                             <h2 className="text-2xl font-black tracking-tight uppercase">New Request!</h2>
