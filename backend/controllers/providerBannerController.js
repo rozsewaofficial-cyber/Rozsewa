@@ -34,7 +34,61 @@ exports.createBannerRequest = async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error' });
     }
 };
+// @route POST /api/provider/banners/wallet
+// @desc Create a new banner request paying via Wallet
+exports.createBannerWithWallet = async (req, res) => {
+    try {
+        const { planType, locationValue, durationDays, bannerSource, designDescription, imageUrl, pricePaid } = req.body;
+        
+        const { Wallet, Transaction } = require('../models/Wallet');
+        
+        // 1. Check wallet availableBalance
+        const wallet = await Wallet.findOne({ providerId: req.user.id });
+        if (!wallet || wallet.availableBalance < pricePaid) {
+            return res.status(400).json({ success: false, message: 'Insufficient wallet available balance.' });
+        }
 
+        // 2. Deduct from wallet availableBalance
+        wallet.availableBalance -= pricePaid;
+        await wallet.save();
+
+        // 3. Create Transaction record
+        const transaction = new Transaction({
+            providerId: req.user.id,
+            title: 'Banner Promotion Purchase',
+            amount: pricePaid,
+            type: 'debit',
+            status: 'completed',
+            description: `Purchased ${planType} banner for ${durationDays} days.`
+        });
+        await transaction.save();
+
+        // 4. Create Banner Request
+        let status = 'Pending Approval';
+        if (bannerSource === 'Create Banner by RozSewa') {
+            status = 'Banner Design Required';
+        }
+
+        const banner = new ProviderBanner({
+            provider: req.user.id,
+            planType,
+            locationValue,
+            durationDays,
+            bannerSource,
+            designDescription,
+            imageUrl,
+            pricePaid,
+            paymentId: `WALLET_${transaction._id}`,
+            status
+        });
+
+        await banner.save();
+        res.status(201).json({ success: true, banner, balance: wallet.balance });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Server error' });
+    }
+};
 // @route GET /api/provider/banners
 // @desc Get all banners for logged in provider
 exports.getMyBanners = async (req, res) => {

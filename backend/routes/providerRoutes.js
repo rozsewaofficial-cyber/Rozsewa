@@ -93,6 +93,7 @@ router.get('/withdrawals', protect, getProviderWithdrawals);
 
 // Banner routes
 router.post('/banners', protect, bannerController.createBannerRequest);
+router.post('/banners/wallet', protect, bannerController.createBannerWithWallet);
 router.get('/banners', protect, bannerController.getMyBanners);
 
 module.exports = router;
