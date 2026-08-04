@@ -23,6 +23,7 @@ const ProviderBannerPromotion = () => {
   const [plans, setPlans] = useState([]);
   const [availableDurations, setAvailableDurations] = useState([7, 15, 30]);
   const [showForm, setShowForm] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
   
   // Form State
   const [planType, setPlanType] = useState('Local');
@@ -127,7 +128,19 @@ const ProviderBannerPromotion = () => {
   useEffect(() => {
     fetchBanners();
     fetchPlans();
+    fetchWalletBalance();
   }, []);
+
+  const fetchWalletBalance = async () => {
+    try {
+      const res = await API.get('/wallet');
+      if (res.data && typeof res.data.availableBalance !== 'undefined') {
+        setWalletBalance(res.data.availableBalance);
+      }
+    } catch (error) {
+      console.error('Failed to fetch wallet balance:', error);
+    }
+  };
 
   const fetchPlans = async () => {
     try {
@@ -299,6 +312,52 @@ const ProviderBannerPromotion = () => {
       paymentObject.open();
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to initiate payment.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWalletSubmit = async () => {
+    setLoading(true);
+    
+    // Determine locationValue based on user profile and plan
+    let locationValue = '';
+    if (planType === 'Premium Top') locationValue = 'ALL';
+    else if (planType === 'State') locationValue = targetState;
+    else if (planType === 'District') locationValue = targetDistrict;
+    else if (planType === 'City') locationValue = targetCity;
+    else if (planType === 'Local') locationValue = targetPincode;
+
+    if (!locationValue) {
+      setLoading(false);
+      return toast({ variant: 'destructive', title: 'Location Missing', description: `Please enter the target ${planType} for your promotion.` });
+    }
+
+    if (!imageUrl && !designDescription.trim()) {
+      setLoading(false);
+      return toast({ variant: 'destructive', title: 'Details Missing', description: `Please either upload a banner image or write a design description.` });
+    }
+
+    const finalBannerSource = imageUrl ? 'Upload Own Banner' : 'Create Banner by RozSewa';
+    const totalAmount = Math.round(calculatePrice() * 1.18);
+
+    try {
+      await API.post("/provider/banners/wallet", {
+        planType,
+        locationValue,
+        durationDays,
+        bannerSource: finalBannerSource,
+        designDescription,
+        imageUrl,
+        pricePaid: totalAmount
+      });
+      
+      toast({ title: 'Success', description: 'Banner promotion request submitted using wallet!' });
+      setShowForm(false);
+      fetchBanners();
+      fetchWalletBalance();
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Payment Failed', description: error.response?.data?.message || 'Could not process wallet payment.' });
     } finally {
       setLoading(false);
     }
@@ -501,6 +560,19 @@ const ProviderBannerPromotion = () => {
               </div>
               <button type="submit" disabled={loading || !isFormValid()} className="w-full bg-emerald-500 text-white font-black py-4 rounded-xl mt-4 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Pay & Submit Request'}
+              </button>
+              
+              <button 
+                type="button" 
+                onClick={handleWalletSubmit} 
+                disabled={loading || !isFormValid() || walletBalance < Math.round(calculatePrice() * 1.18)} 
+                className={`w-full text-white font-black py-4 rounded-xl mt-2 flex items-center justify-center gap-2 transition-all ${walletBalance >= Math.round(calculatePrice() * 1.18) ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-400 cursor-not-allowed opacity-80'}`}
+              >
+                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
+                  walletBalance >= Math.round(calculatePrice() * 1.18) 
+                    ? `Pay with Wallet (Bal: ₹${walletBalance})` 
+                    : `Insufficient Wallet Balance (₹${walletBalance})`
+                )}
               </button>
             </div>
           </form>
