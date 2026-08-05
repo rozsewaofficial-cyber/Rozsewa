@@ -111,7 +111,7 @@ export const SocketProvider = ({ children }) => {
         const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
         // Extract the base URL (protocol + host) and remove /api if present at the end
         const socketUrl = API_URL.endsWith('/api') ? API_URL.slice(0, -4) : API_URL;
-        
+
         const newSocket = io(socketUrl, {
             withCredentials: true,
             transports: ['polling', 'websocket']
@@ -122,10 +122,10 @@ export const SocketProvider = ({ children }) => {
             console.log("Global Socket: New booking received", data);
             sessionStorage.setItem('activeRequest', JSON.stringify(data));
             setIncomingRequest(data);
-            
+
             const path = window.location.pathname;
             if (path.startsWith('/provider') || path.startsWith('/sewak')) {
-                playAlarmSound();
+                // playAlarmSound(); // Disabled per user request to let Flutter handle it
             }
         });
 
@@ -133,10 +133,10 @@ export const SocketProvider = ({ children }) => {
             console.log("Global Socket: New lead received", data);
             sessionStorage.setItem('activeLeadRequest', JSON.stringify(data));
             setIncomingLeadRequest(data);
-            
+
             const path = window.location.pathname;
             if (path.startsWith('/provider') || path.startsWith('/sewak')) {
-                playAlarmSound();
+                // playAlarmSound(); // Disabled per user request to let Flutter handle it
             }
         });
 
@@ -206,7 +206,7 @@ export const SocketProvider = ({ children }) => {
 
         newSocket.on("NEW_NOTIFICATION", (data) => {
             console.log("Global Socket: New Notification", data);
-            
+
             // Play a short ping sound (stop after 1.5s since alert.mp3 is an alarm)
             const pingAudio = new Audio('/sounds/alert.mp3');
             pingAudio.volume = 0.7;

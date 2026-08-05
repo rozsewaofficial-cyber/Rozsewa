@@ -118,7 +118,7 @@ const saveFCMToken = async (req, res) => {
 
         let isNewToken = false;
 
-        if (platform === 'mobile' || platform === 'app') {
+        if (platform === 'mobile' || platform === 'app' || platform === 'android' || platform === 'ios') {
             if (!target.fcmTokenMobile.includes(token)) {
                 target.fcmTokenMobile.push(token);
                 if (target.fcmTokenMobile.length > 10) target.fcmTokenMobile.shift();
