@@ -136,7 +136,9 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
       const { data: staffData } = await API.get("/provider/staff");
       setStaffList(staffData);
     } catch (err) {
-      toast({ title: "Failed to fetch bookings", variant: "destructive" });
+      if (err.response?.status !== 401) {
+        toast({ title: "Failed to fetch bookings", variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }

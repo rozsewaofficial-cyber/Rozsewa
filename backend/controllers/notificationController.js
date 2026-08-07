@@ -1,7 +1,7 @@
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 const Provider = require('../models/Provider');
-const { sendNotificationToUser } = require('../config/notificationService');
+const { notifyUser } = require('../config/notificationService');
 
 // @desc    Get user/provider notifications
 // @route   GET /api/notifications
@@ -101,68 +101,28 @@ const saveFCMToken = async (req, res) => {
         const userId = req.user._id;
         const userRole = req.user.role;
 
-        let target;
+        const isMobile = (platform === 'mobile' || platform === 'app' || platform === 'android' || platform === 'ios');
+        
+        const updateQuery = {};
+        if (isMobile) {
+            updateQuery.$addToSet = { fcmTokenMobile: token };
+        } else {
+            updateQuery.$addToSet = { fcmTokens: token };
+        }
+
         if (userRole === 'provider') {
-            target = await Provider.findById(userId);
+            await Provider.findByIdAndUpdate(userId, updateQuery);
         } else {
-            target = await User.findById(userId);
+            await User.findByIdAndUpdate(userId, updateQuery);
         }
 
-        if (!target) {
-            console.log(`[saveFCMToken API] Error: User/Provider not found for userId: ${userId}`);
-            return res.status(404).json({ message: 'User/Provider not found' });
-        }
+        console.log(`[saveFCMToken API] Successfully updated tokens for ${userId}`);
 
-        if (!target.fcmTokens) target.fcmTokens = [];
-        if (!target.fcmTokenMobile) target.fcmTokenMobile = [];
-
-        let isNewToken = false;
-
-        if (platform === 'mobile' || platform === 'app' || platform === 'android' || platform === 'ios') {
-            if (!target.fcmTokenMobile.includes(token)) {
-                target.fcmTokenMobile.push(token);
-                if (target.fcmTokenMobile.length > 10) target.fcmTokenMobile.shift();
-                isNewToken = true;
-                console.log(`[saveFCMToken API] Saved Mobile/App Token for ${target.ownerName || target.name} (Total mobile tokens: ${target.fcmTokenMobile.length})`);
-            } else {
-                console.log(`[saveFCMToken API] Token already exists in fcmTokenMobile for ${target.ownerName || target.name}`);
-            }
-        } else {
-            if (!target.fcmTokens.includes(token)) {
-                target.fcmTokens.push(token);
-                if (target.fcmTokens.length > 10) target.fcmTokens.shift();
-                isNewToken = true;
-                console.log(`[saveFCMToken API] Saved Web Token for ${target.ownerName || target.name} (Total web tokens: ${target.fcmTokens.length})`);
-            } else {
-                console.log(`[saveFCMToken API] Token already exists in fcmTokens (web) for ${target.ownerName || target.name}`);
-            }
-        }
-
-        // Remove any duplicates that might have leaked in previously
-        target.fcmTokens = [...new Set(target.fcmTokens)];
-        target.fcmTokenMobile = [...new Set(target.fcmTokenMobile)];
-
-        await target.save();
-
-        // Send login notification ONLY ONCE per new device
-        if (isNewToken) {
-            try {
-                await sendNotificationToUser(userId, userRole, {
-                    title: "Login Successful",
-                    body: "You have successfully logged in on a new device!",
-                    data: {
-                        type: "login",
-                        id: userId.toString(),
-                        link: "/dashboard"
-                    }
-                });
-            } catch (err) {
-                console.error("Error sending login notification:", err);
-            }
-        }
+        // Removed the annoying "Login Successful" push notification here per user request
 
         res.json({ message: 'Token saved successfully' });
     } catch (error) {
+        console.error('[saveFCMToken API] Fatal Error:', error);
         res.status(500).json({ message: error.message });
     }
 };
@@ -175,23 +135,19 @@ const removeFCMToken = async (req, res) => {
         const userId = req.user._id;
         const userRole = req.user.role;
 
-        let target;
+        const updateQuery = {
+            $pull: {
+                fcmTokens: token,
+                fcmTokenMobile: token
+            }
+        };
+
         if (userRole === 'provider') {
-            target = await Provider.findById(userId);
+            await Provider.findByIdAndUpdate(userId, updateQuery);
         } else {
-            target = await User.findById(userId);
+            await User.findByIdAndUpdate(userId, updateQuery);
         }
 
-        if (!target) return res.status(404).json({ message: 'User/Provider not found' });
-
-        if (target.fcmTokens) {
-            target.fcmTokens = target.fcmTokens.filter(t => t !== token);
-        }
-        if (target.fcmTokenMobile) {
-            target.fcmTokenMobile = target.fcmTokenMobile.filter(t => t !== token);
-        }
-
-        await target.save();
         res.json({ message: 'Token removed successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -203,13 +159,18 @@ const testFCMNotification = async (req, res) => {
         const userId = req.user._id;
         const userRole = req.user.role;
 
-        await sendNotificationToUser(userId, userRole, {
+        // Use the unified notifyUser pipeline (not the raw FCM-only sender) so the
+        // test entry is also persisted to the DB and pushed over the socket —
+        // otherwise it only ever shows as an OS-level push and never appears in
+        // the in-app notification bell/list on the partner side.
+        await notifyUser({
+            userId,
+            userRole,
             title: "Test Notification",
-            body: "This is a test push notification from Rozsewa!",
+            message: "This is a test notification from Rozsewa. If you can see this, notifications are working correctly!",
+            type: "test",
             data: {
-                type: "test",
-                id: "123",
-                link: "/test"
+                link: userRole === 'provider' ? '/provider/notifications' : '/notifications'
             }
         });
 

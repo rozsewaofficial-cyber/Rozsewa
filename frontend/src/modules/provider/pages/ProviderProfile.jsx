@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Navigation, Trash2 } from "lucide-react";
+import { User, Store, MapPin, Phone, ShieldCheck, Camera, LogOut, Sparkles, Loader2, Navigation, Trash2, Bell } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -12,7 +12,7 @@ import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameVali
 
 const ProviderProfile = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, syncFCMToken } = useAuth();
   const { toast } = useToast();
   const confirm = useConfirm();
   const draft = JSON.parse(sessionStorage.getItem("provider-profile-draft") || "{}");
@@ -29,6 +29,7 @@ const ProviderProfile = () => {
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [testingNotification, setTestingNotification] = useState(false);
 
   // Service radius state
   const [serviceRadius, setServiceRadius] = useState(15);
@@ -150,6 +151,26 @@ const ProviderProfile = () => {
       }
     }
     setIsEditing(!isEditing);
+  };
+
+  const handleTestNotification = async () => {
+    setTestingNotification(true);
+    try {
+      if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        await Notification.requestPermission();
+      }
+      if ('Notification' in window && Notification.permission === 'denied') {
+        toast({ title: "Notifications Blocked", description: "Please enable notifications for this site in your browser settings, then try again.", variant: "destructive" });
+        return;
+      }
+      await syncFCMToken();
+      await API.post("/notifications/fcm-tokens/test");
+      toast({ title: "Test Notification Sent", description: "You should receive a push notification on this device shortly." });
+    } catch (err) {
+      toast({ title: "Test Failed", description: err.response?.data?.message || "Could not send test notification.", variant: "destructive" });
+    } finally {
+      setTestingNotification(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -430,6 +451,28 @@ const ProviderProfile = () => {
               />
               <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
             </label>
+          </div>
+        </section>
+
+        {/* ── Notifications ─────────────────────────────────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <Bell className="h-4 w-4 text-emerald-500" />
+            <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Notifications</h2>
+          </div>
+          <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex items-center justify-between gap-4">
+            <div className="flex flex-col">
+              <span className="text-sm font-black text-foreground">Push Notifications</span>
+              <p className="text-[10px] font-bold text-muted-foreground mt-1 max-w-[220px]">Send a test push to this device to confirm alerts are working.</p>
+            </div>
+            <button
+              onClick={handleTestNotification}
+              disabled={testingNotification}
+              className="shrink-0 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 transition-all active:scale-95 disabled:opacity-60"
+            >
+              {testingNotification ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+              {testingNotification ? "Sending…" : "Send Test"}
+            </button>
           </div>
         </section>
 

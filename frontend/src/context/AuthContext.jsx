@@ -336,26 +336,31 @@ export const AuthProvider = ({ children }) => {
     };
   }, [navigate]);
 
+  // Requests notification permission (if needed) and pushes the current FCM token
+  // to the backend. Exposed via context so callers can re-sync inside a user
+  // gesture (e.g. providers toggling "Go Online"), where browsers are far more
+  // likely to actually surface the permission prompt.
+  const syncFCMToken = async () => {
+    if (!auth || !auth.token) return;
+    try {
+      const { requestForToken } = await import("@/lib/firebase");
+      const token = await requestForToken();
+      if (token) {
+        await API.post("/notifications/fcm-tokens/save",
+          { token, platform: 'web' },
+          { headers: { Authorization: `Bearer ${auth.token}` } }
+        );
+        localStorage.setItem("rozsewa_last_fcm_token", token);
+        console.log("FCM Token successfully synced with backend.");
+      }
+    } catch (err) {
+      console.error("Error syncing FCM token:", err);
+    }
+  };
+
   // Sync FCM token with backend when authenticated on startup/reload
   useEffect(() => {
     if (auth && auth.token) {
-      const syncFCMToken = async () => {
-        try {
-          const { requestForToken } = await import("@/lib/firebase");
-          const token = await requestForToken();
-          if (token) {
-            await API.post("/notifications/fcm-tokens/save", 
-              { token, platform: 'web' },
-              { headers: { Authorization: `Bearer ${auth.token}` } }
-            );
-            localStorage.setItem("rozsewa_last_fcm_token", token);
-            console.log("FCM Token successfully synced with backend.");
-          }
-        } catch (err) {
-          console.error("Error syncing FCM token:", err);
-        }
-      };
-
       // Delay execution slightly to ensure it doesn't block critical page load
       const timer = setTimeout(syncFCMToken, 2000);
       return () => clearTimeout(timer);
@@ -502,6 +507,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     updateUser,
+    syncFCMToken,
     serviceMode,
     setServiceMode,
   };
