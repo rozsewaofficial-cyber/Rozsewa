@@ -126,10 +126,15 @@ const LiveTracking = () => {
     try {
       const finalAmount =
         (bookingDetails.totalAmount || 0) +
-        (bookingDetails.extraCharges?.reduce(
-          (sum, c) => sum + (c.amount || 0),
-          0,
-        ) || 0);
+        (bookingDetails.extraCharges
+          ?.filter(
+            (c) =>
+              c.status !== "declined" &&
+              c.status !== "pending" &&
+              !c.item.includes("Night Charge") &&
+              !c.item.includes("Travel Charge"),
+          )
+          .reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
       const { data: order } = await API.post("/payment/order", {
         amount: finalAmount,
         currency: "INR",
@@ -498,7 +503,16 @@ const LiveTracking = () => {
             : "Extra Charges Declined",
       });
       fetchBookingStatus();
-    } catch {
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        toast({
+          title: "Booking Updated",
+          description: "This booking just changed elsewhere — refreshing, please try again.",
+          variant: "destructive",
+        });
+        fetchBookingStatus();
+        return;
+      }
       toast({
         title: "Failed to update extra charges",
         variant: "destructive",
@@ -784,7 +798,7 @@ const LiveTracking = () => {
               </div>
 
               <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-2 space-y-3">
-                {bookingDetails?.extraCharges?.map((item, idx) => (
+                {bookingDetails?.extraCharges?.filter((item) => item.status === "pending").map((item, idx) => (
                   <div key={idx} className="flex justify-between text-[13px]">
                     <span className="text-slate-500 dark:text-slate-400">
                       {item.item}
@@ -800,10 +814,9 @@ const LiveTracking = () => {
                   </span>
                   <span className="text-[14px] font-black text-amber-600 dark:text-amber-500">
                     ₹
-                    {bookingDetails?.extraCharges?.reduce(
-                      (sum, item) => sum + (item.amount || 0),
-                      0,
-                    )}
+                    {bookingDetails?.extraCharges
+                      ?.filter((item) => item.status === "pending")
+                      .reduce((sum, item) => sum + (item.amount || 0), 0)}
                   </span>
                 </div>
               </div>
@@ -825,9 +838,9 @@ const LiveTracking = () => {
             </motion.div>
           )}
 
-        {/* Accepted Extra Charges UI */}
-        {bookingDetails?.extraCharges?.length > 0 &&
-          bookingDetails?.extraStatus !== "pending" && (
+        {/* Accepted Extra Charges UI — excludes Night/Travel Charge, which are
+            already baked into totalAmount and shown elsewhere, not a separate add-on */}
+        {bookingDetails?.extraCharges?.some((item) => item.status !== "declined" && item.status !== "pending" && !item.item.includes("Night Charge") && !item.item.includes("Travel Charge")) && (
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -848,7 +861,7 @@ const LiveTracking = () => {
               </div>
 
               <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 mt-1 space-y-3">
-                {bookingDetails?.extraCharges?.map((item, idx) => (
+                {bookingDetails?.extraCharges?.filter((item) => item.status !== "declined" && item.status !== "pending" && !item.item.includes("Night Charge") && !item.item.includes("Travel Charge")).map((item, idx) => (
                   <div key={idx} className="flex justify-between text-[13px]">
                     <span className="text-slate-500 dark:text-slate-400">
                       {item.item}
@@ -864,10 +877,9 @@ const LiveTracking = () => {
                   </span>
                   <span className="text-[14px] font-black text-emerald-600 dark:text-emerald-500">
                     ₹
-                    {bookingDetails?.extraCharges?.reduce(
-                      (sum, item) => sum + (item.amount || 0),
-                      0,
-                    )}
+                    {bookingDetails?.extraCharges
+                      ?.filter((item) => item.status !== "declined" && item.status !== "pending" && !item.item.includes("Night Charge") && !item.item.includes("Travel Charge"))
+                      .reduce((sum, item) => sum + (item.amount || 0), 0)}
                   </span>
                 </div>
               </div>

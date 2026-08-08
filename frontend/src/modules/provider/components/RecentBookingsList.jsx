@@ -448,7 +448,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   const submitExtraCharges = async () => {
     try {
       const filtered = newExtraCharges
-        .map(c => ({ item: c.item, amount: Number(c.amount) }))
+        .map(c => ({ item: c.item, amount: Number(c.amount), status: 'pending' }))
         .filter(c => c.item && !isNaN(c.amount) && c.amount > 0);
       if (filtered.length === 0) return;
 
@@ -465,7 +465,12 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
       setShowExtraModal(false);
       fetchBookings();
     } catch (err) {
-      toast({ title: "Failed to add charges", variant: "destructive" });
+      if (err?.response?.status === 409) {
+        toast({ title: "Booking Updated", description: "This booking just changed elsewhere — refreshing, please try again.", variant: "destructive" });
+        fetchBookings();
+      } else {
+        toast({ title: "Failed to add charges", variant: "destructive" });
+      }
     }
   };
 
@@ -474,11 +479,16 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
       const updatedCharges = currentCharges.filter((_, i) => i !== chargeIndex);
       await API.patch(`/bookings/${bookingId}/status`, {
         extraCharges: updatedCharges,
-        extraStatus: updatedCharges.length === 0 ? 'none' : 'pending'
+        extraStatus: updatedCharges.some(c => c.status === 'pending') ? 'pending' : 'none'
       });
       toast({ title: "Extra charge removed" });
       fetchBookings();
     } catch (err) {
+      if (err?.response?.status === 409) {
+        toast({ title: "Booking Updated", description: "This booking just changed elsewhere — refreshing, please try again.", variant: "destructive" });
+        fetchBookings();
+        return;
+      }
       toast({ title: "Failed to remove extra charge", variant: "destructive" });
     }
   };
@@ -691,14 +701,16 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                       <div className="space-y-1 mt-2">
                         {req.extraCharges.map((extra, idx) => (
                           <div key={idx} className="flex items-center justify-between gap-2 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-tighter bg-slate-50 dark:bg-slate-800/50 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                            <div className="flex gap-2">
+                            <div className="flex items-center gap-2">
                               <span>+ {extra.item}:</span>
-                              <span className="text-emerald-600 dark:text-emerald-500">₹{extra.amount}</span>
+                              <span className={extra.status === 'declined' ? 'text-rose-500 line-through' : 'text-emerald-600 dark:text-emerald-500'}>₹{extra.amount}</span>
+                              {extra.status === 'pending' && <span className="text-amber-500 normal-case">(Pending)</span>}
+                              {extra.status === 'declined' && <span className="text-rose-500 normal-case">(Declined)</span>}
                             </div>
-                            
-                            {/* Remove button only if booking is started/pending/confirmed and not completed/cancelled */}
-                            {['started', 'pending', 'confirmed'].includes(req.status) && (
-                              <button 
+
+                            {/* Remove button only for a still-pending item on an active booking */}
+                            {extra.status === 'pending' && ['started', 'pending', 'confirmed'].includes(req.status) && (
+                              <button
                                 onClick={(e) => { e.stopPropagation(); handleRemoveExtraCharge(req._id, idx, req.extraCharges); }}
                                 className="h-5 w-5 flex items-center justify-center rounded bg-rose-100/50 text-rose-500 hover:bg-rose-100 transition-colors"
                                 title="Remove extra charge"
@@ -1042,15 +1054,15 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
                         <span>Base Price</span>
                         <span>₹{(req.totalAmount || 0) - ((req.extraCharges || []).filter(c => c.item.includes('Travel Charge') || c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
-                      {req.extraCharges && req.extraCharges.length > 0 && (
+                      {req.extraCharges && req.extraCharges.filter(c => c.status !== 'declined').length > 0 && (
                         <div className="flex justify-between text-xs font-bold text-muted-foreground mb-2">
                           <span>Extra Charges (Travel, Parts, etc.)</span>
-                          <span>₹{req.extraCharges.reduce((sum, c) => sum + (c.amount || 0), 0)}</span>
+                          <span>₹{req.extraCharges.filter(c => c.status !== 'declined').reduce((sum, c) => sum + (c.amount || 0), 0)}</span>
                         </div>
                       )}
                       <div className="flex justify-between text-sm font-black text-emerald-700 dark:text-emerald-400 mt-3 pt-3 border-t border-emerald-100 dark:border-emerald-900">
                         <span>Total Bill</span>
-                        <span>₹{(req.totalAmount || 0) + ((req.extraCharges || []).filter(c => !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                        <span>₹{(req.totalAmount || 0) + ((req.extraCharges || []).filter(c => c.status !== 'declined' && !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
                     </div>
 

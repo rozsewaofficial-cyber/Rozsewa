@@ -39,7 +39,6 @@ const PostService = () => {
   const [loading, setLoading] = useState(true);
 
   const [showApproval, setShowApproval] = useState(false);
-  const [approved, setApproved] = useState(false);
   const [rating, setRating] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
   const [selectedTags, setSelectedTags] = useState([]);
@@ -60,7 +59,6 @@ const PostService = () => {
         setBooking(active);
         setPaymentDone(active.paymentStatus === "paid");
         if (active.extraStatus === "pending") setShowApproval(true);
-        if (active.extraStatus === "approved") setApproved(true);
       }
     } catch (err) {
       console.error("Fetch failed", err);
@@ -156,20 +154,39 @@ const PostService = () => {
     }
   };
 
-  const extraTotal =
-    booking?.extraCharges?.reduce((sum, item) => sum + item.amount, 0) || 0;
+  const pendingExtraTotal =
+    booking?.extraCharges
+      ?.filter((c) => c.status === "pending")
+      .reduce((sum, item) => sum + item.amount, 0) || 0;
+  const approvedExtraTotal =
+    booking?.extraCharges
+      // Night/Travel Charge entries are already baked into booking.totalAmount at
+      // creation time — only sum genuinely separate provider-added extras here,
+      // or they'd be double-counted into the final payable amount.
+      ?.filter(
+        (c) =>
+          c.status !== "declined" &&
+          c.status !== "pending" &&
+          !c.item.includes("Night Charge") &&
+          !c.item.includes("Travel Charge"),
+      )
+      .reduce((sum, item) => sum + item.amount, 0) || 0;
   const baseAmount = booking?.totalAmount || 0;
-  const finalTotal = baseAmount + (approved ? extraTotal : 0);
+  const finalTotal = baseAmount + approvedExtraTotal;
 
   const handleExtraAction = async (status) => {
     try {
       await API.patch(`/bookings/${booking._id}/status`, {
         extraStatus: status,
       });
-      if (status === "approved") setApproved(true);
       setShowApproval(false);
       fetchBooking();
-    } catch {
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        toast({ title: "Booking Updated", description: "This booking just changed elsewhere — refreshing, please try again.", variant: "destructive" });
+        fetchBooking();
+        return;
+      }
       toast({ title: "Failed to update", variant: "destructive" });
     }
   };
@@ -319,7 +336,7 @@ const PostService = () => {
 
         {/* Extra Charges Approval */}
         <AnimatePresence>
-          {showApproval && !approved && (
+          {showApproval && (
             <motion.section
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -340,22 +357,24 @@ const PostService = () => {
                 </div>
               </div>
               <div className="rounded-[16px] bg-slate-50 dark:bg-slate-800 p-4 space-y-2 mb-4">
-                {booking?.extraCharges?.map((item, idx) => (
-                  <div key={idx} className="flex justify-between text-sm">
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {item.item}
-                    </span>
-                    <span className="font-bold text-slate-900 dark:text-white">
-                      ₹{item.amount}
-                    </span>
-                  </div>
-                ))}
+                {booking?.extraCharges
+                  ?.filter((item) => item.status === "pending")
+                  .map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {item.item}
+                      </span>
+                      <span className="font-bold text-slate-900 dark:text-white">
+                        ₹{item.amount}
+                      </span>
+                    </div>
+                  ))}
                 <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex justify-between">
                   <span className="text-[13px] font-black text-slate-900 dark:text-white">
                     Extra Total
                   </span>
                   <span className="text-[13px] font-black text-amber-600 dark:text-amber-400">
-                    ₹{extraTotal}
+                    ₹{pendingExtraTotal}
                   </span>
                 </div>
               </div>
@@ -371,7 +390,7 @@ const PostService = () => {
                   onClick={() => handleExtraAction("approved")}
                   className="flex-1 py-3 rounded-[16px] bg-amber-500 text-[13px] font-black text-white shadow-md shadow-amber-500/30 hover:bg-amber-600 transition-colors"
                 >
-                  Approve ₹{extraTotal}
+                  Approve ₹{pendingExtraTotal}
                 </motion.button>
               </div>
             </motion.section>
@@ -392,13 +411,13 @@ const PostService = () => {
                 ₹{baseAmount}
               </span>
             </div>
-            {approved && (
+            {approvedExtraTotal > 0 && (
               <div className="flex justify-between items-center">
                 <span className="text-[13px] text-slate-500 dark:text-slate-400">
                   Extra Parts
                 </span>
                 <span className="text-[13px] font-bold text-amber-600 dark:text-amber-400">
-                  +₹{extraTotal}
+                  +₹{approvedExtraTotal}
                 </span>
               </div>
             )}

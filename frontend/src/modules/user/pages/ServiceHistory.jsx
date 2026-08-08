@@ -52,7 +52,7 @@ const ServiceHistory = () => {
         ...b,
         id: b._id,
         service: b.serviceName,
-        total: (b.totalAmount || 0) + (b.extraCharges?.filter(c => !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0),
+        total: (b.totalAmount || 0) + (b.extraCharges?.filter(c => c.status !== 'declined' && !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0),
         date: b.bookingDate,
         time: b.bookingTime,
         status: (b.status === 'pending' && b.offerStatus === 'countered') ? 'provider_countered' : b.status,
@@ -116,7 +116,7 @@ const ServiceHistory = () => {
   const handleDownloadInvoice = () => {
     toast({ title: "Downloading Invoice", description: "Generating printable invoice..." });
     setTimeout(() => {
-      const basePrice = selectedBooking.total - (selectedBooking.travelCharge?.amount || 0) - (selectedBooking.extraCharges?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
+      const basePrice = selectedBooking.total - (selectedBooking.travelCharge?.amount || 0) - (selectedBooking.extraCharges?.filter(c => c.status !== 'declined').reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
       const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -191,7 +191,7 @@ const ServiceHistory = () => {
                     <td class="amount">₹${selectedBooking.travelCharge.amount}</td>
                 </tr>
                 ` : ''}
-                ${(selectedBooking.extraCharges || []).map(extra => `
+                ${(selectedBooking.extraCharges || []).filter(extra => extra.status !== 'declined').map(extra => `
                 <tr>
                     <td>${extra.item}</td>
                     <td class="amount">₹${extra.amount}</td>
@@ -488,7 +488,7 @@ const ServiceHistory = () => {
                     <h4 className="text-xs font-black uppercase tracking-wider text-muted-foreground mb-3">Payment Details</h4>
                     <div className="space-y-2">
                       {(() => {
-                        const extraItemsOnly = selectedBooking.extraCharges?.filter(c => c.item && !c.item.toLowerCase().includes('travel charge')) || [];
+                        const extraItemsOnly = selectedBooking.extraCharges?.filter(c => c.item && c.status !== 'declined' && !c.item.toLowerCase().includes('travel charge')) || [];
                         const extraSum = extraItemsOnly.reduce((sum, c) => sum + (c.amount || 0), 0);
                         const travelAmt = selectedBooking.travelCharge?.amount || 0;
                         const servicePrice = Math.max(0, selectedBooking.total - travelAmt - extraSum);

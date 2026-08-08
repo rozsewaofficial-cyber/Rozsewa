@@ -432,7 +432,7 @@ const createBooking = async (req, res) => {
             totalDiscount,
             paymentMode,
             serviceLocation,
-            extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount }] : []
+            extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount, status: 'approved' }] : []
         });
 
         let booking = await newBooking.save();
@@ -569,7 +569,7 @@ const createBooking = async (req, res) => {
                 cfg = configSetting.value;
             }
 
-            const bookingServiceId = booking.serviceId ? booking.serviceId.toString() : (booking.services && booking.services.length > 0 ? booking.services[0].serviceId?.toString() : null);
+            const bookingServiceId = booking.serviceId ? booking.serviceId.toString() : null;
 
             let serviceLimitOverride = null;
             if (bookingServiceId) {
@@ -783,7 +783,7 @@ const updateBooking = async (req, res) => {
                     const newNightChargeAmount = Math.round(ratio * booking.partnerCounterOffer);
                     const newExtraCharges = booking.extraCharges.map(charge => {
                         if (charge.item && charge.item.startsWith('Night Charge')) {
-                            return { item: charge.item, amount: newNightChargeAmount };
+                            return { item: charge.item, amount: newNightChargeAmount, status: 'approved' };
                         }
                         return charge;
                     });
@@ -960,7 +960,7 @@ const getProviderBookings = async (req, res) => {
         const eligiblePending = pendingBookings.filter(b => {
             // Debt limit check per booking
             let bookingLimit = catLimitOverride !== null ? catLimitOverride : defaultLimit;
-            const bookingServiceId = b.serviceId ? b.serviceId.toString() : (b.services && b.services.length > 0 ? b.services[0].serviceId?.toString() : null);
+            const bookingServiceId = b.serviceId ? b.serviceId.toString() : null;
             if (bookingServiceId && cfg && cfg.serviceLimits) {
                 const srvLimitObj = cfg.serviceLimits.find(s => s.serviceId === bookingServiceId);
                 if (srvLimitObj) bookingLimit = Number(srvLimitObj.limit);
@@ -1152,7 +1152,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                         if (catLimitObj) limit = Number(catLimitObj.limit);
                     }
 
-                    const bookingServiceId = booking.serviceId ? booking.serviceId.toString() : (booking.services && booking.services.length > 0 ? booking.services[0].serviceId?.toString() : null);
+                    const bookingServiceId = booking.serviceId ? booking.serviceId.toString() : null;
 
                     if (bookingServiceId) {
                         const srvLimitObj = cfg.serviceLimits?.find(s => s.serviceId === bookingServiceId);
@@ -1173,7 +1173,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                         const newExtraCharges = booking.extraCharges.map(charge => {
                             if (charge.item && charge.item.startsWith('Night Charge')) {
                                 const newAmount = Math.round(booking.originalFixedPrice - (booking.originalFixedPrice / (1 + ratio)));
-                                return { item: charge.item, amount: newAmount };
+                                return { item: charge.item, amount: newAmount, status: 'approved' };
                             }
                             return charge;
                         });
@@ -1377,12 +1377,20 @@ const updateBookingStatusByProvider = async (req, res) => {
             }
 
 
-            if (req.body.extraStatus) {
+            if (req.body.extraStatus === 'pending' || req.body.extraStatus === 'none') {
+                // Provider submitting a new round, or editing/clearing a still-pending
+                // one — trust the client-sent array contents (it already contains prior
+                // resolved items plus whatever pending ones remain), but derive the
+                // booking-level status from the array itself rather than the client's
+                // claimed status, since a caller can miscompute it (e.g. checking array
+                // length instead of whether anything in it is still pending).
                 const previousExtraStatus = booking.extraStatus;
-                booking.extraStatus = req.body.extraStatus;
+                if (req.body.extraCharges) {
+                    booking.extraCharges = req.body.extraCharges;
+                }
+                booking.extraStatus = (booking.extraCharges || []).some(c => c.status === 'pending') ? 'pending' : 'none';
 
-                // If provider just added extra charges and status became pending
-                if (req.body.extraStatus === 'pending' && previousExtraStatus !== 'pending') {
+                if (booking.extraStatus === 'pending' && previousExtraStatus !== 'pending') {
                     try {
                         const io = require('../config/socket').getIO();
                         io.to(`user_${booking.userId}`).emit('EXTRA_CHARGES_PENDING', {
@@ -1403,9 +1411,20 @@ const updateBookingStatusByProvider = async (req, res) => {
                         console.log('Extra charges socket/notification error:', err.message);
                     }
                 }
+            } else if (['approved', 'declined'].includes(req.body.extraStatus)) {
+                // Customer resolving the current round — resolve per-item, server-side,
+                // so items from a resolved earlier round are never touched or re-blocked.
+                let anyResolved = false;
+                (booking.extraCharges || []).forEach(c => {
+                    if (c.status === 'pending') {
+                        c.status = req.body.extraStatus;
+                        anyResolved = true;
+                    }
+                });
+                booking.markModified('extraCharges');
+                booking.extraStatus = (booking.extraCharges || []).some(c => c.status === 'pending') ? 'pending' : 'none';
 
-                // If user approved or declined extra charges
-                if (['approved', 'declined'].includes(req.body.extraStatus) && previousExtraStatus === 'pending') {
+                if (anyResolved) {
                     try {
                         const io = require('../config/socket').getIO();
                         io.to(`provider_${booking.providerId}`).emit('EXTRA_CHARGES_UPDATE', {
@@ -1426,9 +1445,6 @@ const updateBookingStatusByProvider = async (req, res) => {
                         console.log('Extra charges update socket/notification error:', err.message);
                     }
                 }
-            }
-            if (req.body.extraCharges) {
-                booking.extraCharges = req.body.extraCharges;
             }
             if (req.body.beforeImage) {
                 booking.beforeImage = req.body.beforeImage;
@@ -1685,6 +1701,15 @@ const updateBookingStatusByProvider = async (req, res) => {
             res.status(404).json({ message: 'Booking not found' });
         }
     } catch (error) {
+        // Two requests raced on the same booking (e.g. a provider submitting a new
+        // extra-charges round at the same instant the customer approves/declines the
+        // current one) — Mongoose's optimistic version check caught it. Tell the
+        // client to refetch and retry rather than surfacing a generic 500.
+        if (error.name === 'VersionError') {
+            return res.status(409).json({
+                message: 'This booking was just updated. Please refresh and try again.'
+            });
+        }
         res.status(500).json({ message: error.message });
     }
 };
@@ -1768,15 +1793,6 @@ const verifyEndOTP = async (req, res) => {
                         });
                     }
 
-                    // ---- DECLINED EXTRA CHARGES: restore original amount ----
-                    if (bookingSession.extraStatus === 'declined') {
-                        bookingSession.extraCharges = [];
-                        if (bookingSession.originalFixedPrice != null) {
-                            bookingSession.totalAmount = bookingSession.originalFixedPrice;
-                        }
-                        bookingSession.extraStatus = 'none';
-                        console.log(`[Extra Charges] Declined charges cleared for booking ${bookingSession._id}. Amount restored to ₹${bookingSession.totalAmount}`);
-                    }
 
 
                     const provider = await Provider.findById(booking.providerId).populate('vendorType').session(session);

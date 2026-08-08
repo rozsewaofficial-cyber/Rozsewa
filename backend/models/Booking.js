@@ -184,7 +184,8 @@ const bookingSchema = new mongoose.Schema({
     extraCharges: [
         {
             item: { type: String },
-            amount: { type: Number }
+            amount: { type: Number },
+            status: { type: String, enum: ['pending', 'approved', 'declined'], default: 'approved' }
         }
     ],
     travelCharge: {
