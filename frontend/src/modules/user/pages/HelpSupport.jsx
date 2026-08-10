@@ -280,7 +280,7 @@ const HelpSupport = () => {
                           className="w-full h-14 px-5 rounded-2xl bg-slate-50 dark:bg-slate-800 border-transparent focus:border-blue-500/50 outline-none font-bold text-xs appearance-none dark:text-white"
                         >
                           <option value="user">User / Customer</option>
-                          <option value="provider">Partner (Provider)</option>
+                          <option value="provider">Local Expert (Provider)</option>
                           <option value="sewak">Sewak</option>
                         </select>
                       </div>

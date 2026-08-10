@@ -175,7 +175,7 @@ const ProviderLogin = () => {
             />
           </motion.div>
           <h2 className="mt-6 text-2xl font-black tracking-tight text-slate-900 uppercase">
-            {loginType === 'sewak' ? 'Sewak Portal' : 'Partner Portal'}
+            {loginType === 'sewak' ? 'Sewak Portal' : 'Local Expert Portal'}
           </h2>
           <p className="mt-2 text-sm text-slate-500 font-bold uppercase tracking-widest opacity-60">
             Enter Credentials

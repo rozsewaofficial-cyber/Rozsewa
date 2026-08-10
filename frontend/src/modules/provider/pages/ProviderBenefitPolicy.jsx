@@ -44,10 +44,10 @@ const ProviderBenefitPolicy = () => {
         {/* Header */}
         <div className="space-y-2 text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 text-[10px] font-black uppercase tracking-widest border border-emerald-200">
-            <Crown className="h-3 w-3" /> Exclusive Partner Benefits
+            <Crown className="h-3 w-3" /> Exclusive Local Expert Benefits
           </div>
           <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase italic leading-none">Benefit Policy & Guidelines</h1>
-          <p className="text-sm font-medium text-muted-foreground">Detailed breakdown of your privileges as a RozSewa Partner Provider.</p>
+          <p className="text-sm font-medium text-muted-foreground">Detailed breakdown of your privileges as a RozSewa Local Expert.</p>
         </div>
 
         {/* Benefits Grid */}

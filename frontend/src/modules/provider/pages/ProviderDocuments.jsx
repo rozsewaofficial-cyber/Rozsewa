@@ -338,14 +338,14 @@ const ProviderDocuments = () => {
       const dateHi = today.toLocaleDateString('hi-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
       setRecordedMetadata({
-        name: provider?.ownerName || 'Rozsewa Partner',
+        name: provider?.ownerName || 'Rozsewa Local Expert',
         dateEn,
         dateHi,
         code
       });
 
       // Default Script: English
-      const scriptText = getScriptText('en', provider?.ownerName || 'Rozsewa Partner', dateEn, code);
+      const scriptText = getScriptText('en', provider?.ownerName || 'Rozsewa Local Expert', dateEn, code);
       setGeneratedScript(scriptText);
       setScriptLang('en');
       setRecordingState("ready");

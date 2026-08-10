@@ -277,7 +277,7 @@ const ProviderSupport = () => {
                           onChange={(e) => setNewTicket({ ...newTicket, role: e.target.value })}
                           className="w-full h-14 px-5 rounded-2xl bg-muted border-transparent focus:border-emerald-500/50 outline-none font-bold text-xs appearance-none"
                         >
-                          <option value="provider">Partner (Provider)</option>
+                          <option value="provider">Local Expert (Provider)</option>
                           <option value="sewak">Sewak</option>
                         </select>
                       </div>

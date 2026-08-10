@@ -22,7 +22,7 @@ const HierarchicalServiceCard = ({ service, onBookNow }) => {
         ) : (
           <div className="flex flex-col items-center justify-center text-slate-400 p-4">
             <Sparkles className="h-10 w-10 text-primary/60 mb-1" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">RozSewa Partner</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">RozSewa Local Expert</span>
           </div>
         )}
       </div>

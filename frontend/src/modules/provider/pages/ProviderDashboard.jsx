@@ -447,7 +447,7 @@ const ProviderDashboard = () => {
 
           <div className="w-full bg-card border-2 border-dashed border-border p-6 rounded-3xl space-y-4">
             <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
-              <span>Partner ID</span>
+              <span>Local Expert ID</span>
               <span className="text-emerald-600">Secure Protocol</span>
             </div>
             <p className="text-3xl font-black font-mono tracking-widest text-foreground">{user?.vendorCode}</p>
@@ -509,7 +509,7 @@ const ProviderDashboard = () => {
               <span>{currentTime.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} • {currentTime.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
-              Welcome back, {user?.shopName || "Partner"} 👋
+              Welcome back, {user?.shopName || "Local Expert"} 👋
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] md:text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.2em]">
@@ -621,7 +621,7 @@ const ProviderDashboard = () => {
               <div className="flex justify-between items-start">
                 <div>
                   <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-100 dark:border-emerald-900/40 text-[9px] font-bold uppercase tracking-wider">
-                    Partner Program Active
+                    Local Expert Program Active
                   </div>
                   <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1.5">
                     Your Commission Overview

@@ -1422,7 +1422,7 @@ const ProviderRegister = () => {
                 <div className="grid grid-cols-1 gap-3">
                   {[
                     { id: 'individual', label: 'Self Registration', icon: User, tag: 'Direct' },
-                    { id: 'vendor_referral', label: 'Partner Referral', icon: Store, tag: 'Via Vendor' },
+                    { id: 'vendor_referral', label: 'Local Expert Referral', icon: Store, tag: 'Via Vendor' },
                     { id: 'employee', label: 'Expert Assisted', icon: Briefcase, tag: 'RozSewa Agent' }
                   ].map(type => (
                     <button
@@ -1609,7 +1609,7 @@ const ProviderRegister = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <h3 className="text-2xl font-bold tracking-tight">Expert Partner <span className="text-emerald-500">Tier</span></h3>
+                      <h3 className="text-2xl font-bold tracking-tight">Local Expert <span className="text-emerald-500">Tier</span></h3>
                       <p className="text-xs text-slate-400 uppercase tracking-widest font-medium">Activation Subscription</p>
                     </div>
 
@@ -1685,7 +1685,7 @@ const ProviderRegister = () => {
 
                 <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden text-left shadow-2xl">
                   <div className="absolute -top-10 -right-10 h-24 w-24 bg-emerald-500 rounded-full blur-[60px] opacity-20"></div>
-                  <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 opacity-60">Partner Identity Code</p>
+                  <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 opacity-60">Local Expert Identity Code</p>
                   <p className="text-4xl font-black font-mono tracking-widest text-emerald-400">{generatedCode}</p>
                   <p className="text-[9px] text-slate-400 italic mt-4">Save this code for your initial login and support inquiries.</p>
                 </div>

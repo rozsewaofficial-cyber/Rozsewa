@@ -320,7 +320,7 @@ const LiveTracking = () => {
       let tags = [];
       if (p.planType === "premium" || p.planType === "pro")
         tags.push("Expert Professional");
-      if (p.status === "verified") tags.push("Verified Partner");
+      if (p.status === "verified") tags.push("Verified Local Expert");
       if (tags.length === 0) tags.push("Service Provider");
 
       setProviderInfo({
@@ -716,7 +716,7 @@ const LiveTracking = () => {
                     Counter-Offer Received
                   </h3>
                   <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-0.5">
-                    Partner proposed a new price
+                    Local Expert proposed a new price
                   </p>
                 </div>
               </div>
@@ -741,7 +741,7 @@ const LiveTracking = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-[10px] text-purple-600 uppercase font-black tracking-wider">
-                      Partner Counter
+                      Local Expert Counter
                     </p>
                     <p className="font-black text-lg text-purple-700 dark:text-purple-400 mt-0.5">
                       ₹{bookingDetails.partnerCounterOffer}

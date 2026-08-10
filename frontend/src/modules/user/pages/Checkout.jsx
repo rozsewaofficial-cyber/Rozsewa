@@ -62,9 +62,9 @@ const Checkout = () => {
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries,
   });
-  const providerLabel = serviceMode === "sewak" ? "Sewak" : "Partner";
-  const providerLabelLower = serviceMode === "sewak" ? "sewak" : "partner";
-  const providerLabelPlural = serviceMode === "sewak" ? "sewaks" : "partners";
+  const providerLabel = serviceMode === "sewak" ? "Sewak" : "Local Expert";
+  const providerLabelLower = serviceMode === "sewak" ? "sewak" : "local expert";
+  const providerLabelPlural = serviceMode === "sewak" ? "sewaks" : "local experts";
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [paymentMode, setPaymentMode] = useState("now");
