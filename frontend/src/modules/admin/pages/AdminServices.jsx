@@ -22,7 +22,7 @@ const AdminServices = () => {
     const { toast } = useToast();
     const confirm = useConfirm();
 
-    const [activeTab, setActiveTab] = useState("categories"); // "categories" | "subcategories"
+    const [activeTab, setActiveTab] = useState("categories"); // "categories" | "subcategories" | "embedded"
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -73,12 +73,30 @@ const AdminServices = () => {
         visible: true
     });
 
-    useScrollLock(showModal || showSubModal || showServiceModal);
+    // Tab 3: Embedded Category Services State
+    const [embeddedCatId, setEmbeddedCatId] = useState("");
+    const [embeddedServices, setEmbeddedServices] = useState([]);
+    const [savingEmbedded, setSavingEmbedded] = useState(false);
+    const [showEmbeddedModal, setShowEmbeddedModal] = useState(false);
+    const [editingEmbedded, setEditingEmbedded] = useState(null); // null = new
+    const [embeddedForm, setEmbeddedForm] = useState({ name: "", description: "", basePrice: 0 });
+
+    useScrollLock(showModal || showSubModal || showServiceModal || showEmbeddedModal);
 
     useEffect(() => {
         setTitle("Industries & Hierarchy Services");
         fetchCategories();
     }, [setTitle]);
+
+    // Sync embedded services when category picker changes in Tab 3
+    useEffect(() => {
+        if (activeTab === "embedded" && categories.length > 0) {
+            const targetId = embeddedCatId || categories[0]._id;
+            if (!embeddedCatId) setEmbeddedCatId(targetId);
+            const cat = categories.find(c => c._id === targetId);
+            setEmbeddedServices(cat?.services || []);
+        }
+    }, [activeTab, embeddedCatId, categories]);
 
     const fetchCategories = async () => {
         setLoading(true);
@@ -257,6 +275,46 @@ const AdminServices = () => {
         c.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // ── Tab 3 Handlers ─────────────────────────────────────────────────────────
+    const saveEmbeddedToServer = async (updatedList) => {
+        setSavingEmbedded(true);
+        try {
+            const { data } = await API.put(`/admin/categories/${embeddedCatId}`, { services: updatedList });
+            // Refresh local categories list so counts stay in sync
+            setCategories(prev => prev.map(c => c._id === embeddedCatId ? { ...c, services: data.services || updatedList } : c));
+            setEmbeddedServices(data.services || updatedList);
+            toast({ title: "Saved" });
+        } catch {
+            toast({ title: "Save Failed", variant: "destructive" });
+        } finally {
+            setSavingEmbedded(false);
+        }
+    };
+
+    const handleSaveEmbedded = async (e) => {
+        e.preventDefault();
+        if (!embeddedForm.name.trim()) return;
+        let updated;
+        if (editingEmbedded) {
+            updated = embeddedServices.map(s =>
+                (s._id && s._id === editingEmbedded._id) ? { ...s, ...embeddedForm } : s
+            );
+        } else {
+            updated = [...embeddedServices, { ...embeddedForm, _id: undefined }];
+        }
+        await saveEmbeddedToServer(updated);
+        setShowEmbeddedModal(false);
+        setEditingEmbedded(null);
+        setEmbeddedForm({ name: "", description: "", basePrice: 0 });
+    };
+
+    const deleteEmbeddedService = async (svc) => {
+        const ok = await confirm(`Remove "${svc.name}" from category base services?`, { title: "Remove Service", confirmLabel: "Remove", destructive: true });
+        if (!ok) return;
+        const updated = embeddedServices.filter(s => !(s._id && s._id === svc._id) && s.name !== svc.name);
+        await saveEmbeddedToServer(updated);
+    };
+
     return (
         <div className="mx-auto max-w-7xl space-y-6 pb-12">
             {/* Header */}
@@ -267,7 +325,7 @@ const AdminServices = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {activeTab === "categories" ? (
+                    {activeTab === "categories" && (
                         <button
                             onClick={() => {
                                 setEditingCat(null);
@@ -278,7 +336,8 @@ const AdminServices = () => {
                         >
                             <Plus className="h-4 w-4" /> Add Category
                         </button>
-                    ) : (
+                    )}
+                    {activeTab === "subcategories" && (
                         <button
                             onClick={() => {
                                 setEditingSub(null);
@@ -288,6 +347,18 @@ const AdminServices = () => {
                             className="flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-emerald-700 transition-all active:scale-95"
                         >
                             <Plus className="h-4 w-4" /> Add Subcategory
+                        </button>
+                    )}
+                    {activeTab === "embedded" && (
+                        <button
+                            onClick={() => {
+                                setEditingEmbedded(null);
+                                setEmbeddedForm({ name: "", description: "", basePrice: 0 });
+                                setShowEmbeddedModal(true);
+                            }}
+                            className="flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-violet-700 transition-all active:scale-95"
+                        >
+                            <Plus className="h-4 w-4" /> Add Base Service
                         </button>
                     )}
                 </div>
@@ -314,6 +385,16 @@ const AdminServices = () => {
                     }`}
                 >
                     2. Subcategories & Services Hierarchy
+                </button>
+                <button
+                    onClick={() => setActiveTab("embedded")}
+                    className={`py-3 px-6 text-xs font-black uppercase tracking-wider transition-all border-b-2 ${
+                        activeTab === "embedded"
+                            ? "border-violet-600 text-violet-600"
+                            : "border-transparent text-gray-400 hover:text-gray-600"
+                    }`}
+                >
+                    3. Category Base Services
                 </button>
             </div>
 
@@ -593,6 +674,85 @@ const AdminServices = () => {
                 </div>
             )}
 
+            {/* TAB 3: EMBEDDED CATEGORY SERVICES */}
+            {activeTab === "embedded" && (
+                <div className="space-y-6">
+                    <div className="flex items-start gap-3 bg-violet-50 border border-violet-200 rounded-2xl p-4">
+                        <Zap className="h-4 w-4 text-violet-600 mt-0.5 shrink-0" />
+                        <p className="text-xs font-bold text-violet-700">
+                            These are <strong>base services embedded directly in each Category</strong>. They are shown to users as a fallback when no Subcategory-linked services exist. Edit or remove them here.
+                        </p>
+                    </div>
+
+                    {/* Category picker */}
+                    <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-gray-200">
+                        <label className="text-xs font-black uppercase text-gray-500 shrink-0">Category:</label>
+                        <select
+                            value={embeddedCatId}
+                            onChange={(e) => {
+                                setEmbeddedCatId(e.target.value);
+                                const cat = categories.find(c => c._id === e.target.value);
+                                setEmbeddedServices(cat?.services || []);
+                            }}
+                            className="flex-1 rounded-xl border border-gray-200 bg-gray-50 py-2.5 px-4 text-sm font-bold focus:outline-none"
+                        >
+                            {categories.map(c => (
+                                <option key={c._id} value={c._id}>
+                                    {c.name} ({(c.services || []).length} base services)
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Services list */}
+                    {embeddedServices.length === 0 ? (
+                        <div className="p-12 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                            <Sparkles className="h-8 w-8 text-gray-300 mx-auto mb-3" />
+                            <p className="text-xs font-bold text-gray-400">No base services in this category.</p>
+                            <button
+                                onClick={() => { setEditingEmbedded(null); setEmbeddedForm({ name: "", description: "", basePrice: 0 }); setShowEmbeddedModal(true); }}
+                                className="mt-3 text-xs font-bold text-violet-600 hover:underline"
+                            >+ Add First Base Service</button>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {embeddedServices.map((svc, idx) => (
+                                <div key={svc._id || idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-gray-200 shadow-sm hover:border-violet-200 transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-10 w-10 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center shrink-0">
+                                            <Zap className="h-4 w-4 text-violet-500" />
+                                        </div>
+                                        <div>
+                                            <h4 className="text-sm font-bold text-gray-900">{svc.name}</h4>
+                                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{svc.description || "No description"}</p>
+                                            <span className="mt-1 inline-block text-[11px] font-black text-violet-600">₹{svc.basePrice || 0}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => {
+                                                setEditingEmbedded(svc);
+                                                setEmbeddedForm({ name: svc.name, description: svc.description || "", basePrice: svc.basePrice || 0 });
+                                                setShowEmbeddedModal(true);
+                                            }}
+                                            className="p-2 text-gray-400 hover:text-violet-600 rounded-lg hover:bg-violet-50 transition-colors"
+                                        >
+                                            <Edit className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => deleteEmbeddedService(svc)}
+                                            className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Main Category Edit/Create Modal */}
             <AnimatePresence>
                 {showModal && (
@@ -725,6 +885,43 @@ const AdminServices = () => {
                                     <div className="flex gap-3 pt-2">
                                         <button type="button" onClick={() => setShowServiceModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500">Cancel</button>
                                         <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs">Save Service Item</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* Embedded Service Edit/Create Modal */}
+            <AnimatePresence>
+                {showEmbeddedModal && (
+                    <>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm" onClick={() => setShowEmbeddedModal(false)} />
+                        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="fixed inset-0 z-[101] flex items-center justify-center p-4">
+                            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-lg font-black text-gray-900">{editingEmbedded ? "Edit Base Service" : "New Base Service"}</h3>
+                                    <button type="button" onClick={() => setShowEmbeddedModal(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+                                <form onSubmit={handleSaveEmbedded} className="space-y-4">
+                                    <InputField label="Service Name">
+                                        <input type="text" value={embeddedForm.name} onChange={e => setEmbeddedForm({ ...embeddedForm, name: e.target.value })} className={inputCls} placeholder="e.g. Deep Cleaning" required />
+                                    </InputField>
+                                    <InputField label="Short Description">
+                                        <textarea value={embeddedForm.description} onChange={e => setEmbeddedForm({ ...embeddedForm, description: e.target.value })} className={inputCls} placeholder="Brief description visible to users" rows={2} />
+                                    </InputField>
+                                    <InputField label="Base Price (₹)">
+                                        <input type="number" min="0" value={embeddedForm.basePrice} onChange={e => setEmbeddedForm({ ...embeddedForm, basePrice: Number(e.target.value) })} className={inputCls} required />
+                                    </InputField>
+                                    <div className="flex gap-3 pt-2">
+                                        <button type="button" onClick={() => setShowEmbeddedModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500 hover:bg-gray-50">Cancel</button>
+                                        <button type="submit" disabled={savingEmbedded} className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold text-xs hover:bg-violet-700 disabled:opacity-60 flex items-center justify-center gap-2">
+                                            {savingEmbedded && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                                            {editingEmbedded ? "Update Service" : "Save Service"}
+                                        </button>
                                     </div>
                                 </form>
                             </div>
