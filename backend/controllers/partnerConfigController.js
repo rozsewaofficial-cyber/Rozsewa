@@ -59,6 +59,10 @@ exports.getConfig = async (req, res) => {
             rate: s.commissionRate
         }));
 
+        const Setting = require('../models/Setting');
+        const rateSetting = await Setting.findOne({ key: 'default_commission_rate' });
+        const defaultCommissionRate = (rateSetting && typeof rateSetting.value === 'number') ? rateSetting.value : 10;
+
         res.json({
             ruleVersion: program.ruleVersion,
             freeTrialEnabled: program.freeTrialEnabled,
@@ -68,6 +72,7 @@ exports.getConfig = async (req, res) => {
             trialStarts: program.trialStarts,
             trialEnds: program.trialEnds,
             commissionSlabs: legacySlabs,
+            defaultCommissionRate,
             performanceBonuses: program.performanceBonuses || { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
             penalties: program.penalties || { cancellationCharge: 100 },
             referral: program.referral || { commissionRate: 1, durationMonths: 12 },
@@ -89,6 +94,7 @@ exports.updateConfig = async (req, res) => {
             trialStarts, 
             trialEnds, 
             commissionSlabs,
+            defaultCommissionRate,
             penalties,
             performanceBonuses,
             referral,
@@ -201,6 +207,19 @@ exports.updateConfig = async (req, res) => {
 
         // Maintain setting value for backward compatibility checks elsewhere in legacy code
         const Setting = require('../models/Setting');
+
+        // Persist admin-configured default fallback commission rate
+        if (defaultCommissionRate !== undefined) {
+            const parsedRate = Number(defaultCommissionRate);
+            if (!isNaN(parsedRate) && parsedRate >= 0 && parsedRate <= 100) {
+                await Setting.findOneAndUpdate(
+                    { key: 'default_commission_rate' },
+                    { value: parsedRate, updatedAt: Date.now() },
+                    { upsert: true }
+                );
+            }
+        }
+
         await Setting.findOneAndUpdate(
             { key: 'partner_program_config' },
             { 

@@ -1,4 +1,5 @@
 const CommissionSlab = require('../../models/CommissionSlab');
+const Setting = require('../../models/Setting');
 
 class GlobalFallbackStrategy {
     getMetadata() {
@@ -27,7 +28,7 @@ class GlobalFallbackStrategy {
         if (matchedSlab) {
             return {
                 rate: matchedSlab.commissionRate,
-                source: 'CATEGORY_SLAB', // generic fallback source
+                source: 'GLOBAL_DEFAULT',
                 ruleName: this.getMetadata().name,
                 metadata: {
                     slabId: matchedSlab._id,
@@ -36,13 +37,19 @@ class GlobalFallbackStrategy {
             };
         }
 
-        // Ultimate fallback rate if database is unseeded
+        // Ultimate fallback: read admin-configured default rate from DB.
+        // Only falls back to 10% if the setting has never been configured.
+        const rateSetting = await Setting.findOne({ key: 'default_commission_rate' });
+        const fallbackRate = (rateSetting && typeof rateSetting.value === 'number' && !isNaN(rateSetting.value))
+            ? rateSetting.value
+            : 10;
+
         return {
-            rate: 10,
-            source: 'CATEGORY_SLAB',
-            ruleName: "Global Fallback Default (10%)",
+            rate: fallbackRate,
+            source: 'GLOBAL_DEFAULT',
+            ruleName: `Global Fallback Default (${fallbackRate}%)`,
             metadata: {
-                slabRange: "Default Fallback (10%)"
+                slabRange: `Default Fallback (${fallbackRate}%)`
             }
         };
     }
