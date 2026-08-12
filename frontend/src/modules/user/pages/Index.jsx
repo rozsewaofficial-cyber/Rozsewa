@@ -201,7 +201,15 @@ const Index = () => {
         console.error("Failed to track banner click", e);
       }
     }
-    navigate(banner.link);
+    const link = banner.link;
+    if (!link) return;
+    // External links (admin-set full URLs) need a real browser navigation;
+    // react-router's navigate() can't leave the SPA.
+    if (/^https?:\/\//i.test(link)) {
+      window.open(link, "_blank", "noopener,noreferrer");
+    } else {
+      navigate(link);
+    }
   };
 
   return (

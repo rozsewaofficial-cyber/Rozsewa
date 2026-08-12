@@ -95,19 +95,31 @@ const SubcategoryPage = () => {
   const matchServiceToSubcategory = (service, sub) => {
     if (!service || !sub) return false;
 
-    // 1. Direct ID Match
+    // 1. Direct ID Match — this is the authoritative admin-assigned mapping
+    // (set via the admin "Add Service under Subcategory" flow). If a service
+    // is explicitly tagged with a subcategoryId, trust it exclusively and
+    // never fall through to fuzzy text matching — otherwise a service
+    // correctly tagged to e.g. "Washing Machine" could still get grouped
+    // into an unrelated "RO Water Purifier" section just because its name
+    // shares a keyword, duplicating/misplacing it across sections.
     if (service.subcategoryId) {
       const sId = typeof service.subcategoryId === 'object' ? service.subcategoryId._id : service.subcategoryId;
-      if (sId && (sId.toString() === sub._id?.toString() || sId.toString() === sub.id?.toString())) return true;
+      return !!(sId && (sId.toString() === sub._id?.toString() || sId.toString() === sub.id?.toString()));
     }
 
-    // 2. Direct Subcategory Name Match (Stripped of emojis)
+    // 2. Direct Subcategory Name Match (Stripped of emojis) — for legacy
+    // services that only carry a free-text `subcategory` string instead of
+    // a proper `subcategoryId` reference.
     const cleanSubName = stripEmojis(sub.name || '').toLowerCase();
     const cleanServiceSub = stripEmojis(service.subcategory || '').toLowerCase();
 
     if (cleanServiceSub) {
       if (cleanServiceSub === cleanSubName) return true;
       if (cleanServiceSub.includes(cleanSubName) || cleanSubName.includes(cleanServiceSub)) return true;
+      // Has a subcategory string but it doesn't match this one — don't fall
+      // through to fuzzy keyword matching against a subcategory it's already
+      // explicitly (if loosely) assigned away from.
+      return false;
     }
 
     // 3. Text Token Match (Name & Description against clean Subcategory tokens)

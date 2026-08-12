@@ -215,6 +215,11 @@ const AdminBanners = () => {
                                 <div className="flex-1">
                                     <h3 className="text-lg font-black text-gray-900 tracking-tight leading-tight mb-1 truncate">{b.title}</h3>
                                     <p className="text-xs text-gray-500 font-medium line-clamp-2">{b.description || "No description provided."}</p>
+                                    {b.ctaLink && (
+                                        <p className="mt-2 flex items-center gap-1 text-[10px] font-bold text-blue-600 truncate">
+                                            <Target className="h-3 w-3 shrink-0" /> {b.ctaLink}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center gap-2 pt-4 border-t border-gray-100 mt-4">
@@ -303,6 +308,9 @@ const AdminBanners = () => {
                                         <div className="space-y-4">
                                             <InputField label="Headline">
                                                 <input type="text" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className={inputCls} placeholder="e.g. 50% Off Festive Sale" required />
+                                            </InputField>
+                                            <InputField label="Link (URL)">
+                                                <input type="text" value={form.ctaLink} onChange={e => setForm({ ...form, ctaLink: e.target.value })} className={inputCls} placeholder="e.g. /shops or https://example.com" />
                                             </InputField>
                                             <InputField label="Promo Text">
                                                 <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className={`${inputCls} resize-y min-h-[80px]`} placeholder="Describe the offer or campaign..." />
