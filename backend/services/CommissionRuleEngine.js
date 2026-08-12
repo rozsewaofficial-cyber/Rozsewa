@@ -23,7 +23,7 @@ class CommissionRuleEngine {
      * Loops through rules based on global rulePriority.
      * Performs real-time validation for provider subscription.
      */
-    async selectRule(bookingAmount, provider, category) {
+    async selectRule(bookingAmount, provider, category, session) {
         // 1. Real-time Subscription Expiry Check
         if (provider.isSubscribed && provider.subscriptionExpiry) {
             if (new Date(provider.subscriptionExpiry) < new Date()) {
@@ -45,7 +45,7 @@ class CommissionRuleEngine {
         for (const ruleId of rulePriority) {
             const strategy = this.strategies.find(s => s.getMetadata().id === ruleId);
             if (strategy) {
-                const match = await strategy.evaluate(bookingAmount, provider, category);
+                const match = await strategy.evaluate(bookingAmount, provider, category, session);
                 if (match) {
                     return {
                         ruleId: strategy.getMetadata().id,
@@ -58,7 +58,7 @@ class CommissionRuleEngine {
 
         // Fallback if priority list doesn't match anything
         const fallback = new GlobalFallbackStrategy();
-        const fallbackMatch = await fallback.evaluate(bookingAmount, provider, category);
+        const fallbackMatch = await fallback.evaluate(bookingAmount, provider, category, session);
         return {
             ruleId: fallback.getMetadata().id,
             ruleName: fallback.getMetadata().name,

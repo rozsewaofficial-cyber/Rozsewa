@@ -10,8 +10,8 @@ class FreeTrialStrategy {
         };
     }
     
-    async evaluate(bookingAmount, provider, category) {
-        const rules = await PartnerProgram.findOne();
+    async evaluate(bookingAmount, provider, category, session) {
+        const rules = session ? await PartnerProgram.findOne().session(session) : await PartnerProgram.findOne();
         const enabled = rules ? rules.freeTrialEnabled : true;
         const total = rules ? rules.freeServiceCount : 3;
         

@@ -134,16 +134,46 @@ const getPublicServicesBySubcategory = async (req, res) => {
             query.$or = [
                 { subcategoryId: subDoc._id },
                 { subcategory: subDoc.name },
-                { subcategoryId: subDoc._id.toString() },
-                { name: { $regex: new RegExp(escapeRegex(subDoc.name), 'i') } }
+                { subcategoryId: subDoc._id.toString() }
             ];
+            // Fallback for legacy services that were never tagged with a
+            // subcategoryId/subcategory string: match by name, but scope it to
+            // the subcategory's own parent category so it can't pull in
+            // unrelated services from other categories (e.g. a "Fan" subcategory
+            // under Home Appliances matching an unrelated Electrician service).
+            const parentCat = await Category.findById(subDoc.categoryId).select('name');
+            if (parentCat) {
+                query.$or.push({
+                    name: { $regex: new RegExp(escapeRegex(subDoc.name), 'i') },
+                    $or: [{ categoryId: parentCat._id }, { category: parentCat.name }]
+                });
+            }
         } else {
             const cleanSub = subcategoryId.trim();
             query.$or = [
                 { subcategoryId: cleanSub },
-                { subcategory: cleanSub },
-                { name: { $regex: new RegExp(escapeRegex(cleanSub), 'i') } }
+                { subcategory: cleanSub }
             ];
+            // Only fall back to a name match when we actually know which
+            // category to scope it to — an unscoped name regex would match
+            // services from any category in the database.
+            let scopeCat = null;
+            if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+                scopeCat = await Category.findById(categoryId).select('name');
+            } else if (category) {
+                scopeCat = await Category.findOne({
+                    $or: [
+                        { name: category.trim() },
+                        { name: { $regex: new RegExp(`^${escapeRegex(category.trim())}$`, 'i') } }
+                    ]
+                }).select('name');
+            }
+            if (scopeCat) {
+                query.$or.push({
+                    name: { $regex: new RegExp(escapeRegex(cleanSub), 'i') },
+                    $or: [{ categoryId: scopeCat._id }, { category: scopeCat.name }]
+                });
+            }
         }
 
         let services = await Service.find(query).sort({ createdAt: -1 });

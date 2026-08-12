@@ -24,7 +24,11 @@ class GlobalFallbackStrategy {
         }).sort({ minAmount: 1 });
         
         const matchedSlab = globalSlabs.find(s => bookingAmount >= s.minAmount && bookingAmount <= s.maxAmount);
-        
+
+        if (!matchedSlab) {
+            console.warn(`[CommissionEngine] Booking amount ${bookingAmount} (role="${role}") matched no GLOBAL_DEFAULT slab either (${globalSlabs.length} configured) — using the platform default rate.`);
+        }
+
         if (matchedSlab) {
             return {
                 rate: matchedSlab.commissionRate,

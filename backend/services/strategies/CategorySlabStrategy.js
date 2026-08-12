@@ -26,7 +26,10 @@ class CategorySlabStrategy {
                 { providerCategory: null }
             ]
         }).sort({ minAmount: 1 });
-        if (slabs.length === 0) return null;
+        if (slabs.length === 0) {
+            console.warn(`[CommissionEngine] No CATEGORY_SLAB configured for category="${category.name || catId}" role="${role}" — falling through to GLOBAL_DEFAULT.`);
+            return null;
+        }
 
         const matchedSlab = slabs.find(s => bookingAmount >= s.minAmount && bookingAmount <= s.maxAmount);
         if (matchedSlab) {
@@ -43,6 +46,7 @@ class CategorySlabStrategy {
             };
         }
 
+        console.warn(`[CommissionEngine] Booking amount ${bookingAmount} falls in a gap between configured CATEGORY_SLAB ranges for category="${category.name || catId}" role="${role}" — falling through to GLOBAL_DEFAULT.`);
         return null;
     }
 }

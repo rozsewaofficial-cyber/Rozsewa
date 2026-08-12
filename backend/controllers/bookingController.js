@@ -1811,12 +1811,17 @@ const verifyEndOTP = async (req, res) => {
                     const commTxnId = `COM-${new mongoose.Types.ObjectId().toString().toUpperCase()}`;
 
                     let travelChargeAmount = 0;
-                    if (booking.travelCharge && booking.travelCharge.status === 'final') {
+                    // 'fallback' status (flat fee when GPS coords are missing) is folded into
+                    // totalAmount just like 'final' — only 'estimated' was never actually billed.
+                    if (booking.travelCharge && (booking.travelCharge.status === 'final' || booking.travelCharge.status === 'fallback')) {
                         travelChargeAmount = booking.travelCharge.amount || 0;
                     }
                     const commissionableAmount = Math.max(0, booking.totalAmount - travelChargeAmount);
 
-                    const matchedRule = await CommissionRuleEngine.selectRule(commissionableAmount, provider, provider.vendorType);
+                    // Slab boundaries are matched against the gross total (what the admin configured
+                    // against), but the matched rate is still applied to commissionableAmount so the
+                    // travel charge stays commission-exempt.
+                    const matchedRule = await CommissionRuleEngine.selectRule(booking.totalAmount, provider, provider.vendorType, session);
                     calculation = CommissionService.calculate(commissionableAmount, matchedRule);
                     adminCommission = calculation.platformAmount;
                     providerPayout = calculation.providerAmount + travelChargeAmount;
@@ -1918,7 +1923,7 @@ const verifyEndOTP = async (req, res) => {
                         wallet.availableBalance = prevAvailableBalance + providerPayout;
 
                         // Separate Service Earnings from Travel Charge
-                        const travelChargePortion = (bookingSession.travelCharge && bookingSession.travelCharge.status === 'final') ? (bookingSession.travelCharge.amount || 0) : 0;
+                        const travelChargePortion = (bookingSession.travelCharge && (bookingSession.travelCharge.status === 'final' || bookingSession.travelCharge.status === 'fallback')) ? (bookingSession.travelCharge.amount || 0) : 0;
                         const serviceEarningsPortion = providerPayout - travelChargePortion;
 
                         transactionAmount = serviceEarningsPortion;
@@ -1970,7 +1975,7 @@ const verifyEndOTP = async (req, res) => {
                     }
 
                     // 2. Travel Charge
-                    if (bookingSession.travelCharge && bookingSession.travelCharge.status === 'final' && bookingSession.travelCharge.amount > 0) {
+                    if (bookingSession.travelCharge && (bookingSession.travelCharge.status === 'final' || bookingSession.travelCharge.status === 'fallback') && bookingSession.travelCharge.amount > 0) {
                         transactionsToCreate.push({
                             providerId: provider._id,
                             title: `Travel Charge: ${booking.serviceName}`,
@@ -2066,8 +2071,9 @@ const verifyEndOTP = async (req, res) => {
                     if (provider.providerCategory === 'sewak') {
                         try {
                             const today = new Date().toISOString().split('T')[0];
-                            const threshold = 5;
-                            const bonusAmount = 50;
+                            const incentiveSettings = await Setting.find({ key: { $in: ['DAILY_BOOKING_THRESHOLD', 'BONUS_PER_EXTRA_BOOKING'] } });
+                            const threshold = Number(incentiveSettings.find(s => s.key === 'DAILY_BOOKING_THRESHOLD')?.value || 5);
+                            const bonusAmount = Number(incentiveSettings.find(s => s.key === 'BONUS_PER_EXTRA_BOOKING')?.value || 50);
 
                             const startOfDay = new Date();
                             startOfDay.setHours(0, 0, 0, 0);
