@@ -9,7 +9,9 @@ const sendSMSOTP = async (mobile, otp) => {
     try {
         const apiKey = process.env.SMSINDIAHUB_API_KEY;
         const senderId = process.env.SMSINDIAHUB_SENDER_ID;
-        const message = `Welcome to the Rozsewa powered by SMSINDIAHUB. Your OTP for registration is ${otp}`;
+        const entityId = process.env.SMSINDIAHUB_ENTITY_ID;
+        const templateId = process.env.SMSINDIAHUB_OTP_TEMPLATE_ID;
+        const message = `Welcome to the Rozsewa powered by Appzeto.Your OTP for registration is ${otp}.BGADEC`;
 
         // Sanitize mobile number (remove + or any spaces)
         const cleanMobile = mobile.replace(/\D/g, '');
@@ -19,8 +21,8 @@ const sendSMSOTP = async (mobile, otp) => {
         const targetNumber = cleanMobile.length === 10 ? `91${cleanMobile}` : cleanMobile;
 
         // API Endpoint for SMSINDIAHUB (Standard Push SMS)
-        // Note: Using the API Key based URL structure common for SMSINDIAHUB
-        const url = `http://cloud.smsindiahub.in/vendorsms/pushsms.aspx?apikey=${apiKey}&msisdn=${targetNumber}&sid=${senderId}&msg=${encodeURIComponent(message)}&fl=0&gwid=2`;
+        // Note: DLT params (entityid/dltTemplateId) are required for registered templates in India
+        const url = `http://cloud.smsindiahub.in/vendorsms/pushsms.aspx?apikey=${apiKey}&msisdn=${targetNumber}&sid=${senderId}&msg=${encodeURIComponent(message)}&fl=0&gwid=2&entityid=${entityId}&dltTemplateId=${templateId}`;
 
         const response = await axios.get(url);
 
