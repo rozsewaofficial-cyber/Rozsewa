@@ -147,7 +147,7 @@ const SubcategoryPage = () => {
       tokens.push("makeup", "draping", "outfit", "saree draping", "outfit draping", "bridal", "cosmetics", "face makeup", "beauty", "party makeup", "threading", "waxing", "bleach", "glow");
     }
     if (cleanSubName.includes("hair")) {
-      tokens.push("hair", "haircut", "hair styling", "cut", "hair color", "highlights", "keratin", "hair spa", "blowdry", "hair trim", "smoothing", "straightening");
+      tokens.push("hair", "haircut", "hair styling", "cut", "hair color", "hair highlights", "keratin", "hair spa", "blowdry", "hair trim", "smoothing", "straightening");
     }
     if (cleanSubName.includes("skin") || cleanSubName.includes("facial")) {
       tokens.push("skin", "facial", "cleanup", "bleach", "glow", "detan", "face", "scrub", "mask");
