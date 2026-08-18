@@ -91,6 +91,39 @@ const employee = (req, res, next) => {
     }
 };
 
+// Dedicated middleware for Trainer-issued tokens — kept separate from `protect`
+// (User -> Provider chain) rather than folded in, so a Trainer's access can
+// never accidentally widen to admin/provider routes.
+const protectTrainer = async (req, res, next) => {
+    let token;
+
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        try {
+            token = req.headers.authorization.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+            const Trainer = require('../models/Trainer');
+            const trainer = await Trainer.findById(decoded.id).select('-password');
+            if (!trainer) {
+                return res.status(401).json({ message: 'Not authorized, trainer not found' });
+            }
+            if (!trainer.isActive) {
+                return res.status(403).json({ message: 'This trainer account has been deactivated' });
+            }
+
+            req.trainer = trainer;
+            next();
+        } catch (error) {
+            if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+                return res.status(401).json({ message: 'Not authorized, token failed' });
+            }
+            res.status(500).json({ message: 'Internal server error during authentication' });
+        }
+    } else {
+        res.status(401).json({ message: 'Not authorized, no token' });
+    }
+};
+
 const supervisorWithAllScope = async (req, res, next) => {
     if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
         return next();
@@ -105,4 +138,4 @@ const supervisorWithAllScope = async (req, res, next) => {
     res.status(403).json({ message: 'Access denied: Requires supervisor permissions with "All" scope' });
 };
 
-module.exports = { protect, admin, superadmin, wfh, supervisor, employee, supervisorWithAllScope };
+module.exports = { protect, admin, superadmin, wfh, supervisor, employee, supervisorWithAllScope, protectTrainer };

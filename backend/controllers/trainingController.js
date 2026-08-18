@@ -140,6 +140,7 @@ const getTrainers = async (req, res) => {
         if (req.query.isActive !== undefined) query.isActive = req.query.isActive === 'true';
 
         const trainers = await Trainer.find(query)
+            .select('-password')
             .populate('trainingCenter', 'name cities')
             .populate('categories', 'name icon')
             .sort({ name: 1 })
@@ -165,6 +166,9 @@ const createTrainer = async (req, res) => {
             return res.status(400).json({ message: 'A training center is required' });
         }
 
+        const existing = await Trainer.findOne({ mobile });
+        if (existing) return res.status(400).json({ message: 'A trainer with this mobile number already exists' });
+
         const center = await TrainingCenter.findById(trainingCenter);
         if (!center) return res.status(404).json({ message: 'Training center not found' });
 
@@ -175,16 +179,26 @@ const createTrainer = async (req, res) => {
             return res.status(400).json({ message: 'Trainer categories must be offered by their training center' });
         }
 
+        // Auto-generate a login password if the admin didn't set one — it's shown
+        // once in the response so it can be shared with the trainer.
+        const plainPassword = req.body.password && req.body.password.length >= 4
+            ? req.body.password
+            : String(Math.floor(100000 + Math.random() * 900000));
+
         const trainer = await Trainer.create({
             name: name.trim(),
             mobile,
+            password: plainPassword,
             trainingCenter,
             categories: categories || [],
             availability: availability || [],
             capacity: Number(capacity) > 0 ? Number(capacity) : 5,
             isActive: isActive !== undefined ? isActive : true
         });
-        res.status(201).json(trainer);
+
+        const obj = trainer.toObject();
+        delete obj.password;
+        res.status(201).json({ ...obj, generatedPassword: plainPassword });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -198,10 +212,14 @@ const updateTrainer = async (req, res) => {
         const trainer = await Trainer.findById(req.params.id);
         if (!trainer) return res.status(404).json({ message: 'Trainer not found' });
 
-        const { name, mobile, trainingCenter, categories, availability, capacity, isActive } = req.body;
+        const { name, mobile, trainingCenter, categories, availability, capacity, isActive, password } = req.body;
 
         if (mobile !== undefined && !/^\d{10}$/.test(mobile)) {
             return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+        }
+        if (mobile !== undefined && mobile !== trainer.mobile) {
+            const existing = await Trainer.findOne({ mobile, _id: { $ne: trainer._id } });
+            if (existing) return res.status(400).json({ message: 'A trainer with this mobile number already exists' });
         }
 
         const targetCenterId = trainingCenter || trainer.trainingCenter;
@@ -222,9 +240,12 @@ const updateTrainer = async (req, res) => {
         if (availability !== undefined) trainer.availability = availability;
         if (capacity !== undefined) trainer.capacity = Number(capacity) > 0 ? Number(capacity) : trainer.capacity;
         if (isActive !== undefined) trainer.isActive = isActive;
+        if (password && password.length >= 4) trainer.password = password;
 
         const updated = await trainer.save();
-        res.json(updated);
+        const obj = updated.toObject();
+        delete obj.password;
+        res.json({ ...obj, passwordReset: !!(password && password.length >= 4) });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

@@ -469,6 +469,121 @@ const setMeetingLink = async (req, res) => {
     }
 };
 
+/**
+ * Core attendance logic — shared by the admin and trainer entry points so
+ * certification/notification behaviour can't drift between the two.
+ * `markedByModel` records who actually clicked, for the audit trail.
+ */
+const markAttendanceCore = async (session, attendance, markedById) => {
+    session.status = attendance === 'present' ? 'completed' : 'no_show';
+    session.attendanceMarkedBy = markedById;
+    session.attendanceMarkedAt = new Date();
+    await session.save();
+
+    if (session.status === 'completed') {
+        const provider = await Provider.findById(session.sewakId);
+        if (provider) {
+            const already = (provider.skillCertifications || []).some(c =>
+                String(c.categoryId) === String(session.categoryId) && c.serviceKey === session.serviceKey
+            );
+            if (!already) {
+                provider.skillCertifications.push({
+                    categoryId: session.categoryId,
+                    serviceKey: session.serviceKey,
+                    serviceName: session.serviceName,
+                    sessionId: session._id,
+                    completedAt: session.attendanceMarkedAt
+                });
+                await provider.save();
+            }
+
+            // Release any services held behind this gate.
+            await Service.updateMany(
+                {
+                    providerId: provider._id,
+                    pendingSkillSession: true,
+                    name: new RegExp(`^\\s*${session.serviceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i')
+                },
+                { $set: { pendingSkillSession: false, visible: true } }
+            );
+        }
+
+        await notify(
+            session.sewakId,
+            'Skill Session Completed',
+            `You have completed the ${session.serviceName} Skill Session. Your service is ready for activation.`,
+            session._id
+        );
+    } else {
+        await notify(
+            session.sewakId,
+            'Session Missed',
+            `You were marked absent for the ${session.serviceName} Skill Session. Contact support to reschedule.`,
+            session._id
+        );
+    }
+
+    return populateSession(SkillSession.findById(session._id));
+};
+
+/** Core re-session logic — shared by the admin and trainer entry points. */
+const createReSessionCore = async (parent, { preferredDate, preferredTimeOfDay } = {}) => {
+    const active = await SkillSession.findOne({
+        sewakId: parent.sewakId,
+        categoryId: parent.categoryId,
+        serviceKey: parent.serviceKey,
+        status: { $in: ACTIVE_STATUSES }
+    });
+    if (active) {
+        const err = new Error('This Sewak already has an active session for this service');
+        err.status = 400;
+        throw err;
+    }
+
+    const provider = await Provider.findById(parent.sewakId).lean();
+    const resolvedDate = preferredDate || parent.scheduledDate || parent.preferredDate;
+    const resolvedTimeOfDay = preferredTimeOfDay || parent.preferredTimeOfDay;
+
+    const child = new SkillSession({
+        sewakId: parent.sewakId,
+        categoryId: parent.categoryId,
+        serviceName: parent.serviceName,
+        serviceKey: parent.serviceKey,
+        serviceId: parent.serviceId,
+        mode: parent.mode,
+        durationMinutes: parent.durationMinutes,
+        preferredDate: resolvedDate,
+        preferredTimeOfDay: resolvedTimeOfDay,
+        isReSession: true,
+        parentSessionId: parent._id,
+        reSessionRound: (parent.reSessionRound || 0) + 1,
+        status: 'pending',
+        allocationAttempts: 1
+    });
+
+    const slot = await allocate({
+        sewakCity: provider?.city,
+        categoryId: parent.categoryId,
+        mode: parent.mode,
+        durationMinutes: parent.durationMinutes,
+        preferredDate: resolvedDate,
+        preferredTimeOfDay: resolvedTimeOfDay
+    });
+    if (slot) Object.assign(child, slot, { status: 'scheduled' });
+    await child.save();
+
+    await notify(
+        child.sewakId,
+        slot ? 'Session Confirmed' : 'Booking Received',
+        slot
+            ? `Your repeat ${child.serviceName} Skill Session is confirmed for ${child.scheduledDate} at ${child.scheduledTime}.`
+            : `A repeat ${child.serviceName} Skill Session has been requested for you.`,
+        child._id
+    );
+
+    return populateSession(SkillSession.findById(child._id));
+};
+
 // @desc    Mark attendance — the single write point for skillCertifications
 // @route   PUT /api/admin/skill-sessions/:id/attendance
 // @access  Private/Admin
@@ -485,55 +600,7 @@ const markAttendance = async (req, res) => {
             return res.status(400).json({ message: `Attendance can only be marked on a scheduled session (this one is ${session.status})` });
         }
 
-        session.status = attendance === 'present' ? 'completed' : 'no_show';
-        session.attendanceMarkedBy = req.user._id;
-        session.attendanceMarkedAt = new Date();
-        await session.save();
-
-        if (session.status === 'completed') {
-            const provider = await Provider.findById(session.sewakId);
-            if (provider) {
-                const already = (provider.skillCertifications || []).some(c =>
-                    String(c.categoryId) === String(session.categoryId) && c.serviceKey === session.serviceKey
-                );
-                if (!already) {
-                    provider.skillCertifications.push({
-                        categoryId: session.categoryId,
-                        serviceKey: session.serviceKey,
-                        serviceName: session.serviceName,
-                        sessionId: session._id,
-                        completedAt: session.attendanceMarkedAt
-                    });
-                    await provider.save();
-                }
-
-                // Release any services held behind this gate.
-                await Service.updateMany(
-                    {
-                        providerId: provider._id,
-                        pendingSkillSession: true,
-                        name: new RegExp(`^\\s*${session.serviceName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i')
-                    },
-                    { $set: { pendingSkillSession: false, visible: true } }
-                );
-            }
-
-            await notify(
-                session.sewakId,
-                'Skill Session Completed',
-                `You have completed the ${session.serviceName} Skill Session. Your service is ready for activation.`,
-                session._id
-            );
-        } else {
-            await notify(
-                session.sewakId,
-                'Session Missed',
-                `You were marked absent for the ${session.serviceName} Skill Session. Contact support to reschedule.`,
-                session._id
-            );
-        }
-
-        const populated = await populateSession(SkillSession.findById(session._id));
+        const populated = await markAttendanceCore(session, attendance, req.user._id);
         res.json(populated);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -551,59 +618,10 @@ const createReSession = async (req, res) => {
             return res.status(400).json({ message: 'Only a completed or missed session can be repeated' });
         }
 
-        const active = await SkillSession.findOne({
-            sewakId: parent.sewakId,
-            categoryId: parent.categoryId,
-            serviceKey: parent.serviceKey,
-            status: { $in: ACTIVE_STATUSES }
-        });
-        if (active) return res.status(400).json({ message: 'This Sewak already has an active session for this service' });
-
-        const provider = await Provider.findById(parent.sewakId).lean();
-        const preferredDate = req.body.preferredDate || parent.scheduledDate || parent.preferredDate;
-        const preferredTimeOfDay = req.body.preferredTimeOfDay || parent.preferredTimeOfDay;
-
-        const child = new SkillSession({
-            sewakId: parent.sewakId,
-            categoryId: parent.categoryId,
-            serviceName: parent.serviceName,
-            serviceKey: parent.serviceKey,
-            serviceId: parent.serviceId,
-            mode: parent.mode,
-            durationMinutes: parent.durationMinutes,
-            preferredDate,
-            preferredTimeOfDay,
-            isReSession: true,
-            parentSessionId: parent._id,
-            reSessionRound: (parent.reSessionRound || 0) + 1,
-            status: 'pending',
-            allocationAttempts: 1
-        });
-
-        const slot = await allocate({
-            sewakCity: provider?.city,
-            categoryId: parent.categoryId,
-            mode: parent.mode,
-            durationMinutes: parent.durationMinutes,
-            preferredDate,
-            preferredTimeOfDay
-        });
-        if (slot) Object.assign(child, slot, { status: 'scheduled' });
-        await child.save();
-
-        await notify(
-            child.sewakId,
-            slot ? 'Session Confirmed' : 'Booking Received',
-            slot
-                ? `Your repeat ${child.serviceName} Skill Session is confirmed for ${child.scheduledDate} at ${child.scheduledTime}.`
-                : `A repeat ${child.serviceName} Skill Session has been requested for you.`,
-            child._id
-        );
-
-        const populated = await populateSession(SkillSession.findById(child._id));
+        const populated = await createReSessionCore(parent, req.body);
         res.status(201).json(populated);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        res.status(error.status || 500).json({ message: error.message });
     }
 };
 
@@ -699,5 +717,9 @@ module.exports = {
     createReSession,
     getSkillSessionReports,
     resolveSkillConfig,
-    normalizeKey
+    normalizeKey,
+    markAttendanceCore,
+    createReSessionCore,
+    populateSession,
+    ACTIVE_STATUSES
 };

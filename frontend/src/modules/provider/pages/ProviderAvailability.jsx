@@ -124,7 +124,7 @@ const ProviderAvailability = () => {
       <ProviderTopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/provider/dashboard')}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/provider')}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>

@@ -11,9 +11,9 @@ import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import { useScrollLock } from "@/lib/scrollLock";
 
+// Aadhaar and PAN are already collected during registration, so they aren't
+// re-asked here — only the optional extras and Live Video (below) remain.
 const docTypes = [
-  { id: "aadhaar", label: "Aadhaar Card", required: true },
-  { id: "pan", label: "PAN Card", required: true },
   { id: "gst", label: "GST Certificate", required: false },
   { id: "license", label: "Driving License", required: false },
   { id: "certification", label: "Skill Certification", required: false },
@@ -513,25 +513,16 @@ const ProviderDocuments = () => {
 
   const verifiedCount = provider?.documents?.filter(d => d.status === "verified").length || 0;
 
-  // Validation Rules
-  const aadhaarDoc = getDocStatus('aadhaar');
-  const panDoc = getDocStatus('pan');
+  // Validation Rules — Aadhaar/PAN are handled at registration, so Live Video is
+  // the only thing this page still gates submission on.
   const liveVideoDoc = getDocStatus('live_video');
 
   const canSubmit =
-    aadhaarDoc && aadhaarDoc.status !== 'rejected' &&
-    panDoc && panDoc.status !== 'rejected' &&
     liveVideoDoc && liveVideoDoc.status !== 'rejected' &&
-    (aadhaarDoc.status === 'draft' || panDoc.status === 'draft' || liveVideoDoc.status === 'draft' || provider?.kycStatus === 'rejected');
+    (liveVideoDoc.status === 'draft' || provider?.kycStatus === 'rejected');
 
   const getMissingValidationErrors = () => {
     const errors = [];
-    if (!aadhaarDoc) errors.push("Aadhaar Card is missing");
-    else if (aadhaarDoc.status === 'rejected') errors.push("Aadhaar Card needs re-upload");
-
-    if (!panDoc) errors.push("PAN Card is missing");
-    else if (panDoc.status === 'rejected') errors.push("PAN Card needs re-upload");
-
     if (!liveVideoDoc) errors.push("Live Video is not recorded");
     else if (liveVideoDoc.status === 'rejected') errors.push("Live Video needs re-recording");
 
@@ -673,7 +664,7 @@ const ProviderDocuments = () => {
 
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/provider/dashboard')}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/provider')}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted shrink-0 shadow-sm">
             <ArrowLeft className="h-5 w-5" />
           </motion.button>

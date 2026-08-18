@@ -6,7 +6,7 @@ import RecentBookingsList from "@/modules/provider/components/RecentBookingsList
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
   Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle,
-  Percent, ArrowRight, MapPin, Loader2
+  Percent, ArrowRight, MapPin, Loader2, GraduationCap
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,6 +30,7 @@ const defaultMenu = [
   { iconPath: "/assets/3d_icons/timing.png", title: "Timing", desc: "Schedule", path: "/provider/availability", bgColor: "bg-amber-50/80 dark:bg-amber-900/10", borderColor: "border-amber-100 dark:border-amber-900/20" },
   { iconPath: "/assets/3d_icons/wallet.png", title: "Wallet", desc: "Revenue", path: "/provider/wallet", bgColor: "bg-emerald-50/80 dark:bg-emerald-900/10", borderColor: "border-emerald-100 dark:border-emerald-900/20" },
   { iconPath: "/assets/3d_icons/services.png", title: "Leads", desc: "Broadcasts", path: "/provider/leads", bgColor: "bg-violet-50/80 dark:bg-violet-900/10", borderColor: "border-violet-100 dark:border-violet-900/20" },
+  { iconPath: "/assets/3d_icons/docs.png", title: "Skill Sessions", desc: "Training", path: "/provider/skill-sessions", bgColor: "bg-orange-50/80 dark:bg-orange-900/10", borderColor: "border-orange-100 dark:border-orange-900/20" },
   { iconPath: "/assets/3d_icons/reviews.png", title: "Reviews", desc: "Ratings", path: "/provider/reviews", bgColor: "bg-yellow-50/80 dark:bg-yellow-900/10", borderColor: "border-yellow-100 dark:border-yellow-900/20" },
   { iconPath: "/assets/3d_icons/99card.png", title: "Registration", desc: "Plan & Status", path: "/provider/99card", bgColor: "bg-slate-100 dark:bg-slate-800/30", borderColor: "border-slate-200 dark:border-slate-700" },
   { iconPath: "/assets/3d_icons/docs.png", title: "Docs", desc: "Vault", path: "/provider/documents", bgColor: "bg-cyan-50/80 dark:bg-cyan-900/10", borderColor: "border-cyan-100 dark:border-cyan-900/20" },
@@ -379,11 +380,11 @@ const ProviderDashboard = () => {
               : "To start receiving customer bookings, you must complete your identity verification by recording a live video and uploading required documents."}
           </p>
 
-          {/* Checklist */}
+          {/* Checklist — Aadhaar/PAN are collected at registration, so they aren't
+              re-asked here. Live Video is still required as it's never captured
+              during signup. */}
           <div className="space-y-2 mb-6">
             <h3 className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider text-left mb-1">Verification Checklist</h3>
-            {getChecklistItem("Aadhaar Card", "aadhaar", true)}
-            {getChecklistItem("PAN Card", "pan", true)}
             {getChecklistItem("Live Video Verification", "live_video", true)}
             {/* Optional ones if uploaded */}
             {user?.documents?.some(d => d.id === 'gst') && getChecklistItem("GST Certificate", "gst")}
@@ -835,7 +836,11 @@ const ProviderDashboard = () => {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-            {(menuItems.length > 0 ? menuItems : defaultMenu).filter(item => user?.providerCategory !== 'sewak' || item.title !== "Registration").map((item, idx) => {
+            {(menuItems.length > 0 ? menuItems : defaultMenu).filter(item => {
+              if (item.title === "Registration") return user?.providerCategory !== 'sewak';
+              if (item.title === "Skill Sessions") return user?.providerCategory === 'sewak';
+              return true;
+            }).map((item, idx) => {
               const getMiniIconByTitle = (title) => {
                 switch (title) {
                   case "Timing": return Clock;
@@ -843,6 +848,7 @@ const ProviderDashboard = () => {
                   case "Leads": return Briefcase;
                   case "Reviews": return Star;
                   case "Registration": return ShieldCheck;
+                  case "Skill Sessions": return GraduationCap;
                   case "Docs": return FileText;
                   case "Support": return Headset;
                   case "Settings": return Settings;

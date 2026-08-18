@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap, Plus, X, Save, Trash2, Loader2, Building2,
-  Phone, Layers, Search
+  Phone, Layers, Search, KeyRound, Copy, Check
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useScrollLock } from "@/lib/scrollLock";
@@ -13,6 +13,7 @@ import AvailabilityEditor from "@/modules/admin/components/AvailabilityEditor";
 const emptyForm = {
   name: "",
   mobile: "",
+  password: "",
   trainingCenter: "",
   categories: [],
   capacity: 5,
@@ -39,8 +40,10 @@ const AdminTrainers = () => {
   const [form, setForm] = useState(emptyForm);
   const [search, setSearch] = useState("");
   const [centerFilter, setCenterFilter] = useState("");
+  const [credentials, setCredentials] = useState(null); // { mobile, password } — shown once
+  const [copied, setCopied] = useState(false);
 
-  useScrollLock(showModal);
+  useScrollLock(showModal || !!credentials);
 
   useEffect(() => {
     setTitle("Trainers");
@@ -80,6 +83,7 @@ const AdminTrainers = () => {
     setForm({
       name: trainer.name || "",
       mobile: trainer.mobile || "",
+      password: "",
       trainingCenter: trainer.trainingCenter?._id || trainer.trainingCenter || "",
       categories: (trainer.categories || []).map((c) => c._id || c),
       capacity: trainer.capacity ?? 5,
@@ -110,11 +114,15 @@ const AdminTrainers = () => {
     setSaving(true);
     try {
       if (editing) {
-        await API.put(`/admin/trainers/${editing._id}`, form);
+        const { data } = await API.put(`/admin/trainers/${editing._id}`, form);
         toast({ title: "Trainer updated" });
+        if (data.passwordReset) {
+          setCredentials({ mobile: form.mobile, password: form.password });
+        }
       } else {
-        await API.post("/admin/trainers", form);
+        const { data } = await API.post("/admin/trainers", form);
         toast({ title: "Trainer created" });
+        setCredentials({ mobile: form.mobile, password: data.generatedPassword });
       }
       setShowModal(false);
       fetchAll();
@@ -320,6 +328,24 @@ const AdminTrainers = () => {
               </div>
 
               <div>
+                <label className={labelCls}>
+                  {editing ? "Reset Password" : "Login Password"}
+                </label>
+                <input
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className={inputCls}
+                  placeholder={editing ? "Leave blank to keep the current password" : "Leave blank to auto-generate"}
+                  minLength={4}
+                />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {editing
+                    ? "Only fill this in to change the trainer's password — it's shown once, so share it with them right after saving."
+                    : "The trainer logs in with this mobile number and password at /trainer/login. Leave blank and we'll generate one — you'll see it once after saving."}
+                </p>
+              </div>
+
+              <div>
                 <label className={labelCls}>Training Center *</label>
                 <select
                   value={form.trainingCenter}
@@ -423,6 +449,70 @@ const AdminTrainers = () => {
                 </button>
               </div>
             </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Credentials reveal — password is hashed on save, so this is the only
+          moment it's ever visible again. */}
+      <AnimatePresence>
+        {credentials && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => { setCredentials(null); setCopied(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 p-2.5">
+                  <KeyRound className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">Trainer Login Details</h2>
+                  <p className="text-xs text-slate-500">Share this with the trainer now — it won't be shown again.</p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
+                <div className="flex items-center justify-between p-3">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mobile</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">{credentials.mobile}</span>
+                </div>
+                <div className="flex items-center justify-between p-3">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Password</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">{credentials.password}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(`Mobile: ${credentials.mobile}\nPassword: ${credentials.password}\nLogin at: /trainer/login`);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:border-emerald-500 hover:text-emerald-600"
+              >
+                {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                {copied ? "Copied" : "Copy Details"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setCredentials(null); setCopied(false); }}
+                className="w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-bold text-white hover:bg-emerald-700"
+              >
+                Done
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

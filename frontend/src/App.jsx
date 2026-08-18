@@ -112,6 +112,9 @@ import AdminZones from "./modules/admin/pages/AdminZones";
 import AdminTrainingCenters from "./modules/admin/pages/AdminTrainingCenters";
 import AdminTrainers from "./modules/admin/pages/AdminTrainers";
 import AdminSkillSessions from "./modules/admin/pages/AdminSkillSessions";
+import TrainerLogin from "./modules/trainer/pages/TrainerLogin";
+import TrainerSessions from "./modules/trainer/pages/TrainerSessions";
+import TrainerProtectedRoute from "./modules/trainer/components/TrainerProtectedRoute";
 import AdminDispatch from "./modules/admin/pages/AdminDispatch";
 import AdminEmergency from "./modules/admin/pages/AdminEmergency";
 import AdminFinance from "./modules/admin/pages/AdminFinance";
@@ -211,6 +214,11 @@ const App = () => (
                       <Route path="/provider/login" element={<ProviderLogin />} />
                       <Route path="/provider/forgot-password" element={<ProviderForgotPassword />} />
                       <Route path="/digilocker/callback" element={<DigilockerCallback />} />
+
+                      {/* Trainer Routes — standalone, self-contained auth (see TrainerProtectedRoute) */}
+                      <Route path="/trainer/login" element={<TrainerLogin />} />
+                      <Route path="/trainer/sessions" element={<TrainerProtectedRoute><TrainerSessions /></TrainerProtectedRoute>} />
+                      <Route path="/trainer" element={<Navigate to="/trainer/sessions" replace />} />
                       <Route path="/provider/profile" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderProfile /></ProtectedRoute>} />
                       <Route path="/provider/bookings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBookings /></ProtectedRoute>} />
                       <Route path="/provider/staff" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderStaff /></ProtectedRoute>} />

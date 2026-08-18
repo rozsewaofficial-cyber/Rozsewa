@@ -28,6 +28,7 @@ const scrapRoutes = require('./routes/scrapRoutes');
 const bazaarRoutes = require('./routes/bazaarRoutes');
 const leadRoutes = require('./routes/leadRoutes');
 const skillSessionRoutes = require('./routes/skillSessionRoutes');
+const trainerRoutes = require('./routes/trainerRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -95,6 +96,7 @@ app.use('/api/bazaar', bazaarRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/guides', guideRoutes);
 app.use('/api/skill-sessions', skillSessionRoutes);
+app.use('/api/trainer', trainerRoutes);
 
 // V2 Versioned Commission APIs
 const { adminV2Router, providerV2Router } = require('./routes/v2Routes');

@@ -78,7 +78,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
           {showBack && (
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={() => navigate('/provider/dashboard')}
+              onClick={() => navigate('/provider')}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
             >
               <ArrowLeft className="h-4 w-4" />

@@ -15,6 +15,8 @@ API.interceptors.request.use(
             storageKey = "rozsewa_auth_provider";
         } else if (path.startsWith("/admin")) {
             storageKey = "rozsewa_auth_admin";
+        } else if (path.startsWith("/trainer")) {
+            storageKey = "rozsewa_auth_trainer";
         } else {
             // On customer-facing routes, check customer session first, then fall back to provider or admin session
             const hasCustomerToken = JSON.parse(localStorage.getItem("rozsewa_auth") || "null")?.token;
@@ -48,12 +50,15 @@ API.interceptors.response.use(
                 localStorage.removeItem("rozsewa_auth_admin");
                 localStorage.removeItem("rozsewa_auth_provider");
                 localStorage.removeItem("rozsewa_auth_user");
+                localStorage.removeItem("rozsewa_auth_trainer");
 
                 let redirectPath = "/login";
                 if (path.startsWith("/admin")) {
                     redirectPath = "/admin/login";
                 } else if (path.startsWith("/provider")) {
                     redirectPath = "/provider/login";
+                } else if (path.startsWith("/trainer")) {
+                    redirectPath = "/trainer/login";
                 }
 
                 // Force browser redirect to login

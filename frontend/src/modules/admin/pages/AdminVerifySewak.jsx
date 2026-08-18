@@ -18,15 +18,6 @@ const statusColors = {
   rejected: "bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-900/20 dark:text-rose-400 dark:border-rose-800",
 };
 
-const docTypes = [
-  { id: "aadhaar", label: "Aadhaar Card", required: true },
-  { id: "pan", label: "PAN Card", required: true },
-  { id: "gst", label: "GST Certificate", required: false },
-  { id: "license", label: "Business License", required: false },
-  { id: "certification", label: "Skill Certification", required: false },
-  { id: "police", label: "Police Verification", required: false },
-];
-
 const AdminVerifySewak = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
@@ -115,20 +106,17 @@ const AdminVerifySewak = () => {
     }
   }, [paramDocId]);
 
-  // Helper: Get identity score (Aadhaar: 35%, PAN: 35%, Live Video: 30%)
+  // Helper: Get identity score (Live Video: 90% — Aadhaar/PAN are collected and
+  // reviewed at registration, not through this checklist; optional docs top up the rest)
   const getIdentityScore = (sewak) => {
     if (!sewak || !sewak.documents) return 0;
     let score = 0;
-    const aadhaar = sewak.documents.find(d => d.id === 'aadhaar');
-    const pan = sewak.documents.find(d => d.id === 'pan');
     const liveVideo = sewak.documents.find(d => d.id === 'live_video');
 
-    if (aadhaar?.status === 'verified') score += 35;
-    if (pan?.status === 'verified') score += 35;
-    if (liveVideo?.status === 'verified') score += 30;
+    if (liveVideo?.status === 'verified') score += 90;
 
     // Optional document verification boost (+5 points each, max score 100)
-    const optionals = sewak.documents.filter(d => 
+    const optionals = sewak.documents.filter(d =>
       ['gst', 'license', 'certification', 'police'].includes(d.id) && d.status === 'verified'
     );
     if (optionals.length > 0) {
@@ -158,13 +146,12 @@ const AdminVerifySewak = () => {
     return { completed, total, approved, pending, rejected };
   };
 
-  // Helper: Standardize documents & video mapping
+  // Helper: Standardize documents & video mapping — Aadhaar/PAN are collected at
+  // registration, so they aren't part of this review checklist.
   const getChecklistItems = (sewak) => {
     if (!sewak) return [];
     const items = [
       { id: 'live_video', label: 'Live Video Verification', required: true },
-      { id: 'aadhaar', label: 'Aadhaar Card', required: true },
-      { id: 'pan', label: 'PAN Card', required: true },
       { id: 'gst', label: 'GST Certificate', required: false },
       { id: 'license', label: 'Business License', required: false },
       { id: 'certification', label: 'Skill Certification', required: false },

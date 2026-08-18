@@ -300,14 +300,24 @@ const registerSewak = async (req, res) => {
                 const Combo = require('../models/Combo');
                 const category = await Category.findById(vendorType);
                 if (category && category.services && category.services.length > 0) {
-                    const masterServicesData = category.services.map(svc => ({
-                        providerId: sewak._id,
-                        name: svc.name,
-                        description: svc.description,
-                        category: category.name,
-                        price: svc.basePrice || 299,
-                        visible: true
-                    }));
+                    const masterServicesData = category.services.map(svc => {
+                        // Skill Session gate — mirror serviceController.createService so a
+                        // bulk-assigned service can't skip the training requirement.
+                        const gated = !!svc.skillSessionRequired && svc.skillSessionActive !== false;
+                        return {
+                            providerId: sewak._id,
+                            name: svc.name,
+                            description: svc.description,
+                            category: category.name,
+                            price: svc.basePrice || 299,
+                            visible: !gated,
+                            pendingSkillSession: gated,
+                            skillSessionRequired: gated,
+                            sessionDurationMinutes: Number(svc.sessionDurationMinutes) || 60,
+                            sessionMode: svc.sessionMode || 'offline',
+                            skillSessionActive: svc.skillSessionActive !== false
+                        };
+                    });
                     const createdServices = await Service.insertMany(masterServicesData);
 
                     if (category.combos && category.combos.length > 0) {
@@ -946,6 +956,7 @@ const getProviderMenu = async (req, res) => {
             { iconPath: "/assets/3d_icons/timing.png", title: "Timing", desc: "Schedule", path: "/provider/availability", bgColor: "bg-amber-50/80 dark:bg-amber-900/10", borderColor: "border-amber-100 dark:border-amber-900/20" },
             { iconPath: "/assets/3d_icons/wallet.png", title: "Wallet", desc: "Revenue", path: "/provider/wallet", bgColor: "bg-emerald-50/80 dark:bg-emerald-900/10", borderColor: "border-emerald-100 dark:border-emerald-900/20" },
             { iconPath: "/assets/3d_icons/services.png", title: "Leads", desc: "Broadcasts", path: "/provider/leads", bgColor: "bg-violet-50/80 dark:bg-violet-900/10", borderColor: "border-violet-100 dark:border-violet-900/20" },
+            { iconPath: "/assets/3d_icons/docs.png", title: "Skill Sessions", desc: "Training", path: "/provider/skill-sessions", bgColor: "bg-orange-50/80 dark:bg-orange-900/10", borderColor: "border-orange-100 dark:border-orange-900/20" },
             { iconPath: "/assets/3d_icons/reviews.png", title: "Reviews", desc: "Ratings", path: "/provider/reviews", bgColor: "bg-yellow-50/80 dark:bg-yellow-900/10", borderColor: "border-yellow-100 dark:border-yellow-900/20" },
             { iconPath: "/assets/3d_icons/99card.png", title: "Registration", desc: "Plan & Status", path: "/provider/99card", bgColor: "bg-slate-100 dark:bg-slate-800/30", borderColor: "border-slate-200 dark:border-slate-700" },
             { iconPath: "/assets/3d_icons/docs.png", title: "Docs", desc: "Vault", path: "/provider/documents", bgColor: "bg-cyan-50/80 dark:bg-cyan-900/10", borderColor: "border-cyan-100 dark:border-cyan-900/20" },
@@ -1083,16 +1094,11 @@ const submitKYC = async (req, res) => {
         }
 
         const docs = provider.documents || [];
-        const aadhaarDoc = docs.find(d => d.id === 'aadhaar');
-        const panDoc = docs.find(d => d.id === 'pan');
+        // Aadhaar/PAN are collected at registration (ids 'aadhaar_front'/'aadhaar_back'/
+        // 'pan'), so the Verification Vault no longer offers a way to (re-)upload them
+        // under 'aadhaar'/'pan' — only Live Video is gated here to match.
         const liveVideoDoc = docs.find(d => d.id === 'live_video');
 
-        if (!aadhaarDoc || aadhaarDoc.status === 'rejected') {
-            return res.status(400).json({ message: 'A valid Aadhaar card is required.' });
-        }
-        if (!panDoc || panDoc.status === 'rejected') {
-            return res.status(400).json({ message: 'A valid PAN card is required.' });
-        }
         if (!liveVideoDoc || liveVideoDoc.status === 'rejected') {
             return res.status(400).json({ message: 'A valid Live Video Verification is required.' });
         }
