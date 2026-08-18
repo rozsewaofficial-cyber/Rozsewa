@@ -2,6 +2,42 @@ const Service = require('../models/Service');
 const Combo = require('../models/Combo');
 const Category = require('../models/Category');
 const Provider = require('../models/Provider');
+const SkillSession = require('../models/SkillSession');
+
+const normalizeKey = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+
+/**
+ * Skill Session state for one catalog entry, from the Sewak's point of view.
+ * `locked` is what the UI gates on.
+ */
+const skillStateFor = (catalogEntry, provider, sessionsByKey) => {
+    const required = !!catalogEntry?.skillSessionRequired && catalogEntry?.skillSessionActive !== false;
+    if (!required) {
+        return { skillSessionRequired: false, skillSessionStatus: 'not_required', locked: false };
+    }
+
+    const key = normalizeKey(catalogEntry.name);
+    const certified = (provider.skillCertifications || []).some(c =>
+        String(c.categoryId) === String(provider.vendorType?._id || provider.vendorType) && c.serviceKey === key
+    );
+    if (certified) {
+        return {
+            skillSessionRequired: true,
+            skillSessionStatus: 'completed',
+            skillSessionMode: catalogEntry.sessionMode || 'offline',
+            locked: false
+        };
+    }
+
+    const latest = sessionsByKey.get(key);
+    return {
+        skillSessionRequired: true,
+        skillSessionStatus: latest ? latest.status : 'not_booked',
+        skillSessionMode: catalogEntry.sessionMode || 'offline',
+        skillSessionId: latest?._id || null,
+        locked: true
+    };
+};
 
 // @desc    Get all services for logged in provider
 // @route   GET /api/services
@@ -18,6 +54,18 @@ const getMyServices = async (req, res) => {
         const categoryCombos = provider?.vendorType?.combos || [];
         const categoryName = provider?.vendorType?.name || 'Your Category';
 
+        // Latest non-cancelled session per service, for the Skill Session badges.
+        const sessionsByKey = new Map();
+        if (isSewak) {
+            const sessions = await SkillSession.find({
+                sewakId: req.user._id,
+                status: { $ne: 'cancelled' }
+            }).sort({ createdAt: -1 }).lean();
+            for (const s of sessions) {
+                if (!sessionsByKey.has(s.serviceKey)) sessionsByKey.set(s.serviceKey, s);
+            }
+        }
+
         if (isSewak) {
             // For Sewaks, we override the services list with category services using admin prices (only basePrice > 0)
             const validCategoryServices = categoryServices.filter(catSvc => Number(catSvc.basePrice) > 0);
@@ -28,7 +76,8 @@ const getMyServices = async (req, res) => {
                 duration: "1 hour",
                 visible: true,
                 category: categoryName,
-                price: Number(catSvc.basePrice)
+                price: Number(catSvc.basePrice),
+                ...skillStateFor(catSvc, provider, sessionsByKey)
             }));
 
             // Map category combos to the format expected by frontend
@@ -45,7 +94,14 @@ const getMyServices = async (req, res) => {
             }));
         }
 
-        res.json({ services, combos, categoryServices, categoryName });
+        const annotatedCategoryServices = isSewak
+            ? categoryServices.map(cs => ({
+                ...(cs.toObject ? cs.toObject() : cs),
+                ...skillStateFor(cs, provider, sessionsByKey)
+            }))
+            : categoryServices;
+
+        res.json({ services, combos, categoryServices: annotatedCategoryServices, categoryName });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -65,6 +121,32 @@ const createService = async (req, res) => {
     }
 
     try {
+        // Skill Session gate — the service is saved either way, but held out of sight
+        // until training is done, so nothing the Sewak typed is lost. See D8.
+        let heldForSkillSession = false;
+        let skillFields = {};
+        const provider = await Provider.findById(req.user._id).lean();
+
+        if (provider?.providerCategory === 'sewak' && provider.vendorType) {
+            const cat = await Category.findById(provider.vendorType).lean();
+            const entry = (cat?.services || []).find(s => normalizeKey(s.name) === normalizeKey(name));
+            const required = !!entry?.skillSessionRequired && entry?.skillSessionActive !== false;
+
+            if (required) {
+                const key = normalizeKey(name);
+                const certified = (provider.skillCertifications || []).some(c =>
+                    String(c.categoryId) === String(provider.vendorType) && c.serviceKey === key
+                );
+                heldForSkillSession = !certified;
+                skillFields = {
+                    skillSessionRequired: true,
+                    sessionDurationMinutes: Number(entry.sessionDurationMinutes) || 60,
+                    sessionMode: entry.sessionMode || 'offline',
+                    skillSessionActive: true
+                };
+            }
+        }
+
         const service = await Service.create({
             providerId: req.user._id,
             name,
@@ -72,16 +154,24 @@ const createService = async (req, res) => {
             price,
             duration,
             category: category || req.user.vendorType,
-            visible: visible !== undefined ? visible : true,
+            visible: heldForSkillSession ? false : (visible !== undefined ? visible : true),
             image,
             amenities: amenities || [],
             serviceDetails: serviceDetails || [],
             useCategoryLeadPrice: req.body.useCategoryLeadPrice !== undefined ? req.body.useCategoryLeadPrice : true,
-            customLeadPrice: req.body.customLeadPrice !== undefined ? req.body.customLeadPrice : 0
+            customLeadPrice: req.body.customLeadPrice !== undefined ? req.body.customLeadPrice : 0,
+            pendingSkillSession: heldForSkillSession,
+            ...skillFields
         });
 
         if (service) {
-            res.status(201).json(service);
+            res.status(201).json({
+                ...service.toObject(),
+                heldForSkillSession,
+                message: heldForSkillSession
+                    ? 'Saved. Complete the Skill Session to activate this service.'
+                    : undefined
+            });
         } else {
             res.status(400).json({ message: 'Invalid service data' });
         }
@@ -106,7 +196,14 @@ const updateService = async (req, res) => {
             if (req.body.description !== undefined) service.description = req.body.description;
             if (req.body.price !== undefined) service.price = req.body.price;
             if (req.body.duration !== undefined) service.duration = req.body.duration;
-            if (req.body.visible !== undefined) service.visible = req.body.visible;
+            // A held service can't be made visible from here — only completing the
+            // Skill Session releases it.
+            if (req.body.visible !== undefined) {
+                if (service.pendingSkillSession && req.body.visible === true) {
+                    return res.status(400).json({ message: 'Complete the Skill Session before activating this service.' });
+                }
+                service.visible = req.body.visible;
+            }
             if (req.body.image !== undefined) service.image = req.body.image;
             if (req.body.amenities !== undefined) service.amenities = req.body.amenities;
             if (req.body.serviceDetails !== undefined) service.serviceDetails = req.body.serviceDetails;

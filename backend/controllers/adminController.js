@@ -543,26 +543,42 @@ const updateCategory = async (req, res) => {
         if (req.body.services) {
             category.services = req.body.services.map(s => {
                 const existing = category.services.find(sub => (sub._id && s._id && sub._id.toString() === s._id.toString()) || sub.name === s.name);
+                const pick = (key, fallback) => (s[key] !== undefined ? s[key] : (existing?.[key] !== undefined ? existing[key] : fallback));
                 return {
                     _id: existing?._id || s._id || new mongoose.Types.ObjectId(),
                     name: s.name,
                     basePrice: Number(s.basePrice) || 0,
-                    description: s.description || existing?.description || ""
+                    description: s.description || existing?.description || "",
+                    image: pick('image', ""),
+                    skillSessionRequired: !!pick('skillSessionRequired', false),
+                    sessionDurationMinutes: Number(pick('sessionDurationMinutes', 60)) || 60,
+                    sessionMode: pick('sessionMode', 'offline'),
+                    skillSessionActive: pick('skillSessionActive', true) !== false
                 };
             });
             category.markModified('services');
 
             for (const s of req.body.services) {
+                // Mirror the Skill Session config onto the standalone Service docs so the
+                // gate reads the same values whichever surface it is checked from.
+                const saved = category.services.find(sub => sub.name === s.name) || {};
+                const skillFields = {
+                    skillSessionRequired: !!saved.skillSessionRequired,
+                    sessionDurationMinutes: Number(saved.sessionDurationMinutes) || 60,
+                    sessionMode: saved.sessionMode || 'offline',
+                    skillSessionActive: saved.skillSessionActive !== false
+                };
                 if (s._id && mongoose.Types.ObjectId.isValid(s._id)) {
                     await Service.findByIdAndUpdate(s._id, {
                         price: Number(s.basePrice) || 0,
                         name: s.name,
-                        description: s.description || ""
+                        description: s.description || "",
+                        ...skillFields
                     });
                 }
                 await Service.updateMany(
                     { categoryId: category._id, name: s.name },
-                    { price: Number(s.basePrice) || 0 }
+                    { price: Number(s.basePrice) || 0, ...skillFields }
                 );
             }
         }

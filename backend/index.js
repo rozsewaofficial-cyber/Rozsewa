@@ -27,6 +27,7 @@ const guideRoutes = require('./routes/guideRoutes');
 const scrapRoutes = require('./routes/scrapRoutes');
 const bazaarRoutes = require('./routes/bazaarRoutes');
 const leadRoutes = require('./routes/leadRoutes');
+const skillSessionRoutes = require('./routes/skillSessionRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -93,6 +94,7 @@ app.use('/api/scrap', scrapRoutes);
 app.use('/api/bazaar', bazaarRoutes);
 app.use('/api/leads', leadRoutes);
 app.use('/api/guides', guideRoutes);
+app.use('/api/skill-sessions', skillSessionRoutes);
 
 // V2 Versioned Commission APIs
 const { adminV2Router, providerV2Router } = require('./routes/v2Routes');
@@ -105,11 +107,13 @@ const startBookingReminderCron = require('./cron/bookingReminders');
 const { startSubscriptionCheckCron } = require('./cron/subscriptionCheck');
 const { startLeadJobsCron } = require('./cron/leadJobs');
 const startBannerCronJobs = require('./cron/bannerJobs');
+const { startSkillSessionCron } = require('./cron/skillSessionJobs');
 startCronJobs();
 startBookingReminderCron();
 startSubscriptionCheckCron();
 startLeadJobsCron();
 startBannerCronJobs();
+startSkillSessionCron();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });

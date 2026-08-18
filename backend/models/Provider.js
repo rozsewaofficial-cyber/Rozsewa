@@ -215,6 +215,17 @@ const providerSchema = mongoose.Schema({
         enum: ['home', 'shop'],
         default: ['home']
     },
+    // Completed Skill Sessions. Written at exactly one place — markAttendance — so the
+    // read paths (services list, activation check) never need a join. See D7.
+    skillCertifications: [
+        {
+            categoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+            serviceKey: { type: String },
+            serviceName: { type: String },
+            sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'SkillSession' },
+            completedAt: { type: Date, default: Date.now }
+        }
+    ],
     // Partner Policy Tracking Fields
     surakshaNidhiOptIn: { type: Boolean, default: false },
     badges: [{ type: String }],

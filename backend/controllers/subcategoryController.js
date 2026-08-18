@@ -347,6 +347,13 @@ const createAdminService = async (req, res) => {
 
         const targetCatId = categoryId || subcategory.categoryId;
 
+        const skillFields = {
+            skillSessionRequired: !!req.body.skillSessionRequired,
+            sessionDurationMinutes: Number(req.body.sessionDurationMinutes) || 60,
+            sessionMode: req.body.sessionMode || 'offline',
+            skillSessionActive: req.body.skillSessionActive !== false
+        };
+
         const newService = await Service.create({
             name,
             description,
@@ -356,7 +363,8 @@ const createAdminService = async (req, res) => {
             image: image || '',
             subcategoryId: subcategory._id,
             subcategory: subcategory.name,
-            categoryId: targetCatId
+            categoryId: targetCatId,
+            ...skillFields
         });
 
         if (targetCatId) {
@@ -369,7 +377,8 @@ const createAdminService = async (req, res) => {
                         name: newService.name,
                         basePrice: newService.price || 0,
                         description: newService.description || "",
-                        image: newService.image || ""
+                        image: newService.image || "",
+                        ...skillFields
                     });
                     await cat.save();
                 }
@@ -402,6 +411,11 @@ const updateAdminService = async (req, res) => {
         if (subcategoryId) service.subcategoryId = subcategoryId;
         if (categoryId) service.categoryId = categoryId;
 
+        if (req.body.skillSessionRequired !== undefined) service.skillSessionRequired = !!req.body.skillSessionRequired;
+        if (req.body.sessionDurationMinutes !== undefined) service.sessionDurationMinutes = Number(req.body.sessionDurationMinutes) || 60;
+        if (req.body.sessionMode !== undefined) service.sessionMode = req.body.sessionMode;
+        if (req.body.skillSessionActive !== undefined) service.skillSessionActive = !!req.body.skillSessionActive;
+
         const updated = await service.save();
 
         if (updated.categoryId) {
@@ -415,6 +429,10 @@ const updateAdminService = async (req, res) => {
                     if (updated.image !== undefined) {
                         cat.services[idx].image = updated.image;
                     }
+                    cat.services[idx].skillSessionRequired = updated.skillSessionRequired;
+                    cat.services[idx].sessionDurationMinutes = updated.sessionDurationMinutes;
+                    cat.services[idx].sessionMode = updated.sessionMode;
+                    cat.services[idx].skillSessionActive = updated.skillSessionActive;
                     cat.markModified('services');
                     await cat.save();
                 }

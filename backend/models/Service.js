@@ -27,6 +27,13 @@ const serviceSchema = mongoose.Schema({
     serviceDetails: [{ type: String }],
     useCategoryLeadPrice: { type: Boolean, default: true },
     customLeadPrice: { type: Number, default: 0 },
+    // Skill Session gate — mirrored from the category catalog entry.
+    skillSessionRequired: { type: Boolean, default: false },
+    sessionDurationMinutes: { type: Number, default: 60 },
+    sessionMode: { type: String, enum: ['online', 'offline'], default: 'offline' },
+    skillSessionActive: { type: Boolean, default: true },
+    // Held until the owning Sewak completes their session; flipped by markAttendance.
+    pendingSkillSession: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now }
 }, {
     timestamps: true

@@ -307,4 +307,26 @@ router.post('/subcategories/:subcategoryId/services', protect, admin, subcategor
 router.put('/services/:id', protect, admin, subcategoryController.updateAdminService);
 router.delete('/services/:id', protect, admin, subcategoryController.deleteAdminService);
 
+// Skill Sessions — training centers, trainers, sessions & reports
+const trainingController = require('../controllers/trainingController');
+const skillSessionController = require('../controllers/skillSessionController');
+
+router.get('/training-centers', protect, admin, trainingController.getTrainingCenters);
+router.post('/training-centers', protect, admin, trainingController.createTrainingCenter);
+router.put('/training-centers/:id', protect, admin, trainingController.updateTrainingCenter);
+router.delete('/training-centers/:id', protect, admin, trainingController.deleteTrainingCenter);
+
+router.get('/trainers', protect, admin, trainingController.getTrainers);
+router.post('/trainers', protect, admin, trainingController.createTrainer);
+router.put('/trainers/:id', protect, admin, trainingController.updateTrainer);
+router.delete('/trainers/:id', protect, admin, trainingController.deleteTrainer);
+
+// `/reports` must precede `/:id`-shaped routes so it isn't captured as an id.
+router.get('/skill-sessions/reports', protect, admin, skillSessionController.getSkillSessionReports);
+router.get('/skill-sessions', protect, admin, skillSessionController.getAdminSessions);
+router.put('/skill-sessions/:id/assign', protect, admin, skillSessionController.assignSession);
+router.put('/skill-sessions/:id/meeting-link', protect, admin, skillSessionController.setMeetingLink);
+router.put('/skill-sessions/:id/attendance', protect, admin, skillSessionController.markAttendance);
+router.post('/skill-sessions/:id/re-session', protect, admin, skillSessionController.createReSession);
+
 module.exports = router;

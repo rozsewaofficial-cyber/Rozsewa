@@ -4,7 +4,13 @@ const subServiceSchema = mongoose.Schema({
     name: { type: String, required: true },
     basePrice: { type: Number, default: 0 },
     description: { type: String },
-    image: { type: String }
+    image: { type: String },
+    // Skill Session gate — a Sewak must complete training before this service goes live.
+    // `skillSessionActive` suspends the requirement without losing its config.
+    skillSessionRequired: { type: Boolean, default: false },
+    sessionDurationMinutes: { type: Number, default: 60 },
+    sessionMode: { type: String, enum: ['online', 'offline'], default: 'offline' },
+    skillSessionActive: { type: Boolean, default: true }
 });
 
 const comboTemplateSchema = mongoose.Schema({
