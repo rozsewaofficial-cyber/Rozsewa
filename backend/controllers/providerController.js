@@ -168,6 +168,215 @@ const registerProvider = async (req, res) => {
     }
 };
 
+// @desc    Register a new Sewak (same flow as Partner registration)
+// @route   POST /api/provider/register-sewak
+// @access  Public
+const registerSewak = async (req, res) => {
+    const {
+        mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
+        gst, kycAadhaar, kycAadhaarPhoto, kycAadhaarBackPhoto, kycPanNumber, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy,
+        bankDetails, isHomeVisitAvailable, is24x7
+    } = req.body;
+
+    try {
+        if (!mobile || !/^\d{10}$/.test(mobile)) {
+            return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+        }
+
+        // Check for duplicates across unique fields
+        const existingChecks = [];
+        if (mobile) existingChecks.push({ mobile });
+        if (req.body.email) existingChecks.push({ email: req.body.email });
+        if (kycAadhaar) existingChecks.push({ kycAadhaar });
+        if (kycPanNumber) existingChecks.push({ kycPanNumber });
+        if (gst) existingChecks.push({ gst });
+        if (bankDetails && bankDetails.accountNumber) existingChecks.push({ 'bankDetails.accountNumber': bankDetails.accountNumber });
+
+        if (existingChecks.length > 0) {
+            const providerExists = await Provider.findOne({ $or: existingChecks });
+            if (providerExists) {
+                if (providerExists.mobile === mobile) return res.status(400).json({ message: 'Mobile number is already registered' });
+                if (req.body.email && providerExists.email === req.body.email) return res.status(400).json({ message: 'Email is already registered' });
+                if (kycAadhaar && providerExists.kycAadhaar === kycAadhaar) return res.status(400).json({ message: 'Aadhaar number is already registered' });
+                if (kycPanNumber && providerExists.kycPanNumber === kycPanNumber) return res.status(400).json({ message: 'PAN number is already registered' });
+                if (gst && providerExists.gst === gst) return res.status(400).json({ message: 'GST number is already registered' });
+                if (bankDetails && providerExists.bankDetails && providerExists.bankDetails.accountNumber === bankDetails.accountNumber) return res.status(400).json({ message: 'Bank account number is already registered' });
+            }
+
+            const User = require('../models/User');
+            const userExistsChecks = [];
+            if (mobile) userExistsChecks.push({ mobile });
+            if (req.body.email) userExistsChecks.push({ email: req.body.email });
+            if (userExistsChecks.length > 0) {
+                const userExists = await User.findOne({ $or: userExistsChecks });
+                if (userExists) {
+                    if (userExists.mobile === mobile) return res.status(400).json({ message: 'Mobile number is already registered as a Customer' });
+                    if (req.body.email && userExists.email === req.body.email) return res.status(400).json({ message: 'Email is already registered as a Customer' });
+                }
+            }
+        }
+
+        // Generate a vendor code for Sewak (sequential, same pattern as admin-created Sewaks)
+        const lastSewak = await Provider.findOne({ vendorCode: /^RSSEW\d+$/ }).sort({ vendorCode: -1 }).lean();
+        let nextSewakNum = 1;
+        if (lastSewak) {
+            const match = lastSewak.vendorCode.match(/^RSSEW(\d+)$/);
+            if (match) nextSewakNum = parseInt(match[1], 10) + 1;
+        }
+        const vendorCode = `RSSEW${String(nextSewakNum).padStart(5, '0')}`;
+
+        // Handle referral and onboarding logic
+        let onboardedByStaff = null;
+        if (referredBy) {
+            const employee = await Employee.findOne({ ownCode: referredBy });
+            if (employee) {
+                if (employee.role === 'field_staff') {
+                    onboardedByStaff = employee.ownCode;
+                }
+
+                employee.referralCount = (employee.referralCount || 0) + 1;
+                employee.totalEarnings = (employee.totalEarnings || 0) + (employee.registrationCommission || 50);
+                await employee.save();
+            } else if (registrationType === 'vendor_referral') {
+                const referringVendor = await Provider.findOne({ vendorCode: referredBy });
+                if (referringVendor) {
+                    referringVendor.freeServicesLeft = (referringVendor.freeServicesLeft || 0) + 3;
+                    await referringVendor.save();
+                }
+            } else {
+                return res.status(400).json({ message: 'Invalid referral or staff code' });
+            }
+        }
+
+        // Prepare initial documents array from registration data
+        const initialDocs = [];
+        if (kycAadhaarPhoto) initialDocs.push({ id: 'aadhaar_front', url: kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Front.jpg' });
+        if (kycAadhaarBackPhoto) initialDocs.push({ id: 'aadhaar_back', url: kycAadhaarBackPhoto, status: 'pending', fileName: 'Aadhaar_Back.jpg' });
+        if (kycPanPhoto) initialDocs.push({ id: 'pan', url: kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' });
+        if (gst) initialDocs.push({ id: 'gst', url: gst, status: 'pending', fileName: 'GST_Registration.jpg' });
+
+        const sewak = await Provider.create({
+            mobile,
+            ownerName,
+            email,
+            shopName: shopName || `${ownerName} (Sewak)`,
+            password: password || "123456",
+            businessType,
+            vendorType,
+            subServices,
+            profileImage,
+            vendorCode,
+            address,
+            city,
+            state,
+            gst,
+            kycAadhaar,
+            kycAadhaarPhoto,
+            kycAadhaarBackPhoto,
+            kycPanNumber,
+            kycPanPhoto,
+            referralCode,
+            employeeCode,
+            registrationType: registrationType || 'individual',
+            referredBy: referredBy || null,
+            onboardedByStaff: onboardedByStaff,
+            bankDetails: bankDetails || null,
+            documents: initialDocs,
+            location: req.body.location,
+            isHomeVisitAvailable: isHomeVisitAvailable || false,
+            is24x7: is24x7 || false,
+            providerCategory: 'sewak',
+            commissionRate: 100, // 100% to Admin — Sewak earns via incentives, not commission
+            kycVerified: false,
+            isOnline: false, // Wait until verified
+            status: 'pending' // Verification required by admin
+        });
+
+        // Auto-assign category services/combos to the new Sewak (same as admin-created Sewaks)
+        if (vendorType) {
+            try {
+                const Category = require('../models/Category');
+                const Service = require('../models/Service');
+                const Combo = require('../models/Combo');
+                const category = await Category.findById(vendorType);
+                if (category && category.services && category.services.length > 0) {
+                    const masterServicesData = category.services.map(svc => ({
+                        providerId: sewak._id,
+                        name: svc.name,
+                        description: svc.description,
+                        category: category.name,
+                        price: svc.basePrice || 299,
+                        visible: true
+                    }));
+                    const createdServices = await Service.insertMany(masterServicesData);
+
+                    if (category.combos && category.combos.length > 0) {
+                        const comboDocs = category.combos.map(combo => {
+                            const serviceIds = createdServices
+                                .filter(s => combo.services.includes(s.name))
+                                .map(s => s._id);
+
+                            return {
+                                providerId: sewak._id,
+                                name: combo.name,
+                                description: combo.description,
+                                services: serviceIds,
+                                price: combo.sewakPrice || 0,
+                                image: combo.image,
+                                isActive: true
+                            };
+                        });
+                        await Combo.insertMany(comboDocs);
+                    }
+                }
+            } catch (serviceError) {
+                console.error("Failed to auto-assign services/combos to Sewak:", serviceError);
+            }
+        }
+
+        // Push Notification for Admins (New KYC Request)
+        try {
+            const User = require('../models/User');
+            const { sendNotificationToUser } = require('../config/notificationService');
+
+            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+
+            for (const admin of admins) {
+                await sendNotificationToUser(admin._id, 'admin', {
+                    title: 'New KYC Request',
+                    body: `New Sewak ${ownerName} uploaded documents. Verify now.`,
+                    data: {
+                        type: 'kyc',
+                        id: sewak._id.toString(),
+                        link: '/admin/kyc'
+                    }
+                });
+            }
+        } catch (err) {
+            console.log('Admin push notification failed (skipping):', err.message);
+        }
+
+        if (sewak) {
+            res.status(201).json({
+                _id: sewak._id,
+                ownerName: sewak.ownerName,
+                mobile: sewak.mobile,
+                shopName: sewak.shopName,
+                status: sewak.status,
+                vendorCode: sewak.vendorCode,
+                vendorType: sewak.vendorType,
+                businessType: sewak.businessType,
+                providerCategory: sewak.providerCategory,
+                token: generateToken(sewak._id),
+            });
+        } else {
+            res.status(400).json({ message: 'Invalid sewak data' });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Auth provider & get token
 // @route   POST /api/provider/login
 // @access  Public
@@ -987,6 +1196,7 @@ const reapplyKYC = async (req, res) => {
 
 module.exports = {
     registerProvider,
+    registerSewak,
     authProvider,
     getProviderProfile,
     updateProviderStatus,

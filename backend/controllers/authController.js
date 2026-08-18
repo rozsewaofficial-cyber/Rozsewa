@@ -73,19 +73,21 @@ const verifyOTP = async (req, res) => {
 // @route   POST /api/auth/register
 // @access  Public
 const registerUser = async (req, res) => {
-    const { name, email, mobile, password, role, address, city, state } = req.body;
+    const { name, mobile, password, role, address, city, state } = req.body;
+    const email = req.body.email ? req.body.email.trim().toLowerCase() : undefined;
 
     if (!mobile || !/^\d{10}$/.test(mobile)) {
         return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
     }
 
     try {
-        const userExists = await User.findOne({ $or: [{ email }, { mobile }] });
+        const existQuery = email ? { $or: [{ email }, { mobile }] } : { mobile };
+        const userExists = await User.findOne(existQuery);
         if (userExists) {
             return res.status(400).json({ message: userExists.mobile === mobile ? 'Mobile number is already registered' : 'Email is already registered' });
         }
-        
-        const providerExists = await Provider.findOne({ $or: [{ email }, { mobile }] });
+
+        const providerExists = await Provider.findOne(existQuery);
         if (providerExists) {
             return res.status(400).json({ message: providerExists.mobile === mobile ? 'Mobile number is already registered as a Provider' : 'Email is already registered as a Provider' });
         }

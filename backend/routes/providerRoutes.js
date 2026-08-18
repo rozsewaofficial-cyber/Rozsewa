@@ -3,6 +3,7 @@ const router = express.Router();
 const bannerController = require('../controllers/providerBannerController');
 const {
     registerProvider,
+    registerSewak,
     authProvider,
     getProviderProfile,
     updateProviderStatus,
@@ -27,6 +28,7 @@ const { upload, uploadVideo } = require('../config/cloudinary');
 
 // Public routes
 router.post('/register', registerProvider);
+router.post('/register-sewak', registerSewak);
 router.post('/login', authProvider);
 router.post('/verify-credentials', verifyProviderCredentials);
 router.post('/check-existence', checkProviderExistence);

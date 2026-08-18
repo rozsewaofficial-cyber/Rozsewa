@@ -94,11 +94,15 @@ const getPublicServicesBySubcategory = async (req, res) => {
 
             // If no individual Service docs found, fallback to Category's pre-defined services array
             if ((!services || services.length === 0) && catObj && catObj.services && catObj.services.length > 0) {
-                services = catObj.services.map(s => ({
+                let fallbackServices = catObj.services;
+                if (includeZeroPrice !== 'true') {
+                    fallbackServices = fallbackServices.filter(s => Number(s.basePrice) > 0);
+                }
+                services = fallbackServices.map(s => ({
                     _id: s._id || new mongoose.Types.ObjectId(),
                     name: s.name,
                     description: s.description || `Professional ${s.name} service`,
-                    price: s.basePrice || 299,
+                    price: s.basePrice || 0,
                     duration: "30 min",
                     serviceType: "home",
                     visible: true,
