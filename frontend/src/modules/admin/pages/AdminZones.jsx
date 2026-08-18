@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import { MapPin, Plus, Move, X, Save, Trash2, Loader2, Navigation } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
-import { GoogleMap, useJsApiLoader, MarkerF } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, MarkerF, Autocomplete } from "@react-google-maps/api";
 import { useScrollLock } from "@/lib/scrollLock";
 import API from "@/lib/api";
 
@@ -18,6 +18,22 @@ const AdminZones = () => {
     const [zones, setZones] = useState([]);
     const [newZone, setNewZone] = useState({ name: "", type: "Tier 1 Metro", location: center });
     const [map, setMap] = useState(null);
+    const [autocomplete, setAutocomplete] = useState(null);
+
+    const onPlaceChanged = () => {
+        if (autocomplete !== null) {
+            const place = autocomplete.getPlace();
+            if (place.geometry && place.geometry.location) {
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                setNewZone(prev => ({
+                    ...prev,
+                    name: place.name || prev.name,
+                    location: { lat, lng }
+                }));
+            }
+        }
+    };
 
     useScrollLock(showModal);
 
@@ -44,6 +60,26 @@ const AdminZones = () => {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (map && zones && zones.length > 0) {
+            const bounds = new window.google.maps.LatLngBounds();
+            let hasValidLocation = false;
+            zones.forEach(zone => {
+                if (zone.location && typeof zone.location.lat === 'number' && typeof zone.location.lng === 'number') {
+                    bounds.extend(zone.location);
+                    hasValidLocation = true;
+                }
+            });
+            if (hasValidLocation) {
+                map.fitBounds(bounds);
+                // Prevent zooming in too much if there's only one zone
+                if (zones.length === 1) {
+                    map.setZoom(11);
+                }
+            }
+        }
+    }, [map, zones]);
 
     const handleAddZone = async (e) => {
         e.preventDefault();
@@ -215,13 +251,25 @@ const AdminZones = () => {
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Zone Name</label>
-                                        <input
-                                            type="text"
-                                            value={newZone.name}
-                                            onChange={e => setNewZone({ ...newZone, name: e.target.value })}
-                                            className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition font-black"
-                                            placeholder="e.g. West Mumbai"
-                                        />
+                                        {isLoaded ? (
+                                            <Autocomplete onLoad={setAutocomplete} onPlaceChanged={onPlaceChanged}>
+                                                <input
+                                                    type="text"
+                                                    value={newZone.name}
+                                                    onChange={e => setNewZone({ ...newZone, name: e.target.value })}
+                                                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition font-black"
+                                                    placeholder="e.g. West Mumbai"
+                                                />
+                                            </Autocomplete>
+                                        ) : (
+                                            <input
+                                                type="text"
+                                                value={newZone.name}
+                                                onChange={e => setNewZone({ ...newZone, name: e.target.value })}
+                                                className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-sm focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition font-black"
+                                                placeholder="e.g. West Mumbai"
+                                            />
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Market Type</label>
