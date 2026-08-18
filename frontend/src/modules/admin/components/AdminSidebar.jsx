@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
   Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
-  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin, Recycle, FileText, Coins
+  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin, Recycle, FileText, Coins,
+  GraduationCap, Building2, UserCog
 } from "lucide-react";
 
 export const adminSidebarLinks = [
@@ -44,6 +45,9 @@ export const adminSidebarLinks = [
   { path: "/admin/feedback", label: "Feedback", icon: MessageSquare },
   { path: "/admin/support", label: "Support Tickets", icon: HelpCircle },
   { path: "/admin/services", label: "Services Catalog", icon: Briefcase },
+  { path: "/admin/skill-sessions", label: "Skill Sessions", icon: GraduationCap },
+  { path: "/admin/training-centers", label: "Training Centers", icon: Building2 },
+  { path: "/admin/trainers", label: "Trainers", icon: UserCog },
   { path: "/admin/benefit-policies", label: "Benefit Policies", icon: ShieldCheck },
   { path: "/admin/banners", label: "App Banners", icon: Image },
   { path: "/admin/provider-banners", label: "Provider Banners", icon: Megaphone },

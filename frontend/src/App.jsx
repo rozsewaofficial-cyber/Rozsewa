@@ -63,6 +63,7 @@ import ProviderForgotPassword from "./modules/provider/pages/ProviderForgotPassw
 import DigilockerCallback from "./modules/provider/pages/DigilockerCallback";
 import ProviderProfile from "./modules/provider/pages/ProviderProfile";
 import ProviderServices from "./modules/provider/pages/ProviderServices";
+import ProviderSkillSessions from "./modules/provider/pages/ProviderSkillSessions";
 import ProviderAvailability from "./modules/provider/pages/ProviderAvailability";
 import ProviderDocuments from "./modules/provider/pages/ProviderDocuments";
 import ProviderReviews from "./modules/provider/pages/ProviderReviews";
@@ -108,6 +109,9 @@ import AdminScrap from "./modules/admin/pages/AdminScrap";
 import AdminBazaar from "./modules/admin/pages/AdminBazaar";
 
 import AdminZones from "./modules/admin/pages/AdminZones";
+import AdminTrainingCenters from "./modules/admin/pages/AdminTrainingCenters";
+import AdminTrainers from "./modules/admin/pages/AdminTrainers";
+import AdminSkillSessions from "./modules/admin/pages/AdminSkillSessions";
 import AdminDispatch from "./modules/admin/pages/AdminDispatch";
 import AdminEmergency from "./modules/admin/pages/AdminEmergency";
 import AdminFinance from "./modules/admin/pages/AdminFinance";
@@ -212,6 +216,7 @@ const App = () => (
                       <Route path="/provider/staff" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderStaff /></ProtectedRoute>} />
                       <Route path="/provider/earnings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderEarnings /></ProtectedRoute>} />
                       <Route path="/provider/services" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderServices /></ProtectedRoute>} />
+                      <Route path="/provider/skill-sessions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSkillSessions /></ProtectedRoute>} />
                       <Route path="/provider/availability" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderAvailability /></ProtectedRoute>} />
                       <Route path="/provider/documents" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDocuments /></ProtectedRoute>} />
                       <Route path="/provider/reviews" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderReviews /></ProtectedRoute>} />
@@ -274,6 +279,9 @@ const App = () => (
                         <Route path="fee-settings" element={<AdminFeeSettings />} />
 
                         <Route path="zones" element={<AdminZones />} />
+                        <Route path="training-centers" element={<AdminTrainingCenters />} />
+                        <Route path="trainers" element={<AdminTrainers />} />
+                        <Route path="skill-sessions" element={<AdminSkillSessions />} />
                         <Route path="dispatch" element={<AdminDispatch />} />
                         <Route path="emergency" element={<AdminEmergency />} />
                         <Route path="finance" element={<AdminFinance />} />

@@ -903,10 +903,15 @@ const SewakRegister = () => {
                         <span className={`text-[13px] font-bold tracking-tight ${formData.subServices.includes(s.name) ? 'text-emerald-900' : 'text-slate-800'}`}>
                           {s.name}
                         </span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                             Starting ₹{s.basePrice}
                           </span>
+                          {s.skillSessionRequired && s.skillSessionActive !== false && (
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                              Skill Session required
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all shadow-sm ${formData.subServices.includes(s.name)

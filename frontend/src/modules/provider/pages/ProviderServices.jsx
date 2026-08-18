@@ -47,6 +47,11 @@ const ProviderServices = () => {
 
   const { user } = useAuth();
 
+  // Services the backend flagged as locked behind an incomplete Skill Session.
+  const skillGated = [...services, ...categoryServices].filter(
+    (s, i, arr) => s?.locked && arr.findIndex(x => x.name === s.name) === i
+  );
+
   useEffect(() => {
     fetchProviderInfoAndServices();
   }, [user]);
@@ -341,6 +346,33 @@ const ProviderServices = () => {
           <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : (
           <>
+            {/* Skill Session gate — services held until training is complete */}
+            {skillGated.length > 0 && !showForm && !showComboForm && (
+              <motion.button
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => navigate("/provider/skill-sessions")}
+                className="mb-6 w-full flex items-center gap-3 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-4 text-left hover:border-amber-300 transition-colors"
+              >
+                <div className="rounded-xl bg-white dark:bg-amber-950/60 p-2.5 shrink-0">
+                  <Zap className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                    Skill Session Required
+                  </p>
+                  <p className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                    {skillGated.length} service{skillGated.length === 1 ? "" : "s"} waiting on training:{" "}
+                    {skillGated.map(s => s.name).slice(0, 2).join(", ")}
+                    {skillGated.length > 2 ? ` +${skillGated.length - 2} more` : ""}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white">
+                  Book
+                </span>
+              </motion.button>
+            )}
+
             {/* Suggested Services Catalog */}
             {categoryServices.length > 0 && !showForm && !showComboForm && activeTab === "services" && user?.providerCategory !== 'sewak' && (
               <section className="space-y-4 mb-8">

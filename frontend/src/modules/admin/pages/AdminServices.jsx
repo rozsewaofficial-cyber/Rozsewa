@@ -79,7 +79,7 @@ const AdminServices = () => {
     const [savingEmbedded, setSavingEmbedded] = useState(false);
     const [showEmbeddedModal, setShowEmbeddedModal] = useState(false);
     const [editingEmbedded, setEditingEmbedded] = useState(null); // null = new
-    const [embeddedForm, setEmbeddedForm] = useState({ name: "", description: "", basePrice: 0 });
+    const [embeddedForm, setEmbeddedForm] = useState({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true });
 
     useScrollLock(showModal || showSubModal || showServiceModal || showEmbeddedModal);
 
@@ -305,7 +305,7 @@ const AdminServices = () => {
         await saveEmbeddedToServer(updated);
         setShowEmbeddedModal(false);
         setEditingEmbedded(null);
-        setEmbeddedForm({ name: "", description: "", basePrice: 0 });
+        setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true });
     };
 
     const deleteEmbeddedService = async (svc) => {
@@ -353,7 +353,7 @@ const AdminServices = () => {
                         <button
                             onClick={() => {
                                 setEditingEmbedded(null);
-                                setEmbeddedForm({ name: "", description: "", basePrice: 0 });
+                                setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true });
                                 setShowEmbeddedModal(true);
                             }}
                             className="flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-violet-700 transition-all active:scale-95"
@@ -710,7 +710,7 @@ const AdminServices = () => {
                             <Sparkles className="h-8 w-8 text-gray-300 mx-auto mb-3" />
                             <p className="text-xs font-bold text-gray-400">No base services in this category.</p>
                             <button
-                                onClick={() => { setEditingEmbedded(null); setEmbeddedForm({ name: "", description: "", basePrice: 0 }); setShowEmbeddedModal(true); }}
+                                onClick={() => { setEditingEmbedded(null); setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true }); setShowEmbeddedModal(true); }}
                                 className="mt-3 text-xs font-bold text-violet-600 hover:underline"
                             >+ Add First Base Service</button>
                         </div>
@@ -725,14 +725,30 @@ const AdminServices = () => {
                                         <div>
                                             <h4 className="text-sm font-bold text-gray-900">{svc.name}</h4>
                                             <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{svc.description || "No description"}</p>
-                                            <span className="mt-1 inline-block text-[11px] font-black text-violet-600">₹{svc.basePrice || 0}</span>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                <span className="text-[11px] font-black text-violet-600">₹{svc.basePrice || 0}</span>
+                                                {svc.skillSessionRequired && (
+                                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${svc.skillSessionActive !== false ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-400"}`}>
+                                                        Skill Session · {svc.sessionMode || "offline"}
+                                                        {svc.skillSessionActive === false && " · paused"}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <button
                                             onClick={() => {
                                                 setEditingEmbedded(svc);
-                                                setEmbeddedForm({ name: svc.name, description: svc.description || "", basePrice: svc.basePrice || 0 });
+                                                setEmbeddedForm({
+                                                    name: svc.name,
+                                                    description: svc.description || "",
+                                                    basePrice: svc.basePrice || 0,
+                                                    skillSessionRequired: !!svc.skillSessionRequired,
+                                                    sessionDurationMinutes: svc.sessionDurationMinutes ?? 60,
+                                                    sessionMode: svc.sessionMode || "offline",
+                                                    skillSessionActive: svc.skillSessionActive !== false
+                                                });
                                                 setShowEmbeddedModal(true);
                                             }}
                                             className="p-2 text-gray-400 hover:text-violet-600 rounded-lg hover:bg-violet-50 transition-colors"
@@ -916,6 +932,58 @@ const AdminServices = () => {
                                     <InputField label="Base Price (₹)">
                                         <input type="number" min="0" value={embeddedForm.basePrice} onChange={e => setEmbeddedForm({ ...embeddedForm, basePrice: Number(e.target.value) })} className={inputCls} required />
                                     </InputField>
+
+                                    {/* Skill Session gate — a Sewak must train before this service goes live */}
+                                    <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={!!embeddedForm.skillSessionRequired}
+                                                onChange={e => setEmbeddedForm({ ...embeddedForm, skillSessionRequired: e.target.checked })}
+                                                className="h-4 w-4 accent-violet-600"
+                                            />
+                                            <span className="text-xs font-black uppercase tracking-wider text-gray-700">Skill Session Required</span>
+                                        </label>
+
+                                        {embeddedForm.skillSessionRequired && (
+                                            <div className="space-y-3 pt-1">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <InputField label="Session Duration (min)">
+                                                        <input
+                                                            type="number"
+                                                            min="15"
+                                                            step="15"
+                                                            value={embeddedForm.sessionDurationMinutes ?? 60}
+                                                            onChange={e => setEmbeddedForm({ ...embeddedForm, sessionDurationMinutes: Number(e.target.value) })}
+                                                            className={inputCls}
+                                                        />
+                                                    </InputField>
+                                                    <InputField label="Mode">
+                                                        <select
+                                                            value={embeddedForm.sessionMode || 'offline'}
+                                                            onChange={e => setEmbeddedForm({ ...embeddedForm, sessionMode: e.target.value })}
+                                                            className={inputCls}
+                                                        >
+                                                            <option value="offline">Offline</option>
+                                                            <option value="online">Online</option>
+                                                        </select>
+                                                    </InputField>
+                                                </div>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={embeddedForm.skillSessionActive !== false}
+                                                        onChange={e => setEmbeddedForm({ ...embeddedForm, skillSessionActive: e.target.checked })}
+                                                        className="h-4 w-4 accent-violet-600"
+                                                    />
+                                                    <span className="text-xs font-bold text-gray-600">
+                                                        Active — turn off to suspend the requirement without losing this setup
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="flex gap-3 pt-2">
                                         <button type="button" onClick={() => setShowEmbeddedModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500 hover:bg-gray-50">Cancel</button>
                                         <button type="submit" disabled={savingEmbedded} className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-bold text-xs hover:bg-violet-700 disabled:opacity-60 flex items-center justify-center gap-2">
