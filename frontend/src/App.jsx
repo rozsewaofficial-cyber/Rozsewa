@@ -58,6 +58,7 @@ import ProviderStaff from "./modules/provider/pages/ProviderStaff";
 import ProviderEarnings from "./modules/provider/pages/ProviderEarnings";
 import ProviderLogin from "./modules/provider/pages/ProviderLogin";
 import ProviderRegister from "./modules/provider/pages/ProviderRegister";
+import SewakRegister from "./modules/provider/pages/SewakRegister";
 import ProviderForgotPassword from "./modules/provider/pages/ProviderForgotPassword";
 import DigilockerCallback from "./modules/provider/pages/DigilockerCallback";
 import ProviderProfile from "./modules/provider/pages/ProviderProfile";
@@ -202,6 +203,7 @@ const App = () => (
                       <Route path="/provider" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDashboard /></ProtectedRoute>} />
                       {/* Provider Routes (Standalone outside layout) */}
                       <Route path="/provider/register" element={<ProviderRegister />} />
+                      <Route path="/sewak/register" element={<SewakRegister />} />
                       <Route path="/provider/login" element={<ProviderLogin />} />
                       <Route path="/provider/forgot-password" element={<ProviderForgotPassword />} />
                       <Route path="/digilocker/callback" element={<DigilockerCallback />} />

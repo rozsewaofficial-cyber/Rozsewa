@@ -427,6 +427,8 @@ const LeadRequirementForm = () => {
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState("");
   const [loadingSubcategories, setLoadingSubcategories] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [subServices, setSubServices] = useState([]);
+  const [loadingSubServices, setLoadingSubServices] = useState(false);
   const [loading, setLoading] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -477,6 +479,32 @@ const LeadRequirementForm = () => {
 
     fetchSubcategories();
   }, [selectedCategoryId, categories]);
+
+  // Fetch real services tied to the selected subcategory (lead categories price
+  // the lead itself, so zero-priced services must still be included).
+  useEffect(() => {
+    setSelectedServiceId("");
+    setSubServices([]);
+
+    if (!selectedSubcategoryId) return;
+
+    const fetchSubServices = async () => {
+      setLoadingSubServices(true);
+      try {
+        const { data } = await API.get(`/public/subcategories/${selectedSubcategoryId}/services`, {
+          params: { includeZeroPrice: 'true', categoryId: selectedCategoryId }
+        });
+        setSubServices(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("[LeadRequirementForm] Failed to fetch sub-services:", err);
+        setSubServices([]);
+      } finally {
+        setLoadingSubServices(false);
+      }
+    };
+
+    fetchSubServices();
+  }, [selectedSubcategoryId, selectedCategoryId]);
 
   // Scroll to top on mount or when category/service changes
   useEffect(() => {
@@ -1493,40 +1521,26 @@ const LeadRequirementForm = () => {
               </div>
             ) : null}
 
-            {/* Sub-services picker if active services present */}
-            {(() => {
-              const selectedCategory = categories.find(c => c._id === selectedCategoryId);
-              let activeServices = (selectedCategory?.services || []).filter(s => Number(s.basePrice) > 0 || Number(s.price) > 0);
-              
-              if (selectedSubcategoryId && activeServices.length > 0) {
-                const subObj = subcategories.find(s => s._id === selectedSubcategoryId || s.name === selectedSubcategoryId);
-                const subName = subObj?.name?.toLowerCase() || '';
-                const filteredBySub = activeServices.filter(s => 
-                  s.subcategoryId === selectedSubcategoryId || 
-                  (s.subcategory && s.subcategory.toLowerCase() === subName) ||
-                  (s.name && s.name.toLowerCase().includes(subName))
-                );
-                if (filteredBySub.length > 0) {
-                  activeServices = filteredBySub;
-                }
-              }
-
-              if (!activeServices.length) return null;
-              return (
-                <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Select Specific Sub-Service *
-                  </label>
-                  <CustomSelect
-                    required
-                    value={selectedServiceId}
-                    onChange={setSelectedServiceId}
-                    placeholder="— Select Specific Sub-Service —"
-                    options={activeServices.map(srv => ({ value: srv._id, label: srv.name }))}
-                  />
-                </div>
-              );
-            })()}
+            {/* Sub-services picker if the selected subcategory has services */}
+            {loadingSubServices ? (
+              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 text-xs font-bold text-slate-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                <span>Loading available services...</span>
+              </div>
+            ) : subServices.length > 0 ? (
+              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Select Specific Sub-Service *
+                </label>
+                <CustomSelect
+                  required
+                  value={selectedServiceId}
+                  onChange={setSelectedServiceId}
+                  placeholder="— Select Specific Sub-Service —"
+                  options={subServices.map(srv => ({ value: srv._id, label: srv.name }))}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 

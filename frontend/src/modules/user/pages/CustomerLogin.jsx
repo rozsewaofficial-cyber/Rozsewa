@@ -182,7 +182,7 @@ const CustomerLogin = () => {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    if (!name || !email || !password || !phone) {
+    if (!name || !password || !phone) {
       setError("Fill all fields");
       return;
     }
@@ -201,7 +201,7 @@ const CustomerLogin = () => {
       return;
     }
 
-    if (!validateEmail(email)) {
+    if (email && !validateEmail(email)) {
       setError("Please enter a valid email address.");
       return;
     }
@@ -375,7 +375,7 @@ const CustomerLogin = () => {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
-                      Email
+                      Email <span className="normal-case font-medium text-muted-foreground">(Optional)</span>
                     </label>
                     <input
                       type="email"

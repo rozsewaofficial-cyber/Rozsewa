@@ -283,14 +283,20 @@ const ProviderLogin = () => {
             </div>
 
             {loginType === 'sewak' && (
-              <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+              <div className="mt-4 pt-4 border-t border-slate-100 text-center space-y-2">
                 <p className="text-xs font-bold text-slate-500 mb-2">Want to become a Sewak?</p>
+                <Link
+                  to="/sewak/register"
+                  className="block text-sm font-black text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Register Now
+                </Link>
                 <button
                   type="button"
                   onClick={() => setShowEnquiryModal(true)}
-                  className="text-sm font-black text-blue-600 hover:text-blue-700 hover:underline"
+                  className="text-xs font-bold text-slate-400 hover:text-slate-600 hover:underline"
                 >
-                  Send Enquiry
+                  Or Send an Enquiry Instead
                 </button>
               </div>
             )}

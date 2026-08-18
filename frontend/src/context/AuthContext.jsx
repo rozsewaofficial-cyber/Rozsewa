@@ -436,7 +436,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (userData, type = 'customer') => {
     try {
-      const endpoint = type === 'provider' ? "/provider/register" : "/auth/register";
+      const endpoint = type === 'provider' ? "/provider/register" : type === 'sewak' ? "/provider/register-sewak" : "/auth/register";
       const { data } = await API.post(endpoint, userData);
       setAuth({ ...data, role: type });
 

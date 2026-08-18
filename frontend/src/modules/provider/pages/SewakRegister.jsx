@@ -1,0 +1,1562 @@
+import { useState, useEffect, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import * as LucideIcons from "lucide-react";
+import {
+  Store, User, Phone, MapPin, Briefcase, ArrowRight, ArrowLeft, Loader2,
+  ShieldCheck, Gift, CheckCircle, Navigation, Clock,
+  Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Upload, Image as ImageIcon, ChevronRight, X, Building2,
+  Layers, Sparkles, Map, Heart, Smartphone, Lock, Eye, EyeOff
+} from "lucide-react";
+import logoImg from "@/assets/RozSewa.png";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import API from "@/lib/api";
+import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
+import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
+import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
+
+const businessModels = [
+  { id: 'shop', label: 'Retail & Shops', icon: Store, description: 'Traditional brick & mortar outlets' },
+  { id: 'service_provider', label: 'Service Expert', icon: Sparkles, description: 'Independent professionals' },
+  { id: 'taxi', label: 'Logistics / Taxi', icon: Car, description: 'Fleet and transport services' },
+  { id: 'hotel', label: 'Hospitality', icon: Building, description: 'Hotels, PG and long stays' },
+  { id: 'tutor_doc', label: 'Medical / Tutor', icon: GraduationCap, description: 'Professional consultations' },
+  { id: 'property_dealer', label: 'Real Estate', icon: Home, description: 'Brokers and dealers' },
+  { id: 'food', label: 'Dining / Food', icon: Utensils, description: 'Cafes and home kitchens' },
+  { id: 'labour', label: 'Skilled Labour', icon: HardHat, description: 'Contractors and teams' },
+  { id: 'delivery', label: 'Direct Delivery', icon: Truck, description: 'Local courier experts' },
+];
+
+const SewakRegister = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { signup } = useAuth();
+  const [step, setStep] = useState(() => {
+    const saved = sessionStorage.getItem("sewakRegStep");
+    return saved ? parseInt(saved, 10) : 1;
+  });
+
+  useEffect(() => {
+    if (step === 9) {
+      sessionStorage.removeItem("sewakRegStep");
+      sessionStorage.removeItem("sewakRegData");
+      sessionStorage.removeItem("sewakRegStatus");
+    } else {
+      sessionStorage.setItem("sewakRegStep", step.toString());
+    }
+  }, [step]);
+  const [coords, setCoords] = useState([0, 0]);
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const videoRef = useRef(null);
+
+  const [categories, setCategories] = useState([]);
+  const [fetchingCats, setFetchingCats] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [formData, setFormData] = useState(() => {
+    const saved = sessionStorage.getItem("sewakRegData");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      mobile: "",
+      otp: "",
+      businessType: "",
+      vendorType: "", // Category ID
+      subServices: [],
+      ownerName: "",
+      email: "",
+      shopName: "",
+      gst: "",
+      kycAadhaar: "",
+      kycAadhaarPhoto: "",
+      kycAadhaarBackPhoto: "",
+      kycPanNumber: "",
+      kycPanPhoto: "",
+      profileImage: "",
+      serviceRadius: "5",
+      serviceModes: ["home"],
+      registrationType: "individual",
+      referredBy: "",
+      address: "",
+      city: "",
+      state: "",
+      password: "",
+      confirmPassword: "",
+      bankDetails: {
+        accountNumber: "",
+        ifscCode: "",
+        bankName: "",
+        accountHolderName: "",
+      }
+    };
+  });
+
+  useEffect(() => {
+    if (step !== 9) {
+      sessionStorage.setItem("sewakRegData", JSON.stringify(formData));
+    }
+  }, [formData, step]);
+
+  const [verificationStatus, setVerificationStatus] = useState(() => {
+    const saved = sessionStorage.getItem("sewakRegStatus");
+    if (saved) {
+      try { return JSON.parse(saved); } catch(e) {}
+    }
+    return {
+      aadhaar: false,
+      pan: false,
+      gst: false,
+      bank: false,
+      email: false
+    };
+  });
+
+  useEffect(() => {
+    if (step !== 9) {
+      sessionStorage.setItem("sewakRegStatus", JSON.stringify(verificationStatus));
+    }
+  }, [verificationStatus, step]);
+  const [emailOtp, setEmailOtp] = useState("");
+  const [showEmailOtpField, setShowEmailOtpField] = useState(false);
+  const [verifying, setVerifying] = useState({ aadhaar: false, pan: false, gst: false, bank: false, email: false });
+  const [aadhaarSessionId, setAadhaarSessionId] = useState("");
+  const [aadhaarOtp, setAadhaarOtp] = useState("");
+
+  const formDataRef = useRef(formData);
+  const coordsRef = useRef(coords);
+
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
+  useEffect(() => {
+    coordsRef.current = coords;
+  }, [coords]);
+
+  const [referredByName, setReferredByName] = useState("");
+  const [verifyingReferral, setVerifyingReferral] = useState(false);
+
+  useEffect(() => {
+    const verifyCode = async () => {
+      if (formData.referredBy && formData.referredBy.length >= 5) {
+        setVerifyingReferral(true);
+        try {
+          const { data } = await API.get(`/public/verify-referral/${formData.referredBy}`);
+          setReferredByName(data.name);
+        } catch (err) {
+          setReferredByName("");
+        } finally {
+          setVerifyingReferral(false);
+        }
+      } else {
+        setReferredByName("");
+      }
+    };
+
+    const timer = setTimeout(verifyCode, 600);
+    return () => clearTimeout(timer);
+  }, [formData.referredBy]);
+
+  const [generatedCode, setGeneratedCode] = useState("");
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    setFetchingCats(true);
+    try {
+      const { data } = await API.get("/provider/categories");
+      setCategories(data);
+    } catch (err) {
+      console.error("Failed to fetch categories:", err);
+    } finally {
+      setFetchingCats(false);
+    }
+  };
+
+  const fetchLocation = () => {
+    if ("geolocation" in navigator) {
+      setIsFetchingLocation(true);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+            const data = await response.json();
+            if (data && data.address) {
+              const addr = data.address || {};
+              const fullAddress = data.display_name;
+
+              setCoords([longitude, latitude]);
+              setFormData(prev => ({
+                ...prev,
+                address: fullAddress,
+                city: addr.city || addr.town || addr.village || addr.county || "",
+                state: addr.state || ""
+              }));
+            }
+          } catch (err) {
+            console.error("Error fetching address:", err);
+          } finally {
+            setIsFetchingLocation(false);
+          }
+        },
+        () => {
+          setIsFetchingLocation(false);
+          toast({ title: "Location Error", description: "Enable location permissions.", variant: "destructive" });
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+  };
+
+  const handleFileUpload = async (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const upData = new FormData();
+    upData.append("image", file);
+    setUploadingDoc(type);
+    try {
+      const { data } = await API.post("/upload", upData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      setFormData(prev => ({ ...prev, [type]: data.url }));
+      toast({ title: "Photo Uploaded" });
+    } catch (err) {
+      const msg = err.response?.data?.message || "Upload Failed";
+      toast({ title: msg, variant: "destructive" });
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      setCameraStream(stream);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+      setIsCameraOpen(true);
+    } catch (err) {
+      toast({ title: "Camera Error", description: "Could not access camera. Please check permissions.", variant: "destructive" });
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraOpen(false);
+  };
+
+  const dataURLtoFile = (dataurl, filename) => {
+    let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+      bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg");
+
+    const file = dataURLtoFile(dataUrl, "selfie.jpg");
+    uploadSelfie(file);
+
+    stopCamera();
+  };
+
+  const uploadSelfie = async (file) => {
+    const upData = new FormData();
+    upData.append("image", file);
+    setUploadingDoc('profileImage');
+    try {
+      const { data } = await API.post("/upload", upData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      setFormData(prev => ({ ...prev, profileImage: data.url }));
+      toast({ title: "Photo Captured & Uploaded" });
+    } catch {
+      toast({ title: "Upload Failed", variant: "destructive" });
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
+
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    const phoneValidation = validatePhone(formData.mobile);
+    if (!phoneValidation.isValid) {
+      toast({ title: "Invalid Number", description: phoneValidation.message, variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data: existData } = await API.post("/provider/check-existence", { mobile: formData.mobile });
+      if (existData.exists) {
+        toast({ title: "Already Registered", description: existData.message || "Use another number or login.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
+      const { data } = await API.post("/auth/send-otp", { mobile: formData.mobile });
+      if (data.success) {
+        setOtpSent(true);
+        setOtpTimer(30);
+        toast({ title: "OTP Sent", description: "Identity verification code sent." });
+      }
+    } catch (err) {
+      toast({ title: "Failed to send OTP", description: err.response?.data?.message || "Error", variant: "destructive" });
+    }
+    finally { setIsLoading(false); }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!formData.otp) return;
+
+    setIsLoading(true);
+    try {
+      const { data } = await API.post("/auth/verify-otp", {
+        mobile: formData.mobile,
+        otp: formData.otp
+      });
+
+      if (data.success) {
+        setStep(2);
+        toast({ title: "Mobile Verified", description: "You can now proceed with business details." });
+      }
+    } catch (err) {
+      toast({ title: "Invalid OTP", description: "Please enter the correct verification code.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const currentCategory = categories.find(c => c._id === formData.vendorType);
+
+  const toggleSubService = (service) => {
+    setFormData(prev => ({
+      ...prev,
+      subServices: prev.subServices.includes(service)
+        ? prev.subServices.filter(s => s !== service)
+        : [...prev.subServices, service]
+    }));
+  };
+
+  const handleSendEmailOtp = async () => {
+    if (!formData.email || !validateEmail(formData.email)) {
+      return toast({ title: "Invalid Email", description: "Please enter a valid email.", variant: "destructive" });
+    }
+    setVerifying(prev => ({ ...prev, email: true }));
+    try {
+      const { data } = await API.post("/auth/send-email-otp", { email: formData.email });
+      if (data.success) {
+        toast({ title: "OTP Sent", description: "Email OTP sent successfully." });
+        setShowEmailOtpField(true);
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || "Failed to send OTP", variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, email: false }));
+    }
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    if (!emailOtp || emailOtp.length !== 6) {
+      return toast({ title: "Invalid OTP", description: "Please enter a 6-digit OTP.", variant: "destructive" });
+    }
+    setVerifying(prev => ({ ...prev, email: true }));
+    try {
+      const { data } = await API.post("/auth/verify-email-otp", { email: formData.email, otp: emailOtp });
+      if (data.success) {
+        toast({ title: "Verified", description: "Email verified successfully." });
+        setVerificationStatus(prev => ({ ...prev, email: true }));
+        setShowEmailOtpField(false);
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || "Invalid OTP", variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, email: false }));
+    }
+  };
+
+  const handleVerifyPAN = async () => {
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) {
+      return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
+    }
+    setVerifying(prev => ({ ...prev, pan: true }));
+    try {
+      const { data } = await API.post("/verify/pan", { pan: formData.kycPanNumber });
+      if (data.status === "VERIFIED" || data.success) {
+        setVerificationStatus(prev => ({ ...prev, pan: true }));
+        if (data.data && data.data.name && !formData.ownerName) {
+           setFormData(prev => ({ ...prev, ownerName: data.data.name }));
+        }
+        toast({ title: "PAN Verified", description: "PAN verified successfully." });
+      } else {
+        toast({ title: "Verification Failed", description: "PAN verification failed.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, pan: false }));
+    }
+  };
+
+  const handleVerifyGST = async () => {
+    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+    if (!formData.gst || !gstRegex.test(formData.gst)) {
+      return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number (e.g., 22AAAAA0000A1Z5).", variant: "destructive" });
+    }
+    setVerifying(prev => ({ ...prev, gst: true }));
+    try {
+      const { data } = await API.post("/verify/gst", { gstNumber: formData.gst });
+      if (data?.status === "VERIFIED" || data?.success) {
+        setVerificationStatus(prev => ({ ...prev, gst: true }));
+        if (data?.data?.businessName && !formData.shopName) {
+           setFormData(prev => ({ ...prev, shopName: data.data.businessName }));
+        }
+        toast({ title: "GST Verified", description: "GST details fetched successfully." });
+      } else {
+        toast({ title: "Verification Failed", description: "GST verification failed.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, gst: false }));
+    }
+  };
+
+  const handleVerifyBank = async () => {
+    const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
+    if (!accountNumber || !ifscCode || !accountHolderName) {
+      return toast({ title: "Incomplete Details", description: "Please enter Account Number, IFSC, and Holder Name.", variant: "destructive" });
+    }
+    const sanitizedHolderName = sanitizeName(accountHolderName);
+    const nameValidation = validateName(sanitizedHolderName);
+    if (!nameValidation.isValid) {
+      return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+    }
+    setFormData(prev => ({
+      ...prev,
+      bankDetails: { ...prev.bankDetails, accountHolderName: sanitizedHolderName }
+    }));
+
+    setVerifying(prev => ({ ...prev, bank: true }));
+    try {
+      const { data } = await API.post("/verify/bank", {
+        accountNumber,
+        ifscCode,
+        beneficiaryName: sanitizedHolderName
+      });
+      if (data.status === "VERIFIED" || data.success) {
+        setVerificationStatus(prev => ({ ...prev, bank: true }));
+        toast({ title: "Bank Verified", description: "Penny drop successful." });
+      } else {
+        toast({ title: "Verification Failed", description: "Bank verification failed.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, bank: false }));
+    }
+  };
+
+  const handleInitiateOKYC = async () => {
+    if (!formData.kycAadhaar || formData.kycAadhaar.length !== 12) {
+      return toast({ title: "Invalid Aadhaar", description: "Please enter your 12-digit Aadhaar number first.", variant: "destructive" });
+    }
+
+    setVerifying(prev => ({ ...prev, aadhaar: true }));
+    try {
+      const { data } = await API.post("/verify/okyc/initiate", {
+        aadhaarNumber: formData.kycAadhaar
+      });
+
+      if (data.success || data.status === "OTP_SENT") {
+        const sid = data.data?.sessionId || data.sessionId;
+        if (sid) {
+           setAadhaarSessionId(sid);
+           toast({ title: "OTP Sent", description: data.data?.message || "Aadhaar OTP sent successfully." });
+        } else {
+           toast({ title: "Error", description: "Session ID not received from provider.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Failed", description: data.message || "Failed to initiate Aadhaar OKYC.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, aadhaar: false }));
+    }
+  };
+
+  const handleVerifyOKYC = async () => {
+    if (!aadhaarOtp || aadhaarOtp.length < 6) {
+      return toast({ title: "Invalid OTP", description: "Please enter a valid OTP.", variant: "destructive" });
+    }
+
+    setVerifying(prev => ({ ...prev, aadhaar: true }));
+    try {
+      const { data } = await API.post("/verify/okyc/verify", {
+        sessionId: aadhaarSessionId,
+        otp: aadhaarOtp,
+        aadhaarNumber: formData.kycAadhaar
+      });
+
+      if (data.success || data.status === "VERIFIED") {
+        setVerificationStatus(prev => ({ ...prev, aadhaar: true }));
+        setAadhaarSessionId("");
+        setAadhaarOtp("");
+        toast({ title: "Aadhaar Verified", description: "Aadhaar verified successfully." });
+      } else {
+        toast({ title: "Failed", description: data.message || "Failed to verify Aadhaar OTP.", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setVerifying(prev => ({ ...prev, aadhaar: false }));
+    }
+  };
+
+  const finalizeSignupDirectly = async () => {
+    setIsLoading(true);
+    try {
+      const finalData = {
+        ...formDataRef.current,
+        location: { type: 'Point', coordinates: coordsRef.current }
+      };
+      const signupRes = await signup(finalData, 'sewak');
+      if (signupRes.success) {
+        setGeneratedCode(signupRes.data.vendorCode);
+        setStep(9);
+      } else {
+        toast({
+          title: "Signup Failed",
+          description: signupRes.error,
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBankSubmit = async (e) => {
+    e.preventDefault();
+    const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
+    const sanitizedHolderName = sanitizeName(accountHolderName);
+    const nameValidation = validateName(sanitizedHolderName);
+    if (!nameValidation.isValid) return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+    if (sanitizedHolderName.length < 3) return toast({ title: "Invalid Name", description: "Account holder name must be at least 3 characters.", variant: "destructive" });
+    setFormData(prev => ({
+      ...prev,
+      bankDetails: { ...prev.bankDetails, accountHolderName: sanitizedHolderName }
+    }));
+
+    if (!/^\d{11,17}$/.test(accountNumber)) return toast({ title: "Invalid Account Number", description: "Account number must be between 11 and 17 digits.", variant: "destructive" });
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return toast({ title: "Invalid IFSC", description: "Please enter a valid 11-character IFSC code.", variant: "destructive" });
+
+    if (!verificationStatus.bank) return toast({ title: "Verification Required", description: "Please verify your bank account to continue.", variant: "destructive" });
+
+    await finalizeSignupDirectly();
+  };
+
+  const stepTitles = [
+    "Verify Mobile", "Business Type", "Select Industry", "Add Services",
+    "Sewak Profile", "Identity Photo", "Referral", "Bank Details", "Success"
+  ];
+
+  return (
+    <div className="flex min-h-[100dvh] flex-col items-center bg-[#f0f9f6] relative overflow-y-auto overflow-x-hidden px-4 py-8 md:py-12">
+      {/* Decorative Accents */}
+      <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-100/30 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[50%] h-[50%] bg-teal-100/30 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="w-full max-w-xl space-y-6 my-8 md:my-auto">
+        <div className="text-center space-y-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="mx-auto flex h-20 w-40 items-center justify-center rounded-[24px] bg-white p-3 shadow-xl shadow-emerald-500/5 border border-slate-50"
+          >
+            <img
+              src={logoImg}
+              alt="RozSewa Logo"
+              className="h-full w-full object-contain"
+            />
+          </motion.div>
+
+          <div className="space-y-1">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-900">{stepTitles[step - 1]}</h2>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
+                {step < 9 ? `Step ${step} of 8` : 'Completed'}
+              </span>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="max-w-[240px] mx-auto h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${(step / 9) * 100}%` }}
+              className="h-full bg-emerald-500 rounded-full"
+            />
+          </div>
+        </div>
+
+        <motion.div
+          layout
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative rounded-[2rem] border border-slate-100 bg-white p-6 md:p-8 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.05)] overflow-hidden"
+        >
+          <AnimatePresence mode="wait">
+            {step === 1 && (
+              <motion.div
+                key="s1"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800">Verify your mobile</h3>
+                  <p className="text-sm text-slate-500">We will send a code to confirm your registration.</p>
+                </div>
+
+                <form onSubmit={handleSendOtp} className="space-y-6">
+                  <div className="space-y-3">
+                    <label className="text-xs font-bold text-slate-700 ml-1 uppercase tracking-wider">Mobile Number</label>
+                    <div className="relative group">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors">
+                        <Smartphone className="h-5 w-5" />
+                      </div>
+                      <input
+                        type="tel"
+                        required
+                        value={formData.mobile}
+                        onChange={e => setFormData({ ...formData, mobile: sanitizePhone(e.target.value) })}
+                        maxLength="10"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-4 font-semibold text-base tracking-widest text-slate-900 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 transition-all outline-none placeholder:text-slate-300"
+                        placeholder="00000 00000"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || otpSent}
+                    className="w-full group mt-4 h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-3 overflow-hidden relative"
+                  >
+                    <AnimatePresence mode="wait">
+                      {(isLoading && !otpSent) ? (
+                        <motion.div key="loader" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        </motion.div>
+                      ) : (
+                        <motion.div key="text" className="flex items-center gap-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                          <span>{otpSent ? "Code Sent" : "Send Code"}</span>
+                          {!otpSent && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </button>
+                </form>
+
+                {otpSent && (
+                  <motion.form
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    onSubmit={handleVerifyOtp}
+                    className="space-y-6 pt-8 border-t border-slate-100"
+                  >
+                    <div className="space-y-3">
+                      <label className="text-xs font-bold text-slate-700 text-center block uppercase tracking-wider">Authentication Code</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="one-time-code"
+                        required
+                        value={formData.otp}
+                        onChange={e => setFormData({ ...formData, otp: e.target.value.replace(/\D/g, '') })}
+                        maxLength="6"
+                        className="w-full text-center tracking-[0.4em] rounded-lg border border-emerald-500 bg-white py-2.5 text-xl font-bold text-slate-900 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all placeholder:text-slate-200"
+                        placeholder="••••••"
+                      />
+                      <div className="flex justify-between items-center px-1">
+                        <span className="text-[10px] font-bold text-slate-500">Didn't receive the code?</span>
+                        {otpTimer > 0 ? (
+                          <span className="text-[10px] font-bold text-slate-400">Resend in {otpTimer}s</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSendOtp}
+                            disabled={isLoading}
+                            className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors disabled:opacity-50"
+                          >
+                            Resend Code
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <button type="submit" disabled={isLoading} className="w-full h-12 rounded-lg border-2 border-emerald-500 text-emerald-600 font-bold hover:bg-emerald-50 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2">
+                      {(isLoading && otpSent) ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
+                      {(isLoading && otpSent) ? "Verifying..." : "Verify Security Code"}
+                    </button>
+                  </motion.form>
+                )}
+              </motion.div>
+            )}
+
+            {step === 2 && (
+              <motion.div
+                key="s2"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800">Business Model</h3>
+                  <p className="text-sm text-slate-500">How would you like to operate your business?</p>
+                  <div className="space-y-4">
+                    <div className="flex border border-slate-100 rounded-lg p-1 bg-slate-50/50">
+                      {['Individual', 'Business'].map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setFormData({ ...formData, type: type.toLowerCase(), shopName: type === 'Individual' ? "" : formData.shopName })}
+                          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${formData.type === type.toLowerCase() ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {businessModels.map(m => (
+                    <button
+                      type="button"
+                      key={m.id}
+                      onClick={() => {
+                        if (!formData.type) {
+                          toast({ title: "Selection Required", description: "Please choose whether you operate as an Individual or Business.", variant: "destructive" });
+                          return;
+                        }
+                        setFormData({ ...formData, businessType: m.id });
+                        setStep(3);
+                      }}
+                      className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all text-left group"
+                    >
+                      <div className="h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-all shadow-sm">
+                        <m.icon className="h-6 w-6" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-slate-800 tracking-tight">{m.label}</p>
+                        <p className="text-[11px] font-medium text-slate-500 group-hover:text-emerald-700/70 transition-colors uppercase tracking-wide mt-0.5">{m.description}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep(1);
+                    setOtpSent(false);
+                    setFormData({ ...formData, otp: "" });
+                  }}
+                  className="w-full py-4 text-xs font-bold text-slate-400 hover:text-slate-600 uppercase tracking-[0.2em] transition-colors"
+                >
+                  Back to Identification
+                </button>
+              </motion.div>
+            )}
+
+            {step === 3 && (
+              <motion.div
+                key="s3"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="flex items-center gap-3">
+                  <button type="button" onClick={() => setStep(2)} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-emerald-500 transition-all text-slate-500">
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="space-y-0.5">
+                    <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Select Industry</h3>
+                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">Target Market</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar pb-4">
+                  {fetchingCats ? (
+                    <div className="col-span-full py-20 flex flex-col items-center justify-center space-y-3">
+                      <Loader2 className="h-8 w-8 animate-spin text-emerald-500 opacity-20" />
+                      <p className="text-xs font-bold text-slate-400 animate-pulse">Synchronizing Markets...</p>
+                    </div>
+                  ) : categories.map(c => (
+                    <button
+                      key={c._id}
+                      onClick={() => {
+                        if (!c.isComingSoon) {
+                          setFormData({ ...formData, vendorType: c._id, subServices: [] });
+                          setStep(4);
+                        }
+                      }}
+                      className={`flex flex-col items-center p-4 rounded-2xl border transition-all group relative overflow-hidden h-full ${c.isComingSoon ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-60 grayscale' : 'border-slate-100 bg-slate-50/50 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5'}`}
+                    >
+                      {c.isComingSoon && (
+                        <div className="absolute top-2 right-2 bg-red-100 text-red-600 text-[8px] font-black uppercase px-2 py-0.5 rounded-full z-10">
+                          Soon
+                        </div>
+                      )}
+                      <div className={`h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center mb-3 text-emerald-600 shadow-sm relative overflow-hidden transition-transform ${!c.isComingSoon ? 'group-hover:scale-110' : ''}`}>
+                        {c.image ? (
+                          <img src={c.image} alt={c.name} className="h-full w-full object-cover" />
+                        ) : (
+                          (() => {
+                            const Icon = LucideIcons[c.icon] || LucideIcons.Layers;
+                            return <Icon className="h-6 w-6" />;
+                          })()
+                        )}
+                        {!c.isComingSoon && <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-emerald-500/5 transition-colors" />}
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase text-center leading-tight tracking-tight px-1 line-clamp-2 ${c.isComingSoon ? 'text-slate-400' : 'text-slate-600 group-hover:text-slate-900'}`}>{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {step === 4 && (
+              <motion.div
+                key="s4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setStep(3)} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-emerald-500 transition-all text-slate-500">
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="space-y-0.5">
+                    <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Add Services</h3>
+                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">{currentCategory?.name}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                  {currentCategory?.services.map(s => (
+                    <button
+                      key={s.name}
+                      onClick={() => toggleSubService(s.name)}
+                      className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all group ${formData.subServices.includes(s.name)
+                        ? 'border-emerald-500 bg-emerald-50/50 shadow-inner'
+                        : 'border-slate-100 bg-slate-50/30 hover:border-emerald-200 hover:bg-white'
+                        }`}
+                    >
+                      <div className="flex flex-col items-start space-y-1">
+                        <span className={`text-[13px] font-bold tracking-tight ${formData.subServices.includes(s.name) ? 'text-emerald-900' : 'text-slate-800'}`}>
+                          {s.name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                            Starting ₹{s.basePrice}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all shadow-sm ${formData.subServices.includes(s.name)
+                        ? 'bg-emerald-600 text-white scale-110'
+                        : 'bg-white text-slate-300'
+                        }`}>
+                        {formData.subServices.includes(s.name) ? <CheckCircle className="h-5 w-5" /> : <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />}
+                      </div>
+                    </button>
+                  ))}
+                  {(!currentCategory?.services || currentCategory.services.length === 0) && (
+                    <div className="py-20 text-center space-y-4">
+                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl inline-block">
+                        <Star className="h-8 w-8 text-slate-200" />
+                      </div>
+                      <p className="text-sm font-medium text-slate-400 italic">No services listed for this category yet.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    onClick={() => setStep(5)}
+                    disabled={formData.subServices.length === 0}
+                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-20 flex items-center justify-center gap-3 shadow-xl shadow-slate-900/10"
+                  >
+                    Continue to Profile
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <p className="text-center text-[10px] font-medium text-slate-400 mt-4 uppercase tracking-[0.2em]">Select at least one expertise</p>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 5 && (
+              <motion.form
+                key="s5"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                onSubmit={e => {
+                  e.preventDefault();
+                  const sanitizedOwnerName = sanitizeName(formData.ownerName);
+                  const nameValidation = validateName(sanitizedOwnerName);
+                  if (!nameValidation.isValid) return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
+                  if (sanitizedOwnerName.length < 3) return toast({ title: "Invalid Name", description: "Owner name must be at least 3 characters long.", variant: "destructive" });
+                  setFormData(prev => ({ ...prev, ownerName: sanitizedOwnerName }));
+
+                  if (formData.email && !validateEmail(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
+                  if (formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
+                  if (!/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
+                  if (formData.kycAadhaar && !/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
+                  if (formData.kycPanNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
+                  if (formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
+                  if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
+                  if (formData.password !== formData.confirmPassword) return toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
+
+
+                  if (!verificationStatus.aadhaar && !verificationStatus.pan) {
+                    return toast({ title: "Verification Required", description: "Please verify EITHER Aadhaar OR PAN.", variant: "destructive" });
+                  }
+
+                  let hasPhotos = false;
+                  if (verificationStatus.aadhaar && formData.kycAadhaarPhoto && formData.kycAadhaarBackPhoto) {
+                      hasPhotos = true;
+                  }
+                  if (verificationStatus.pan && formData.kycPanPhoto) {
+                      hasPhotos = true;
+                  }
+
+                  if (hasPhotos) setStep(6);
+                  else toast({ title: "Documents Required", description: "Please upload photos for either your verified Aadhaar (Front & Back) OR verified PAN Card.", variant: "destructive" });
+                }}
+                className="space-y-6"
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Owner Full Name</label>
+                      <input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: sanitizeNameOnChange(e.target.value) })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. John Doe" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Email Address</label>
+                        {formData.email && !verificationStatus.email && validateEmail(formData.email) && (
+                          <button type="button" onClick={handleSendEmailOtp} disabled={verifying.email || showEmailOtpField} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                            {verifying.email ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify Email"}
+                          </button>
+                        )}
+                        {verificationStatus.email && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
+                      </div>
+                      <input type="email" disabled={verificationStatus.email || showEmailOtpField} value={formData.email} onChange={e => setFormData({ ...formData, email: sanitizeEmail(e.target.value) })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="e.g. name@example.com (Optional)" />
+
+                      {showEmailOtpField && !verificationStatus.email && (
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-500">OTP sent to email.</span>
+                            <button type="button" onClick={() => {
+                              setShowEmailOtpField(false);
+                              setEmailOtp("");
+                            }} className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors">
+                              Edit Email
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="text" maxLength="6" value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\D/g, ''))} className="w-full rounded-lg border border-slate-200 bg-emerald-50/30 p-2.5 font-bold text-sm text-center tracking-widest text-emerald-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="OTP" />
+                            <button type="button" onClick={handleVerifyEmailOtp} disabled={verifying.email || emailOtp.length < 6} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                              Submit
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>
+                      <input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value.replace(/[^a-zA-Z0-9 ]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. Sharma Experts" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Aadhaar</label>
+                        {!verificationStatus.aadhaar && (
+                          <button type="button" onClick={handleInitiateOKYC} disabled={verifying.aadhaar || formData.kycAadhaar.length !== 12 || aadhaarSessionId !== ""} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                            {verifying.aadhaar ? <Loader2 className="h-3 w-3 animate-spin" /> : "Send Aadhaar OTP"}
+                          </button>
+                        )}
+                        {verificationStatus.aadhaar && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
+                      </div>
+                      <input maxLength="12" disabled={verificationStatus.aadhaar || !!aadhaarSessionId} value={formData.kycAadhaar} onChange={e => {
+                        setFormData({ ...formData, kycAadhaar: e.target.value.replace(/\D/g, '') });
+                      }} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300 disabled:opacity-70" placeholder="12-Digit Aadhaar No" />
+
+                      {aadhaarSessionId && !verificationStatus.aadhaar && (
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-slate-500">Aadhaar locked for verification.</span>
+                            <button type="button" onClick={() => {
+                              setAadhaarSessionId("");
+                              setAadhaarOtp("");
+                            }} className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:underline transition-colors">
+                              Edit Aadhaar Number
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="text" maxLength="6" value={aadhaarOtp} onChange={e => setAadhaarOtp(e.target.value.replace(/\D/g, ''))} className="w-full rounded-lg border border-slate-200 bg-emerald-50/30 p-2.5 font-bold text-sm text-center tracking-widest text-emerald-900 focus:bg-white focus:border-emerald-500 transition-all outline-none" placeholder="OTP" />
+                            <button type="button" onClick={handleVerifyOKYC} disabled={verifying.aadhaar || aadhaarOtp.length < 6} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                              Submit
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">PAN Number</label>
+                        {!verificationStatus.pan && (
+                          <button type="button" onClick={handleVerifyPAN} disabled={verifying.pan || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50">
+                            {verifying.pan ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify PAN"}
+                          </button>
+                        )}
+                        {verificationStatus.pan && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
+                      </div>
+                      <input maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">GST Number (Opt)</label>
+                        {!verificationStatus.gst && formData.gst.length === 15 && (
+                          <button type="button" onClick={handleVerifyGST} disabled={verifying.gst} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm">
+                            {verifying.gst ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify GST"}
+                          </button>
+                        )}
+                        {verificationStatus.gst && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
+                      </div>
+                      <input maxLength="15" disabled={verificationStatus.gst} value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="GST" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
+                      <input type="checkbox" checked={formData.serviceModes?.includes("home") || false} onChange={e => {
+                        const newModes = e.target.checked
+                          ? [...(formData.serviceModes || []), "home"]
+                          : (formData.serviceModes || []).filter(m => m !== "home");
+                        setFormData({ ...formData, serviceModes: newModes });
+                      }} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-800">Home Service</span>
+                        <span className="text-[9px] font-medium text-slate-500">I can visit customer's location</span>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
+                      <input type="checkbox" checked={formData.serviceModes?.includes("shop") || false} onChange={e => {
+                        const newModes = e.target.checked
+                          ? [...(formData.serviceModes || []), "shop"]
+                          : (formData.serviceModes || []).filter(m => m !== "shop");
+                        setFormData({ ...formData, serviceModes: newModes });
+                      }} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-800">Shop Service</span>
+                        <span className="text-[9px] font-medium text-slate-500">Customers visit my shop</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
+                      <input type="checkbox" checked={formData.is24x7 || false} onChange={e => setFormData({ ...formData, is24x7: e.target.checked })} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-slate-800">24/7 Services</span>
+                        <span className="text-[9px] font-medium text-slate-500">I am available round the clock</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 group">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Create Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+                        <input type={showPassword ? "text" : "password"} required maxLength="24" value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-10 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Password" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowPassword((prev) => !prev);
+                          }}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 focus:outline-none z-10 p-2 cursor-pointer"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 group">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Confirm Password</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
+                        <input type={showConfirmPassword ? "text" : "password"} required maxLength="24" value={formData.confirmPassword} onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 py-2.5 pl-10 pr-10 font-bold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="Confirm Password" />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowConfirmPassword((prev) => !prev);
+                          }}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 focus:outline-none z-10 p-2 cursor-pointer"
+                        >
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 space-y-4">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Document Evidence</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {['kycAadhaarPhoto', 'kycAadhaarBackPhoto', 'kycPanPhoto'].map(type => (
+                        <label key={type} className={`relative group flex flex-col items-center justify-center h-24 rounded-lg border-2 border-dashed transition-all cursor-pointer overflow-hidden ${formData[type] ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50 hover:border-emerald-200'}`}>
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleFileUpload(e, type)} />
+                          {formData[type] ? (
+                            <img src={formData[type]} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center space-y-2 text-center p-2">
+                              {uploadingDoc === type ? <Loader2 className="h-6 w-6 animate-spin text-emerald-500" /> : <Upload className="h-6 w-6 text-slate-300 group-hover:text-emerald-500 transition-colors" />}
+                              <span className="text-[8px] font-bold uppercase text-slate-400 group-hover:text-emerald-600 transition-colors">
+                                {type === 'kycAadhaarPhoto' ? 'Aadh-Front' : type === 'kycAadhaarBackPhoto' ? 'Aadh-Back' : 'PAN Card'}
+                              </span>
+                            </div>
+                          )}
+                          {formData[type] && uploadingDoc !== type && (
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                              <span className="text-[10px] text-white font-bold">Change Image</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setFormData(prev => ({ ...prev, [type]: '' }));
+                                }}
+                                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold rounded-md z-10 shadow-sm transition-colors"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">Business Address</label>
+                      <button type="button" disabled={isFetchingLocation} onClick={fetchLocation} className="text-[10px] font-bold text-emerald-600 uppercase hover:underline flex items-center gap-1 disabled:opacity-50 disabled:hover:no-underline cursor-pointer">
+                        {isFetchingLocation ? <Loader2 className="h-3 w-3 animate-spin" /> : <MapPin className="h-3 w-3" />}
+                        {isFetchingLocation ? "Locating..." : "Auto-Locate"}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <input
+                        type="text"
+                        placeholder="State"
+                        value={formData.state}
+                        onKeyDown={e => { if (!/[a-zA-Z\s]/.test(e.key) && !['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key)) e.preventDefault(); }}
+                        onChange={e => { const v = e.target.value.replace(/[^a-zA-Z\s]/g, ''); setFormData(prev => ({ ...prev, state: v })); }}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300"
+                      />
+                      <input
+                        type="text"
+                        placeholder="City"
+                        value={formData.city}
+                        onKeyDown={e => { if (!/[a-zA-Z\s]/.test(e.key) && !['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key)) e.preventDefault(); }}
+                        onChange={e => { const v = e.target.value.replace(/[^a-zA-Z\s]/g, ''); setFormData(prev => ({ ...prev, city: v })); }}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300"
+                      />
+                    </div>
+                    <textarea
+                      required
+                      value={formData.address}
+                      onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 min-h-[80px] outline-none focus:bg-white focus:border-emerald-500 transition-all placeholder:text-slate-300"
+                      placeholder="Full physical address..."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <button type="submit" disabled={!!uploadingDoc} className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs">
+                    {uploadingDoc ? 'Securing Media...' : 'Finalize Profile'}
+                  </button>
+                  <button type="button" onClick={() => setStep(4)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
+                </div>
+              </motion.form>
+            )}
+
+            {step === 6 && (
+              <motion.div
+                key="s6"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="text-center space-y-8 py-4"
+              >
+                <div className="relative mx-auto w-40 h-40">
+                  <motion.div
+                    initial={{ rotate: 10 }}
+                    animate={{ rotate: 0 }}
+                    className={`w-full h-full rounded-2xl border-4 border-dashed flex items-center justify-center bg-slate-50 overflow-hidden relative shadow-inner ${formData.profileImage ? 'border-emerald-500 bg-white' : 'border-slate-200'}`}
+                  >
+                    {isCameraOpen ? (
+                      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                    ) : formData.profileImage ? (
+                      <img src={formData.profileImage} className="w-full h-full object-cover scale-110" />
+                    ) : (
+                      <div className="flex flex-col items-center space-y-3">
+                        <User className="h-16 w-16 text-slate-200" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Selfie</span>
+                      </div>
+                    )}
+                  </motion.div>
+
+                  {/* Camera Control Button */}
+                  <button
+                    type="button"
+                    onClick={isCameraOpen ? capturePhoto : startCamera}
+                    className="absolute -bottom-4 -right-4 h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white transition-all hover:scale-110 active:scale-90 active:rotate-12 group"
+                  >
+                    {uploadingDoc === 'profileImage' ? <Loader2 className="h-6 w-6 animate-spin" /> : isCameraOpen ? <CheckCircle className="h-6 w-6 text-emerald-400" /> : <Camera className="h-6 w-6 group-hover:text-emerald-400 transition-colors" />}
+                  </button>
+
+                  {/* Fallback File Input (Hidden) */}
+                  <input type="file" accept="image/*" className="hidden" id="fallback-file-input" onChange={e => handleFileUpload(e, 'profileImage')} />
+
+                  {/* Option to cancel camera */}
+                  {isCameraOpen && (
+                    <button
+                      type="button"
+                      onClick={stopCamera}
+                      className="absolute -top-4 -right-4 h-8 w-8 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 shadow-lg transition-all"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-slate-800">Final Verification Photo</h3>
+                  <p className="text-xs text-slate-500 max-w-[280px] mx-auto leading-relaxed">Please capture a clear portrait. This helps build trust with your future customers.</p>
+                </div>
+
+                <div className="space-y-4 pt-6">
+                  <button
+                    onClick={() => setStep(7)}
+                    disabled={!formData.profileImage}
+                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs"
+                  >
+                    Save & Continue
+                  </button>
+                  <button onClick={() => setStep(5)} className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Information Review</button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 7 && (
+              <motion.div
+                key="s7"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Referral Program</h3>
+                  <p className="text-sm text-slate-500">Were you invited by someone or a member of our team?</p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  {[
+                    { id: 'individual', label: 'Self Registration', icon: User, tag: 'Direct' },
+                    { id: 'vendor_referral', label: 'Local Expert Referral', icon: Store, tag: 'Via Vendor' },
+                    { id: 'employee', label: 'Expert Assisted', icon: Briefcase, tag: 'RozSewa Agent' }
+                  ].map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => setFormData({ ...formData, registrationType: type.id, referredBy: "" })}
+                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${formData.registrationType === type.id
+                        ? 'border-emerald-500 bg-emerald-50/50 shadow-sm'
+                        : 'border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-200'
+                        }`}
+                    >
+                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${formData.registrationType === type.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-300 border border-slate-100'
+                        }`}>
+                        <type.icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-sm font-bold tracking-tight ${formData.registrationType === type.id ? 'text-emerald-900' : 'text-slate-700'}`}>{type.label}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{type.tag}</p>
+                      </div>
+                      <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${formData.registrationType === type.id ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-200'
+                        }`}>
+                        {formData.registrationType === type.id && <CheckCircle className="h-3 w-3" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <AnimatePresence>
+                  {formData.registrationType !== 'individual' && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="bg-slate-900 rounded-2xl p-6 text-white space-y-4 shadow-2xl"
+                    >
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold text-emerald-400 uppercase tracking-widest">Identification Code</h4>
+                        <p className="text-[11px] text-slate-400 italic">Enter the referral or employee ID provided to you.</p>
+                      </div>
+
+                      <div className="relative">
+                        <input
+                          required
+                          value={formData.referredBy || ""}
+                          onChange={e => setFormData({ ...formData, referredBy: e.target.value.toUpperCase() })}
+                          className="w-full rounded-lg border border-white/10 bg-white/5 py-3 px-4 font-black text-xl text-center tracking-[0.3em] text-emerald-400 focus:bg-white/10 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all placeholder:text-white/10"
+                          placeholder="RS____"
+                        />
+                        {verifyingReferral && (
+                          <div className="absolute right-5 top-1/2 -translate-y-1/2">
+                            <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
+                          </div>
+                        )}
+                      </div>
+
+                      {referredByName && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
+                          <CheckCircle className="h-4 w-4 text-emerald-400" />
+                          <span className="text-[10px] font-bold text-emerald-50 uppercase">Verified: {referredByName}</span>
+                        </motion.div>
+                      )}
+
+                      <div className="pt-2 flex items-center gap-2 opacity-60">
+                        <Gift className="h-3 w-3 text-emerald-400" />
+                        <span className="text-[10px] font-bold uppercase tracking-wide">3 Services Commission-Free Applied</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="space-y-4 pt-4">
+                  <button
+                    onClick={() => {
+                      if (formData.registrationType !== 'individual' && !formData.referredBy) {
+                        toast({ title: "Incomplete", description: "Please enter the required code.", variant: "destructive" });
+                        return;
+                      }
+                      setStep(8);
+                    }}
+                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3"
+                  >
+                    Proceed to Bank Details
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => setStep(6)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 8 && (
+              <motion.div
+                key="s8"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Standard Settlement Bank</h3>
+                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">Payout Details</p>
+                </div>
+
+                <form onSubmit={handleBankSubmit} className="space-y-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
+                    <input required disabled={verificationStatus.bank} value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: sanitizeNameOnChange(e.target.value) } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="As per bank records" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Number</label>
+                    <input required disabled={verificationStatus.bank} minLength="11" maxLength="17" value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="Bank Account Number" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">IFSC Code</label>
+                      <input required disabled={verificationStatus.bank} maxLength="11" value={formData.bankDetails.ifscCode} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase disabled:opacity-70" placeholder="IFSC" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Bank Name</label>
+                      <input required disabled={verificationStatus.bank} value={formData.bankDetails.bankName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, bankName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="Bank Name" />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 flex-shrink-0 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                        <ShieldCheck className="h-5 w-5" />
+                      </div>
+                      <p className="text-[10px] font-medium text-slate-500 leading-relaxed uppercase tracking-widest max-w-[200px]">Double check your details. Settlements will be sent to this account weekly.</p>
+                    </div>
+
+                    {!verificationStatus.bank && (
+                      <button type="button" onClick={handleVerifyBank} disabled={verifying.bank} className="flex-shrink-0 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-200 transition-colors flex items-center gap-2">
+                        {verifying.bank ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Account"}
+                      </button>
+                    )}
+                    {verificationStatus.bank && (
+                      <div className="flex-shrink-0 flex items-center gap-1.5 text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Verified</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full h-14 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs transition-all hover:bg-slate-800 active:scale-[0.98] flex items-center justify-center gap-3"
+                  >
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Complete Registration <ArrowRight className="h-4 w-4" /></>}
+                  </button>
+                  <div className="flex flex-col items-center gap-2">
+                    <button type="button" onClick={() => setStep(7)} className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">Previous</button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+
+            {step === 9 && (
+              <motion.div
+                key="s9"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-8 py-6 text-center"
+              >
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="h-24 w-24 bg-emerald-50 rounded-[2.5rem] flex items-center justify-center shadow-lg shadow-emerald-100 border border-emerald-100">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", damping: 12 }}
+                    >
+                      <CheckCircle className="h-12 w-12 text-emerald-500" />
+                    </motion.div>
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-bold text-slate-900 tracking-tight">Application Sent</h3>
+                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Verification in progress</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden text-left shadow-2xl">
+                  <div className="absolute -top-10 -right-10 h-24 w-24 bg-emerald-500 rounded-full blur-[60px] opacity-20"></div>
+                  <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-2 opacity-60">Sewak Identity Code</p>
+                  <p className="text-4xl font-black font-mono tracking-widest text-emerald-400">{generatedCode}</p>
+                  <p className="text-[9px] text-slate-400 italic mt-4">Save this code for your initial login and support inquiries.</p>
+                </div>
+
+                <div className="space-y-4">
+                  <Link to="/provider/login" replace className="flex h-14 w-full items-center justify-center gap-3 bg-slate-100 text-slate-800 rounded-xl font-bold hover:bg-slate-900 hover:text-white transition-all active:scale-[0.98] group">
+                    Enter Sewak Dashboard
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                  <p className="text-[10px] text-slate-400 leading-relaxed max-w-[280px] mx-auto uppercase font-bold tracking-wider">Our team will verify your credentials within 24 hours.</p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        <div className="mt-6 text-center space-y-2">
+          <p className="text-[11px] font-bold text-slate-400">
+            Need help with registration?{" "}
+            <Link to="/provider/support" className="text-emerald-600 font-black hover:underline transition-all">
+              Contact Support
+            </Link>
+          </p>
+          <p className="text-[10px] font-bold text-slate-400">
+            By registering, you agree to our{" "}
+            <Link to="/provider/profile/terms" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Terms & Conditions</Link>
+            {" "}and{" "}
+            <Link to="/provider/profile/privacy" target="_blank" className="text-slate-600 hover:text-emerald-600 hover:underline transition-colors">Privacy Policy</Link>
+          </p>
+        </div>
+      </div>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
+      `}} />
+    </div >
+  );
+};
+
+export default SewakRegister;
