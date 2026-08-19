@@ -29,6 +29,29 @@ const requestWithdrawal = async (req, res) => {
             return res.status(400).json({ message: 'Insufficient Available Balance.' });
         }
 
+        // Category-wise payout lock: while starter-kit instalments are outstanding
+        // and the wallet has gone negative, withdrawals are blocked until the
+        // balance recovers. Deliberately withdrawal-only — the separate
+        // cash_limits_config debt system governs app access, and locking both at
+        // once would stop the Sewak earning the money that clears these dues.
+        try {
+            const KitDue = require('../models/KitDue');
+            const hasOpenDues = await KitDue.exists({ sewakId: req.user._id, status: 'active' });
+            if (hasOpenDues && wallet.balance < 0) {
+                const KitPaymentConfig = require('../models/KitPaymentConfig');
+                const cfg = provider.vendorType
+                    ? await KitPaymentConfig.findOne({ categoryId: provider.vendorType }).lean()
+                    : null;
+                if (!cfg || cfg.blockPayoutOnDues !== false) {
+                    return res.status(400).json({
+                        message: `Your wallet balance is negative (₹${wallet.balance}) because of pending starter kit instalments. Withdrawals resume once your balance is back above zero.`
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('[Withdrawal] kit dues payout check failed:', err.message);
+        }
+
         // Create withdrawal request
         const withdrawal = await Withdrawal.create({
             providerId: req.user._id,

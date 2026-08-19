@@ -7,7 +7,7 @@ const financialLedgerSchema = new mongoose.Schema({
     provider: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider', required: true },
     ledgerType: { 
         type: String, 
-        enum: ['COMMISSION', 'SUBSCRIPTION_PAYMENT', 'WALLET_CREDIT', 'WALLET_DEBIT', 'REFUND', 'ADJUSTMENT'], 
+        enum: ['COMMISSION', 'SUBSCRIPTION_PAYMENT', 'WALLET_CREDIT', 'WALLET_DEBIT', 'REFUND', 'ADJUSTMENT', 'KIT_DOWN_PAYMENT', 'KIT_EMI_DEDUCTION', 'KIT_REFUND'],
         required: true 
     },
     amount: { type: Number, required: true },

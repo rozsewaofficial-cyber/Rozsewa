@@ -329,4 +329,31 @@ router.put('/skill-sessions/:id/meeting-link', protect, admin, skillSessionContr
 router.put('/skill-sessions/:id/attendance', protect, admin, skillSessionController.markAttendance);
 router.post('/skill-sessions/:id/re-session', protect, admin, skillSessionController.createReSession);
 
+// Starter Kits, Combo Packs, Inventory & Orders
+const starterKitController = require('../controllers/starterKitController');
+const kitOrderController = require('../controllers/kitOrderController');
+
+router.get('/starter-kit-items', protect, admin, starterKitController.getStarterKitItems);
+router.post('/starter-kit-items', protect, admin, starterKitController.createStarterKitItem);
+router.put('/starter-kit-items/:id', protect, admin, starterKitController.updateStarterKitItem);
+router.patch('/starter-kit-items/:id/stock', protect, admin, starterKitController.adjustStock);
+router.delete('/starter-kit-items/:id', protect, admin, starterKitController.deleteStarterKitItem);
+
+router.get('/kit-combos', protect, admin, starterKitController.getKitCombos);
+router.post('/kit-combos', protect, admin, starterKitController.createKitCombo);
+router.put('/kit-combos/:id', protect, admin, starterKitController.updateKitCombo);
+router.delete('/kit-combos/:id', protect, admin, starterKitController.deleteKitCombo);
+
+router.get('/kit-payment-config/:categoryId', protect, admin, starterKitController.getKitPaymentConfig);
+router.put('/kit-payment-config/:categoryId', protect, admin, starterKitController.updateKitPaymentConfig);
+
+router.get('/kit-inventory/summary', protect, admin, starterKitController.getInventorySummary);
+
+router.get('/kit-orders', protect, admin, kitOrderController.getAdminOrders);
+router.put('/kit-orders/:id/confirm', protect, admin, kitOrderController.confirmOrder);
+router.put('/kit-orders/:id/status', protect, admin, kitOrderController.updateOrderStatus);
+router.put('/kit-orders/:id/cancel', protect, admin, kitOrderController.cancelOrder);
+
+router.get('/kit-dues', protect, admin, kitOrderController.getAdminDues);
+
 module.exports = router;

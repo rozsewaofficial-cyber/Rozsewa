@@ -412,3 +412,38 @@ const verifyBazaarPayment = async (req, res) => {
 
 module.exports.verifyBazaarPayment = verifyBazaarPayment;
 
+
+// @desc    Verify Razorpay Payment for a Starter Kit / Combo Pack order
+// @route   POST /api/payment/verify-kit-order
+// @access  Private (Sewak)
+const verifyKitOrderPayment = async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, isSimulated } = req.body;
+
+        let isVerified = false;
+        if (isSimulated || razorpay_signature === 'simulated') {
+            isVerified = true;
+        } else if (razorpay_order_id && razorpay_payment_id && razorpay_signature) {
+            const sign = razorpay_order_id + "|" + razorpay_payment_id;
+            const expectedSign = crypto
+                .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "secret")
+                .update(sign.toString())
+                .digest("hex");
+            if (razorpay_signature === expectedSign) isVerified = true;
+        }
+
+        if (!isVerified) {
+            return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+        }
+
+        // Payment is good — hand off to the order controller, which owns the
+        // frozen-snapshot logic so the charged amount and the stored order agree.
+        const { placeOrder } = require('./kitOrderController');
+        return placeOrder(req, res);
+    } catch (error) {
+        console.error('verifyKitOrderPayment error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports.verifyKitOrderPayment = verifyKitOrderPayment;

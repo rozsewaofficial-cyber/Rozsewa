@@ -10,5 +10,6 @@ router.post('/verify-wallet', protect, verifyWalletRecharge);
 router.post('/verify-user-wallet', protect, verifyUserWalletRecharge);
 router.post('/verify-lead-payment', protect, verifyLeadPayment);
 router.post('/verify-bazaar', protect, verifyBazaarPayment);
+router.post('/verify-kit-order', protect, require('../controllers/paymentController').verifyKitOrderPayment);
 
 module.exports = router;
