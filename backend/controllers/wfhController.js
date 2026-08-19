@@ -27,12 +27,33 @@ const verifyVendor = async (req, res) => {
 
         provider.isWFHVerified = true;
         provider.wfhVerifiedBy = req.user._id;
-        
+
         // Optionally, if WFH is the final authority, we can set status to verified
         // But usually, WFH just marks it as 'WFH Verified' and Admin does final check
         // The user says "WFH -> Vendor verify karegi", so I'll set status to verified
-        provider.status = 'verified';
         provider.kycVerified = true;
+
+        // Sewaks additionally need the Training Panel (kit items verified + basic
+        // training) before going live — otherwise this route would be a side door
+        // around that gate. Partners are unaffected. See TRAINING_PANEL_PLAN.md D2.
+        let trainingBlocked = false;
+        if (provider.providerCategory === 'sewak') {
+            try {
+                const TrainingRecord = require('../models/TrainingRecord');
+                const record = await TrainingRecord.findOne({ sewakId: provider._id });
+                trainingBlocked = !(record && record.trainingCompleted);
+                if (!record) {
+                    const { ensureRecord } = require('./trainingPanelController');
+                    await ensureRecord(provider);
+                }
+            } catch (err) {
+                console.error('[TrainingGate/WFH] check failed, allowing go-live:', err.message);
+                trainingBlocked = false;
+            }
+        }
+
+        provider.status = trainingBlocked ? 'pending' : 'verified';
+        if (trainingBlocked) provider.isOnline = false;
 
         const updatedProvider = await provider.save();
         res.json({

@@ -17,6 +17,7 @@ router.post('/quote', protect, quoteOrder);
 router.post('/order', protect, placeOrder);
 router.get('/orders', protect, getMyOrders);
 router.get('/dues', protect, getMyDues);
+router.get('/training-status', protect, require('../controllers/trainingPanelController').getMyTrainingStatus);
 router.get('/orders/:id', protect, getMyOrderById);
 
 module.exports = router;

@@ -1889,6 +1889,36 @@ const getPendingSewaks = async (req, res) => {
     }
 };
 
+/**
+ * Should this provider be held back from go-live until the Training Panel is done?
+ *
+ * Deliberately narrow — it returns `blocked: false` for anything that isn't a
+ * Sewak with an incomplete training record, so Partners and already-trained
+ * Sewaks provably keep their existing behaviour. Also ensures the record exists,
+ * so KYC approval populates the admin's "awaiting training" work queue (D7).
+ */
+const requiresTrainingBeforeGoLive = async (provider) => {
+    try {
+        if (provider.providerCategory !== 'sewak') return { blocked: false, reason: 'not_a_sewak' };
+
+        const TrainingRecord = require('../models/TrainingRecord');
+        let record = await TrainingRecord.findOne({ sewakId: provider._id });
+
+        if (record && record.trainingCompleted) return { blocked: false, reason: 'training_done' };
+
+        if (!record) {
+            const { ensureRecord } = require('./trainingPanelController');
+            record = await ensureRecord(provider);
+        }
+        return { blocked: true, reason: 'training_pending', recordId: record?._id };
+    } catch (err) {
+        // Never let a training-gate failure break KYC approval; fail open to the
+        // previous behaviour rather than stranding the Sewak.
+        console.error('[TrainingGate] check failed, allowing go-live:', err.message);
+        return { blocked: false, reason: 'gate_error' };
+    }
+};
+
 const verifySewak = async (req, res) => {
     try {
         const sewak = await Provider.findById(req.params.id);
@@ -1896,8 +1926,20 @@ const verifySewak = async (req, res) => {
 
         sewak.kycVerified = true;
         sewak.kycStatus = 'verified';
-        sewak.status = 'verified';
-        sewak.isOnline = true;
+
+        // Go-live is owned by the Training Panel, not KYC — a Sewak only becomes
+        // discoverable once mandatory kit items are verified and basic training is
+        // done. Partners and Sewaks with an already-complete record are unaffected.
+        // See TRAINING_PANEL_PLAN.md D2.
+        const trainingGate = await requiresTrainingBeforeGoLive(sewak);
+        if (trainingGate.blocked) {
+            sewak.status = 'pending';
+            sewak.isOnline = false;
+        } else {
+            sewak.status = 'verified';
+            sewak.isOnline = true;
+        }
+
         // Verify all documents
         if (sewak.documents) {
             sewak.documents.forEach(doc => {
@@ -1913,7 +1955,7 @@ const verifySewak = async (req, res) => {
             const { sendNotificationToUser } = require('../config/notificationService');
             await sendNotificationToUser(sewak._id, 'provider', {
                 title: 'KYC Approved',
-                body: 'Congratulations! Your identity verification is complete. Your account is now active to receive bookings.',
+                body: 'Your identity verification is complete. Next step: visit your training centre to verify your starter kit items and complete basic training — your profile goes live right after.',
                 data: { type: 'kyc', id: sewak._id.toString() }
             });
         } catch (err) {
@@ -2108,15 +2150,23 @@ const verifySewakDocument = async (req, res) => {
 
             if (allApproved) {
                 sewak.kycStatus = 'verified';
-                sewak.status = 'verified';
                 sewak.kycVerified = true;
-                sewak.isOnline = true;
+
+                // Go-live is owned by the Training Panel — see D2.
+                const docGate = await requiresTrainingBeforeGoLive(sewak);
+                if (docGate.blocked) {
+                    sewak.status = 'pending';
+                    sewak.isOnline = false;
+                } else {
+                    sewak.status = 'verified';
+                    sewak.isOnline = true;
+                }
 
                 // Notify Sewak: Overall KYC approved
                 try {
                     await sendNotificationToUser(sewak._id, 'provider', {
                         title: 'KYC Approved',
-                        body: 'Congratulations! Your identity verification is complete. Your account is now active to receive bookings.',
+                        body: 'Your identity verification is complete. Next step: visit your training centre to verify your starter kit items and complete basic training — your profile goes live right after.',
                         data: { type: 'kyc', id: sewak._id.toString() }
                     });
                 } catch (err) {

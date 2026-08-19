@@ -356,4 +356,10 @@ router.put('/kit-orders/:id/cancel', protect, admin, kitOrderController.cancelOr
 
 router.get('/kit-dues', protect, admin, kitOrderController.getAdminDues);
 
+// Training Panel — admin work queue
+const trainingPanelController = require('../controllers/trainingPanelController');
+router.get('/training-records/stats', protect, admin, trainingPanelController.getTrainingStats);
+router.get('/training-records', protect, admin, trainingPanelController.getTrainingRecords);
+router.post('/training-records/:sewakId/reopen', protect, admin, trainingPanelController.reopenTraining);
+
 module.exports = router;

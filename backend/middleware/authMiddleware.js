@@ -124,6 +124,55 @@ const protectTrainer = async (req, res, next) => {
     }
 };
 
+/**
+ * Accepts EITHER an admin/superadmin User token OR a Trainer token, and resolves
+ * whichever it is into a single `req.actor` shape so downstream code can record
+ * who did what without branching everywhere.
+ *
+ *   req.actor = { id, model: 'User'|'Trainer', name, isAdmin, trainer? }
+ *
+ * Trainers are additionally scoped — see trainingPanelController.assertInScope.
+ */
+const protectAdminOrTrainer = async (req, res, next) => {
+    if (!req.headers.authorization || !req.headers.authorization.startsWith('Bearer')) {
+        return res.status(401).json({ message: 'Not authorized, no token' });
+    }
+
+    try {
+        const token = req.headers.authorization.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Try admin first.
+        const user = await User.findById(decoded.id).select('-password');
+        if (user && ['admin', 'superadmin'].includes(user.role)) {
+            req.user = user;
+            req.actor = { id: user._id, model: 'User', name: user.name || 'Admin', isAdmin: true };
+            return next();
+        }
+
+        // Otherwise a trainer.
+        const Trainer = require('../models/Trainer');
+        const trainer = await Trainer.findById(decoded.id)
+            .select('-password')
+            .populate('trainingCenter', 'name cities categories');
+        if (trainer) {
+            if (!trainer.isActive) {
+                return res.status(403).json({ message: 'This trainer account has been deactivated' });
+            }
+            req.trainer = trainer;
+            req.actor = { id: trainer._id, model: 'Trainer', name: trainer.name, isAdmin: false, trainer };
+            return next();
+        }
+
+        return res.status(403).json({ message: 'Not authorized for the training panel' });
+    } catch (error) {
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+            return res.status(401).json({ message: 'Not authorized, token failed' });
+        }
+        return res.status(500).json({ message: 'Internal server error during authentication' });
+    }
+};
+
 const supervisorWithAllScope = async (req, res, next) => {
     if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
         return next();
@@ -138,4 +187,4 @@ const supervisorWithAllScope = async (req, res, next) => {
     res.status(403).json({ message: 'Access denied: Requires supervisor permissions with "All" scope' });
 };
 
-module.exports = { protect, admin, superadmin, wfh, supervisor, employee, supervisorWithAllScope, protectTrainer };
+module.exports = { protect, admin, superadmin, wfh, supervisor, employee, supervisorWithAllScope, protectTrainer, protectAdminOrTrainer };
