@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   GraduationCap, LogOut, Loader2, MapPin, Video, User, Phone,
-  CheckCircle2, UserX, RotateCcw, CalendarDays, Building2
+  CheckCircle2, UserX, RotateCcw, CalendarDays, Building2, ClipboardCheck
 } from "lucide-react";
 import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { Link } from "react-router-dom";
 import { STORAGE_KEY } from "@/modules/trainer/components/TrainerProtectedRoute";
 
 const TABS = [
@@ -135,6 +136,15 @@ const TrainerSessions = () => {
       </header>
 
       <div className="mx-auto max-w-2xl px-4 py-5 space-y-4">
+        <div className="flex gap-2">
+          <span className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2.5 text-xs font-bold uppercase tracking-wider text-white">
+            <CalendarDays className="h-4 w-4" /> My Sessions
+          </span>
+          <Link to="/trainer/training-panel" className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <ClipboardCheck className="h-4 w-4" /> Training Panel
+          </Link>
+        </div>
+
         <div className="flex gap-2">
           {TABS.map((t) => (
             <button

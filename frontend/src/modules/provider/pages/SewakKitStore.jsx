@@ -39,18 +39,21 @@ const SewakKitStore = () => {
   const [quoting, setQuoting] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [config, setConfig] = useState(null);
+  const [blocking, setBlocking] = useState(null);
 
   useScrollLock(!!checkout);
 
   const fetchStore = useCallback(async () => {
     setLoading(true);
     try {
-      const [catRes, cfgRes] = await Promise.all([
+      const [catRes, cfgRes, trainRes] = await Promise.all([
         API.get("/kit-store/catalog"),
         API.get("/kit-store/payment-config"),
+        API.get("/kit-store/training-status").catch(() => ({ data: null })),
       ]);
       setCatalog(catRes.data || { items: [], combos: [] });
       setConfig(cfgRes.data);
+      setBlocking(trainRes.data?.applicable ? trainRes.data : null);
     } catch {
       toast({ title: "Could not load the kit store", variant: "destructive" });
     } finally { setLoading(false); }
@@ -169,7 +172,7 @@ const SewakKitStore = () => {
         {loading ? (
           <div className="flex items-center justify-center py-24"><Loader2 className="h-7 w-7 animate-spin text-emerald-500" /></div>
         ) : tab === "store" ? (
-          <StoreTab catalog={catalog} onBuy={openCheckout} />
+          <StoreTab catalog={catalog} onBuy={openCheckout} blocking={blocking} />
         ) : tab === "orders" ? (
           <OrdersTab orders={orders} />
         ) : (
@@ -298,8 +301,9 @@ const Row = ({ label, value, strong }) => (
   </div>
 );
 
-const StoreTab = ({ catalog, onBuy }) => {
+const StoreTab = ({ catalog, onBuy, blocking }) => {
   const empty = !catalog.items.length && !catalog.combos.length;
+  const blockingNames = new Set((blocking?.missingItems || []).map((i) => i.itemName));
   if (empty) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 py-20 text-center">
@@ -312,6 +316,18 @@ const StoreTab = ({ catalog, onBuy }) => {
 
   return (
     <div className="space-y-6">
+      {blockingNames.size > 0 && (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-4">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div>
+            <p className="text-sm font-bold text-amber-700 dark:text-amber-400">Your training is on hold</p>
+            <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+              These mandatory items are missing: {[...blockingNames].join(", ")}. Order them below and bring them to your training centre.
+            </p>
+          </div>
+        </div>
+      )}
+
       {catalog.combos.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-400">Combo Packs</h2>
@@ -350,13 +366,16 @@ const StoreTab = ({ catalog, onBuy }) => {
           <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-400">Individual Kits</h2>
           {catalog.items.map((i) => (
             <motion.div key={i._id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              className={`rounded-2xl border bg-white dark:bg-slate-900 p-4 ${blockingNames.has(i.name) ? "border-amber-400 dark:border-amber-700 ring-2 ring-amber-200 dark:ring-amber-900/50" : "border-slate-200 dark:border-slate-800"}`}>
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-bold text-slate-900 dark:text-white">{i.name}</h3>
                     {i.isMandatory && (
                       <span className="rounded-full bg-violet-50 dark:bg-violet-950/40 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-violet-700 dark:text-violet-400">Mandatory</span>
+                    )}
+                    {blockingNames.has(i.name) && (
+                      <span className="rounded-full bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">Needed for training</span>
                     )}
                   </div>
                   <p className="mt-0.5 text-xs text-slate-500">Quantity ×{i.kitQuantity} per kit</p>

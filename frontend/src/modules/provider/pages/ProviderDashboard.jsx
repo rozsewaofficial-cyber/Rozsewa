@@ -56,6 +56,7 @@ const ProviderDashboard = () => {
   const [dynamicChartData, setDynamicChartData] = useState(chartDataFallback);
   const [plans, setPlans] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
+  const [trainingStatus, setTrainingStatus] = useState(null);
   const isSubscribed = user?.isSubscribed || false;
   const [commissionPreview, setCommissionPreview] = useState(null);
   const [estimateAmount, setEstimateAmount] = useState("1000");
@@ -129,6 +130,13 @@ const ProviderDashboard = () => {
       }
     };
 
+    const fetchTrainingStatus = async () => {
+      try {
+        const { data } = await API.get("/kit-store/training-status");
+        if (data?.applicable) setTrainingStatus(data);
+      } catch (err) { }
+    };
+
     const fetchMenu = async () => {
       try {
         const { data } = await API.get("/provider/menu");
@@ -140,6 +148,7 @@ const ProviderDashboard = () => {
     fetchStats();
     fetchPlans();
     fetchMenu();
+    fetchTrainingStatus();
     loadRazorpay();
     fetchCommissionPreview();
   }, []);
@@ -826,6 +835,62 @@ const ProviderDashboard = () => {
             </ResponsiveContainer>
           </div>
         </section>
+
+        {/* Onboarding training status — shown until the profile goes live */}
+        {trainingStatus && !trainingStatus.isLive && (
+          <section>
+            <Link
+              to={trainingStatus.missingItems?.length > 0 ? "/provider/kit-store" : "/provider"}
+              className={`block rounded-[2rem] border p-6 transition-all ${
+                trainingStatus.status === "on_hold_item_missing"
+                  ? "border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/20"
+                  : "border-sky-200 dark:border-sky-900/50 bg-sky-50/70 dark:bg-sky-950/20"
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                  trainingStatus.status === "on_hold_item_missing"
+                    ? "bg-amber-100 dark:bg-amber-950/60"
+                    : "bg-sky-100 dark:bg-sky-950/60"
+                }`}>
+                  <GraduationCap className={`h-6 w-6 ${trainingStatus.status === "on_hold_item_missing" ? "text-amber-600" : "text-sky-600"}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${trainingStatus.status === "on_hold_item_missing" ? "text-amber-600" : "text-sky-600"}`}>
+                    {trainingStatus.status === "on_hold_item_missing" ? "Training On Hold" : "Profile Not Live Yet"}
+                  </p>
+                  <h3 className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+                    {trainingStatus.status === "awaiting_kyc"
+                      ? "Complete your KYC first"
+                      : trainingStatus.status === "on_hold_item_missing"
+                        ? "Some starter kit items are missing"
+                        : "Visit your training centre to go live"}
+                  </h3>
+                  <p className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-400 leading-relaxed">
+                    {trainingStatus.status === "on_hold_item_missing"
+                      ? `Order these and bring them in: ${trainingStatus.missingItems.map(i => i.itemName).join(", ")}`
+                      : "Your trainer will verify your starter kit and give you basic training. Your profile activates right after."}
+                  </p>
+                  {trainingStatus.pendingSkillSessions?.length > 0 && (
+                    <p className="mt-1.5 text-xs font-bold text-sky-700 dark:text-sky-400">
+                      Skill Session still pending for: {trainingStatus.pendingSkillSessions.join(", ")}
+                    </p>
+                  )}
+                  {trainingStatus.topicsTotal > 0 && (
+                    <p className="mt-2 text-[11px] font-bold text-slate-500 tabular-nums">
+                      Training progress: {trainingStatus.topicsCovered}/{trainingStatus.topicsTotal} topics
+                    </p>
+                  )}
+                  {trainingStatus.missingItems?.length > 0 && (
+                    <span className="mt-3 inline-block rounded-xl bg-amber-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white">
+                      Order Missing Items
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          </section>
+        )}
 
         {/* Action Grid */}
         <section className="space-y-6">

@@ -117,8 +117,10 @@ import AdminStarterKits from "./modules/admin/pages/AdminStarterKits";
 import AdminKitCombos from "./modules/admin/pages/AdminKitCombos";
 import AdminKitPaymentSettings from "./modules/admin/pages/AdminKitPaymentSettings";
 import AdminKitOrders from "./modules/admin/pages/AdminKitOrders";
+import AdminTrainingRecords from "./modules/admin/pages/AdminTrainingRecords";
 import TrainerLogin from "./modules/trainer/pages/TrainerLogin";
 import TrainerSessions from "./modules/trainer/pages/TrainerSessions";
+import TrainerTrainingPanel from "./modules/trainer/pages/TrainerTrainingPanel";
 import TrainerProtectedRoute from "./modules/trainer/components/TrainerProtectedRoute";
 import AdminDispatch from "./modules/admin/pages/AdminDispatch";
 import AdminEmergency from "./modules/admin/pages/AdminEmergency";
@@ -223,6 +225,7 @@ const App = () => (
                       {/* Trainer Routes — standalone, self-contained auth (see TrainerProtectedRoute) */}
                       <Route path="/trainer/login" element={<TrainerLogin />} />
                       <Route path="/trainer/sessions" element={<TrainerProtectedRoute><TrainerSessions /></TrainerProtectedRoute>} />
+                      <Route path="/trainer/training-panel" element={<TrainerProtectedRoute><TrainerTrainingPanel /></TrainerProtectedRoute>} />
                       <Route path="/trainer" element={<Navigate to="/trainer/sessions" replace />} />
                       <Route path="/provider/profile" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderProfile /></ProtectedRoute>} />
                       <Route path="/provider/bookings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBookings /></ProtectedRoute>} />
@@ -300,6 +303,7 @@ const App = () => (
                         <Route path="kit-combos" element={<AdminKitCombos />} />
                         <Route path="kit-payment-settings" element={<AdminKitPaymentSettings />} />
                         <Route path="kit-orders" element={<AdminKitOrders />} />
+                        <Route path="training-records" element={<AdminTrainingRecords />} />
                         <Route path="dispatch" element={<AdminDispatch />} />
                         <Route path="emergency" element={<AdminEmergency />} />
                         <Route path="finance" element={<AdminFinance />} />
