@@ -64,6 +64,7 @@ import DigilockerCallback from "./modules/provider/pages/DigilockerCallback";
 import ProviderProfile from "./modules/provider/pages/ProviderProfile";
 import ProviderServices from "./modules/provider/pages/ProviderServices";
 import ProviderSkillSessions from "./modules/provider/pages/ProviderSkillSessions";
+import SewakKitStore from "./modules/provider/pages/SewakKitStore";
 import ProviderAvailability from "./modules/provider/pages/ProviderAvailability";
 import ProviderDocuments from "./modules/provider/pages/ProviderDocuments";
 import ProviderReviews from "./modules/provider/pages/ProviderReviews";
@@ -112,6 +113,10 @@ import AdminZones from "./modules/admin/pages/AdminZones";
 import AdminTrainingCenters from "./modules/admin/pages/AdminTrainingCenters";
 import AdminTrainers from "./modules/admin/pages/AdminTrainers";
 import AdminSkillSessions from "./modules/admin/pages/AdminSkillSessions";
+import AdminStarterKits from "./modules/admin/pages/AdminStarterKits";
+import AdminKitCombos from "./modules/admin/pages/AdminKitCombos";
+import AdminKitPaymentSettings from "./modules/admin/pages/AdminKitPaymentSettings";
+import AdminKitOrders from "./modules/admin/pages/AdminKitOrders";
 import TrainerLogin from "./modules/trainer/pages/TrainerLogin";
 import TrainerSessions from "./modules/trainer/pages/TrainerSessions";
 import TrainerProtectedRoute from "./modules/trainer/components/TrainerProtectedRoute";
@@ -225,6 +230,7 @@ const App = () => (
                       <Route path="/provider/earnings" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderEarnings /></ProtectedRoute>} />
                       <Route path="/provider/services" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderServices /></ProtectedRoute>} />
                       <Route path="/provider/skill-sessions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSkillSessions /></ProtectedRoute>} />
+                      <Route path="/provider/kit-store" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><SewakKitStore /></ProtectedRoute>} />
                       <Route path="/provider/availability" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderAvailability /></ProtectedRoute>} />
                       <Route path="/provider/documents" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderDocuments /></ProtectedRoute>} />
                       <Route path="/provider/reviews" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderReviews /></ProtectedRoute>} />
@@ -290,6 +296,10 @@ const App = () => (
                         <Route path="training-centers" element={<AdminTrainingCenters />} />
                         <Route path="trainers" element={<AdminTrainers />} />
                         <Route path="skill-sessions" element={<AdminSkillSessions />} />
+                        <Route path="starter-kits" element={<AdminStarterKits />} />
+                        <Route path="kit-combos" element={<AdminKitCombos />} />
+                        <Route path="kit-payment-settings" element={<AdminKitPaymentSettings />} />
+                        <Route path="kit-orders" element={<AdminKitOrders />} />
                         <Route path="dispatch" element={<AdminDispatch />} />
                         <Route path="emergency" element={<AdminEmergency />} />
                         <Route path="finance" element={<AdminFinance />} />

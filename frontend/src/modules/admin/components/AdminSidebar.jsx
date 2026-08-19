@@ -8,7 +8,7 @@ import {
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
   Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
   HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin, Recycle, FileText, Coins,
-  GraduationCap, Building2, UserCog
+  GraduationCap, Building2, UserCog, Package, Layers, ShoppingCart
 } from "lucide-react";
 
 export const adminSidebarLinks = [
@@ -48,6 +48,10 @@ export const adminSidebarLinks = [
   { path: "/admin/skill-sessions", label: "Skill Sessions", icon: GraduationCap },
   { path: "/admin/training-centers", label: "Training Centers", icon: Building2 },
   { path: "/admin/trainers", label: "Trainers", icon: UserCog },
+  { path: "/admin/starter-kits", label: "Starter Kits", icon: Package },
+  { path: "/admin/kit-combos", label: "Combo Packs", icon: Layers },
+  { path: "/admin/kit-orders", label: "Kit Orders & Inventory", icon: ShoppingCart },
+  { path: "/admin/kit-payment-settings", label: "Kit Payment Settings", icon: Coins },
   { path: "/admin/benefit-policies", label: "Benefit Policies", icon: ShieldCheck },
   { path: "/admin/banners", label: "App Banners", icon: Image },
   { path: "/admin/provider-banners", label: "Provider Banners", icon: Megaphone },
