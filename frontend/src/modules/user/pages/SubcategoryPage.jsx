@@ -122,8 +122,11 @@ const SubcategoryPage = () => {
       return false;
     }
 
-    // 3. Text Token Match (Name & Description against clean Subcategory tokens)
-    const serviceText = `${service.name || ""} ${service.description || ""}`.toLowerCase();
+    // 3. Text Token Match — service NAME only.
+    // Descriptions are prose ("...to ensure cleaner indoor air...") and matching
+    // against them produced constant false positives, e.g. every appliance whose
+    // description mentioned "air" landing under "Air Cooler".
+    const serviceText = `${service.name || ""}`.toLowerCase();
 
     const rawParts = cleanSubName
       .replace(/[()]/g, ' ')
@@ -131,12 +134,23 @@ const SubcategoryPage = () => {
       .map(p => p.trim())
       .filter(p => p.length > 0);
 
+    // Words too generic to identify a subcategory on their own. A multi-word name
+    // like "Air Cooler" still contributes the full phrase plus "cooler"; it must
+    // not also contribute bare "air", which matches air purifiers, air fryers and
+    // air conditioners alike. ("water" was already excluded for the same reason.)
+    const GENERIC_WORDS = [
+      'service', 'services', 'repair', 'repairs', 'all', 'and', 'the',
+      'system', 'systems', 'water', 'air', 'care', 'pack', 'package', 'packages',
+      'styling', 'grooming', 'machine', 'kitchen', 'home', 'small', 'cleaning',
+      'installation', 'checkup', 'security'
+    ];
+
     const tokens = [];
     rawParts.forEach(part => {
       if (part.length > 1) tokens.push(part);
       const words = part.split(/\s+/).filter(w => w.length > 1);
       words.forEach(w => {
-        if (!['service', 'services', 'repair', 'repairs', 'all', 'and', 'the', 'system', 'systems', 'water', 'care', 'pack', 'package', 'packages', 'styling', 'grooming'].includes(w)) {
+        if (!GENERIC_WORDS.includes(w)) {
           tokens.push(w);
         }
       });
