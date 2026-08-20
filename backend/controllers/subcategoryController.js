@@ -47,7 +47,14 @@ const getPublicSubcategoriesByCategory = async (req, res) => {
 const getPublicServicesBySubcategory = async (req, res) => {
     try {
         const { subcategoryId } = req.params;
-        const { includeZeroPrice, categoryId, category } = req.query;
+        const { categoryId, category } = req.query;
+
+        // Catalog services are priced at the category/provider level, so virtually
+        // all of them carry price 0. Filtering those out by default returned an
+        // empty list for every subcategory — which is what pushed this endpoint
+        // into its (previously very wrong) category-wide fallback. Zero-priced
+        // services are therefore INCLUDED unless a caller explicitly opts out.
+        const excludeZeroPrice = req.query.includeZeroPrice === 'false';
 
         // 1. If requesting "all" services under the category
         if (subcategoryId === 'all' || !subcategoryId) {
@@ -66,7 +73,7 @@ const getPublicServicesBySubcategory = async (req, res) => {
             }
 
             let categoryQuery = { visible: true };
-            if (includeZeroPrice !== 'true') {
+            if (excludeZeroPrice) {
                 categoryQuery.price = { $gt: 0 };
             }
 
@@ -95,7 +102,7 @@ const getPublicServicesBySubcategory = async (req, res) => {
             // If no individual Service docs found, fallback to Category's pre-defined services array
             if ((!services || services.length === 0) && catObj && catObj.services && catObj.services.length > 0) {
                 let fallbackServices = catObj.services;
-                if (includeZeroPrice !== 'true') {
+                if (excludeZeroPrice) {
                     fallbackServices = fallbackServices.filter(s => Number(s.basePrice) > 0);
                 }
                 services = fallbackServices.map(s => ({
@@ -111,7 +118,41 @@ const getPublicServicesBySubcategory = async (req, res) => {
                     subcategory: s.subcategory || ""
                 }));
             }
-            return res.json(services || []);
+
+            // Collapse duplicates. Every provider offering a service has their own
+            // Service doc, so browsing a category returned the same name once per
+            // provider plus the catalog copy — 344 rows for 118 real services, each
+            // rendering 2-3 times.
+            //
+            // Keep one row per service name, preferring the copy that carries a
+            // subcategoryId (only those group correctly), and surface the lowest
+            // non-zero price across the duplicates as the "starting price".
+            const collapsed = new Map();
+            for (const svc of (services || [])) {
+                const s = svc.toObject ? svc.toObject() : svc;
+                const key = (s.name || '').trim().toLowerCase();
+                if (!key) continue;
+
+                const existing = collapsed.get(key);
+                if (!existing) { collapsed.set(key, s); continue; }
+
+                const prefer = (!existing.subcategoryId && s.subcategoryId) ? s : existing;
+                const other = prefer === s ? existing : s;
+
+                // Lowest real price wins as the displayed starting price.
+                const prices = [Number(prefer.price) || 0, Number(other.price) || 0].filter(p => p > 0);
+                prefer.price = prices.length ? Math.min(...prices) : 0;
+
+                // Don't lose tagging/description that only the discarded copy had.
+                if (!prefer.subcategoryId && other.subcategoryId) prefer.subcategoryId = other.subcategoryId;
+                if (!prefer.subcategory && other.subcategory) prefer.subcategory = other.subcategory;
+                if (!prefer.description && other.description) prefer.description = other.description;
+                if (!prefer.image && other.image) prefer.image = other.image;
+
+                collapsed.set(key, prefer);
+            }
+
+            return res.json([...collapsed.values()]);
         }
 
         // 2. Specific Subcategory requested
@@ -130,7 +171,7 @@ const getPublicServicesBySubcategory = async (req, res) => {
         }
 
         let query = { visible: true };
-        if (includeZeroPrice !== 'true') {
+        if (excludeZeroPrice) {
             query.price = { $gt: 0 };
         }
 
@@ -198,27 +239,40 @@ const getPublicServicesBySubcategory = async (req, res) => {
                 });
             }
 
-            if (catObj && catObj.services && catObj.services.length > 0) {
-                const subName = subDoc ? subDoc.name.toLowerCase() : "";
-                const matchedCatServices = subName
-                    ? catObj.services.filter(s =>
-                        s.name.toLowerCase().includes(subName) || subName.includes(s.name.toLowerCase())
-                    )
-                    : catObj.services;
+            // Only fall back to category-level services when we actually know which
+            // subcategory was asked for AND a service name relates to it.
+            //
+            // Previously this fell back to the ENTIRE category when nothing matched,
+            // so e.g. "Beard Services" returned all 125 salon services. An empty
+            // subcategory must render empty — never someone else's services.
+            if (catObj && catObj.services && catObj.services.length > 0 && subDoc) {
+                const subName = subDoc.name.toLowerCase();
+                const matchedCatServices = catObj.services.filter(s => {
+                    const n = (s.name || '').toLowerCase();
+                    return n.includes(subName) || subName.includes(n);
+                });
 
-                const targetList = matchedCatServices.length > 0 ? matchedCatServices : catObj.services;
-                services = targetList.map(s => ({
-                    _id: s._id || new mongoose.Types.ObjectId(),
-                    name: s.name,
-                    description: s.description || `Professional ${s.name} service`,
-                    price: s.basePrice || 299,
-                    duration: "30 min",
-                    serviceType: "home",
-                    visible: true,
-                    category: catObj.name,
-                    subcategory: subDoc ? subDoc.name : "",
-                    image: s.image
-                }));
+                const priced = excludeZeroPrice
+                    ? matchedCatServices.filter(s => Number(s.basePrice) > 0)
+                    : matchedCatServices;
+
+                services = priced
+                    // An entry with no stable _id can't be selected or booked reliably —
+                    // generating a throwaway id per request made it a different service
+                    // on every page load.
+                    .filter(s => s._id)
+                    .map(s => ({
+                        _id: s._id,
+                        name: s.name,
+                        description: s.description || `Professional ${s.name} service`,
+                        price: Number(s.basePrice) || 0,
+                        duration: "30 min",
+                        serviceType: "home",
+                        visible: true,
+                        category: catObj.name,
+                        subcategory: subDoc.name,
+                        image: s.image
+                    }));
             }
         }
 
