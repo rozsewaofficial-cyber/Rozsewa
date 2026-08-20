@@ -142,7 +142,12 @@ const SubcategoryPage = () => {
       'service', 'services', 'repair', 'repairs', 'all', 'and', 'the',
       'system', 'systems', 'water', 'air', 'care', 'pack', 'package', 'packages',
       'styling', 'grooming', 'machine', 'kitchen', 'home', 'small', 'cleaning',
-      'installation', 'checkup', 'security'
+      'installation', 'checkup', 'security',
+      // Salon overlaps: bare "hair" put every haircut under Hair Removal, bare
+      // "body" put Full Body Wax under Body Care & Spa, and bare "extensions"
+      // put Eyelash Extensions under Nail Extensions. Each subcategory's own
+      // synonym block below supplies the precise terms instead.
+      'hair', 'body', 'extensions', 'extension'
     ];
 
     const tokens = [];
@@ -158,10 +163,24 @@ const SubcategoryPage = () => {
 
     // Industry Synonym/Keyword mappings
     if (cleanSubName.includes("makeup") || cleanSubName.includes("grooming")) {
-      tokens.push("makeup", "draping", "outfit", "saree draping", "outfit draping", "bridal", "cosmetics", "face makeup", "beauty", "party makeup", "threading", "waxing", "bleach", "glow");
+      // "bridal" and "threading" are deliberately NOT here — bridal work belongs to
+      // the Bridal & Groom Packages section, and threading is hair removal. Both
+      // were causing the same service to appear under two sections at once.
+      tokens.push("makeup", "draping", "outfit", "saree draping", "outfit draping", "cosmetics", "face makeup", "beauty", "party makeup", "bleach", "glow",
+        "eyelash", "lash", "eyebrow tinting", "eyebrow lamination", "lash lift", "tinting", "lamination");
     }
-    if (cleanSubName.includes("hair")) {
-      tokens.push("hair", "haircut", "hair styling", "cut", "hair color", "hair highlights", "keratin", "hair spa", "blowdry", "hair trim", "smoothing", "straightening");
+    // Hair STYLING. Explicitly excludes "Hair Removal", which is a different
+    // subcategory — without this guard it inherited the whole styling vocabulary
+    // and every haircut/colour service also appeared under Hair Removal.
+    if (cleanSubName.includes("hair") && !cleanSubName.includes("removal")) {
+      tokens.push("hair", "haircut", "hair styling", "cut", "hair color", "hair highlights", "keratin", "hair spa", "blowdry", "hair trim", "smoothing", "straightening", "scalp");
+    }
+    // Hair REMOVAL had no vocabulary of its own, so waxing/threading services fell
+    // through to whichever section happened to share a word ("Full Body Wax" was
+    // landing under Body Care & Spa).
+    if (cleanSubName.includes("removal") || cleanSubName.includes("wax") || cleanSubName.includes("threading")) {
+      tokens.push("wax", "waxing", "threading", "removal", "underarm", "bikini",
+        "upper lip", "forehead", "full arm", "half arm", "full leg", "half leg", "full back", "full chest");
     }
     if (cleanSubName.includes("skin") || cleanSubName.includes("facial")) {
       tokens.push("skin", "facial", "cleanup", "bleach", "glow", "detan", "face", "scrub", "mask");
@@ -173,10 +192,13 @@ const SubcategoryPage = () => {
       tokens.push("hand", "foot", "pedicure", "manicure", "nail", "polish", "feet");
     }
     if (cleanSubName.includes("body") || cleanSubName.includes("spa") || cleanSubName.includes("massage")) {
-      tokens.push("body", "spa", "massage", "scrub", "waxing", "detan", "therapy", "relax");
+      // "waxing" removed — a wax is hair removal, not a spa treatment.
+      tokens.push("body massage", "body scrub", "body spa", "body polishing", "polishing",
+        "spa", "massage", "scrub", "detan", "therapy", "relax");
     }
     if (cleanSubName.includes("nail")) {
-      tokens.push("nail", "extensions", "gel", "art", "acrylic", "polish");
+      // "extensions" alone matched "Eyelash Extensions"; scope it to nails.
+      tokens.push("nail", "nail extensions", "gel", "polygel", "art", "acrylic", "polish");
     }
     if (cleanSubName.includes("beard") || cleanSubName.includes("shave") || cleanSubName.includes("mustache")) {
       tokens.push("beard", "shave", "mustache", "stubble", "beard styling", "mustache styling", "beard trim", "shaving");
