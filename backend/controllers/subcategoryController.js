@@ -407,6 +407,7 @@ const createAdminService = async (req, res) => {
             sessionMode: req.body.sessionMode || 'offline',
             skillSessionActive: req.body.skillSessionActive !== false
         };
+        const visibleTo = ['sewak', 'partner', 'both'].includes(req.body.visibleTo) ? req.body.visibleTo : 'both';
 
         const newService = await Service.create({
             name,
@@ -418,6 +419,7 @@ const createAdminService = async (req, res) => {
             subcategoryId: subcategory._id,
             subcategory: subcategory.name,
             categoryId: targetCatId,
+            visibleTo,
             ...skillFields
         });
 
@@ -432,6 +434,7 @@ const createAdminService = async (req, res) => {
                         basePrice: newService.price || 0,
                         description: newService.description || "",
                         image: newService.image || "",
+                        visibleTo,
                         ...skillFields
                     });
                     await cat.save();
@@ -469,6 +472,7 @@ const updateAdminService = async (req, res) => {
         if (req.body.sessionDurationMinutes !== undefined) service.sessionDurationMinutes = Number(req.body.sessionDurationMinutes) || 60;
         if (req.body.sessionMode !== undefined) service.sessionMode = req.body.sessionMode;
         if (req.body.skillSessionActive !== undefined) service.skillSessionActive = !!req.body.skillSessionActive;
+        if (['sewak', 'partner', 'both'].includes(req.body.visibleTo)) service.visibleTo = req.body.visibleTo;
 
         const updated = await service.save();
 
@@ -487,6 +491,7 @@ const updateAdminService = async (req, res) => {
                     cat.services[idx].sessionDurationMinutes = updated.sessionDurationMinutes;
                     cat.services[idx].sessionMode = updated.sessionMode;
                     cat.services[idx].skillSessionActive = updated.skillSessionActive;
+                    cat.services[idx].visibleTo = updated.visibleTo;
                     cat.markModified('services');
                     await cat.save();
                 }

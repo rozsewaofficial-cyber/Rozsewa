@@ -536,11 +536,33 @@ const updateCategory = async (req, res) => {
         if (req.body.isActive !== undefined) category.isActive = req.body.isActive;
         if (req.body.isComingSoon !== undefined) category.isComingSoon = req.body.isComingSoon;
         if (req.body.businessModel !== undefined) category.businessModel = req.body.businessModel;
+        if (['sewak', 'partner', 'both'].includes(req.body.visibleTo)) category.visibleTo = req.body.visibleTo;
         if (req.body.defaultLeadPrice !== undefined) category.defaultLeadPrice = req.body.defaultLeadPrice;
         if (req.body.gstPercent !== undefined) category.gstPercent = req.body.gstPercent;
         if (req.body.platformFee !== undefined) category.platformFee = req.body.platformFee;
 
         if (req.body.services) {
+            // Removing an entry here only edits the embedded catalog copy — the
+            // public listing is driven primarily by standalone Service documents
+            // (see getPublicServicesBySubcategory), which silently survived a
+            // deletion made from this "embedded" editor. Diff against the old
+            // list and delete the matching standalone doc(s) too, so a service
+            // removed here actually disappears from the customer app.
+            const oldServices = category.services || [];
+            const stillPresent = new Set(
+                req.body.services.map(s => (s._id ? String(s._id) : null)).filter(Boolean)
+            );
+            const stillPresentNames = new Set(req.body.services.map(s => s.name));
+            const removed = oldServices.filter(s =>
+                !(s._id && stillPresent.has(String(s._id))) && !stillPresentNames.has(s.name)
+            );
+            for (const r of removed) {
+                const removeQuery = r._id
+                    ? { $or: [{ _id: r._id }, { categoryId: category._id, name: r.name }] }
+                    : { categoryId: category._id, name: r.name };
+                await Service.deleteMany(removeQuery);
+            }
+
             category.services = req.body.services.map(s => {
                 const existing = category.services.find(sub => (sub._id && s._id && sub._id.toString() === s._id.toString()) || sub.name === s.name);
                 const pick = (key, fallback) => (s[key] !== undefined ? s[key] : (existing?.[key] !== undefined ? existing[key] : fallback));
@@ -553,7 +575,8 @@ const updateCategory = async (req, res) => {
                     skillSessionRequired: !!pick('skillSessionRequired', false),
                     sessionDurationMinutes: Number(pick('sessionDurationMinutes', 60)) || 60,
                     sessionMode: pick('sessionMode', 'offline'),
-                    skillSessionActive: pick('skillSessionActive', true) !== false
+                    skillSessionActive: pick('skillSessionActive', true) !== false,
+                    visibleTo: ['sewak', 'partner', 'both'].includes(pick('visibleTo', 'both')) ? pick('visibleTo', 'both') : 'both'
                 };
             });
             category.markModified('services');
@@ -566,7 +589,8 @@ const updateCategory = async (req, res) => {
                     skillSessionRequired: !!saved.skillSessionRequired,
                     sessionDurationMinutes: Number(saved.sessionDurationMinutes) || 60,
                     sessionMode: saved.sessionMode || 'offline',
-                    skillSessionActive: saved.skillSessionActive !== false
+                    skillSessionActive: saved.skillSessionActive !== false,
+                    visibleTo: saved.visibleTo || 'both'
                 };
                 if (s._id && mongoose.Types.ObjectId.isValid(s._id)) {
                     await Service.findByIdAndUpdate(s._id, {
@@ -1989,7 +2013,7 @@ const verifySewak = async (req, res) => {
             details: { status: 'verified', bonusEarned }
         });
 
-        res.json({ success: true, message: 'Sewak verified successfully' });
+        res.json({ success: true, message: 'Sewak verified successfully', isLive: sewak.status === 'verified' && sewak.isOnline });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

@@ -10,7 +10,9 @@ const subServiceSchema = mongoose.Schema({
     skillSessionRequired: { type: Boolean, default: false },
     sessionDurationMinutes: { type: Number, default: 60 },
     sessionMode: { type: String, enum: ['online', 'offline'], default: 'offline' },
-    skillSessionActive: { type: Boolean, default: true }
+    skillSessionActive: { type: Boolean, default: true },
+    // Which provider type can pick this service for their own profile.
+    visibleTo: { type: String, enum: ['sewak', 'partner', 'both'], default: 'both' }
 });
 
 const comboTemplateSchema = mongoose.Schema({
@@ -34,6 +36,8 @@ const categorySchema = mongoose.Schema({
     services: [subServiceSchema], // Pre-defined services in this category
     combos: [comboTemplateSchema], // Pre-defined combos in this category
     businessModel: { type: String, enum: ['commission', 'lead'], default: 'commission' },
+    // Which provider type can register into / pick this category.
+    visibleTo: { type: String, enum: ['sewak', 'partner', 'both'], default: 'both' },
     defaultLeadPrice: { type: Number, default: 0 },
     gstPercent: { type: Number, default: 0, min: 0 },
     platformFee: { type: Number, default: 0, min: 0 }

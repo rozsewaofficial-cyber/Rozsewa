@@ -34,6 +34,8 @@ const serviceSchema = mongoose.Schema({
     skillSessionActive: { type: Boolean, default: true },
     // Held until the owning Sewak completes their session; flipped by markAttendance.
     pendingSkillSession: { type: Boolean, default: false },
+    // Which provider type can pick this catalog entry for their own profile.
+    visibleTo: { type: String, enum: ['sewak', 'partner', 'both'], default: 'both' },
     createdAt: { type: Date, default: Date.now }
 }, {
     timestamps: true

@@ -6,6 +6,8 @@ const {
     registerSewak,
     authProvider,
     getProviderProfile,
+    getProviderDocuments,
+    selectServices,
     updateProviderStatus,
     updateProviderProfile,
     getProviderStats,
@@ -69,10 +71,12 @@ router.get('/banner-plans', async (req, res) => {
 // Protected routes
 router.get('/profile', protect, getProviderProfile);
 router.put('/profile', protect, updateProviderProfile);
+router.put('/select-services', protect, selectServices);
 router.get('/stats', protect, getProviderStats);
 router.patch('/status', protect, updateProviderStatus);
 router.get('/subscription-plans', protect, getSubscriptionPlans);
 router.get('/menu', protect, getProviderMenu);
+router.get('/documents', protect, getProviderDocuments);
 router.post('/documents', protect, upload.single('document'), uploadDocument);
 router.post('/live-video', protect, uploadVideo.single('video'), uploadLiveVideo);
 router.post('/submit-kyc', protect, submitKYC);

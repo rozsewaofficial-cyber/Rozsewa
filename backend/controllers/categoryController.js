@@ -5,7 +5,11 @@ const Category = require('../models/Category');
 // @access  Public
 const getPublicCategories = async (req, res) => {
     try {
-        const categories = await Category.find({ isActive: true }).sort({ index: 1 });
+        let categories = await Category.find({ isActive: true }).sort({ index: 1 });
+        const { providerType } = req.query;
+        if (providerType === 'sewak' || providerType === 'partner') {
+            categories = categories.filter(c => !c.visibleTo || c.visibleTo === 'both' || c.visibleTo === providerType);
+        }
         res.json(categories);
     } catch (error) {
         res.status(500).json({ message: error.message });

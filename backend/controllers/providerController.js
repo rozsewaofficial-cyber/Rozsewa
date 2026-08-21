@@ -499,10 +499,36 @@ const getProviderProfile = async (req, res) => {
             provider.currentDebt = currentDebt;
             provider.allowedLimit = allowedLimit;
 
+            // Lightweight document summary only — full document detail (urls, verification
+            // scripts, cloudinary metadata, etc.) is fetched on-demand via GET /provider/documents
+            // when the Documents section is actually opened, so this profile payload (re-fetched
+            // on every route change by AuthContext) stays cheap.
+            provider.documents = (provider.documents || []).map(doc => ({
+                id: doc.id,
+                status: doc.status,
+                rejectionReason: doc.rejectionReason,
+                uploadedAt: doc.uploadedAt,
+            }));
+
             res.json(provider);
         } else {
             res.status(404).json({ message: 'Provider not found' });
         }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get full detail for provider's documents (on-demand, for Documents section)
+// @route   GET /api/provider/documents
+// @access  Private (Provider)
+const getProviderDocuments = async (req, res) => {
+    try {
+        const providerDoc = await Provider.findById(req.user._id).select('documents');
+        if (!providerDoc) {
+            return res.status(404).json({ message: 'Provider not found' });
+        }
+        res.json(providerDoc.documents || []);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -532,6 +558,48 @@ const updateProviderStatus = async (req, res) => {
         } else {
             res.status(404).json({ message: 'Provider not found' });
         }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Sewak selects which category services they offer, post-KYC-approval.
+//          This is what populates Provider.subServices — the field the Skill
+//          Session eligibility engine (getEligibility) reads to decide which
+//          services are gated behind training.
+// @route   PUT /api/provider/select-services
+// @access  Private (Sewak)
+const selectServices = async (req, res) => {
+    try {
+        const { subServices } = req.body;
+        if (!Array.isArray(subServices) || subServices.length === 0) {
+            return res.status(400).json({ message: 'Select at least one service' });
+        }
+
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) return res.status(404).json({ message: 'Provider not found' });
+        if (provider.providerCategory !== 'sewak') {
+            return res.status(400).json({ message: 'Only Sewak accounts choose services this way' });
+        }
+        if (!provider.vendorType) {
+            return res.status(400).json({ message: 'No category set on this account' });
+        }
+
+        const Category = require('../models/Category');
+        const category = await Category.findById(provider.vendorType).lean();
+        const catalogServices = category?.services || [];
+        const visibleNames = new Set(
+            catalogServices.filter(s => !s.visibleTo || s.visibleTo === 'both' || s.visibleTo === 'sewak').map(s => s.name)
+        );
+        const invalid = subServices.filter(name => !visibleNames.has(name));
+        if (invalid.length > 0) {
+            return res.status(400).json({ message: `Unknown or unavailable service(s): ${invalid.join(', ')}` });
+        }
+
+        provider.subServices = subServices;
+        await provider.save();
+
+        res.json({ subServices: provider.subServices });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -1206,6 +1274,8 @@ module.exports = {
     registerSewak,
     authProvider,
     getProviderProfile,
+    getProviderDocuments,
+    selectServices,
     updateProviderStatus,
     updateProviderProfile,
     getProviderStats,

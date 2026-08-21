@@ -50,7 +50,10 @@ const getMyServices = async (req, res) => {
         let services = await Service.find({ providerId: req.user._id });
         let combos = await Combo.find({ providerId: req.user._id }).populate('services');
 
-        const categoryServices = provider?.vendorType?.services || [];
+        const visibleForType = isSewak ? 'sewak' : 'partner';
+        const categoryServices = (provider?.vendorType?.services || []).filter(
+            s => !s.visibleTo || s.visibleTo === 'both' || s.visibleTo === visibleForType
+        );
         const categoryCombos = provider?.vendorType?.combos || [];
         const categoryName = provider?.vendorType?.name || 'Your Category';
 
@@ -126,6 +129,14 @@ const createService = async (req, res) => {
         let heldForSkillSession = false;
         let skillFields = {};
         const provider = await Provider.findById(req.user._id).lean();
+
+        if (provider?.vendorType) {
+            const cat = await Category.findById(provider.vendorType).lean();
+            const catalogEntry = (cat?.services || []).find(s => normalizeKey(s.name) === normalizeKey(name));
+            if (catalogEntry?.visibleTo && catalogEntry.visibleTo !== 'both' && catalogEntry.visibleTo !== provider.providerCategory) {
+                return res.status(400).json({ message: `This service is not available for ${provider.providerCategory} accounts.` });
+            }
+        }
 
         if (provider?.providerCategory === 'sewak' && provider.vendorType) {
             const cat = await Category.findById(provider.vendorType).lean();

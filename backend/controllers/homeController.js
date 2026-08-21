@@ -61,7 +61,15 @@ const getPublicCategoryByName = async (req, res) => {
 // @access  Public
 const getPublicCategories = async (req, res) => {
     try {
-        const categories = await Category.find({ isActive: true }).sort({ name: 1 }).lean();
+        let categories = await Category.find({ isActive: true }).sort({ name: 1 }).lean();
+
+        // The customer app's Local Expert / Sewak toggle should only show
+        // categories that provider type actually serves.
+        const mode = req.query.mode === 'sewak' ? 'sewak' : (req.query.mode === 'partner' ? 'partner' : null);
+        if (mode) {
+            categories = categories.filter(c => !c.visibleTo || c.visibleTo === 'both' || c.visibleTo === mode);
+        }
+
         const result = categories.map(cat => ({
             ...cat,
             services: (cat.services || []).filter(s => Number(s.basePrice) > 0 || Number(s.price) > 0)
