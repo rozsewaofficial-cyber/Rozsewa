@@ -344,9 +344,14 @@ const AdminVerifySewak = () => {
   const handleVerifyGlobal = async (id) => {
     setBulkProcessing(true);
     try {
-      await API.put(`/admin/sewaks/${id}/verify`);
+      const { data } = await API.put(`/admin/sewaks/${id}/verify`);
       setSewaks(prev => prev.filter(s => s._id !== id));
-      toast({ title: "Sewak Approved Successfully", description: "KYC verified and account activated." });
+      toast({
+        title: "Sewak KYC Approved",
+        description: data?.isLive
+          ? "KYC verified and account activated."
+          : "KYC verified. Sewak must still complete Skill Session, Starter Kit, and Training before going live."
+      });
     } catch (err) {
       toast({ title: "Global Verification Failed", variant: "destructive" });
     } finally {

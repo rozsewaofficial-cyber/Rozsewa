@@ -208,7 +208,7 @@ const ProviderRegister = () => {
   const fetchCategories = async () => {
     setFetchingCats(true);
     try {
-      const { data } = await API.get("/provider/categories");
+      const { data } = await API.get("/provider/categories?providerType=partner");
       setCategories(data);
     } catch (err) {
       console.error("Failed to fetch categories:", err);
@@ -389,6 +389,9 @@ const ProviderRegister = () => {
   };
 
   const currentCategory = categories.find(c => c._id === formData.vendorType);
+  const partnerVisibleServices = (currentCategory?.services || []).filter(
+    s => !s.visibleTo || s.visibleTo === 'both' || s.visibleTo === 'partner'
+  );
 
   const toggleSubService = (service) => {
     setFormData(prev => ({
@@ -979,7 +982,7 @@ const ProviderRegister = () => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  {currentCategory?.services.map(s => (
+                  {partnerVisibleServices.map(s => (
                     <button
                       key={s.name}
                       onClick={() => toggleSubService(s.name)}
@@ -1006,7 +1009,7 @@ const ProviderRegister = () => {
                       </div>
                     </button>
                   ))}
-                  {(!currentCategory?.services || currentCategory.services.length === 0) && (
+                  {partnerVisibleServices.length === 0 && (
                     <div className="py-20 text-center space-y-4">
                       <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl inline-block">
                         <Star className="h-8 w-8 text-slate-200" />

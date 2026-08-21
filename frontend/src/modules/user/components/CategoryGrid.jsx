@@ -24,11 +24,11 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [mode]);
 
   const fetchCategories = async () => {
     try {
-      const { data } = await API.get("/public/categories");
+      const { data } = await API.get(`/public/categories?mode=${mode}`);
       if (data && Array.isArray(data)) {
         setCategories(data);
       } else {

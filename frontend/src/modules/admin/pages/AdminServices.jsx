@@ -39,6 +39,7 @@ const AdminServices = () => {
         isComingSoon: false,
         businessModel: "commission",
         defaultLeadPrice: 0,
+        visibleTo: "both",
         services: []
     });
 
@@ -70,7 +71,8 @@ const AdminServices = () => {
         price: 0,
         duration: "30 min",
         image: "",
-        visible: true
+        visible: true,
+        visibleTo: "both"
     });
 
     // Tab 3: Embedded Category Services State
@@ -79,7 +81,7 @@ const AdminServices = () => {
     const [savingEmbedded, setSavingEmbedded] = useState(false);
     const [showEmbeddedModal, setShowEmbeddedModal] = useState(false);
     const [editingEmbedded, setEditingEmbedded] = useState(null); // null = new
-    const [embeddedForm, setEmbeddedForm] = useState({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true });
+    const [embeddedForm, setEmbeddedForm] = useState({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
 
     useScrollLock(showModal || showSubModal || showServiceModal || showEmbeddedModal);
 
@@ -182,7 +184,7 @@ const AdminServices = () => {
             }
             setShowModal(false);
             setEditingCat(null);
-            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, services: [] });
+            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, visibleTo: "both", services: [] });
         } catch (err) {
             toast({ title: "Save Failed", variant: "destructive" });
         }
@@ -305,7 +307,7 @@ const AdminServices = () => {
         await saveEmbeddedToServer(updated);
         setShowEmbeddedModal(false);
         setEditingEmbedded(null);
-        setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true });
+        setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
     };
 
     const deleteEmbeddedService = async (svc) => {
@@ -329,7 +331,7 @@ const AdminServices = () => {
                         <button
                             onClick={() => {
                                 setEditingCat(null);
-                                setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, services: [] });
+                                setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, visibleTo: "both", services: [] });
                                 setShowModal(true);
                             }}
                             className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95"
@@ -353,7 +355,7 @@ const AdminServices = () => {
                         <button
                             onClick={() => {
                                 setEditingEmbedded(null);
-                                setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true });
+                                setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
                                 setShowEmbeddedModal(true);
                             }}
                             className="flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-violet-700 transition-all active:scale-95"
@@ -448,6 +450,7 @@ const AdminServices = () => {
                                                     isComingSoon: cat.isComingSoon || false,
                                                     businessModel: cat.businessModel || "commission",
                                                     defaultLeadPrice: cat.defaultLeadPrice || 0,
+                                                    visibleTo: cat.visibleTo || "both",
                                                     services: cat.services || []
                                                 });
                                                 setShowModal(true);
@@ -461,7 +464,10 @@ const AdminServices = () => {
                                     </div>
 
                                     <h3 className="text-lg font-black text-gray-900 tracking-tight mb-1">{cat.name}</h3>
-                                    <p className="text-xs text-gray-500 font-medium mb-4 line-clamp-2">{cat.description || "No description provided."}</p>
+                                    <p className="text-xs text-gray-500 font-medium mb-2 line-clamp-2">{cat.description || "No description provided."}</p>
+                                    <span className="self-start mb-4 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">
+                                        {cat.visibleTo === 'sewak' ? 'Sewak only' : cat.visibleTo === 'partner' ? 'Partner only' : 'Sewak + Partner'}
+                                    </span>
 
                                     <button
                                         onClick={() => {
@@ -597,7 +603,7 @@ const AdminServices = () => {
                                     <button
                                         onClick={() => {
                                             setEditingService(null);
-                                            setNewService({ name: "", description: "", price: 0, duration: "30 min", image: "", visible: true });
+                                            setNewService({ name: "", description: "", price: 0, duration: "30 min", image: "", visible: true, visibleTo: "both" });
                                             setShowServiceModal(true);
                                         }}
                                         className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
@@ -621,7 +627,7 @@ const AdminServices = () => {
                                     <button
                                         onClick={() => {
                                             setEditingService(null);
-                                            setNewService({ name: "", description: "", price: 0, duration: "30 min", image: "", visible: true });
+                                            setNewService({ name: "", description: "", price: 0, duration: "30 min", image: "", visible: true, visibleTo: "both" });
                                             setShowServiceModal(true);
                                         }}
                                         className="mt-3 text-xs font-bold text-blue-600 hover:underline"
@@ -644,6 +650,10 @@ const AdminServices = () => {
                                                         </>
                                                     )}
                                                     <span className="text-gray-500">{svc.duration}</span>
+                                                    <span className="text-gray-400">•</span>
+                                                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600">
+                                                        {svc.visibleTo === 'sewak' ? 'Sewak only' : svc.visibleTo === 'partner' ? 'Partner only' : 'Sewak + Partner'}
+                                                    </span>
                                                 </div>
                                             </div>
 
@@ -710,7 +720,7 @@ const AdminServices = () => {
                             <Sparkles className="h-8 w-8 text-gray-300 mx-auto mb-3" />
                             <p className="text-xs font-bold text-gray-400">No base services in this category.</p>
                             <button
-                                onClick={() => { setEditingEmbedded(null); setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true }); setShowEmbeddedModal(true); }}
+                                onClick={() => { setEditingEmbedded(null); setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" }); setShowEmbeddedModal(true); }}
                                 className="mt-3 text-xs font-bold text-violet-600 hover:underline"
                             >+ Add First Base Service</button>
                         </div>
@@ -733,6 +743,9 @@ const AdminServices = () => {
                                                         {svc.skillSessionActive === false && " · paused"}
                                                     </span>
                                                 )}
+                                                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-600">
+                                                    {svc.visibleTo === 'sewak' ? 'Sewak only' : svc.visibleTo === 'partner' ? 'Partner only' : 'Sewak + Partner'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -747,7 +760,8 @@ const AdminServices = () => {
                                                     skillSessionRequired: !!svc.skillSessionRequired,
                                                     sessionDurationMinutes: svc.sessionDurationMinutes ?? 60,
                                                     sessionMode: svc.sessionMode || "offline",
-                                                    skillSessionActive: svc.skillSessionActive !== false
+                                                    skillSessionActive: svc.skillSessionActive !== false,
+                                                    visibleTo: svc.visibleTo || "both"
                                                 });
                                                 setShowEmbeddedModal(true);
                                             }}
@@ -820,6 +834,28 @@ const AdminServices = () => {
                                         <input type="checkbox" id="isComingSoon" checked={newCat.isComingSoon} onChange={e => setNewCat({ ...newCat, isComingSoon: e.target.checked })} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
                                         <label htmlFor="isComingSoon" className="text-xs font-bold text-gray-700 cursor-pointer">Mark as "Coming Soon"</label>
                                     </div>
+
+                                    <InputField label="Show In">
+                                        <div className="flex gap-2">
+                                            {[
+                                                { value: 'sewak', label: 'Sewak' },
+                                                { value: 'partner', label: 'Partner' },
+                                                { value: 'both', label: 'Both' }
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => setNewCat({ ...newCat, visibleTo: opt.value })}
+                                                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${(newCat.visibleTo || 'both') === opt.value
+                                                        ? 'bg-blue-600 text-white border-blue-600'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 font-medium mt-1.5">Controls which provider type sees this category when registering / choosing an industry.</p>
+                                    </InputField>
 
                                     <div className="flex gap-3 pt-2">
                                         <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500 hover:bg-gray-50">Cancel</button>
@@ -896,6 +932,26 @@ const AdminServices = () => {
                                             )}
                                             <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setNewService)} disabled={isUploading} className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                                             {isUploading && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                                        </div>
+                                    </InputField>
+                                    <InputField label="Show In">
+                                        <div className="flex gap-2">
+                                            {[
+                                                { value: 'sewak', label: 'Sewak' },
+                                                { value: 'partner', label: 'Partner' },
+                                                { value: 'both', label: 'Both' }
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => setNewService({ ...newService, visibleTo: opt.value })}
+                                                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${(newService.visibleTo || 'both') === opt.value
+                                                        ? 'bg-blue-600 text-white border-blue-600'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
                                         </div>
                                     </InputField>
                                     <div className="flex gap-3 pt-2">
@@ -983,6 +1039,27 @@ const AdminServices = () => {
                                             </div>
                                         )}
                                     </div>
+
+                                    <InputField label="Show In">
+                                        <div className="flex gap-2">
+                                            {[
+                                                { value: 'sewak', label: 'Sewak' },
+                                                { value: 'partner', label: 'Partner' },
+                                                { value: 'both', label: 'Both' }
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => setEmbeddedForm({ ...embeddedForm, visibleTo: opt.value })}
+                                                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${(embeddedForm.visibleTo || 'both') === opt.value
+                                                        ? 'bg-violet-600 text-white border-violet-600'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:border-violet-300'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </InputField>
 
                                     <div className="flex gap-3 pt-2">
                                         <button type="button" onClick={() => setShowEmbeddedModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500 hover:bg-gray-50">Cancel</button>

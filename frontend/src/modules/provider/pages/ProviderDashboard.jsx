@@ -57,6 +57,10 @@ const ProviderDashboard = () => {
   const [plans, setPlans] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [trainingStatus, setTrainingStatus] = useState(null);
+  const [catalogServices, setCatalogServices] = useState([]);
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [savingServices, setSavingServices] = useState(false);
   const isSubscribed = user?.isSubscribed || false;
   const [commissionPreview, setCommissionPreview] = useState(null);
   const [estimateAmount, setEstimateAmount] = useState("1000");
@@ -68,6 +72,41 @@ const ProviderDashboard = () => {
       setCommissionPreview(data);
       setEstimation(data);
     } catch (err) {}
+  };
+
+  const needsServiceSelection = user?.providerCategory === 'sewak' && user?.kycVerified && (!user?.subServices || user.subServices.length === 0);
+
+  useEffect(() => {
+    if (!needsServiceSelection || !user?.vendorType) return;
+    setLoadingCatalog(true);
+    API.get("/provider/categories")
+      .then(({ data }) => {
+        const cat = (data || []).find(c => c._id === user.vendorType);
+        const sewakVisible = (cat?.services || []).filter(s => !s.visibleTo || s.visibleTo === 'both' || s.visibleTo === 'sewak');
+        setCatalogServices(sewakVisible);
+      })
+      .catch(() => setCatalogServices([]))
+      .finally(() => setLoadingCatalog(false));
+  }, [needsServiceSelection, user?.vendorType]);
+
+  const toggleServiceSelection = (name) => {
+    setSelectedServices(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+  };
+
+  const submitServiceSelection = async () => {
+    if (selectedServices.length === 0) {
+      return toast({ title: "Pick at least one service", variant: "destructive" });
+    }
+    setSavingServices(true);
+    try {
+      const { data } = await API.put("/provider/select-services", { subServices: selectedServices });
+      updateUser({ subServices: data.subServices });
+      toast({ title: "Services saved", description: "You're all set — head to Skill Sessions if any of these need training." });
+    } catch (err) {
+      toast({ title: "Could not save services", description: err.response?.data?.message, variant: "destructive" });
+    } finally {
+      setSavingServices(false);
+    }
   };
 
   const handleEstimate = async (val) => {
@@ -425,6 +464,152 @@ const ProviderDashboard = () => {
             Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link>
           </p>
         </div>
+      </div>
+    );
+  }
+
+  // Service Selection Gate — once KYC is approved, a Sewak must pick which
+  // category services they offer before seeing anything else. This is what
+  // populates Provider.subServices, which Skill Session eligibility reads.
+  if (needsServiceSelection) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[40px] p-8 shadow-2xl shadow-slate-200 dark:shadow-none border border-slate-100 dark:border-slate-800">
+          <div className="h-20 w-20 bg-emerald-50 dark:bg-emerald-950/20 rounded-[28px] flex items-center justify-center mb-6 mx-auto border-2 border-emerald-100/50 dark:border-emerald-900/30">
+            <Briefcase className="h-10 w-10 text-emerald-600" />
+          </div>
+
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mb-2 text-center uppercase">
+            Choose Your Services
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 text-xs font-medium leading-relaxed mb-6 text-center">
+            Your KYC is approved. Pick the services you'll offer to get started — some may require a quick Skill Session before they go live.
+          </p>
+
+          {loadingCatalog ? (
+            <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-emerald-500" /></div>
+          ) : catalogServices.length === 0 ? (
+            <p className="text-center text-xs text-slate-400 italic py-10">No services configured for your category yet. Please contact support.</p>
+          ) : (
+            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1 mb-6">
+              {catalogServices.map(s => (
+                <button
+                  key={s._id || s.name}
+                  type="button"
+                  onClick={() => toggleServiceSelection(s.name)}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border-2 p-3.5 text-left transition-colors ${selectedServices.includes(s.name)
+                    ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30'
+                    : 'border-slate-100 dark:border-slate-800 hover:border-emerald-200'}`}
+                >
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{s.name}</span>
+                      {s.skillSessionRequired && s.skillSessionActive !== false && (
+                        <span className="text-[9px] font-black text-amber-700 bg-amber-500/10 px-2 py-0.5 rounded-full uppercase">Skill Session</span>
+                      )}
+                    </span>
+                  </span>
+                  <span className={`h-5 w-5 shrink-0 rounded-full border-2 flex items-center justify-center ${selectedServices.includes(s.name) ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300 dark:border-slate-600'}`}>
+                    {selectedServices.includes(s.name) && <CheckCircle className="h-3.5 w-3.5 text-white" />}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={submitServiceSelection}
+            disabled={savingServices || selectedServices.length === 0}
+            className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 text-sm uppercase tracking-wider disabled:opacity-50"
+          >
+            {savingServices ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <span>Save & Continue</span>}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Post-KYC activation screen — for a Sewak whose KYC is already approved,
+  // `status` stays 'pending' until Skill Session + Starter Kit + Training are
+  // done (see TRAINING_PANEL_PLAN.md D2). Showing the generic "Admin Approval
+  // In Queue" screen below for this case is wrong — nothing is waiting on the
+  // admin team anymore, so this Sewak gets a status screen that actually
+  // reflects what they're blocked on and where to go next.
+  if (user?.providerCategory === 'sewak' && user?.kycVerified && user?.status === 'pending') {
+    const onHoldForItems = trainingStatus?.status === 'on_hold_item_missing';
+    return (
+      <div className="min-h-[100dvh] bg-background">
+        <ProviderTopNav />
+        <main className="container max-w-lg px-6 py-12 flex flex-col items-center justify-center text-center space-y-8">
+          <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className={`h-24 w-24 rounded-[40px] flex items-center justify-center rotate-12 ${onHoldForItems ? 'bg-amber-100' : 'bg-sky-100'}`}>
+            <GraduationCap className={`h-12 w-12 -rotate-12 ${onHoldForItems ? 'text-amber-600' : 'text-sky-600'}`} />
+          </motion.div>
+
+          <div className="space-y-3">
+            <h1 className="text-3xl font-black tracking-tighter">
+              {onHoldForItems ? "Training On Hold" : "Almost There"}
+            </h1>
+            <p className="text-sm font-medium text-muted-foreground px-4">
+              {onHoldForItems
+                ? `Order these and bring them to your training centre: ${trainingStatus.missingItems.map(i => i.itemName).join(", ")}.`
+                : "Your KYC is approved. Complete your Skill Session and Starter Kit, then visit your training centre to go live."}
+            </p>
+          </div>
+
+          <div className="w-full bg-card border-2 border-dashed border-border p-6 rounded-3xl space-y-4">
+            <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
+              <span>Local Expert ID</span>
+              <span className="text-emerald-600">Secure Protocol</span>
+            </div>
+            <p className="text-3xl font-black font-mono tracking-widest text-foreground">{user?.vendorCode}</p>
+            <div className="pt-4 border-t border-border flex items-center justify-center gap-2 text-xs font-bold text-sky-700">
+              <ShieldCheck className="h-4 w-4" /> KYC Verified
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 w-full">
+            <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
+              <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><CheckCircle className="h-5 w-5 text-emerald-600" /></div>
+              <div><p className="text-xs font-black">Admin Approval</p><p className="text-[10px] text-muted-foreground">KYC Verified</p></div>
+            </div>
+            {trainingStatus?.pendingSkillSessions?.length > 0 && (
+              <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
+                <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><Lock className="h-5 w-5 text-amber-600" /></div>
+                <div><p className="text-xs font-black">Skill Session</p><p className="text-[10px] text-muted-foreground">Pending for: {trainingStatus.pendingSkillSessions.join(", ")}</p></div>
+              </div>
+            )}
+            {trainingStatus?.missingItems?.length > 0 && (
+              <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
+                <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><Lock className="h-5 w-5 text-amber-600" /></div>
+                <div><p className="text-xs font-black">Starter Kit</p><p className="text-[10px] text-muted-foreground">Missing: {trainingStatus.missingItems.map(i => i.itemName).join(", ")}</p></div>
+              </div>
+            )}
+            {trainingStatus?.topicsTotal > 0 && (
+              <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
+                <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><GraduationCap className="h-5 w-5 text-sky-600" /></div>
+                <div><p className="text-xs font-black">Basic Training</p><p className="text-[10px] text-muted-foreground">{trainingStatus.topicsCovered}/{trainingStatus.topicsTotal} topics covered</p></div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 w-full">
+            {trainingStatus?.pendingSkillSessions?.length > 0 && (
+              <Link to="/provider/skill-sessions" className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-colors">
+                Book Skill Session
+              </Link>
+            )}
+            {trainingStatus?.missingItems?.length > 0 && (
+              <Link to="/provider/kit-store" className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-colors">
+                Order Missing Items
+              </Link>
+            )}
+            <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
+          </div>
+
+          <p className="text-[10px] font-bold text-muted-foreground mt-2">
+            Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link>
+          </p>
+        </main>
       </div>
     );
   }

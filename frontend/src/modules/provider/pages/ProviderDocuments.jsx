@@ -82,8 +82,11 @@ const ProviderDocuments = () => {
 
   const fetchProfile = async () => {
     try {
-      const { data } = await API.get("/provider/profile");
-      setProvider(data);
+      const [{ data: profile }, { data: documents }] = await Promise.all([
+        API.get("/provider/profile"),
+        API.get("/provider/documents"),
+      ]);
+      setProvider({ ...profile, documents });
     } catch (err) {
       toast({ title: "Failed to load data", variant: "destructive" });
     } finally {

@@ -4,8 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as LucideIcons from "lucide-react";
 import {
   Store, User, Phone, MapPin, Briefcase, ArrowRight, ArrowLeft, Loader2,
-  ShieldCheck, Gift, CheckCircle, Navigation, Clock,
-  Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, Star, FileText, Camera, Upload, Image as ImageIcon, ChevronRight, X, Building2,
+  ShieldCheck, CheckCircle, Navigation, Clock,
+  Car, Building, GraduationCap, Home, Utensils, HardHat, Truck, Wrench, FileText, Camera, Upload, Image as ImageIcon, ChevronRight, X, Building2,
   Layers, Sparkles, Map, Heart, Smartphone, Lock, Eye, EyeOff
 } from "lucide-react";
 import logoImg from "@/assets/RozSewa.png";
@@ -38,7 +38,7 @@ const SewakRegister = () => {
   });
 
   useEffect(() => {
-    if (step === 9) {
+    if (step === 7) {
       sessionStorage.removeItem("sewakRegStep");
       sessionStorage.removeItem("sewakRegData");
       sessionStorage.removeItem("sewakRegStatus");
@@ -93,6 +93,7 @@ const SewakRegister = () => {
       kycPanNumber: "",
       kycPanPhoto: "",
       profileImage: "",
+      type: "individual",
       serviceRadius: "5",
       serviceModes: ["home"],
       registrationType: "individual",
@@ -112,7 +113,7 @@ const SewakRegister = () => {
   });
 
   useEffect(() => {
-    if (step !== 9) {
+    if (step !== 7) {
       sessionStorage.setItem("sewakRegData", JSON.stringify(formData));
     }
   }, [formData, step]);
@@ -132,7 +133,7 @@ const SewakRegister = () => {
   });
 
   useEffect(() => {
-    if (step !== 9) {
+    if (step !== 7) {
       sessionStorage.setItem("sewakRegStatus", JSON.stringify(verificationStatus));
     }
   }, [verificationStatus, step]);
@@ -153,30 +154,6 @@ const SewakRegister = () => {
     coordsRef.current = coords;
   }, [coords]);
 
-  const [referredByName, setReferredByName] = useState("");
-  const [verifyingReferral, setVerifyingReferral] = useState(false);
-
-  useEffect(() => {
-    const verifyCode = async () => {
-      if (formData.referredBy && formData.referredBy.length >= 5) {
-        setVerifyingReferral(true);
-        try {
-          const { data } = await API.get(`/public/verify-referral/${formData.referredBy}`);
-          setReferredByName(data.name);
-        } catch (err) {
-          setReferredByName("");
-        } finally {
-          setVerifyingReferral(false);
-        }
-      } else {
-        setReferredByName("");
-      }
-    };
-
-    const timer = setTimeout(verifyCode, 600);
-    return () => clearTimeout(timer);
-  }, [formData.referredBy]);
-
   const [generatedCode, setGeneratedCode] = useState("");
 
   useEffect(() => {
@@ -186,7 +163,7 @@ const SewakRegister = () => {
   const fetchCategories = async () => {
     setFetchingCats(true);
     try {
-      const { data } = await API.get("/provider/categories");
+      const { data } = await API.get("/provider/categories?providerType=sewak");
       setCategories(data);
     } catch (err) {
       console.error("Failed to fetch categories:", err);
@@ -366,17 +343,6 @@ const SewakRegister = () => {
     }
   };
 
-  const currentCategory = categories.find(c => c._id === formData.vendorType);
-
-  const toggleSubService = (service) => {
-    setFormData(prev => ({
-      ...prev,
-      subServices: prev.subServices.includes(service)
-        ? prev.subServices.filter(s => s !== service)
-        : [...prev.subServices, service]
-    }));
-  };
-
   const handleSendEmailOtp = async () => {
     if (!formData.email || !validateEmail(formData.email)) {
       return toast({ title: "Invalid Email", description: "Please enter a valid email.", variant: "destructive" });
@@ -434,30 +400,6 @@ const SewakRegister = () => {
       toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
     } finally {
       setVerifying(prev => ({ ...prev, pan: false }));
-    }
-  };
-
-  const handleVerifyGST = async () => {
-    const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
-    if (!formData.gst || !gstRegex.test(formData.gst)) {
-      return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number (e.g., 22AAAAA0000A1Z5).", variant: "destructive" });
-    }
-    setVerifying(prev => ({ ...prev, gst: true }));
-    try {
-      const { data } = await API.post("/verify/gst", { gstNumber: formData.gst });
-      if (data?.status === "VERIFIED" || data?.success) {
-        setVerificationStatus(prev => ({ ...prev, gst: true }));
-        if (data?.data?.businessName && !formData.shopName) {
-           setFormData(prev => ({ ...prev, shopName: data.data.businessName }));
-        }
-        toast({ title: "GST Verified", description: "GST details fetched successfully." });
-      } else {
-        toast({ title: "Verification Failed", description: "GST verification failed.", variant: "destructive" });
-      }
-    } catch (err) {
-      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
-    } finally {
-      setVerifying(prev => ({ ...prev, gst: false }));
     }
   };
 
@@ -553,17 +495,18 @@ const SewakRegister = () => {
     }
   };
 
-  const finalizeSignupDirectly = async () => {
+  const finalizeSignupDirectly = async (overrides = {}) => {
     setIsLoading(true);
     try {
       const finalData = {
         ...formDataRef.current,
-        location: { type: 'Point', coordinates: coordsRef.current }
+        location: { type: 'Point', coordinates: coordsRef.current },
+        ...overrides
       };
       const signupRes = await signup(finalData, 'sewak');
       if (signupRes.success) {
         setGeneratedCode(signupRes.data.vendorCode);
-        setStep(9);
+        setStep(7);
       } else {
         toast({
           title: "Signup Failed",
@@ -598,9 +541,13 @@ const SewakRegister = () => {
     await finalizeSignupDirectly();
   };
 
+  const handleSkipBank = async () => {
+    await finalizeSignupDirectly({ bankDetails: null });
+  };
+
   const stepTitles = [
-    "Verify Mobile", "Business Type", "Select Industry", "Add Services",
-    "Sewak Profile", "Identity Photo", "Referral", "Bank Details", "Success"
+    "Verify Mobile", "Business Type", "Select Industry",
+    "Sewak Profile", "Identity Photo", "Bank Details", "Success"
   ];
 
   return (
@@ -627,7 +574,7 @@ const SewakRegister = () => {
             <h2 className="text-3xl font-bold tracking-tight text-slate-900">{stepTitles[step - 1]}</h2>
             <div className="flex items-center justify-center gap-2">
               <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
-                {step < 9 ? `Step ${step} of 8` : 'Completed'}
+                {step < 7 ? `Step ${step} of 6` : 'Completed'}
               </span>
             </div>
           </div>
@@ -636,7 +583,7 @@ const SewakRegister = () => {
           <div className="max-w-[240px] mx-auto h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: 0 }}
-              animate={{ width: `${(step / 9) * 100}%` }}
+              animate={{ width: `${(step / 7) * 100}%` }}
               className="h-full bg-emerald-500 rounded-full"
             />
           </div>
@@ -757,20 +704,7 @@ const SewakRegister = () => {
               >
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-slate-800">Business Model</h3>
-                  <p className="text-sm text-slate-500">How would you like to operate your business?</p>
-                  <div className="space-y-4">
-                    <div className="flex border border-slate-100 rounded-lg p-1 bg-slate-50/50">
-                      {['Individual', 'Business'].map(type => (
-                        <button
-                          key={type}
-                          onClick={() => setFormData({ ...formData, type: type.toLowerCase(), shopName: type === 'Individual' ? "" : formData.shopName })}
-                          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${formData.type === type.toLowerCase() ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="text-sm text-slate-500">Choose the category you'll be working in.</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -779,10 +713,6 @@ const SewakRegister = () => {
                       type="button"
                       key={m.id}
                       onClick={() => {
-                        if (!formData.type) {
-                          toast({ title: "Selection Required", description: "Please choose whether you operate as an Individual or Business.", variant: "destructive" });
-                          return;
-                        }
                         setFormData({ ...formData, businessType: m.id });
                         setStep(3);
                       }}
@@ -872,83 +802,8 @@ const SewakRegister = () => {
             )}
 
             {step === 4 && (
-              <motion.div
-                key="s4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setStep(3)} className="p-3 bg-slate-50 border border-slate-100 rounded-lg hover:bg-white hover:border-emerald-500 transition-all text-slate-500">
-                    <ArrowLeft className="h-4 w-4" />
-                  </button>
-                  <div className="space-y-0.5">
-                    <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Add Services</h3>
-                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">{currentCategory?.name}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  {currentCategory?.services.map(s => (
-                    <button
-                      key={s.name}
-                      onClick={() => toggleSubService(s.name)}
-                      className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all group ${formData.subServices.includes(s.name)
-                        ? 'border-emerald-500 bg-emerald-50/50 shadow-inner'
-                        : 'border-slate-100 bg-slate-50/30 hover:border-emerald-200 hover:bg-white'
-                        }`}
-                    >
-                      <div className="flex flex-col items-start space-y-1">
-                        <span className={`text-[13px] font-bold tracking-tight ${formData.subServices.includes(s.name) ? 'text-emerald-900' : 'text-slate-800'}`}>
-                          {s.name}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                            Starting ₹{s.basePrice}
-                          </span>
-                          {s.skillSessionRequired && s.skillSessionActive !== false && (
-                            <span className="text-[10px] font-bold text-amber-700 bg-amber-500/10 px-2 py-0.5 rounded-full">
-                              Skill Session required
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className={`h-8 w-8 rounded-xl flex items-center justify-center transition-all shadow-sm ${formData.subServices.includes(s.name)
-                        ? 'bg-emerald-600 text-white scale-110'
-                        : 'bg-white text-slate-300'
-                        }`}>
-                        {formData.subServices.includes(s.name) ? <CheckCircle className="h-5 w-5" /> : <div className="h-1.5 w-1.5 rounded-full bg-slate-200" />}
-                      </div>
-                    </button>
-                  ))}
-                  {(!currentCategory?.services || currentCategory.services.length === 0) && (
-                    <div className="py-20 text-center space-y-4">
-                      <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl inline-block">
-                        <Star className="h-8 w-8 text-slate-200" />
-                      </div>
-                      <p className="text-sm font-medium text-slate-400 italic">No services listed for this category yet.</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-4">
-                  <button
-                    onClick={() => setStep(5)}
-                    disabled={formData.subServices.length === 0}
-                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-20 flex items-center justify-center gap-3 shadow-xl shadow-slate-900/10"
-                  >
-                    Continue to Profile
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                  <p className="text-center text-[10px] font-medium text-slate-400 mt-4 uppercase tracking-[0.2em]">Select at least one expertise</p>
-                </div>
-              </motion.div>
-            )}
-
-            {step === 5 && (
               <motion.form
-                key="s5"
+                key="s4"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -961,11 +816,8 @@ const SewakRegister = () => {
                   setFormData(prev => ({ ...prev, ownerName: sanitizedOwnerName }));
 
                   if (formData.email && !validateEmail(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
-                  if (formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
-                  if (!/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
                   if (formData.kycAadhaar && !/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
                   if (formData.kycPanNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
-                  if (formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
                   if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
                   if (formData.password !== formData.confirmPassword) return toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
 
@@ -982,7 +834,7 @@ const SewakRegister = () => {
                       hasPhotos = true;
                   }
 
-                  if (hasPhotos) setStep(6);
+                  if (hasPhotos) setStep(5);
                   else toast({ title: "Documents Required", description: "Please upload photos for either your verified Aadhaar (Front & Back) OR verified PAN Card.", variant: "destructive" });
                 }}
                 className="space-y-6"
@@ -1024,10 +876,6 @@ const SewakRegister = () => {
                           </div>
                         </div>
                       )}
-                    </div>
-                    <div className="space-y-1.5 md:col-span-2">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>
-                      <input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value.replace(/[^a-zA-Z0-9 ]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. Sharma Experts" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1077,48 +925,6 @@ const SewakRegister = () => {
                       </div>
                       <input maxLength="10" disabled={verificationStatus.pan} value={formData.kycPanNumber} onChange={e => setFormData({ ...formData, kycPanNumber: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="PAN Number" />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between ml-1">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">GST Number (Opt)</label>
-                        {!verificationStatus.gst && formData.gst.length === 15 && (
-                          <button type="button" onClick={handleVerifyGST} disabled={verifying.gst} className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md uppercase hover:bg-emerald-100 transition-colors flex items-center gap-1 shadow-sm">
-                            {verifying.gst ? <Loader2 className="h-3 w-3 animate-spin" /> : "Verify GST"}
-                          </button>
-                        )}
-                        {verificationStatus.gst && <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Verified</span>}
-                      </div>
-                      <input maxLength="15" disabled={verificationStatus.gst} value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="GST" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
-                      <input type="checkbox" checked={formData.serviceModes?.includes("home") || false} onChange={e => {
-                        const newModes = e.target.checked
-                          ? [...(formData.serviceModes || []), "home"]
-                          : (formData.serviceModes || []).filter(m => m !== "home");
-                        setFormData({ ...formData, serviceModes: newModes });
-                      }} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-800">Home Service</span>
-                        <span className="text-[9px] font-medium text-slate-500">I can visit customer's location</span>
-                      </div>
-                    </label>
-                    <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
-                      <input type="checkbox" checked={formData.serviceModes?.includes("shop") || false} onChange={e => {
-                        const newModes = e.target.checked
-                          ? [...(formData.serviceModes || []), "shop"]
-                          : (formData.serviceModes || []).filter(m => m !== "shop");
-                        setFormData({ ...formData, serviceModes: newModes });
-                      }} className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500" />
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-800">Shop Service</span>
-                        <span className="text-[9px] font-medium text-slate-500">Customers visit my shop</span>
-                      </div>
-                    </label>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
@@ -1249,14 +1055,14 @@ const SewakRegister = () => {
                   <button type="submit" disabled={!!uploadingDoc} className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs">
                     {uploadingDoc ? 'Securing Media...' : 'Finalize Profile'}
                   </button>
-                  <button type="button" onClick={() => setStep(4)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
+                  <button type="button" onClick={() => setStep(3)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
                 </div>
               </motion.form>
             )}
 
-            {step === 6 && (
+            {step === 5 && (
               <motion.div
-                key="s6"
+                key="s5"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
@@ -1311,125 +1117,20 @@ const SewakRegister = () => {
 
                 <div className="space-y-4 pt-6">
                   <button
-                    onClick={() => setStep(7)}
+                    onClick={() => setStep(6)}
                     disabled={!formData.profileImage}
                     className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] disabled:opacity-50 shadow-xl shadow-slate-900/10 uppercase tracking-widest text-xs"
                   >
                     Save & Continue
                   </button>
-                  <button onClick={() => setStep(5)} className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Information Review</button>
+                  <button onClick={() => setStep(4)} className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Information Review</button>
                 </div>
               </motion.div>
             )}
 
-            {step === 7 && (
+            {step === 6 && (
               <motion.div
-                key="s7"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Referral Program</h3>
-                  <p className="text-sm text-slate-500">Were you invited by someone or a member of our team?</p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  {[
-                    { id: 'individual', label: 'Self Registration', icon: User, tag: 'Direct' },
-                    { id: 'vendor_referral', label: 'Local Expert Referral', icon: Store, tag: 'Via Vendor' },
-                    { id: 'employee', label: 'Expert Assisted', icon: Briefcase, tag: 'RozSewa Agent' }
-                  ].map(type => (
-                    <button
-                      key={type.id}
-                      onClick={() => setFormData({ ...formData, registrationType: type.id, referredBy: "" })}
-                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${formData.registrationType === type.id
-                        ? 'border-emerald-500 bg-emerald-50/50 shadow-sm'
-                        : 'border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-200'
-                        }`}
-                    >
-                      <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${formData.registrationType === type.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-white text-slate-300 border border-slate-100'
-                        }`}>
-                        <type.icon className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-bold tracking-tight ${formData.registrationType === type.id ? 'text-emerald-900' : 'text-slate-700'}`}>{type.label}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{type.tag}</p>
-                      </div>
-                      <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${formData.registrationType === type.id ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-200'
-                        }`}>
-                        {formData.registrationType === type.id && <CheckCircle className="h-3 w-3" />}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <AnimatePresence>
-                  {formData.registrationType !== 'individual' && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-slate-900 rounded-2xl p-6 text-white space-y-4 shadow-2xl"
-                    >
-                      <div className="space-y-1">
-                        <h4 className="text-sm font-bold text-emerald-400 uppercase tracking-widest">Identification Code</h4>
-                        <p className="text-[11px] text-slate-400 italic">Enter the referral or employee ID provided to you.</p>
-                      </div>
-
-                      <div className="relative">
-                        <input
-                          required
-                          value={formData.referredBy || ""}
-                          onChange={e => setFormData({ ...formData, referredBy: e.target.value.toUpperCase() })}
-                          className="w-full rounded-lg border border-white/10 bg-white/5 py-3 px-4 font-black text-xl text-center tracking-[0.3em] text-emerald-400 focus:bg-white/10 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all placeholder:text-white/10"
-                          placeholder="RS____"
-                        />
-                        {verifyingReferral && (
-                          <div className="absolute right-5 top-1/2 -translate-y-1/2">
-                            <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
-                          </div>
-                        )}
-                      </div>
-
-                      {referredByName && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-                          <CheckCircle className="h-4 w-4 text-emerald-400" />
-                          <span className="text-[10px] font-bold text-emerald-50 uppercase">Verified: {referredByName}</span>
-                        </motion.div>
-                      )}
-
-                      <div className="pt-2 flex items-center gap-2 opacity-60">
-                        <Gift className="h-3 w-3 text-emerald-400" />
-                        <span className="text-[10px] font-bold uppercase tracking-wide">3 Services Commission-Free Applied</span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div className="space-y-4 pt-4">
-                  <button
-                    onClick={() => {
-                      if (formData.registrationType !== 'individual' && !formData.referredBy) {
-                        toast({ title: "Incomplete", description: "Please enter the required code.", variant: "destructive" });
-                        return;
-                      }
-                      setStep(8);
-                    }}
-                    className="w-full h-12 rounded-lg bg-slate-900 text-white font-bold transition-all hover:bg-slate-800 active:scale-[0.98] shadow-xl shadow-slate-900/10 flex items-center justify-center gap-3"
-                  >
-                    Proceed to Bank Details
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => setStep(6)} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Previous Step</button>
-                </div>
-              </motion.div>
-            )}
-
-            {step === 8 && (
-              <motion.div
-                key="s8"
+                key="s6"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
@@ -1491,15 +1192,23 @@ const SewakRegister = () => {
                     {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Complete Registration <ArrowRight className="h-4 w-4" /></>}
                   </button>
                   <div className="flex flex-col items-center gap-2">
-                    <button type="button" onClick={() => setStep(7)} className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">Previous</button>
+                    <button
+                      type="button"
+                      onClick={handleSkipBank}
+                      disabled={isLoading}
+                      className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-50"
+                    >
+                      Skip for now
+                    </button>
+                    <button type="button" onClick={() => setStep(5)} className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">Previous</button>
                   </div>
                 </form>
               </motion.div>
             )}
 
-            {step === 9 && (
+            {step === 7 && (
               <motion.div
-                key="s9"
+                key="s7"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="space-y-8 py-6 text-center"
