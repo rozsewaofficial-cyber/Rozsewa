@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Clock, CalendarCheck } from "lucide-react";
 
 const HierarchicalServiceCard = ({ service, onBookNow }) => {
-  const { name, image, description, price, duration } = service;
+  const { name, image, description } = service;
 
   return (
     <motion.div
@@ -40,15 +40,8 @@ const HierarchicalServiceCard = ({ service, onBookNow }) => {
           </p>
         </div>
 
-        {/* Price & Book Now */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
-          <div>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Starting Price</span>
-            <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
-              {price ? `₹${price}` : 'Quote on request'}
-            </span>
-          </div>
-
+        {/* Book Now — pricing is negotiated directly with the Local Expert, not shown here */}
+        <div className="flex items-center justify-end pt-2 border-t border-slate-100 dark:border-slate-800/80">
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => onBookNow(service)}
