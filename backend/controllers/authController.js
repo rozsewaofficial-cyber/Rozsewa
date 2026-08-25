@@ -129,6 +129,98 @@ const registerUser = async (req, res) => {
     }
 };
 
+// @desc    Sign up or log in a customer with a Google ID token
+// @route   POST /api/auth/google
+// @access  Public
+const googleAuth = async (req, res) => {
+    const { credential } = req.body;
+    if (!credential) {
+        return res.status(400).json({ message: 'Google credential is required' });
+    }
+    if (!process.env.GOOGLE_CLIENT_ID) {
+        return res.status(500).json({ message: 'Google Sign-In is not configured on this server' });
+    }
+
+    try {
+        const { OAuth2Client } = require('google-auth-library');
+        const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+        let payload;
+        try {
+            const ticket = await client.verifyIdToken({
+                idToken: credential,
+                audience: process.env.GOOGLE_CLIENT_ID,
+            });
+            payload = ticket.getPayload();
+        } catch (verifyErr) {
+            return res.status(401).json({ message: 'Invalid Google credential' });
+        }
+
+        const { sub: googleId, email, name, picture } = payload;
+        if (!email) {
+            return res.status(400).json({ message: 'This Google account has no email to sign in with' });
+        }
+        const normalizedEmail = email.trim().toLowerCase();
+
+        // A mobile-registered Provider owning this email is a different account
+        // type entirely — Google sign-in on the customer app shouldn't merge into it.
+        const providerExists = await Provider.findOne({ email: normalizedEmail });
+        if (providerExists) {
+            return res.status(400).json({ message: 'This email is already registered as a Provider. Please use the Provider login.' });
+        }
+
+        let user = await User.findOne({ googleId });
+        let isNewUser = false;
+
+        if (!user) {
+            // Link onto an existing password-based account with the same email.
+            user = await User.findOne({ email: normalizedEmail });
+            if (user) {
+                user.googleId = googleId;
+                if (!user.avatar && picture) user.avatar = picture;
+                await user.save();
+            } else {
+                user = await User.create({
+                    name: name || normalizedEmail.split('@')[0],
+                    email: normalizedEmail,
+                    googleId,
+                    avatar: picture || null,
+                    role: 'customer',
+                    location: { type: 'Point', coordinates: [0, 0] },
+                });
+                await Wallet.create({ userId: user._id, balance: 0 });
+                isNewUser = true;
+            }
+        }
+
+        const profileComplete = !!(user.mobile && user.city && user.state);
+
+        res.json({
+            success: true,
+            message: isNewUser ? 'Account created' : 'Login successful',
+            data: {
+                token: generateToken(user._id),
+                needsProfileCompletion: !profileComplete,
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    phone: user.mobile,
+                    mobile: user.mobile,
+                    role: user.role,
+                    city: user.city || "",
+                    state: user.state || "",
+                    address: user.address || "",
+                    avatar: user.avatar,
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Google Auth Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Auth user with OTP & get token
 // @route   POST /api/auth/login-otp
 // @access  Public
@@ -227,6 +319,8 @@ const authUser = async (req, res) => {
                         }
                     }
                 });
+            } else if (user.googleId && !user.password) {
+                res.status(401).json({ message: 'This account uses Google Sign-In. Please continue with Google.' });
             } else {
                 res.status(401).json({ message: 'Invalid email/mobile or password' });
             }
@@ -313,7 +407,7 @@ const getUserProfile = async (req, res) => {
 // @route   PUT /api/auth/profile
 // @access  Private
 const updateUserProfile = async (req, res) => {
-    const { name, email, mobile, avatar, addresses, favorites, city, address } = req.body;
+    const { name, email, mobile, avatar, addresses, favorites, city, state, address } = req.body;
 
     try {
         let user = await User.findById(req.user._id);
@@ -325,6 +419,19 @@ const updateUserProfile = async (req, res) => {
         }
 
         if (user) {
+            if (mobile && mobile !== user.mobile) {
+                if (!/^\d{10}$/.test(mobile)) {
+                    return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+                }
+                const [dupUser, dupProvider] = await Promise.all([
+                    User.findOne({ mobile, _id: { $ne: user._id } }),
+                    Provider.findOne({ mobile }),
+                ]);
+                if (dupUser || dupProvider) {
+                    return res.status(400).json({ message: 'This mobile number is already registered' });
+                }
+            }
+
             if (isProvider) {
                 user.ownerName = name || user.ownerName;
                 user.profileImage = avatar !== undefined ? avatar : user.profileImage;
@@ -340,6 +447,9 @@ const updateUserProfile = async (req, res) => {
 
             if (city !== undefined) {
                 user.city = city;
+            }
+            if (state !== undefined) {
+                user.state = state;
             }
             if (address !== undefined) {
                 user.address = address;
@@ -706,6 +816,7 @@ const sendEmailOtp = async (req, res) => {
 
 module.exports = {
     registerUser,
+    googleAuth,
     sendEmailOtp,
     verifyEmailOtp,
     authUser,

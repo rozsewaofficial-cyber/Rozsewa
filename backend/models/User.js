@@ -17,7 +17,6 @@ const userSchema = new mongoose.Schema({
     },
     mobile: {
         type: String,
-        required: [true, 'Mobile number is required'],
         trim: true,
     },
     address: {
@@ -26,16 +25,20 @@ const userSchema = new mongoose.Schema({
     },
     city: {
         type: String,
-        required: [true, 'City is required'],
     },
     state: {
         type: String,
-        required: [true, 'State is required'],
     },
     password: {
         type: String,
-        required: [true, 'Password is required'],
         minlength: [6, 'Password must be at least 6 characters'],
+    },
+    // Set once by Google Sign-In; accounts created this way have no
+    // mobile/city/state/password until the "complete your profile" step.
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true,
     },
     plainPassword: {
         type: String,
@@ -157,6 +160,7 @@ userSchema.pre('save', async function () {
 
 // Method to match password
 userSchema.methods.matchPassword = async function (enteredPassword) {
+    if (!this.password) return false;
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
