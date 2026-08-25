@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, ArrowRight, Sparkles, Eye, EyeOff } from "lucide-react";
+import { Mail, ArrowRight, Sparkles, Eye, EyeOff, MapPin } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 import { toast } from "sonner";
@@ -19,8 +20,9 @@ const CustomerLogin = () => {
   const from =
     (location.state?.from?.pathname || "/") +
     (location.state?.from?.search || "");
-  const { login, signup, loginWithOTP, detectLocation, isAuthenticated } =
+  const { login, signup, loginWithOTP, loginWithGoogle, detectLocation, isAuthenticated, updateUser } =
     useAuth();
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
   const draft = JSON.parse(
     sessionStorage.getItem("customer-signup-draft") || "{}",
@@ -44,9 +46,15 @@ const CustomerLogin = () => {
   const [error, setError] = useState("");
   const [showOtpInput, setShowOtpInput] = useState(false);
   const [otp, setOtp] = useState("");
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
+  const [profileMobile, setProfileMobile] = useState("");
+  const [profileCity, setProfileCity] = useState("");
+  const [profileState, setProfileState] = useState("");
+  const [profileAddress, setProfileAddress] = useState("");
+  const [isCompletingProfile, setIsCompletingProfile] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !needsProfileCompletion) {
       navigate(from, { replace: true });
     }
   }, [isAuthenticated, navigate, from]);
@@ -284,6 +292,76 @@ const CustomerLogin = () => {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    if (!credentialResponse?.credential) {
+      setError("Google Sign-In failed. Please try again.");
+      return;
+    }
+    setIsVerifying(true);
+    setError("");
+    const result = await loginWithGoogle(credentialResponse.credential);
+    setIsVerifying(false);
+    if (!result.success) {
+      setError(result.error);
+      return;
+    }
+    if (result.needsProfileCompletion) {
+      setNeedsProfileCompletion(true);
+    } else {
+      clearDraftAndNavigate();
+    }
+  };
+
+  const handleCompleteProfile = async (e) => {
+    e.preventDefault();
+    const phoneValidation = validatePhone(profileMobile);
+    if (!phoneValidation.isValid) {
+      setError(phoneValidation.message);
+      return;
+    }
+    if (!profileCity.trim() || !profileState.trim()) {
+      setError("Please enter your city and state.");
+      return;
+    }
+    if (!profileAddress.trim() || profileAddress.trim().length < 8) {
+      setError("Please enter a valid detailed address (at least 8 characters).");
+      return;
+    }
+
+    setIsCompletingProfile(true);
+    setError("");
+    try {
+      let currentCoords = coords;
+      try {
+        const loc = await detectLocation();
+        if (loc) currentCoords = [loc.lng, loc.lat];
+      } catch (err) {
+        console.log("Location not granted during profile completion", err);
+      }
+
+      const { data } = await API.put("/auth/profile", {
+        mobile: profileMobile,
+        city: profileCity,
+        state: profileState,
+        address: profileAddress,
+        location: { type: "Point", coordinates: currentCoords },
+      });
+
+      updateUser({
+        mobile: data.mobile,
+        city: data.city,
+        state: profileState,
+        address: data.address,
+      });
+      setNeedsProfileCompletion(false);
+      clearDraftAndNavigate();
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not save your details. Please try again.");
+    } finally {
+      setIsCompletingProfile(false);
+    }
+  };
+
   return (
     <div className="flex min-h-[100dvh] flex-col items-center bg-gradient-to-br from-primary/5 via-background to-emerald-50/30 px-4 py-8 dark:from-background dark:to-background">
       {/* Decorative blobs */}
@@ -322,6 +400,109 @@ const CustomerLogin = () => {
           transition={{ delay: 0.3 }}
           className="overflow-hidden rounded-3xl border border-border bg-card/80 backdrop-blur-xl shadow-2xl shadow-black/5"
         >
+          {needsProfileCompletion ? (
+            <div className="p-6 sm:p-8 space-y-5">
+              <div className="text-center">
+                <h2 className="text-lg font-black text-foreground">Complete Your Profile</h2>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">
+                  Just a few more details to start booking services.
+                </p>
+              </div>
+              <form onSubmit={handleCompleteProfile} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                    Mobile Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={profileMobile}
+                    onChange={(e) => setProfileMobile(sanitizePhone(e.target.value))}
+                    maxLength="10"
+                    inputMode="numeric"
+                    className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground"
+                    placeholder="10-digit number"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
+                    Service Location
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if ("geolocation" in navigator) {
+                        navigator.geolocation.getCurrentPosition(async (pos) => {
+                          const { latitude, longitude } = pos.coords;
+                          setCoords([longitude, latitude]);
+                          const res = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+                          );
+                          const data = await res.json();
+                          const addr = data.address || {};
+                          setProfileAddress(data.display_name || "");
+                          setProfileCity(addr.city || addr.town || addr.village || "");
+                          setProfileState(addr.state || "");
+                        });
+                      }
+                    }}
+                    className={`flex items-center gap-1 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-tighter transition-colors ${coords[0] !== 0 ? "bg-emerald-500 text-white" : "text-primary bg-primary/5 hover:bg-primary/10"}`}
+                  >
+                    <MapPin className="h-3 w-3" /> {coords[0] !== 0 ? "Detected ✓" : "Use Live Location"}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">
+                      State
+                    </label>
+                    <input
+                      type="text"
+                      value={profileState}
+                      onChange={(e) => setProfileState(e.target.value.replace(/[^a-zA-Z\s]/g, ""))}
+                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      placeholder="e.g. Maharashtra"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={profileCity}
+                      onChange={(e) => setProfileCity(e.target.value.replace(/[^a-zA-Z\s]/g, ""))}
+                      className="h-11 w-full rounded-xl border border-border bg-background px-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      placeholder="e.g. Mumbai"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1.5 ml-1">
+                    Detailed Address
+                  </label>
+                  <textarea
+                    value={profileAddress}
+                    onChange={(e) => setProfileAddress(e.target.value)}
+                    className="w-full rounded-2xl border border-border bg-background p-4 text-sm font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground min-h-[80px]"
+                    placeholder="Building, Area, Landmark..."
+                  />
+                </div>
+                {error && (
+                  <p className="text-xs font-semibold text-destructive">{error}</p>
+                )}
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  type="submit"
+                  disabled={isCompletingProfile}
+                  className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-emerald-600 py-3.5 text-sm font-extrabold text-white shadow-xl shadow-primary/20 disabled:opacity-60"
+                >
+                  {isCompletingProfile ? "Saving..." : "Continue"}
+                </motion.button>
+              </form>
+            </div>
+          ) : (
+          <>
           {/* Mode Tabs */}
           <div className="flex border-b border-border">
             {[
@@ -715,14 +896,29 @@ const CustomerLogin = () => {
                 <div className="relative flex justify-center text-xs"><span className="bg-card px-3 font-semibold text-muted-foreground">Or continue with</span></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setError("Google Login is coming soon! Please use email/password.")}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-bold text-foreground hover:bg-muted transition-all active:scale-95"
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
-                  Google
-                </button>
+                {googleClientId ? (
+                  <GoogleOAuthProvider clientId={googleClientId}>
+                    <div className="col-span-1 [&>div]:!w-full">
+                      <GoogleLogin
+                        onSuccess={handleGoogleSuccess}
+                        onError={() => setError("Google Sign-In failed. Please try again.")}
+                        theme="outline"
+                        size="large"
+                        text="continue_with"
+                        width="100%"
+                      />
+                    </div>
+                  </GoogleOAuthProvider>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setError("Google Sign-In is not configured yet.")}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-xs font-bold text-foreground hover:bg-muted transition-all active:scale-95"
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
+                    Google
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setError("Apple Login is coming soon!")}
@@ -735,6 +931,8 @@ const CustomerLogin = () => {
               </div>
             </div>
           </div>
+          </>
+          )}
         </motion.div>
 
         {/* Footer */}
