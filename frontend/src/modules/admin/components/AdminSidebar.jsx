@@ -8,12 +8,13 @@ import {
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
   Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
   HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin, Recycle, FileText, Coins,
-  GraduationCap, Building2, UserCog, Package, Layers, ShoppingCart, ClipboardCheck
+  GraduationCap, Building2, UserCog, Package, Layers, ShoppingCart, ClipboardCheck, Send
 } from "lucide-react";
 
 export const adminSidebarLinks = [
   { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { path: "/admin/bazaar", label: "Bazaar Ads", icon: Recycle },
+  { path: "/admin/broadcast", label: "Broadcast", icon: Send },
   { path: "/admin/users", label: "Users", icon: Users },
   { path: "/admin/supervisors", label: "Supervisors", icon: ShieldCheck },
   { path: "/admin/employees", label: "Employees", icon: Users },
