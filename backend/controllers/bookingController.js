@@ -1027,6 +1027,17 @@ const notifyCustomerOfProviderCancellation = async (booking, reason, creditAmoun
         cancelledBy: 'provider',
         status: 'cancelled'
     });
+
+    // WhatsApp: booking status update (cancelled)
+    try {
+        const whatsappService = require('../services/whatsappService');
+        const customer = await User.findById(booking.userId);
+        if (customer) {
+            whatsappService.sendBookingStatusUpdate(customer, booking, 'cancelled').catch(() => { });
+        }
+    } catch (err) {
+        console.log('WhatsApp status-update send failed:', err.message);
+    }
 };
 
 // @desc    Update booking status by provider (Accept/Started/Completed)
@@ -1525,6 +1536,19 @@ const updateBookingStatusByProvider = async (req, res) => {
             booking.status = newStatus;
             const updatedBooking = await booking.save();
 
+            // WhatsApp: booking status update (on_the_way)
+            if (newStatus === 'on_the_way') {
+                try {
+                    const whatsappService = require('../services/whatsappService');
+                    const customer = await User.findById(booking.userId);
+                    if (customer) {
+                        whatsappService.sendBookingStatusUpdate(customer, booking, 'on_the_way').catch(() => { });
+                    }
+                } catch (err) {
+                    console.log('WhatsApp status-update send failed:', err.message);
+                }
+            }
+
             // If cancelled by provider, notify customer first, then apply penalty
             if (newStatus === 'cancelled' && !wasPending) {
                 const reason = booking.cancellationReason || req.body.cancellationReason || '';
@@ -1693,6 +1717,17 @@ const updateBookingStatusByProvider = async (req, res) => {
                     } catch (err) {
                         console.log('User booking acceptance notification failed:', err.message);
                     }
+
+                    // WhatsApp: booking confirmed
+                    try {
+                        const whatsappService = require('../services/whatsappService');
+                        const customer = await User.findById(booking.userId);
+                        if (customer) {
+                            whatsappService.sendBookingConfirmed(customer, booking).catch(() => { });
+                        }
+                    } catch (err) {
+                        console.log('WhatsApp booking-confirmed send failed:', err.message);
+                    }
                 }
             }
 
@@ -1742,6 +1777,18 @@ const verifyStartOTP = async (req, res) => {
                 booking.startedAt = Date.now();
                 booking.beforeImage = beforeImage;
                 await booking.save();
+
+                // WhatsApp: booking status update (started)
+                try {
+                    const whatsappService = require('../services/whatsappService');
+                    const customer = await User.findById(booking.userId);
+                    if (customer) {
+                        whatsappService.sendBookingStatusUpdate(customer, booking, 'started').catch(() => { });
+                    }
+                } catch (err) {
+                    console.log('WhatsApp status-update send failed:', err.message);
+                }
+
                 res.json({ message: 'Service started successfully', status: 'started' });
             } else {
                 res.status(400).json({ message: 'Invalid OTP' });
@@ -2037,6 +2084,19 @@ const verifyEndOTP = async (req, res) => {
                         console.error('[Notification Trigger Error] Failed to send completion notification:', notiErr);
                     }
 
+                    // WhatsApp: status update + invoice + review request (fire-and-forget, non-blocking)
+                    try {
+                        const whatsappService = require('../services/whatsappService');
+                        const customer = await User.findById(booking.userId);
+                        if (customer) {
+                            whatsappService.sendBookingStatusUpdate(customer, booking, 'completed').catch(() => { });
+                            whatsappService.sendInvoice(customer, booking).catch(() => { });
+                            whatsappService.sendReviewRequest(customer, booking).catch(() => { });
+                        }
+                    } catch (waErr) {
+                        console.log('WhatsApp completion messages failed:', waErr.message);
+                    }
+
                     try {
                         const { sendNotificationToUser } = require('../config/notificationService');
                         if (transactionAmount > 0) {
@@ -2238,6 +2298,17 @@ const submitReview = async (req, res) => {
             });
         } catch (err) {
             console.log('Push notification failed (skipping):', err.message);
+        }
+
+        // WhatsApp: thank the customer for their review
+        try {
+            const whatsappService = require('../services/whatsappService');
+            const customer = await User.findById(booking.userId);
+            if (customer) {
+                whatsappService.sendReviewThanks(customer, booking, rating).catch(() => { });
+            }
+        } catch (err) {
+            console.log('WhatsApp review-thanks send failed:', err.message);
         }
 
         res.json({ message: 'Review submitted successfully', booking });
