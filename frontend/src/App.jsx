@@ -108,6 +108,7 @@ import AdminCommission from "./modules/admin/pages/AdminCommission";
 import AdminWithdrawals from "./modules/admin/pages/AdminWithdrawals";
 import AdminScrap from "./modules/admin/pages/AdminScrap";
 import AdminBazaar from "./modules/admin/pages/AdminBazaar";
+import AdminBroadcast from "./modules/admin/pages/AdminBroadcast";
 
 import AdminZones from "./modules/admin/pages/AdminZones";
 import AdminTrainingCenters from "./modules/admin/pages/AdminTrainingCenters";
@@ -311,6 +312,7 @@ const App = () => (
                         <Route path="reports" element={<AdminReports />} />
                         <Route path="withdrawals" element={<AdminWithdrawals />} />
                         <Route path="bazaar" element={<AdminBazaar />} />
+                        <Route path="broadcast" element={<AdminBroadcast />} />
 
                         <Route path="help-training" element={<AdminHelpTraining />} />
                         <Route path="super" element={<AdminSuper />} />

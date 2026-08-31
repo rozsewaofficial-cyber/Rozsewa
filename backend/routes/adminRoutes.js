@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const partnerConfigController = require('../controllers/partnerConfigController');
 const partnerPolicyController = require('../controllers/partnerPolicyController');
+const broadcastController = require('../controllers/broadcastController');
 const {
     getProviders,
     getProviderReports,
@@ -268,6 +269,13 @@ router.post('/sewak-incentive-settings', protect, admin, updateIncentiveSettings
 router.get('/sewak-enquiries', protect, admin, getEnquiries);
 router.put('/sewak-enquiries/:id/status', protect, admin, updateEnquiryStatus);
 router.delete('/sewak-enquiries/:id', protect, admin, deleteEnquiry);
+
+// Broadcast (Notifications + WhatsApp)
+router.get('/broadcast/recipients', protect, admin, broadcastController.searchRecipients);
+router.get('/broadcast/audience-counts', protect, admin, broadcastController.getAudienceCounts);
+router.post('/broadcast/notification', protect, admin, broadcastController.sendNotificationBroadcast);
+router.post('/broadcast/whatsapp', protect, admin, broadcastController.sendWhatsAppBroadcast);
+router.get('/broadcast/history', protect, admin, broadcastController.getBroadcastHistory);
 
 // Partner Program Configuration
 router.get('/partner-program-config', protect, admin, partnerConfigController.getConfig);
