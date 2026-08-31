@@ -324,7 +324,7 @@ const getAdminSubcategories = async (req, res) => {
 // @access  Private/Admin
 const createSubcategory = async (req, res) => {
     try {
-        const { name, categoryId, description, image, icon, isActive, index } = req.body;
+        const { name, categoryId, description, image, icon, isActive, index, businessModel, defaultLeadPrice, isComingSoon, visibleTo } = req.body;
         if (!name || !categoryId) {
             return res.status(400).json({ message: 'Name and Category ID are required' });
         }
@@ -335,7 +335,11 @@ const createSubcategory = async (req, res) => {
             image,
             icon: icon || 'Wrench',
             isActive: isActive !== undefined ? isActive : true,
-            index: index || 0
+            index: index || 0,
+            businessModel: ['commission', 'lead'].includes(businessModel) ? businessModel : 'commission',
+            defaultLeadPrice: Number(defaultLeadPrice) || 0,
+            isComingSoon: !!isComingSoon,
+            visibleTo: ['sewak', 'partner', 'both'].includes(visibleTo) ? visibleTo : 'both'
         });
         res.status(201).json(subcategory);
     } catch (error) {
@@ -353,7 +357,7 @@ const updateSubcategory = async (req, res) => {
             return res.status(404).json({ message: 'Subcategory not found' });
         }
 
-        const { name, categoryId, description, image, icon, isActive, index } = req.body;
+        const { name, categoryId, description, image, icon, isActive, index, businessModel, defaultLeadPrice, isComingSoon, visibleTo } = req.body;
         if (name) subcategory.name = name;
         if (categoryId) subcategory.categoryId = categoryId;
         if (description !== undefined) subcategory.description = description;
@@ -361,6 +365,10 @@ const updateSubcategory = async (req, res) => {
         if (icon !== undefined) subcategory.icon = icon;
         if (isActive !== undefined) subcategory.isActive = isActive;
         if (index !== undefined) subcategory.index = index;
+        if (['commission', 'lead'].includes(businessModel)) subcategory.businessModel = businessModel;
+        if (defaultLeadPrice !== undefined) subcategory.defaultLeadPrice = Number(defaultLeadPrice) || 0;
+        if (isComingSoon !== undefined) subcategory.isComingSoon = !!isComingSoon;
+        if (['sewak', 'partner', 'both'].includes(visibleTo)) subcategory.visibleTo = visibleTo;
 
         const updated = await subcategory.save();
         res.json(updated);

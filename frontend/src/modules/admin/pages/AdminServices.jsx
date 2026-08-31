@@ -56,7 +56,11 @@ const AdminServices = () => {
         image: "",
         icon: "Wrench",
         isActive: true,
-        index: 0
+        index: 0,
+        businessModel: "commission",
+        defaultLeadPrice: 0,
+        isComingSoon: false,
+        visibleTo: "both"
     });
 
     // Subcategory Service Modal State
@@ -343,7 +347,7 @@ const AdminServices = () => {
                         <button
                             onClick={() => {
                                 setEditingSub(null);
-                                setNewSub({ name: "", categoryId: selectedCatId, description: "", image: "", icon: "Wrench", isActive: true, index: 0 });
+                                setNewSub({ name: "", categoryId: selectedCatId, description: "", image: "", icon: "Wrench", isActive: true, index: 0, businessModel: "commission", defaultLeadPrice: 0, isComingSoon: false, visibleTo: "both" });
                                 setShowSubModal(true);
                             }}
                             className="flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-emerald-700 transition-all active:scale-95"
@@ -527,7 +531,7 @@ const AdminServices = () => {
                                     <button
                                         onClick={() => {
                                             setEditingSub(null);
-                                            setNewSub({ name: "", categoryId: selectedCatId, description: "", image: "", icon: "Wrench", isActive: true, index: 0 });
+                                            setNewSub({ name: "", categoryId: selectedCatId, description: "", image: "", icon: "Wrench", isActive: true, index: 0, businessModel: "commission", defaultLeadPrice: 0, isComingSoon: false, visibleTo: "both" });
                                             setShowSubModal(true);
                                         }}
                                         className="mt-3 text-xs font-bold text-emerald-600 hover:underline"
@@ -874,16 +878,34 @@ const AdminServices = () => {
                     <>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm" onClick={() => setShowSubModal(false)} />
                         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="fixed inset-0 z-[101] flex items-center justify-center p-4">
-                            <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+                            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl space-y-4">
                                 <h3 className="text-lg font-black text-gray-900">{editingSub ? "Edit Subcategory" : "New Subcategory"}</h3>
                                 <form onSubmit={handleSaveSubcategory} className="space-y-4">
                                     <InputField label="Subcategory Name">
-                                        <input type="text" value={newSub.name} onChange={e => setNewSub({ ...newSub, name: e.target.value })} className={inputCls} required />
+                                        <input type="text" value={newSub.name} onChange={e => setNewSub({ ...newSub, name: e.target.value })} className={inputCls} placeholder="e.g. Salon & Wellness" required />
                                     </InputField>
                                     <InputField label="Description">
-                                        <textarea value={newSub.description} onChange={e => setNewSub({ ...newSub, description: e.target.value })} className={inputCls} />
+                                        <textarea value={newSub.description} onChange={e => setNewSub({ ...newSub, description: e.target.value })} className={inputCls} placeholder="Brief summary of category" rows={2} />
                                     </InputField>
-                                    <InputField label="Subcategory Image">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <InputField label="Icon Name">
+                                            <input type="text" value={newSub.icon} onChange={e => setNewSub({ ...newSub, icon: e.target.value })} className={inputCls} placeholder="e.g. Scissors" />
+                                        </InputField>
+                                        <InputField label="Business Model">
+                                            <select value={newSub.businessModel || "commission"} onChange={e => setNewSub({ ...newSub, businessModel: e.target.value })} className={inputCls}>
+                                                <option value="commission">Commission Based</option>
+                                                <option value="lead">Lead Based</option>
+                                            </select>
+                                        </InputField>
+                                    </div>
+
+                                    {newSub.businessModel === "lead" && (
+                                        <InputField label="Default Lead Price (₹)">
+                                            <input type="number" min="0" value={newSub.defaultLeadPrice || 0} onChange={e => setNewSub({ ...newSub, defaultLeadPrice: Number(e.target.value) })} className={inputCls} />
+                                        </InputField>
+                                    )}
+
+                                    <InputField label="Subcategory Image / Banner">
                                         <div className="flex items-center gap-3">
                                             {newSub.image && (
                                                 <img src={newSub.image} alt="Preview" className="h-12 w-12 rounded-xl object-cover border" />
@@ -891,9 +913,37 @@ const AdminServices = () => {
                                             <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setNewSub)} disabled={isUploading} className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                                         </div>
                                     </InputField>
-                                    <div className="flex gap-3">
+
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <input type="checkbox" id="subIsComingSoon" checked={!!newSub.isComingSoon} onChange={e => setNewSub({ ...newSub, isComingSoon: e.target.checked })} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
+                                        <label htmlFor="subIsComingSoon" className="text-xs font-bold text-gray-700 cursor-pointer">Mark as "Coming Soon"</label>
+                                    </div>
+
+                                    <InputField label="Show In">
+                                        <div className="flex gap-2">
+                                            {[
+                                                { value: 'sewak', label: 'Sewak' },
+                                                { value: 'partner', label: 'Partner' },
+                                                { value: 'both', label: 'Both' }
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.value}
+                                                    type="button"
+                                                    onClick={() => setNewSub({ ...newSub, visibleTo: opt.value })}
+                                                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-colors ${(newSub.visibleTo || 'both') === opt.value
+                                                        ? 'bg-blue-600 text-white border-blue-600'
+                                                        : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 font-medium mt-1.5">Controls which provider type sees this subcategory when registering / choosing services.</p>
+                                    </InputField>
+
+                                    <div className="flex gap-3 pt-2">
                                         <button type="button" onClick={() => setShowSubModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500">Cancel</button>
-                                        <button type="submit" className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs">Save Subcategory</button>
+                                        <button type="submit" className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold text-xs">{editingSub ? "Update Subcategory" : "Save Subcategory"}</button>
                                     </div>
                                 </form>
                             </div>

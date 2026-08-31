@@ -23,6 +23,24 @@ const subcategorySchema = mongoose.Schema({
         type: String,
         default: 'Wrench'
     },
+    businessModel: {
+        type: String,
+        enum: ['commission', 'lead'],
+        default: 'commission'
+    },
+    defaultLeadPrice: {
+        type: Number,
+        default: 0
+    },
+    isComingSoon: {
+        type: Boolean,
+        default: false
+    },
+    visibleTo: {
+        type: String,
+        enum: ['sewak', 'partner', 'both'],
+        default: 'both'
+    },
     isActive: {
         type: Boolean,
         default: true

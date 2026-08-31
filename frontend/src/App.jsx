@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ChatProvider } from "@/context/ChatContext";
 import { SocketProvider } from "@/context/SocketContext";
 import { ConfirmDialogProvider } from "@/hooks/useConfirm";
@@ -152,6 +152,18 @@ import AdminLayout from "./modules/admin/components/AdminLayout";
 
 const queryClient = new QueryClient();
 
+// A logged-in provider/sewak opening the app root should land on their own
+// dashboard, not the customer catalog home — only logged-out/customer
+// sessions get the public /home.
+const RootRedirect = () => {
+  const { isAuthenticated, user, loading } = useAuth();
+  if (loading) return null;
+  if (isAuthenticated && (user?.role === "provider" || user?.role === "sewak")) {
+    return <Navigate to="/provider" replace />;
+  }
+  return <Navigate to="/home" replace />;
+};
+
 const App = () => (
   <BrowserRouter>
     <ScrollToTop />
@@ -168,7 +180,7 @@ const App = () => (
                   <AnimatePresence mode="wait">
                     <Routes>
                       {/* User Panel as Default */}
-                      <Route path="/" element={<Navigate to="/home" replace />} />
+                      <Route path="/" element={<RootRedirect />} />
                       <Route path="/login" element={<CustomerLogin />} />
 
                       {/* Location Gated Customer Routes */}
