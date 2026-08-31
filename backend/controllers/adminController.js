@@ -690,8 +690,34 @@ const updateCategory = async (req, res) => {
 // @access  Private/Admin
 const deleteCategory = async (req, res) => {
     try {
-        await Category.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Category removed' });
+        const categoryId = req.params.id;
+
+        // Cascade-clean dependents that hold a hard ObjectId reference to this
+        // category. Left orphaned, these silently stop matching anything (a
+        // CommissionSlab tied to a deleted category can never be resolved by
+        // CategorySlabStrategy again, and its Admin UI can never display the
+        // category either since it no longer exists) — this is exactly what
+        // produced the "category keeps disappearing" bug in Partner Program.
+        const CommissionSlab = require('../models/CommissionSlab');
+        const slabDeletion = await CommissionSlab.deleteMany({ category: categoryId });
+
+        // Subscription plans just fall back to "Global (All Categories)"
+        // rather than being deleted outright, since the plan itself (price,
+        // benefits, active subscribers) is still valid without a category.
+        const planUpdate = await SubscriptionPlan.updateMany(
+            { category: categoryId },
+            { $set: { category: null } }
+        );
+
+        await Category.findByIdAndDelete(categoryId);
+
+        res.json({
+            message: 'Category removed',
+            cleanedUp: {
+                commissionSlabsDeleted: slabDeletion.deletedCount,
+                subscriptionPlansUnlinked: planUpdate.modifiedCount
+            }
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

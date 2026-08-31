@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Package, Loader2, Edit3, Trash2 } from 'lucide-react';
+import { ArrowLeft, Package, Loader2, Edit3, Trash2, CheckCircle2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import TopNav from '@/modules/user/components/TopNav';
@@ -14,6 +14,7 @@ const MyBazaarAds = () => {
   const { toast } = useToast();
   const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [markingSoldId, setMarkingSoldId] = useState(null);
 
   useEffect(() => {
     fetchMyAds();
@@ -40,6 +41,7 @@ const MyBazaarAds = () => {
       case 'pending_review': return 'bg-orange-100 text-orange-700 border-orange-200';
       case 'rejected': return 'bg-red-100 text-red-700 border-red-200';
       case 'sold': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'deal_locked': return 'bg-purple-100 text-purple-700 border-purple-200';
       default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
@@ -50,7 +52,24 @@ const MyBazaarAds = () => {
       case 'pending_review': return 'Under Review';
       case 'rejected': return 'Rejected';
       case 'sold': return 'Sold';
+      case 'deal_locked': return 'Deal Locked';
       default: return status;
+    }
+  };
+
+  const handleMarkSold = async (adId) => {
+    if (!window.confirm("Mark this item as sold? It will be removed from Bazaar browsing and can no longer receive offers.")) return;
+    setMarkingSoldId(adId);
+    try {
+      const res = await api.patch(`/bazaar/ads/${adId}/mark-sold`);
+      if (res.data.success) {
+        toast({ title: "Marked as Sold", description: "This ad is no longer visible to buyers." });
+        setAds(prev => prev.map(a => a._id === adId ? { ...a, status: 'sold' } : a));
+      }
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || "Failed to mark as sold", variant: "destructive" });
+    } finally {
+      setMarkingSoldId(null);
     }
   };
 
@@ -156,6 +175,21 @@ const MyBazaarAds = () => {
                       {ad.metrics?.views || 0} Views
                     </div>
                   </div>
+
+                  {(ad.status === 'live' || ad.status === 'deal_locked') && (
+                    <button
+                      onClick={() => handleMarkSold(ad._id)}
+                      disabled={markingSoldId === ad._id}
+                      className="mt-2 flex items-center justify-center gap-1.5 text-[11px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg py-1.5 disabled:opacity-50 transition-colors"
+                    >
+                      {markingSoldId === ad._id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      )}
+                      Mark as Sold
+                    </button>
+                  )}
                 </div>
               </motion.div>
             ))}

@@ -29,6 +29,7 @@ const {
   editAdAdmin,
   getSellerOfferRequests,
   getUserAds,
+  markAdSold,
   getBazaarTransactions,
   getPIIViolations,
   getAllBazaarOffersAdmin
@@ -59,6 +60,7 @@ router.get('/unlock/contact/:adId', protect, getUnlockedContactDetails); // Secu
 // ========================
 router.post('/post', protect, postAd);
 router.get('/my-ads', protect, getUserAds);
+router.patch('/ads/:id/mark-sold', protect, markAdSold);
 router.put('/offer/respond', protect, respondToOffer);
 
 // ========================

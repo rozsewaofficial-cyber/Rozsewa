@@ -127,6 +127,21 @@ const BazaarAdDetails = () => {
 
   // ── Deal-state-aware unlock section ───────────────────────────────────────
   const renderContactSection = () => {
+    // Item sold — no further negotiation/unlock possible
+    if (ad.status === 'sold') {
+      return (
+        <div className="bg-slate-100 rounded-2xl border border-slate-200 p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center shrink-0">
+            <CheckCircle className="w-5 h-5 text-slate-500" />
+          </div>
+          <div>
+            <p className="font-black text-slate-700 text-sm">This item has been sold</p>
+            <p className="text-xs text-slate-500 mt-0.5">It's no longer available for offers or contact unlock.</p>
+          </div>
+        </div>
+      );
+    }
+
     // Already paid & unlocked: show full contact
     if (isUnlocked && contactDetails) {
       return (
@@ -396,7 +411,11 @@ const BazaarAdDetails = () => {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 max-w-2xl mx-auto z-20 space-y-2">
         {isOwner ? (
           <button disabled className="w-full py-4 bg-slate-100 text-slate-400 font-bold rounded-xl cursor-not-allowed uppercase tracking-wide text-sm">
-            This is Your Ad
+            {ad.status === 'sold' ? 'You Sold This Item' : 'This is Your Ad'}
+          </button>
+        ) : ad.status === 'sold' ? (
+          <button disabled className="w-full py-4 bg-slate-100 text-slate-400 font-bold rounded-xl cursor-not-allowed uppercase tracking-wide text-sm">
+            Item No Longer Available
           </button>
         ) : (
           <div className="flex gap-2">

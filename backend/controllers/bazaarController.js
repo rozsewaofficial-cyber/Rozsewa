@@ -155,6 +155,58 @@ exports.getUserAds = async (req, res) => {
   }
 };
 
+// Seller marks their own ad as sold — RozSewa has no visibility into the
+// actual off-app transaction (that happens after contact unlock), so this
+// is a deliberate seller action, never automatic. Once sold, the ad drops
+// out of getLiveAds (status filter already excludes non-'live' ads) and
+// makeOffer already rejects new offers on a non-'live' ad — no other
+// listing-query changes are needed for it to disappear from browsing.
+exports.markAdSold = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sellerId = req.user._id;
+
+    const ad = await BazaarAd.findById(id);
+    if (!ad) return res.status(404).json({ success: false, message: 'Ad not found' });
+
+    if (ad.sellerId.toString() !== sellerId.toString()) {
+      return res.status(403).json({ success: false, message: 'You can only mark your own ads as sold' });
+    }
+
+    if (!['live', 'deal_locked'].includes(ad.status)) {
+      return res.status(400).json({ success: false, message: `Cannot mark an ad as sold from its current status (${ad.status})` });
+    }
+
+    ad.status = 'sold';
+    await ad.save();
+
+    // Notify buyers with an still-open (non-rejected) negotiation thread so
+    // they aren't left waiting on a deal that can no longer close.
+    try {
+      const openOffers = await BazaarOffer.find({
+        adId: id,
+        status: { $in: ['pending', 'countered', 'deal_locked'] }
+      });
+      for (const offer of openOffers) {
+        await new Notification({
+          recipientId: offer.buyerId,
+          recipientModel: 'User',
+          title: 'Item No Longer Available',
+          message: `"${ad.title}" was marked as sold by the seller.`,
+          type: 'bazaar'
+        }).save();
+      }
+    } catch (notifyErr) {
+      console.error('Mark Sold — buyer notification error:', notifyErr.message);
+    }
+
+    res.json({ success: true, message: 'Ad marked as sold', data: ad });
+  } catch (error) {
+    console.error('Mark Ad Sold Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 // Get Single Ad Details (Public)
 exports.getSingleAd = async (req, res) => {
   try {

@@ -11,6 +11,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { normalizeNonNegativeNumber, validateNonNegativeNumber } from '@/lib/numberValidation';
 import AdminPartnerPolicies from './AdminPartnerPolicies';
 
+// Stable client-side identity for slab rows so React doesn't reuse DOM
+// nodes (and their <select> state) across rows when one is added/removed.
+let slabKeySeq = 0;
+const makeSlabKey = () => `slab-${Date.now()}-${slabKeySeq++}`;
+
 // Slab contiguity checker
 const validateFrontendSlabs = (slabs) => {
   if (!slabs || slabs.length === 0) return { isValid: true };
@@ -57,6 +62,7 @@ export default function PartnerProgramConfig() {
     rulePriority: ['FREE_TRIAL', 'WAIVER', 'PROVIDER_OVERRIDE', 'SUBSCRIPTION', 'CATEGORY_SLAB', 'GLOBAL_DEFAULT'],
     ruleVersion: 1,
     commissionSlabs: [],
+    defaultCommissionRate: 10,
     performanceBonuses: { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
     penalties: { cancellationCharge: 100 },
     referral: { commissionRate: 1, durationMonths: 12 },
@@ -121,7 +127,8 @@ export default function PartnerProgramConfig() {
         trialEnds: data.trialEnds || 'exhausted',
         rulePriority: data.rulePriority || ['FREE_TRIAL', 'WAIVER', 'PROVIDER_OVERRIDE', 'SUBSCRIPTION', 'CATEGORY_SLAB', 'GLOBAL_DEFAULT'],
         ruleVersion: data.ruleVersion || 1,
-        commissionSlabs: data.commissionSlabs || [],
+        commissionSlabs: (data.commissionSlabs || []).map(s => ({ ...s, _key: s._id || s._key || makeSlabKey() })),
+        defaultCommissionRate: data.defaultCommissionRate !== undefined ? data.defaultCommissionRate : 10,
         performanceBonuses: data.performanceBonuses || { silverStarRate: 1, goldStarRate: 2, loyaltyBonusBookings: 100, loyaltyBonusAmount: 1000 },
         penalties: data.penalties || { cancellationCharge: 100 },
         referral: data.referral || { commissionRate: 1, durationMonths: 12 },
@@ -135,15 +142,17 @@ export default function PartnerProgramConfig() {
   };
 
   const handleSave = async () => {
-    // Validate slabs contiguity
-    const slabsByCategory = {};
+    // Validate slabs contiguity. A blank Category is valid — it means the
+    // slab is a "Global Default" (applies when no category-specific slab
+    // matches), same as CommissionSlab.category === null on the backend.
     for (const slab of config.commissionSlabs) {
-      if (!slab.categoryId) {
-        toast({ title: 'Validation Error', description: 'Please select a category for all commission slabs.', variant: 'destructive' });
+      if (slab.min === '' || slab.max === '' || slab.rate === '') {
+        toast({ title: 'Validation Error', description: 'Please fill in Min, Max and Rate for every commission slab.', variant: 'destructive' });
         return;
       }
     }
 
+    const slabsByCategory = {};
     config.commissionSlabs.forEach(s => {
       const key = `${s.categoryId || 'global'}:${s.providerCategory || 'all'}`;
       if (!slabsByCategory[key]) slabsByCategory[key] = [];
@@ -198,13 +207,13 @@ export default function PartnerProgramConfig() {
   };
 
   const addSlab = () => {
-    if (config.commissionSlabs.some(s => !s.categoryId || s.min === '' || s.max === '' || s.rate === '' || (Number(s.min) === 0 && Number(s.max) === 0))) {
-      toast({ title: 'Validation Error', description: 'Please complete all fields (including Category) for the existing slab before adding a new one.', variant: 'destructive' });
+    if (config.commissionSlabs.some(s => s.min === '' || s.max === '' || s.rate === '' || (Number(s.min) === 0 && Number(s.max) === 0))) {
+      toast({ title: 'Validation Error', description: 'Please complete Min, Max and Rate for the existing slab before adding a new one.', variant: 'destructive' });
       return;
     }
     setConfig({
       ...config,
-      commissionSlabs: [...config.commissionSlabs, { categoryId: '', providerCategory: 'all', min: 0, max: 0, rate: 0 }]
+      commissionSlabs: [...config.commissionSlabs, { categoryId: '', providerCategory: 'all', min: 0, max: 0, rate: 0, _key: makeSlabKey() }]
     });
     toast({ title: 'Slab Added', description: 'A new commission slab has been added. Please fill in the details.' });
   };
@@ -483,20 +492,42 @@ export default function PartnerProgramConfig() {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><DollarSign className="h-5 w-5 text-blue-500" /> Commission Slabs</h2>
-              <p className="text-xs text-slate-400 font-medium mt-1">Configure tiered commission cuts. Ensure slabs per category start at 0, are contiguous, and do not overlap.</p>
+              <p className="text-xs text-slate-400 font-medium mt-1">Configure tiered commission cuts. Slabs are grouped by Category + Target Role — each group's ranges must start at 0, be contiguous, and not overlap. Leave Category as "Global" to define a rate that isn't tied to one specific category. Target Role "All Providers" applies to both Partners and Sewaks.</p>
             </div>
             <button onClick={addSlab} className="text-sm flex items-center gap-1 text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg font-bold">
               <Plus className="h-4 w-4" /> Add Slab
             </button>
           </div>
 
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center gap-3 justify-between">
+            <div>
+              <p className="text-sm font-bold text-blue-900">Default Fallback Commission Rate</p>
+              <p className="text-xs text-blue-700 mt-0.5 max-w-lg">
+                Used whenever a booking matches no slab below (wrong/missing category coverage, or amount outside every configured range). This is the rate every booking falls back to right now if nothing else applies — applies to both Partners and Sewaks.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={config.defaultCommissionRate}
+                onChange={e => {
+                  const val = normalizeNonNegativeNumber(e.target.value);
+                  setConfig({ ...config, defaultCommissionRate: Number(val) > 100 ? 100 : Number(val) });
+                }}
+                className="w-24 border p-2 rounded-lg text-sm font-bold text-center outline-blue-500 bg-white"
+              />
+              <span className="text-sm font-bold text-blue-900">%</span>
+            </div>
+          </div>
+
           <div className="space-y-3 pt-2">
             {config.commissionSlabs.map((slab, i) => (
-              <div key={i} className="flex flex-col md:flex-row items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <div key={slab._key || slab._id || i} className="flex flex-col md:flex-row items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
                 <div className="w-full md:flex-[1.5]">
                   <label className="text-[10px] uppercase font-bold text-slate-400">Category</label>
                   <select value={slab.categoryId || ''} onChange={e => updateSlab(i, 'categoryId', e.target.value)} className="w-full border p-2 rounded-lg text-sm bg-white outline-emerald-500">
-                    <option value="">-- Select Category --</option>
+                    <option value="">-- Global (All Categories) --</option>
                     {categories.map(cat => (
                       <option key={cat._id} value={cat._id}>{cat.name}</option>
                     ))}
