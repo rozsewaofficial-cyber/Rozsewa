@@ -1,10 +1,10 @@
 const axios = require('axios');
 
-// Configure your base URL and credentials in .env
+// Credentials must come from .env — no fallback secrets baked into source.
 const BASE_URL = process.env.VERIFY_API_BASE_URL || process.env.CGPEY_BASE_URL || 'https://api.thirdparty.com';
-const MERCHANT_ID = process.env.VERIFY_MERCHANT_ID || process.env.CGPEY_MERCHANT_ID || '6a226d16b27283a7438b2f44';
-const API_KEY = process.env.VERIFY_API_KEY || process.env.CGPEY_API_KEY || 'pk_a7e260f3f70602e79d2551b04389bf94';
-const SECRET_KEY = process.env.VERIFY_SECRET_KEY || process.env.CGPEY_SECRET_KEY || '0949dfd379ce77ab141f9808569d0f451f0afc8b187ac653cb13b2c8965c3c27';
+const MERCHANT_ID = process.env.VERIFY_MERCHANT_ID || process.env.CGPEY_MERCHANT_ID;
+const API_KEY = process.env.VERIFY_API_KEY || process.env.CGPEY_API_KEY;
+const SECRET_KEY = process.env.VERIFY_SECRET_KEY || process.env.CGPEY_SECRET_KEY;
 
 const getHeaders = () => ({
     'Content-Type': 'application/json',
@@ -12,6 +12,13 @@ const getHeaders = () => ({
     'x-api-key': API_KEY,
     'x-secret-key': SECRET_KEY
 });
+
+// Fails CLOSED by default: the CGPEY-down bypass below only ever activates when
+// this is explicitly set to 'true' in .env. Never set this in production — if
+// CGPEY is unreachable there, verification should fail loudly, not silently
+// mark fake KYC as verified. This is only meant for local/dev environments
+// where CGPEY has IP-blocked the server and real verification is impossible.
+const KYC_BYPASS_ENABLED = process.env.ALLOW_KYC_VERIFICATION_BYPASS === 'true';
 
 // @desc    Verify Bank Account via Penny Drop (Fallback to IFSC since Penny Drop is not enabled)
 // @route   POST /api/v1/verify/bank
@@ -77,14 +84,22 @@ const verifyPAN = async (req, res) => {
         console.error('PAN Verification Error:', error.response?.data || error.message);
 
         // TEMPORARY BYPASS: CGPEY is currently rejecting our server IP
-        // (403 Forbidden: IP not allowed). Remove this fallback once CGPEY
-        // whitelists the IP or the account is fixed.
-        console.warn(`⚠️  [TEMP BYPASS ACTIVE] PAN "${pan}" auto-verified WITHOUT real CGPEY check — CGPEY is down/blocked. Do not ship this to production.`);
-        return res.json({
-            success: true,
-            status: 'VERIFIED',
-            data: { pan, name_match: true },
-            message: 'PAN verified successfully'
+        // (403 Forbidden: IP not allowed). Only active when explicitly opted
+        // into via ALLOW_KYC_VERIFICATION_BYPASS=true — see the flag's
+        // definition above. Remove entirely once CGPEY whitelists the IP.
+        if (KYC_BYPASS_ENABLED) {
+            console.warn(`⚠️  [TEMP BYPASS ACTIVE] PAN "${pan}" auto-verified WITHOUT real CGPEY check — CGPEY is down/blocked. Do not ship this to production.`);
+            return res.json({
+                success: true,
+                status: 'VERIFIED',
+                data: { pan, name_match: true },
+                message: 'PAN verified successfully'
+            });
+        }
+
+        res.status(502).json({
+            success: false,
+            message: 'PAN verification service is temporarily unavailable. Please try again shortly.'
         });
     }
 };
@@ -144,16 +159,24 @@ const initiateOKYC = async (req, res) => {
         console.error('OKYC Initiate Error:', error.response?.data || error.message);
 
         // TEMPORARY BYPASS: CGPEY is currently rejecting our server IP
-        // (403 Forbidden: IP not allowed). Remove this fallback once CGPEY
-        // whitelists the IP or the account is fixed.
+        // (403 Forbidden: IP not allowed). Only active when explicitly opted
+        // into via ALLOW_KYC_VERIFICATION_BYPASS=true — see the flag's
+        // definition above. Remove entirely once CGPEY whitelists the IP.
         // The bypass OTP is logged server-side only — never exposed in the
         // API response, so a real end user can't discover it.
-        console.warn(`⚠️  [TEMP BYPASS ACTIVE] Aadhaar "${aadhaarNumber}" OKYC auto-passed WITHOUT real CGPEY check — CGPEY is down/blocked. Bypass OTP: 123456. Do not ship this to production.`);
-        return res.json({
-            success: true,
-            status: 'OTP_SENT',
-            data: { sessionId: `BYPASS-${Date.now()}` },
-            message: 'OTP sent successfully'
+        if (KYC_BYPASS_ENABLED) {
+            console.warn(`⚠️  [TEMP BYPASS ACTIVE] Aadhaar "${aadhaarNumber}" OKYC auto-passed WITHOUT real CGPEY check — CGPEY is down/blocked. Bypass OTP: 123456. Do not ship this to production.`);
+            return res.json({
+                success: true,
+                status: 'OTP_SENT',
+                data: { sessionId: `BYPASS-${Date.now()}` },
+                message: 'OTP sent successfully'
+            });
+        }
+
+        res.status(502).json({
+            success: false,
+            message: 'Aadhaar verification service is temporarily unavailable. Please try again shortly.'
         });
     }
 };
@@ -169,9 +192,14 @@ const verifyOKYC = async (req, res) => {
     }
 
     // TEMPORARY BYPASS: sessions created by the initiateOKYC bypass above never
-    // hit CGPEY, so accept them here with a fixed OTP. Remove once CGPEY
-    // whitelists the server IP.
+    // hit CGPEY, so accept them here with a fixed OTP — but only when the same
+    // opt-in flag is set. A BYPASS- sessionId can only exist if initiateOKYC
+    // already created one under the flag, but this checks it independently
+    // too in case the flag was toggled off in between.
     if (sessionId.startsWith('BYPASS-')) {
+        if (!KYC_BYPASS_ENABLED) {
+            return res.status(400).json({ success: false, message: 'Invalid or expired session' });
+        }
         if (otp !== '123456') {
             return res.status(400).json({ success: false, message: 'Invalid OTP' });
         }
