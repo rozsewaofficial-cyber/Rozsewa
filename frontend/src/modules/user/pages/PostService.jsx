@@ -18,6 +18,7 @@ import TopNav from "@/modules/user/components/TopNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import BottomNav from "@/modules/user/components/BottomNav";
+import TipSection from "@/modules/user/components/TipSection";
 import { useAuth } from "@/context/AuthContext";
 import { useSocket } from "@/context/SocketContext";
 
@@ -432,6 +433,9 @@ const PostService = () => {
           </div>
         </section>
 
+        {/* Tip — Trigger 1: alongside the payment screen */}
+        {!paymentDone && <TipSection booking={booking} triggerPoint="payment_screen" />}
+
         {/* Payment Buttons */}
         {!paymentDone ? (
           <div className="flex flex-col gap-3">
@@ -526,6 +530,9 @@ const PostService = () => {
             )}
           </motion.div>
         )}
+
+        {/* Tip — Trigger 2: post-payment, if not already tipped */}
+        {paymentDone && <TipSection booking={booking} triggerPoint="post_payment" />}
 
         {/* Review Section */}
         {paymentDone && (

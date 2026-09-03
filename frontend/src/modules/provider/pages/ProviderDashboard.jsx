@@ -58,6 +58,7 @@ const ProviderDashboard = () => {
   const [plans, setPlans] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [trainingStatus, setTrainingStatus] = useState(null);
+  const [trainingStatusLoading, setTrainingStatusLoading] = useState(true);
   const [catalogServices, setCatalogServices] = useState([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [selectedServices, setSelectedServices] = useState([]);
@@ -174,7 +175,10 @@ const ProviderDashboard = () => {
       try {
         const { data } = await API.get("/kit-store/training-status");
         if (data?.applicable) setTrainingStatus(data);
-      } catch (err) { }
+      } catch (err) {
+      } finally {
+        setTrainingStatusLoading(false);
+      }
     };
 
     const fetchMenu = async () => {
@@ -573,19 +577,28 @@ const ProviderDashboard = () => {
               <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><CheckCircle className="h-5 w-5 text-emerald-600" /></div>
               <div><p className="text-xs font-black">Admin Approval</p><p className="text-[10px] text-muted-foreground">KYC Verified</p></div>
             </div>
-            {trainingStatus?.pendingSkillSessions?.length > 0 && (
+            {trainingStatusLoading && (
+              <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left animate-pulse">
+                <div className="h-10 w-10 bg-background rounded-xl shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-24 bg-background rounded-full" />
+                  <div className="h-2.5 w-40 bg-background rounded-full" />
+                </div>
+              </div>
+            )}
+            {!trainingStatusLoading && trainingStatus?.pendingSkillSessions?.length > 0 && (
               <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
                 <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><Lock className="h-5 w-5 text-amber-600" /></div>
                 <div><p className="text-xs font-black">Skill Session</p><p className="text-[10px] text-muted-foreground">Pending for: {trainingStatus.pendingSkillSessions.join(", ")}</p></div>
               </div>
             )}
-            {trainingStatus?.missingItems?.length > 0 && (
+            {!trainingStatusLoading && trainingStatus?.missingItems?.length > 0 && (
               <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
                 <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><Lock className="h-5 w-5 text-amber-600" /></div>
                 <div><p className="text-xs font-black">Starter Kit</p><p className="text-[10px] text-muted-foreground">Missing: {trainingStatus.missingItems.map(i => i.itemName).join(", ")}</p></div>
               </div>
             )}
-            {trainingStatus?.topicsTotal > 0 && (
+            {!trainingStatusLoading && trainingStatus?.topicsTotal > 0 && (
               <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
                 <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><GraduationCap className="h-5 w-5 text-sky-600" /></div>
                 <div><p className="text-xs font-black">Basic Training</p><p className="text-[10px] text-muted-foreground">{trainingStatus.topicsCovered}/{trainingStatus.topicsTotal} topics covered</p></div>

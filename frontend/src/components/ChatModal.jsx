@@ -113,21 +113,6 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType, recipientName }) => {
         }
     };
 
-    const handleAcceptOffer = async (amount) => {
-        try {
-            await API.patch(`/bookings/${activeBookingId}/accept-counter`, { amount });
-            toast({ title: "Offer Accepted!", description: `The price has been updated to ₹${amount}` });
-            
-            // Send a system message via text to confirm
-            await API.post(`/chat/${activeBookingId}`, {
-                text: `Offer of ₹${amount} was accepted!`,
-                type: 'text'
-            });
-        } catch (error) {
-            toast({ title: "Failed to accept offer", variant: "destructive" });
-        }
-    };
-
     if (!isOpen) return null;
 
     return createPortal(
@@ -195,11 +180,9 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType, recipientName }) => {
                                                 </div>
                                                 <div className="p-4 flex flex-col items-center justify-center text-center">
                                                     <span className="text-3xl font-black text-slate-900 dark:text-white">₹{msg.offerAmount}</span>
-                                                    {!isMe && userType === 'User' && (
-                                                        <button onClick={() => handleAcceptOffer(msg.offerAmount)} className="mt-3 w-full rounded-xl bg-emerald-500 px-4 py-2 text-[12px] font-black text-white hover:bg-emerald-600 transition-all shadow-sm shadow-emerald-500/20">
-                                                            Accept & Update Price
-                                                        </button>
-                                                    )}
+                                                    {/* No in-chat "accept" action here — this offer is informational only.
+                                                        Price changes on an active booking go through the extra-charges
+                                                        approval flow (Booking.extraCharges), not chat. */}
                                                 </div>
                                             </div>
                                         </div>

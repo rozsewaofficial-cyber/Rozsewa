@@ -31,6 +31,7 @@ const skillSessionRoutes = require('./routes/skillSessionRoutes');
 const trainerRoutes = require('./routes/trainerRoutes');
 const kitStoreRoutes = require('./routes/kitStoreRoutes');
 const welfareFundRoutes = require('./routes/welfareFundRoutes');
+const tipRoutes = require('./routes/tipRoutes');
 const trainingPanelRoutes = require('./routes/trainingPanelRoutes');
 
 const http = require('http');
@@ -102,6 +103,7 @@ app.use('/api/skill-sessions', skillSessionRoutes);
 app.use('/api/trainer', trainerRoutes);
 app.use('/api/kit-store', kitStoreRoutes);
 app.use('/api/welfare-fund', welfareFundRoutes);
+app.use('/api/tips', tipRoutes);
 app.use('/api/training-panel', trainingPanelRoutes);
 
 // V2 Versioned Commission APIs

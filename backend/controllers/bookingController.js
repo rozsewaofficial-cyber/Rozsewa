@@ -135,49 +135,47 @@ const createBooking = async (req, res) => {
                 const itemId = item.id;
                 const qty = Number(item.qty) || 1;
                 let basePrice = 0;
-                let priceFound = false;
+                let itemFound = false;
+                // Only an id genuinely shaped like a catalog reference is subject to
+                // catalog lookup; anything else (a custom/negotiated line item) is
+                // allowed to trust item.price directly, same as always.
+                const looksLikeCatalogId = mongoose.Types.ObjectId.isValid(itemId);
 
-                if (isSewakBooking) {
+                if (isSewakBooking && looksLikeCatalogId) {
                     // For Sewak bookings, check Category sub-services / combos first
-                    if (mongoose.Types.ObjectId.isValid(itemId)) {
-                        const category = await Category.findOne({
-                            $or: [
-                                { "services._id": itemId },
-                                { "combos._id": itemId }
-                            ]
-                        });
-                        if (category) {
-                            const subSvc = category.services.id(itemId);
-                            if (subSvc) {
-                                basePrice = subSvc.basePrice || 0;
-                                priceFound = true;
-                            } else {
-                                const subCombo = category.combos.id(itemId);
-                                if (subCombo) {
-                                    basePrice = subCombo.sewakPrice || 0;
-                                    priceFound = true;
-                                }
+                    const category = await Category.findOne({
+                        $or: [
+                            { "services._id": itemId },
+                            { "combos._id": itemId }
+                        ]
+                    });
+                    if (category) {
+                        const subSvc = category.services.id(itemId);
+                        if (subSvc) {
+                            basePrice = subSvc.basePrice || 0;
+                            itemFound = true;
+                        } else {
+                            const subCombo = category.combos.id(itemId);
+                            if (subCombo) {
+                                basePrice = subCombo.sewakPrice || 0;
+                                itemFound = true;
                             }
                         }
                     }
-                    if (!priceFound && item.price !== undefined) {
-                        basePrice = Number(item.price) || 0;
-                        priceFound = true;
-                    }
                 }
 
-                if (!priceFound && mongoose.Types.ObjectId.isValid(itemId)) {
+                if (!itemFound && looksLikeCatalogId) {
                     // Check individual service
                     const service = await Service.findById(itemId);
                     if (service) {
                         basePrice = service.price || 0;
-                        priceFound = true;
+                        itemFound = true;
                     } else {
                         // Check combo
                         const combo = await Combo.findById(itemId);
                         if (combo) {
                             basePrice = combo.price || 0;
-                            priceFound = true;
+                            itemFound = true;
                         } else {
                             // Check sewak sub-service or combo under Category
                             const category = await Category.findOne({
@@ -190,12 +188,12 @@ const createBooking = async (req, res) => {
                                 const subSvc = category.services.id(itemId);
                                 if (subSvc) {
                                     basePrice = subSvc.basePrice || 0;
-                                    priceFound = true;
+                                    itemFound = true;
                                 } else {
                                     const subCombo = category.combos.id(itemId);
                                     if (subCombo) {
                                         basePrice = subCombo.sewakPrice || 0;
-                                        priceFound = true;
+                                        itemFound = true;
                                     }
                                 }
                             }
@@ -203,14 +201,30 @@ const createBooking = async (req, res) => {
                     }
                 }
 
-                if (!priceFound && item.price !== undefined) {
-                    basePrice = Number(item.price) || 0;
+                if (looksLikeCatalogId && !itemFound) {
+                    // A real catalog-shaped id that doesn't resolve to anything is a
+                    // sign of tampering (or a stale id), never a legitimate custom
+                    // item — reject rather than silently trusting a client-supplied
+                    // price for a "service" that doesn't exist.
+                    return res.status(400).json({ message: `Service item could not be found: ${itemId}` });
+                }
+
+                // Reached only for a genuinely non-catalog (custom) item id, or a
+                // catalog item that legitimately carries a 0 base price (priced via
+                // negotiation) — both are allowed to trust the client-supplied price.
+                if (!itemFound || basePrice === 0) {
+                    if (item.price !== undefined) {
+                        basePrice = Number(item.price) || 0;
+                    } else if (!itemFound) {
+                        return res.status(400).json({ message: `Missing price for item: ${itemId}` });
+                    }
                 }
 
                 subtotal += basePrice * qty;
             }
         } else {
             // Fallback if no items passed: lookup single serviceId
+            let serviceFound = false;
             if (mongoose.Types.ObjectId.isValid(serviceId)) {
                 if (isSewakBooking) {
                     const category = await Category.findOne({
@@ -223,22 +237,26 @@ const createBooking = async (req, res) => {
                         const subSvc = category.services.id(serviceId);
                         if (subSvc) {
                             subtotal = subSvc.basePrice || 0;
+                            serviceFound = true;
                         } else {
                             const subCombo = category.combos.id(serviceId);
                             if (subCombo) {
                                 subtotal = subCombo.sewakPrice || 0;
+                                serviceFound = true;
                             }
                         }
                     }
                 }
-                if (subtotal === 0) {
+                if (!serviceFound) {
                     const service = await Service.findById(serviceId);
                     if (service) {
                         subtotal = service.price || 0;
+                        serviceFound = true;
                     } else {
                         const combo = await Combo.findById(serviceId);
                         if (combo) {
                             subtotal = combo.price || 0;
+                            serviceFound = true;
                         } else {
                             const category = await Category.findOne({
                                 $or: [
@@ -250,20 +268,36 @@ const createBooking = async (req, res) => {
                                 const subSvc = category.services.id(serviceId);
                                 if (subSvc) {
                                     subtotal = subSvc.basePrice || 0;
+                                    serviceFound = true;
                                 } else {
                                     const subCombo = category.combos.id(serviceId);
                                     if (subCombo) {
                                         subtotal = subCombo.sewakPrice || 0;
+                                        serviceFound = true;
                                     }
                                 }
                             }
                         }
                     }
                 }
+
+                // A real catalog-shaped serviceId that resolves to nothing is a sign
+                // of tampering (or a stale id) — reject outright rather than falling
+                // through to trust a client-supplied totalAmount for a "service" that
+                // doesn't exist in the catalog.
+                if (!serviceFound) {
+                    return res.status(400).json({ message: 'Selected service could not be found in the catalog.' });
+                }
             }
+            // else: serviceId isn't a catalog reference at all (a genuinely custom/
+            // negotiated booking) — subtotal stays 0 and falls to the totalAmount
+            // fallback below, same as always.
         }
 
-        // Fallback if still 0
+        // Fallback if still 0 — only ever reached for a genuinely custom (non-catalog)
+        // item/service, or a real catalog item that legitimately carries a 0 base
+        // price (priced entirely via negotiation). A tampered-but-nonexistent id was
+        // already rejected above and never reaches here.
         if (subtotal === 0) {
             subtotal = Number(totalAmount) || 0;
         }
@@ -1504,29 +1538,43 @@ const updateBookingStatusByProvider = async (req, res) => {
                 });
             }
 
-            // Generate End OTP if Provider tries to complete but needs verification
-            if (newStatus === 'completed' && booking.status === 'started' && !booking.endOTP) {
-                const otp = Math.floor(1000 + Math.random() * 9000).toString();
-                booking.endOTP = otp;
-                if (req.body.afterImage) {
-                    booking.afterImage = req.body.afterImage;
-                }
-                await booking.save();
+            // A 'started' booking can ONLY become 'completed' by verifying the end
+            // OTP via POST /bookings/:id/complete (verifyEndOTP) — that's the sole
+            // place commission/payout/wallet crediting happens. This generic status
+            // endpoint must never fall through to the plain `booking.status = newStatus`
+            // save below for this transition, whether or not an OTP was already
+            // generated — otherwise a duplicate/retried request (e.g. a double-tap
+            // before the UI re-renders) would mark the job completed with zero OTP
+            // check and skip payout/commission entirely.
+            if (newStatus === 'completed' && booking.status === 'started') {
+                if (!booking.endOTP) {
+                    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+                    booking.endOTP = otp;
+                    if (req.body.afterImage) {
+                        booking.afterImage = req.body.afterImage;
+                    }
+                    await booking.save();
 
-                // Notify User with Completion OTP via unified service
-                const { notifyUser } = require('../config/notificationService');
-                await notifyUser({
-                    userId: booking.userId,
-                    userRole: 'user',
-                    title: 'Completion OTP Generated',
-                    message: `Your OTP to COMPLETE the service is: ${otp}. Please share it with the provider.`,
-                    type: 'system',
-                    bookingId: booking._id
-                });
+                    // Notify User with Completion OTP via unified service
+                    const { notifyUser } = require('../config/notificationService');
+                    await notifyUser({
+                        userId: booking.userId,
+                        userRole: 'user',
+                        title: 'Completion OTP Generated',
+                        message: `Your OTP to COMPLETE the service is: ${otp}. Please share it with the provider.`,
+                        type: 'system',
+                        bookingId: booking._id
+                    });
+
+                    return res.json({
+                        message: 'Completion OTP generated and sent to customer.',
+                        status: 'started' // Keep as started until verified
+                    });
+                }
 
                 return res.json({
-                    message: 'Completion OTP generated and sent to customer.',
-                    status: 'started' // Keep as started until verified
+                    message: 'A completion OTP was already sent to the customer. Ask them for it and verify it to complete this booking.',
+                    status: 'started'
                 });
             }
 
