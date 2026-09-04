@@ -469,6 +469,12 @@ const ProviderDashboard = () => {
             Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link>
           </p>
         </div>
+
+        {/* Not yet KYC-verified doesn't mean no wallet/no access — Welfare
+            Fund contribution stays available like it does for Partners. */}
+        <div className="max-w-md w-full mt-4">
+          <WelfareFundCard />
+        </div>
       </div>
     );
   }
@@ -529,6 +535,10 @@ const ProviderDashboard = () => {
           >
             {savingServices ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <span>Save & Continue</span>}
           </button>
+        </div>
+
+        <div className="max-w-md w-full mt-4">
+          <WelfareFundCard />
         </div>
       </div>
     );
@@ -707,6 +717,12 @@ const ProviderDashboard = () => {
             <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
           )}
           <p className="text-[10px] font-bold text-muted-foreground">Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link></p>
+
+          {user?.status !== 'suspended' && (
+            <div className="w-full">
+              <WelfareFundCard />
+            </div>
+          )}
         </main>
       </div>
     );
