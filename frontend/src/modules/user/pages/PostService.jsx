@@ -12,6 +12,7 @@ import {
   Sparkles,
   ThumbsUp,
   AlertCircle,
+  Heart,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
@@ -47,6 +48,16 @@ const PostService = () => {
   const [paymentDone, setPaymentDone] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [totalTipped, setTotalTipped] = useState(0);
+
+  const fetchTips = async (bookingId) => {
+    try {
+      const { data } = await API.get(`/tips/booking/${bookingId}`);
+      setTotalTipped(data.totalTipped || 0);
+    } catch (err) {
+      // Non-critical — bill still renders correctly without tip history.
+    }
+  };
 
   const fetchBooking = async () => {
     try {
@@ -60,6 +71,7 @@ const PostService = () => {
         setBooking(active);
         setPaymentDone(active.paymentStatus === "paid");
         if (active.extraStatus === "pending") setShowApproval(true);
+        fetchTips(active._id);
       }
     } catch (err) {
       console.error("Fetch failed", err);
@@ -422,6 +434,16 @@ const PostService = () => {
                 </span>
               </div>
             )}
+            {totalTipped > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-[13px] text-rose-500 dark:text-rose-400 flex items-center gap-1">
+                  <Heart className="h-3 w-3 fill-rose-500 text-rose-500" /> Tip Given
+                </span>
+                <span className="text-[13px] font-bold text-rose-600 dark:text-rose-400">
+                  +₹{totalTipped}
+                </span>
+              </div>
+            )}
             <div className="border-t border-slate-100 dark:border-slate-800 pt-3 flex justify-between items-center">
               <span className="text-[15px] font-black text-slate-900 dark:text-white">
                 Total Payable
@@ -430,11 +452,22 @@ const PostService = () => {
                 ₹{finalTotal}
               </span>
             </div>
+            {totalTipped > 0 && (
+              <p className="text-[10px] text-slate-400 text-right -mt-1">
+                Tip is collected separately and already paid.
+              </p>
+            )}
           </div>
         </section>
 
         {/* Tip — Trigger 1: alongside the payment screen */}
-        {!paymentDone && <TipSection booking={booking} triggerPoint="payment_screen" />}
+        {!paymentDone && (
+          <TipSection
+            booking={booking}
+            triggerPoint="payment_screen"
+            onTipUpdate={() => fetchTips(booking._id)}
+          />
+        )}
 
         {/* Payment Buttons */}
         {!paymentDone ? (
@@ -532,7 +565,13 @@ const PostService = () => {
         )}
 
         {/* Tip — Trigger 2: post-payment, if not already tipped */}
-        {paymentDone && <TipSection booking={booking} triggerPoint="post_payment" />}
+        {paymentDone && (
+          <TipSection
+            booking={booking}
+            triggerPoint="post_payment"
+            onTipUpdate={() => fetchTips(booking._id)}
+          />
+        )}
 
         {/* Review Section */}
         {paymentDone && (

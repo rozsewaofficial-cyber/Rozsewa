@@ -24,7 +24,7 @@ const loadRazorpay = () =>
  * Always its own Razorpay order, independent of how the booking itself is paid.
  * 100% of the amount is credited to the executing party — zero commission.
  */
-const TipSection = ({ booking, triggerPoint }) => {
+const TipSection = ({ booking, triggerPoint, onTipUpdate }) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [totalTipped, setTotalTipped] = useState(0);
@@ -94,6 +94,7 @@ const TipSection = ({ booking, triggerPoint }) => {
             setIsCustom(false);
             setCustomAmount("");
             fetchTips();
+            onTipUpdate?.();
           } catch (err) {
             toast({
               title: "Tip Verification Failed",

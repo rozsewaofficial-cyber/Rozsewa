@@ -623,6 +623,12 @@ const ProviderDashboard = () => {
           <p className="text-[10px] font-bold text-muted-foreground mt-2">
             Need help? <Link to="/provider/support" className="text-emerald-600 underline">Contact RozSewa Support</Link>
           </p>
+
+          {/* Not live yet doesn't mean no wallet/no access — Welfare Fund
+              contribution stays available like it does for Partners. */}
+          <div className="w-full pt-2">
+            <WelfareFundCard />
+          </div>
         </main>
       </div>
     );
