@@ -12,6 +12,7 @@ const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Combo = require('../models/Combo');
 const Coupon = require('../models/Coupon');
 const DistanceChargeService = require('../services/DistanceChargeService');
+const CashSettlementService = require('../services/CashSettlementService');
 const { sendEmail } = require('../utils/emailService');
 
 // Helper to check if time is within night window
@@ -443,6 +444,62 @@ const createBooking = async (req, res) => {
         originalFixedPrice += platformFee;
         originalFixedPrice = Math.round(originalFixedPrice);
 
+        // --- 6. Apply a RozSewa Coins redemption, if one was reserved ---
+        // The client never sends a discount amount, only the id of a hold it
+        // took out via POST /api/coins/hold. Everything about the discount is
+        // re-derived here from the hold and the server's own total, so a
+        // tampered request can't buy more discount than the coins are worth.
+        let coinRedemptionId = null;
+        let coinsRedeemed = 0;
+        let coinDiscount = 0;
+
+        if (req.body.coinRedemptionId) {
+            const CoinService = require('../services/CoinService');
+            const CoinRedemption = require('../models/CoinRedemption');
+
+            const redemption = await CoinRedemption.findById(req.body.coinRedemptionId);
+            if (!redemption) {
+                return res.status(400).json({ message: 'The coin discount on this order is no longer valid. Please re-apply your coins.' });
+            }
+            if (redemption.ownerId.toString() !== req.user._id.toString()) {
+                return res.status(403).json({ message: 'Not authorized to use this coin redemption.' });
+            }
+            // Customer coins are order-only. The hold already enforced this at
+            // creation; re-checking here keeps the rule true at the point of use.
+            if (redemption.purpose !== 'order') {
+                return res.status(400).json({ message: 'These coins cannot be used for an order discount.' });
+            }
+            if (redemption.status !== 'held') {
+                return res.status(400).json({ message: `This coin discount has already been ${redemption.status}. Please re-apply your coins.` });
+            }
+            if (redemption.expiresAt <= new Date()) {
+                return res.status(400).json({ message: 'Your coin discount expired before checkout completed. Please re-apply your coins.' });
+            }
+
+            const coinConfig = await CoinService.getConfig();
+            const rc = CoinService.roleConfig(coinConfig, 'customer');
+
+            // Re-check the two caps against the price the server just computed,
+            // not the one the client quoted against.
+            if (finalTotalAmount < (Number(rc.minOrderValue) || 0)) {
+                return res.status(400).json({
+                    message: `Coins can only be applied on orders of Rs ${rc.minOrderValue} or more.`
+                });
+            }
+            const maxDiscount = Math.floor((finalTotalAmount * (Number(rc.maxDiscountPercent) || 0)) / 100);
+            if (redemption.monetaryValue > maxDiscount) {
+                return res.status(400).json({
+                    message: `Coins can cover at most Rs ${maxDiscount} on this order. Please re-apply your coins.`
+                });
+            }
+
+            coinRedemptionId = redemption._id;
+            coinsRedeemed = redemption.coins;
+            coinDiscount = redemption.monetaryValue;
+            // Never let a discount drive the bill below zero.
+            finalTotalAmount = Math.max(0, finalTotalAmount - coinDiscount);
+        }
+
         const newBooking = new Booking({
             userId: req.user._id,
             providerId,
@@ -459,6 +516,9 @@ const createBooking = async (req, res) => {
             location: req.body.location,
             couponCode,
             discountAmount: totalDiscount,
+            coinRedemptionId,
+            coinsRedeemed,
+            coinDiscount,
             customerOffer: customerOffer !== undefined && customerOffer !== null ? payableAmount : null,
             originalFixedPrice,
             bargainDiscount,
@@ -473,6 +533,29 @@ const createBooking = async (req, res) => {
 
         if (booking) {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
+
+            // Point the coin hold at the booking it paid for. It stays *held*
+            // rather than committed until the job is actually completed, so a
+            // booking that never happens gives the coins back.
+            if (coinRedemptionId) {
+                try {
+                    const CoinRedemption = require('../models/CoinRedemption');
+                    await CoinRedemption.updateOne(
+                        { _id: coinRedemptionId, status: 'held' },
+                        {
+                            $set: {
+                                referenceId: booking._id.toString(),
+                                referenceModel: 'Booking',
+                                // A hold attached to a real booking must outlive
+                                // the 30-minute checkout window.
+                                expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+                            }
+                        }
+                    );
+                } catch (coinErr) {
+                    console.error('[Coins] Failed to attach redemption to booking:', coinErr.message);
+                }
+            }
 
             if (providerId) {
                 if (serviceLocation === 'shop') {
@@ -1360,45 +1443,19 @@ const updateBookingStatusByProvider = async (req, res) => {
                 // ---- CASH PAYMENT CONFIRMATION (paymentMode === 'after') ----
                 // Providers may only confirm cash collection after booking is completed.
                 if (requestedStatus === 'paid' && booking.paymentMode === 'after') {
-                    if (booking.status !== 'completed') {
-                        return res.status(400).json({
-                            message: 'Cash collection can only be confirmed after the service is completed.'
-                        });
-                    }
-                    if (booking.collectionStatus !== 'not_collected') {
-                        return res.status(400).json({
-                            message: 'Payment has already been collected for this booking.'
-                        });
+                    const blocked = CashSettlementService.checkCollectable(booking);
+                    if (blocked) {
+                        return res.status(blocked.status).json({ message: blocked.message });
                     }
 
-                    const prevPaymentStatus = booking.paymentStatus;
-                    const prevCollectionStatus = booking.collectionStatus;
-
-                    booking.paymentStatus = 'paid';
-                    booking.collectionStatus = 'cash_collected';
-                    booking.paymentCollectedBy = 'partner_cash';
-                    booking.paymentCollectedAt = new Date();
-
-                    // Audit record
-                    await PaymentAudit.create({
-                        bookingId: booking._id,
-                        providerId: req.user._id,
-                        action: 'cash_collected',
-                        amount: booking.totalAmount,
-                        paymentMethod: 'cash',
-                        previousPaymentStatus: prevPaymentStatus,
-                        newPaymentStatus: 'paid',
-                        previousCollectionStatus: prevCollectionStatus,
-                        newCollectionStatus: 'cash_collected',
+                    await CashSettlementService.recordCollection(booking, {
+                        collectedBy: 'partner_cash',
+                        actorId: req.user._id,
+                        actorRole: req.user.role,
                         ipAddress,
                         deviceInfo,
                         note: 'Provider confirmed cash collection after booking completion.'
                     });
-
-                    // (Cash collected by provider. Do not add to availableBalance since they already have the cash in hand)
-                    if (booking.providerPayout > 0) {
-                        console.log(`[Cash Settlement] Provider ${booking.providerId} collected ₹${booking.providerPayout} in cash for booking ${booking._id}. (No wallet credit issued)`);
-                    }
                 } else if (requestedStatus !== 'paid') {
                     // Admin/Staff may set other statuses (e.g. refunded, failed)
                     if (!isAdmin && !isStaff) {
@@ -1911,12 +1968,22 @@ const verifyEndOTP = async (req, res) => {
                     if (booking.travelCharge && (booking.travelCharge.status === 'final' || booking.travelCharge.status === 'fallback')) {
                         travelChargeAmount = booking.travelCharge.amount || 0;
                     }
-                    const commissionableAmount = Math.max(0, booking.totalAmount - travelChargeAmount);
+
+                    // ---- RozSewa Coins are funded by the platform, not the partner ----
+                    // booking.totalAmount is what the CUSTOMER paid, already net of any
+                    // coin discount. The partner did the same job either way, so every
+                    // downstream figure — slab matching, commission and payout — is
+                    // computed on the pre-discount value of the order. RozSewa carries
+                    // the coin discount as a marketing cost; see the settlement below,
+                    // where it is netted off what the partner owes.
+                    const coinSubsidy = booking.coinDiscount || 0;
+                    const grossOrderAmount = booking.totalAmount + coinSubsidy;
+                    const commissionableAmount = Math.max(0, grossOrderAmount - travelChargeAmount);
 
                     // Slab boundaries are matched against the gross total (what the admin configured
                     // against), but the matched rate is still applied to commissionableAmount so the
                     // travel charge stays commission-exempt.
-                    const matchedRule = await CommissionRuleEngine.selectRule(booking.totalAmount, provider, provider.vendorType, session);
+                    const matchedRule = await CommissionRuleEngine.selectRule(grossOrderAmount, provider, provider.vendorType, session);
                     calculation = CommissionService.calculate(commissionableAmount, matchedRule);
                     adminCommission = calculation.platformAmount;
                     providerPayout = calculation.providerAmount + travelChargeAmount;
@@ -1977,6 +2044,9 @@ const verifyEndOTP = async (req, res) => {
                             commissionAmount: calculation.commissionAmount,
                             providerEarnings: calculation.providerAmount,
                             platformEarnings: calculation.platformAmount,
+                            grossOrderAmount,
+                            coinSubsidy,
+                            netPlatformEarnings: calculation.platformAmount - coinSubsidy,
                             calculatedAt: Date.now()
                         };
                     }
@@ -1997,10 +2067,22 @@ const verifyEndOTP = async (req, res) => {
                     const prevAvailableBalance = wallet.availableBalance || 0;
 
                     if (booking.paymentMode !== 'now') {
-                        wallet.balance -= adminCommission;
-                        transactionAmount = adminCommission;
-                        transactionType = 'debit';
-                        transactionTitle = `Commission Deducted: ${booking.serviceName}`;
+                        // The partner collected only the discounted amount in cash but is
+                        // owed the full payout, so what they actually owe RozSewa is the
+                        // commission LESS the coin discount RozSewa funded:
+                        //
+                        //   cashCollected - providerPayout === adminCommission - coinSubsidy
+                        //
+                        // A negative figure means the discount exceeded the commission and
+                        // RozSewa owes the partner — the wallet is credited instead.
+                        const settlementDue = adminCommission - coinSubsidy;
+
+                        wallet.balance -= settlementDue;
+                        transactionAmount = Math.abs(settlementDue);
+                        transactionType = settlementDue >= 0 ? 'debit' : 'credit';
+                        transactionTitle = settlementDue >= 0
+                            ? `Commission Deducted: ${booking.serviceName}`
+                            : `Coin Discount Reimbursed: ${booking.serviceName}`;
 
                         await FinancialLedger.create([{
                             transactionId: txnId,
@@ -2008,11 +2090,18 @@ const verifyEndOTP = async (req, res) => {
                             booking: booking._id,
                             provider: provider._id,
                             ledgerType: 'COMMISSION',
-                            amount: -adminCommission,
+                            amount: -settlementDue,
                             previousBalance: prevDuesBalance,
                             newBalance: wallet.balance,
-                            description: `Cash Commission dues for booking #${booking._id.toString().slice(-6)}`,
-                            metadata: { paymentMode: booking.paymentMode }
+                            description: coinSubsidy > 0
+                                ? `Cash settlement for booking #${booking._id.toString().slice(-6)} (commission ₹${adminCommission} less ₹${coinSubsidy} RozSewa Coins funded by the platform)`
+                                : `Cash Commission dues for booking #${booking._id.toString().slice(-6)}`,
+                            metadata: {
+                                paymentMode: booking.paymentMode,
+                                grossOrderAmount,
+                                commission: adminCommission,
+                                coinSubsidy
+                            }
                         }], { session });
                     } else {
                         wallet.availableBalance = prevAvailableBalance + providerPayout;
@@ -2034,8 +2123,16 @@ const verifyEndOTP = async (req, res) => {
                             amount: providerPayout,
                             previousBalance: prevAvailableBalance,
                             newBalance: wallet.availableBalance,
-                            description: `Payout credit for booking #${booking._id.toString().slice(-6)}`,
-                            metadata: { paymentMode: booking.paymentMode, travelCharge: travelChargePortion, serviceEarnings: serviceEarningsPortion }
+                            description: coinSubsidy > 0
+                                ? `Payout credit for booking #${booking._id.toString().slice(-6)} (on the pre-discount value of ₹${grossOrderAmount}; ₹${coinSubsidy} of RozSewa Coins funded by the platform)`
+                                : `Payout credit for booking #${booking._id.toString().slice(-6)}`,
+                            metadata: {
+                                paymentMode: booking.paymentMode,
+                                travelCharge: travelChargePortion,
+                                serviceEarnings: serviceEarningsPortion,
+                                grossOrderAmount,
+                                coinSubsidy
+                            }
                         }], { session });
                     }
 
@@ -2107,6 +2204,27 @@ const verifyEndOTP = async (req, res) => {
 
                     await session.commitTransaction();
                     session.endSession();
+
+                    // --- RozSewa Coins: finalise the spend, then pay the rewards ---
+                    // Deliberately after the money transaction has committed and
+                    // deliberately non-fatal: coins are a loyalty perk, and a
+                    // problem awarding them must never roll back or fail a job
+                    // that has genuinely been completed. Both calls are
+                    // idempotent, so a retried completion is harmless.
+                    try {
+                        const CoinService = require('../services/CoinService');
+                        const CoinRewardService = require('../services/CoinRewardService');
+
+                        if (bookingSession.coinRedemptionId) {
+                            await CoinService.commit(bookingSession.coinRedemptionId, {
+                                referenceId: booking._id.toString(),
+                                referenceModel: 'Booking'
+                            });
+                        }
+                        await CoinRewardService.onBookingCompleted(booking._id);
+                    } catch (coinErr) {
+                        console.error('[Coins] Post-completion handling failed:', coinErr.message);
+                    }
 
                     // --- Trigger Notifications & Sewak incentives after transaction commits ---
                     try {
@@ -2714,15 +2832,9 @@ const collectPayment = async (req, res) => {
         if (!booking) {
             return res.status(404).json({ message: 'Booking not found.' });
         }
-        // 2. Booking is completed
-        if (booking.status !== 'completed') {
-            return res.status(400).json({ message: 'Payment can only be collected after the service is completed.' });
-        }
-        // 3. Payment not already collected
-        if (booking.paymentStatus === 'paid' || booking.collectionStatus !== 'not_collected') {
-            return res.status(400).json({ message: 'Payment has already been collected for this booking.' });
-        }
-        // 4. Authenticated user has role-appropriate permission
+        // 2. Authorisation. This runs BEFORE the generic collectability checks
+        // because a partner reaching for an online booking must be flagged as
+        // an unauthorised attempt, not brushed off with a generic 400.
         if (isProvider) {
             // Provider may only collect cash for their own completed bookings
             if (booking.paymentMode !== 'after') {
@@ -2746,10 +2858,28 @@ const collectPayment = async (req, res) => {
                     deviceInfo,
                     note: 'Provider attempted to collect payment on an online (paymentMode=now) booking via collect-payment endpoint.'
                 });
+                // Alert the admins. This previously called notifyUser with a
+                // null userId, which throws inside the notifier and was
+                // swallowed — so the security alert never actually reached
+                // anyone. Fan out to the real admin accounts instead.
                 try {
-                    const { notifyUser } = require('../config/notificationService');
-                    notifyUser({ userId: null, userRole: 'admin', title: '⚠️ Unauthorized Payment Attempt', message: `Partner tried to collect payment on online booking #${booking._id.toString().slice(-6)}.`, type: 'payment', bookingId: booking._id }).catch(() => { });
-                } catch (_) { }
+                    const User = require('../models/User');
+                    const { sendNotificationToUser } = require('../config/notificationService');
+                    const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } }).select('_id');
+                    for (const adminUser of admins) {
+                        sendNotificationToUser(adminUser._id, 'admin', {
+                            title: '⚠️ Unauthorized Payment Attempt',
+                            body: `Partner tried to collect payment on online booking #${booking._id.toString().slice(-6)}.`,
+                            data: {
+                                type: 'payment',
+                                id: booking._id.toString(),
+                                link: '/admin/unauthorized-payments'
+                            }
+                        }).catch(err => console.log('Admin alert failed:', err.message));
+                    }
+                } catch (err) {
+                    console.log('Unauthorized-payment admin alert failed:', err.message);
+                }
                 return res.status(403).json({ message: 'You are not authorized to collect payment for online bookings.', code: 'UNAUTHORIZED_PAYMENT_ATTEMPT' });
             }
             if (!booking.providerId || booking.providerId.toString() !== req.user._id.toString()) {
@@ -2759,7 +2889,14 @@ const collectPayment = async (req, res) => {
             return res.status(403).json({ message: 'Not authorized to collect payments.' });
         }
 
-        // 5. Amount matches expected total
+        // 3. Shared collectability rules (cash booking, completed, not already
+        //    collected) — identical to every other collection route.
+        const blocked = CashSettlementService.checkCollectable(booking);
+        if (blocked) {
+            return res.status(blocked.status).json({ message: blocked.message });
+        }
+
+        // 4. Amount matches expected total
         const { amount } = req.body;
         if (amount !== undefined && Number(amount) !== booking.totalAmount) {
             return res.status(400).json({
@@ -2767,65 +2904,21 @@ const collectPayment = async (req, res) => {
             });
         }
 
-        // --- All checks passed — record payment ---
-        const prevPaymentStatus = booking.paymentStatus;
-        const prevCollectionStatus = booking.collectionStatus;
-
-        let collectionStatus, paymentCollectedBy;
-        if (isStaff || isAdmin) {
-            collectionStatus = 'staff_verified';
-            paymentCollectedBy = 'staff_verified';
-        } else {
-            collectionStatus = 'cash_collected';
-            paymentCollectedBy = 'partner_cash';
-        }
-
-        // 6. Create audit record BEFORE modifying booking state
-        await PaymentAudit.create({
-            bookingId: booking._id,
-            providerId: isProvider ? req.user._id : null,
-            staffId: isStaff ? req.user._id : null,
-            adminId: isAdmin ? req.user._id : null,
-            action: collectionStatus === 'staff_verified' ? 'staff_verified' : 'cash_collected',
-            amount: booking.totalAmount,
-            paymentMethod: 'cash',
-            previousPaymentStatus: prevPaymentStatus,
-            newPaymentStatus: 'paid',
-            previousCollectionStatus: prevCollectionStatus,
-            newCollectionStatus: collectionStatus,
+        // --- All checks passed — record the collection ---
+        // Delegated to CashSettlementService so this endpoint, the provider
+        // status route and the admin COD settlement all record it identically.
+        // Note it moves no money: for a cash booking the partner is holding the
+        // customer's cash and the payout was already settled against their dues
+        // wallet at completion. This endpoint used to credit the full payout on
+        // top of that, paying the partner twice for one job.
+        await CashSettlementService.recordCollection(booking, {
+            collectedBy: (isStaff || isAdmin) ? 'staff_verified' : 'partner_cash',
+            actorId: req.user._id,
+            actorRole: req.user.role,
             ipAddress,
             deviceInfo,
-            note: `Payment collected via dedicated collect-payment endpoint by ${req.user.role}.`
+            note: `Payment collected via the collect-payment endpoint by ${req.user.role}.`
         });
-
-        // 7. Update booking fields
-        booking.paymentStatus = 'paid';
-        booking.collectionStatus = collectionStatus;
-        booking.paymentCollectedBy = paymentCollectedBy;
-        booking.paymentCollectedAt = new Date();
-
-        // Credit provider wallet for cash bookings
-        if (booking.paymentMode === 'after' && booking.providerPayout > 0) {
-            try {
-                const { Wallet, Transaction } = require('../models/Wallet');
-                let wallet = await Wallet.findOne({ providerId: booking.providerId });
-                if (!wallet) wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
-                wallet.availableBalance += booking.providerPayout;
-                wallet.updatedAt = Date.now();
-                await wallet.save();
-                await Transaction.create({
-                    providerId: booking.providerId,
-                    title: `Cash Collected: ${booking.serviceName}`,
-                    amount: booking.providerPayout,
-                    type: 'credit',
-                    status: 'completed',
-                    bookingId: booking._id,
-                    description: `Cash payment collected. Commission (₹${booking.adminCommission || 0}) already deducted separately.`
-                });
-            } catch (walletErr) {
-                console.error('[Collect Payment] Wallet update failed:', walletErr.message);
-            }
-        }
 
         await booking.save();
 

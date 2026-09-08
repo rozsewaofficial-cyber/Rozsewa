@@ -1,12 +1,16 @@
 import React from "react";
-import { TrendingUp, IndianRupee, CreditCard, Users, Truck, Undo2, ArrowUpRight, ArrowDownRight, Info } from "lucide-react";
+import { TrendingUp, IndianRupee, CreditCard, Users, Truck, Undo2, ArrowUpRight, ArrowDownRight, Info, Coins, Wallet } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 const KpiCards = ({ data, isLoading }) => {
     const formatValue = (val) => {
-        return `₹${Math.round(val).toLocaleString("en-IN")}`;
+        // Net Revenue can legitimately go negative when coin discounts outrun
+        // commission, so the sign belongs outside the rupee symbol.
+        const rounded = Math.round(val || 0);
+        const sign = rounded < 0 ? "-" : "";
+        return `${sign}₹${Math.abs(rounded).toLocaleString("en-IN")}`;
     };
 
     const cards = [
@@ -24,7 +28,23 @@ const KpiCards = ({ data, isLoading }) => {
             icon: IndianRupee,
             color: "text-emerald-600 bg-emerald-50 border-emerald-100",
             stroke: "#059669",
-            tooltip: "Total platform commission earnings generated from completed bookings."
+            tooltip: "Total platform commission earned on completed bookings, before the cost of RozSewa Coins discounts. See Net Revenue for the figure after that cost."
+        },
+        {
+            key: "coinSubsidy",
+            label: "Coin Discounts Funded",
+            icon: Coins,
+            color: "text-amber-600 bg-amber-50 border-amber-100",
+            stroke: "#f59e0b",
+            tooltip: "RozSewa Coins redeemed by customers. The platform funds these in full — partners are always paid on the pre-discount value of the order."
+        },
+        {
+            key: "netRevenue",
+            label: "Net Revenue",
+            icon: Wallet,
+            color: "text-teal-600 bg-teal-50 border-teal-100",
+            stroke: "#0d9488",
+            tooltip: "Company Revenue minus the coin discounts the platform funded. This is what actually lands after the loyalty programme is paid for."
         },
         {
             key: "partnerPayout",
@@ -62,8 +82,8 @@ const KpiCards = ({ data, isLoading }) => {
 
     if (isLoading) {
         return (
-            <div className="flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-3 xl:grid-cols-6 scrollbar-none">
-                {Array.from({ length: 6 }).map((_, idx) => (
+            <div className="flex gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-3 xl:grid-cols-4 scrollbar-none">
+                {Array.from({ length: 8 }).map((_, idx) => (
                     <div
                         key={idx}
                         className="min-w-[240px] flex-shrink-0 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm md:min-w-0"
@@ -83,7 +103,7 @@ const KpiCards = ({ data, isLoading }) => {
 
     return (
         <TooltipProvider>
-            <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 md:grid md:grid-cols-3 xl:grid-cols-6 scrollbar-none">
+            <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-2 md:grid md:grid-cols-3 xl:grid-cols-4 scrollbar-none">
                 {cards.map((card) => {
                     const stats = data?.[card.key] || { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] };
                     const isPositive = stats.percentageChange >= 0;
@@ -119,7 +139,7 @@ const KpiCards = ({ data, isLoading }) => {
 
                             {/* Large Value */}
                             <div className="mt-3">
-                                <h3 className="text-2xl font-black text-gray-900 tracking-tight">
+                                <h3 className={`text-2xl font-black tracking-tight ${stats.value < 0 ? "text-rose-600" : "text-gray-900"}`}>
                                     {formatValue(stats.value)}
                                 </h3>
                             </div>

@@ -135,6 +135,51 @@ const verifySubscriptionPayment = async (req, res) => {
             const provider = await Provider.findById(req.user._id);
             if (!provider) return res.status(404).json({ message: "Provider not found" });
 
+            // --- RozSewa Coins: subscription discount (Partner / Sewak only) ---
+            // As on the customer side, the client sends only the id of a hold it
+            // reserved via POST /api/coins/hold. The discount is re-derived here
+            // from the hold and the plan's own price.
+            let coinRedemptionId = null;
+            let coinsRedeemed = 0;
+            let coinDiscount = 0;
+
+            if (req.body.coinRedemptionId) {
+                const CoinService = require('../services/CoinService');
+                const CoinRedemption = require('../models/CoinRedemption');
+
+                const redemption = await CoinRedemption.findById(req.body.coinRedemptionId);
+                if (!redemption) {
+                    return res.status(400).json({ message: 'Your coin discount is no longer valid. Please re-apply your coins.' });
+                }
+                if (redemption.ownerId.toString() !== provider._id.toString()) {
+                    return res.status(403).json({ message: 'Not authorized to use this coin redemption.' });
+                }
+                // Partner/Sewak coins are subscription-only.
+                if (redemption.purpose !== 'subscription') {
+                    return res.status(400).json({ message: 'These coins cannot be used for a subscription discount.' });
+                }
+                if (redemption.status !== 'held') {
+                    return res.status(400).json({ message: `This coin discount has already been ${redemption.status}.` });
+                }
+
+                const coinConfig = await CoinService.getConfig();
+                const ownerType = provider.providerCategory === 'sewak' ? 'sewak' : 'partner';
+                const rc = CoinService.roleConfig(coinConfig, ownerType);
+                const maxDiscount = Math.floor((Number(plan.price) * (Number(rc.maxDiscountPercent) || 0)) / 100);
+
+                if (redemption.monetaryValue > maxDiscount) {
+                    return res.status(400).json({
+                        message: `Coins can cover at most Rs ${maxDiscount} of this plan. Please re-apply your coins.`
+                    });
+                }
+
+                coinRedemptionId = redemption._id;
+                coinsRedeemed = redemption.coins;
+                coinDiscount = redemption.monetaryValue;
+            }
+
+            const pricePaid = Math.max(0, Number(plan.price) - coinDiscount);
+
             const ProviderSubscription = require('../models/ProviderSubscription');
 
             // Deactivate existing active subscriptions
@@ -150,20 +195,42 @@ const verifySubscriptionPayment = async (req, res) => {
             expiryDate.setDate(expiryDate.getDate() + durationDays);
 
             // Create new provider subscription record
-            await ProviderSubscription.create({
+            const providerSubscription = await ProviderSubscription.create({
                 provider: provider._id,
                 subscription: plan._id,
                 startDate: purchaseDate,
                 endDate: expiryDate,
-                pricePaid: plan.price,
+                planPrice: plan.price,
+                pricePaid,
+                coinRedemptionId,
+                coinsRedeemed,
+                coinDiscount,
                 status: 'active'
             });
+
+            // The subscription exists, so the coins are genuinely spent now.
+            // A failure here must not un-sell an active subscription, so it is
+            // logged rather than thrown.
+            if (coinRedemptionId) {
+                try {
+                    const CoinService = require('../services/CoinService');
+                    await CoinService.commit(coinRedemptionId, {
+                        referenceId: providerSubscription._id.toString(),
+                        referenceModel: 'ProviderSubscription'
+                    });
+                } catch (coinErr) {
+                    console.error('[Coins] Failed to commit subscription redemption:', coinErr.message);
+                }
+            }
 
             // Update provider subscription status (for legacy compatibility)
             provider.isSubscribed = true;
             provider.subscriptionPurchaseDate = purchaseDate;
             provider.subscriptionExpiry = expiryDate;
-            provider.subscriptionPrice = plan.price;
+            // Legacy mirror field records what was actually charged, so revenue
+            // reporting off the Provider document doesn't over-count the
+            // coin-discounted portion.
+            provider.subscriptionPrice = pricePaid;
             provider.subscriptionPlan = plan._id;
             provider.subscriptionRate = plan.commissionRate !== undefined ? plan.commissionRate : plan.offeredCommissionRate;
             provider.subscriptionType = plan.offeredCommissionType || 'percentage';

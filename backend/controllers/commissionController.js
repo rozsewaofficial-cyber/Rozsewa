@@ -3,6 +3,7 @@ const Withdrawal = require('../models/Withdrawal');
 const { Wallet } = require('../models/Wallet');
 const Setting = require('../models/Setting');
 const EarningsAnalyticsService = require('../services/EarningsAnalyticsService');
+const CashSettlementService = require('../services/CashSettlementService');
 const mongoose = require('mongoose');
 const AuditLog = require('../models/AuditLog');
 const ProviderBanner = require('../models/ProviderBanner');
@@ -196,40 +197,28 @@ const settleCodBooking = async (req, res) => {
     try {
         const { id } = req.params;
         const booking = await Booking.findById(id);
-        if (!booking) {
-            return res.status(404).json({ message: 'Booking not found' });
-        }
-        if (booking.paymentMode !== 'after') {
-            return res.status(400).json({ message: 'Only Cash on Delivery bookings can be settled here' });
-        }
-        if (booking.paymentStatus === 'paid') {
-            return res.status(400).json({ message: 'Booking is already settled' });
+
+        // Same collectability rules as the partner and staff routes, so an
+        // admin settlement can't slip past a check the others enforce.
+        const blocked = CashSettlementService.checkCollectable(booking);
+        if (blocked) {
+            return res.status(blocked.status).json({ message: blocked.message });
         }
 
-        booking.paymentStatus = 'paid';
+        // Records the collection and writes the payment audit row. It moves no
+        // money on purpose: the partner is holding the customer's cash and the
+        // payout was settled against their dues wallet at completion. This
+        // route used to credit the full payout on top, paying them twice.
+        await CashSettlementService.recordCollection(booking, {
+            collectedBy: 'admin',
+            actorId: req.user._id,
+            actorRole: req.user.role || 'admin',
+            ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress || null,
+            deviceInfo: req.headers['user-agent'] || null,
+            note: 'Cash on delivery settled by admin from the Finance screen.'
+        });
+
         await booking.save();
-
-        // Credit provider's wallet if applicable
-        if (booking.providerPayout > 0 && booking.providerId) {
-            const { Wallet, Transaction } = require('../models/Wallet');
-            let wallet = await Wallet.findOne({ providerId: booking.providerId });
-            if (!wallet) {
-                wallet = await Wallet.create({ providerId: booking.providerId, balance: 0 });
-            }
-            wallet.availableBalance += booking.providerPayout;
-            wallet.updatedAt = Date.now();
-            await wallet.save();
-
-            await Transaction.create({
-                providerId: booking.providerId,
-                title: `Cash Collected: ${booking.serviceName}`,
-                amount: booking.providerPayout,
-                type: 'credit',
-                status: 'completed',
-                bookingId: booking._id,
-                description: `Cash payment settled by Admin. Commission (₹${booking.adminCommission || 0}) already deducted.`
-            });
-        }
 
         // Add Audit Log
         await AuditLog.create({

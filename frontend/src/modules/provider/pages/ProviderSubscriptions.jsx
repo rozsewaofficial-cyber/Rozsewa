@@ -20,6 +20,7 @@ import {
 import { Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import CoinRedeemCard from "@/components/CoinRedeemCard";
 import { useAuth } from "@/context/AuthContext";
 
 const ProviderSubscriptions = () => {
@@ -64,6 +65,8 @@ const ProviderSubscriptions = () => {
 
   const [paymentModalPlan, setPaymentModalPlan] = useState(null);
   const [isProcessingOnline, setIsProcessingOnline] = useState(false);
+  // RozSewa Coins hold reserved for this purchase, or null.
+  const [coinRedemption, setCoinRedemption] = useState(null);
 
   const handlePurchaseClick = (plan) => {
     setPaymentModalPlan(plan);
@@ -118,6 +121,23 @@ const ProviderSubscriptions = () => {
     });
   };
 
+  /**
+   * Hands a reserved coin hold back when the subscription payment doesn't
+   * complete, so an abandoned purchase never strands the balance.
+   */
+  const releaseCoinHold = async (reason) => {
+    if (!coinRedemption?.redemptionId) return;
+    try {
+      await API.post("/coins/release", {
+        redemptionId: coinRedemption.redemptionId,
+        reason,
+      });
+    } catch (err) {
+      // Non-critical: the server-side sweeper reclaims it regardless.
+    }
+    setCoinRedemption(null);
+  };
+
   const handleOnlinePurchase = async () => {
     const plan = paymentModalPlan;
     if (!plan) return;
@@ -133,8 +153,13 @@ const ProviderSubscriptions = () => {
     }
 
     try {
+      // Coins come off the plan price before the gateway is asked for money.
+      // Only the hold id is sent to /verify-subscription — the server
+      // recomputes the discount from the hold and the plan's own price.
+      const payableNow = Math.max(0, plan.price - (coinRedemption?.discount || 0));
+
       const { data: order } = await API.post("/payment/order", {
-        amount: plan.price,
+        amount: payableNow,
         currency: "INR",
       });
 
@@ -150,7 +175,9 @@ const ProviderSubscriptions = () => {
             await API.post("/payment/verify-subscription", {
               ...response,
               planId: plan._id,
+              coinRedemptionId: coinRedemption?.redemptionId || null,
             });
+            setCoinRedemption(null);
             toast({
               title: "Subscription Active!",
               description: `Successfully purchased ${plan.name} plan.`,
@@ -160,6 +187,7 @@ const ProviderSubscriptions = () => {
             await fetchData();
             setActiveTab("active");
           } catch (error) {
+            await releaseCoinHold("Payment verification failed");
             toast({
               title: "Payment verification failed",
               description:
@@ -169,10 +197,14 @@ const ProviderSubscriptions = () => {
           }
         },
         theme: { color: "#059669" },
+        modal: {
+          ondismiss: () => releaseCoinHold("Checkout was closed"),
+        },
       };
 
       const paymentObject = new window.Razorpay(options);
       paymentObject.on("payment.failed", function (response) {
+        releaseCoinHold("Payment failed");
         toast({
           title: "Payment Failed",
           description: response.error.description,
@@ -181,6 +213,7 @@ const ProviderSubscriptions = () => {
       });
       paymentObject.open();
     } catch (error) {
+      await releaseCoinHold("Payment could not be started");
       toast({
         title: "Failed to initialize payment",
         description: error.response?.data?.message || "Server error",
@@ -570,11 +603,33 @@ const ProviderSubscriptions = () => {
             <h2 className="text-2xl font-black tracking-tighter mb-1 uppercase">
               Choose Payment Method
             </h2>
-            <p className="text-sm text-muted-foreground mb-8">
+            <p className="text-sm text-muted-foreground mb-4">
               How would you like to pay for the{" "}
               <strong>{paymentModalPlan.name}</strong> plan (₹
               {paymentModalPlan.price})?
             </p>
+
+            {/* Coins apply to online payment only — the wallet route settles
+                against the provider's cash wallet, which is a separate ledger. */}
+            <div className="mb-6">
+              <CoinRedeemCard
+                amount={paymentModalPlan.price}
+                purpose="subscription"
+                value={coinRedemption}
+                onChange={setCoinRedemption}
+                disabled={purchasing || isProcessingOnline}
+              />
+              {coinRedemption && (
+                <div className="mt-3 flex items-center justify-between rounded-xl bg-muted/60 px-4 py-3">
+                  <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                    Payable online
+                  </span>
+                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                    ₹{Math.max(0, paymentModalPlan.price - coinRedemption.discount)}
+                  </span>
+                </div>
+              )}
+            </div>
 
             <div className="space-y-4">
               <button

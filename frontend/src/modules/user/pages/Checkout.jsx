@@ -36,6 +36,7 @@ import {
   Autocomplete,
 } from "@react-google-maps/api";
 import API from "@/lib/api";
+import CoinRedeemCard from "@/components/CoinRedeemCard";
 
 const mapContainerStyle = { width: "100%", height: "200px" };
 const center = { lat: 28.6139, lng: 77.209 }; // Delhi
@@ -86,6 +87,9 @@ const Checkout = () => {
   const [serviceLocation, setServiceLocation] = useState("home");
   const [gstPercent, setGstPercent] = useState(0);
   const [platformFee, setPlatformFee] = useState(0);
+  // RozSewa Coins hold reserved for this checkout, or null. Only the id is
+  // ever sent onward — the server re-derives the discount from it.
+  const [coinRedemption, setCoinRedemption] = useState(null);
 
   const checkoutData = JSON.parse(
     localStorage.getItem("rozsewa_checkout_data"),
@@ -704,13 +708,19 @@ const Checkout = () => {
 
   const calculatedGstAmount = Math.round((payableSubtotal * gstPercent) / 100);
 
-  const total =
+  // Gross bill before any RozSewa Coins are applied. The coin card is quoted
+  // against this figure, and the backend recomputes the same cap from its own
+  // pricing before honouring the discount.
+  const grossTotal =
     payableSubtotal +
     (isExpress ? EXPRESS_FEE : 0) +
     estimatedTravelCharge +
     nightChargeAmount +
     calculatedGstAmount +
     platformFee;
+
+  const coinDiscount = coinRedemption?.discount || 0;
+  const total = Math.max(0, grossTotal - coinDiscount);
 
   // Calculate minimum allowed offer (e.g. max 30% discount on subtotal)
   const minAllowedOffer = Math.floor(subtotal * 0.7);
@@ -934,6 +944,7 @@ const Checkout = () => {
         couponCode: appliedCouponData?.code || "",
         discountAmount: totalDiscount,
         customerOffer: hasCustomOffer ? payableSubtotal : null,
+        coinRedemptionId: coinRedemption?.redemptionId || null,
         items: checkoutData.items || [],
         userProposedAmount: userProposedAmount
           ? Number(userProposedAmount)
@@ -956,6 +967,10 @@ const Checkout = () => {
       });
     } catch (err) {
       setIsProcessing(false);
+      // The booking never came into existence, so the coins reserved for it
+      // must go straight back — otherwise the customer sees a reduced balance
+      // after an error and has to wait for the server-side sweeper.
+      await releaseCoinHold("Booking could not be created");
       toast({
         title: "Booking Failed",
         description:
@@ -1003,6 +1018,25 @@ const Checkout = () => {
     processBooking();
   };
 
+  /**
+   * Returns a reserved coin hold to the wallet. Called on every path where the
+   * payment doesn't complete, so an abandoned checkout never strands the
+   * balance. (The server also sweeps stale holds, but only after 30 minutes —
+   * this makes the coins spendable again immediately.)
+   */
+  const releaseCoinHold = async (reason) => {
+    if (!coinRedemption?.redemptionId) return;
+    try {
+      await API.post("/coins/release", {
+        redemptionId: coinRedemption.redemptionId,
+        reason,
+      });
+    } catch (err) {
+      // Non-critical: the server-side sweeper reclaims it regardless.
+    }
+    setCoinRedemption(null);
+  };
+
   const handleRazorpayPayment = async () => {
     const res = await loadRazorpay();
 
@@ -1037,6 +1071,7 @@ const Checkout = () => {
               processBooking();
             }
           } catch (err) {
+            await releaseCoinHold("Payment verification failed");
             toast({
               title: "Payment Verification Failed",
               variant: "destructive",
@@ -1051,11 +1086,25 @@ const Checkout = () => {
         theme: {
           color: "#10b981",
         },
+        // Closing the Razorpay sheet without paying must not leave the coins
+        // reserved — hand them straight back.
+        modal: {
+          ondismiss: () => releaseCoinHold("Checkout was closed"),
+        },
       };
 
       const paymentObject = new window.Razorpay(options);
+      paymentObject.on("payment.failed", async (response) => {
+        await releaseCoinHold("Payment failed");
+        toast({
+          title: "Payment Failed",
+          description: response?.error?.description,
+          variant: "destructive",
+        });
+      });
       paymentObject.open();
     } catch (err) {
+      await releaseCoinHold("Payment could not be started");
       toast({
         title: "Failed to initiate payment",
         description: err.message,
@@ -1772,10 +1821,29 @@ const Checkout = () => {
                   <span className="font-black">-₹{bargainDiscount}</span>
                 </div>
               )}
+              {coinDiscount > 0 && (
+                <div className="flex justify-between text-sm text-amber-600 dark:text-amber-400">
+                  <span className="font-bold">
+                    RozSewa Coins ({coinRedemption.coins.toLocaleString("en-IN")})
+                  </span>
+                  <span className="font-black">-₹{coinDiscount}</span>
+                </div>
+              )}
               {totalDiscount > 0 && (
                 <div className="flex justify-between text-sm text-emerald-600 font-bold">
                   <span className="font-bold">Total Savings</span>
                   <span className="font-black">-₹{totalDiscount}</span>
+                </div>
+              )}
+              {!userProposedAmount && (
+                <div className="pt-1">
+                  <CoinRedeemCard
+                    amount={grossTotal}
+                    purpose="order"
+                    value={coinRedemption}
+                    onChange={setCoinRedemption}
+                    disabled={isProcessing}
+                  />
                 </div>
               )}
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">

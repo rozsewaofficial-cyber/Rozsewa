@@ -26,6 +26,7 @@ import Wallet from "./modules/user/pages/Wallet";
 import Favorites from "./modules/user/pages/Favorites";
 import Addresses from "./modules/user/pages/Addresses";
 import ReferEarn from "./modules/user/pages/ReferEarn";
+import RozSewaCoins from "./modules/user/pages/RozSewaCoins";
 import Notifications from "./modules/user/pages/Notifications";
 import Scrap from "./modules/user/pages/Scrap";
 import AddScrap from "./modules/user/pages/Scrap/AddScrap";
@@ -74,6 +75,7 @@ import ProviderSettings from "./modules/provider/pages/ProviderSettings";
 import ProviderSupport from "./modules/provider/pages/ProviderSupport";
 import ProviderNotifications from "./modules/provider/pages/ProviderNotifications";
 import ProviderWallet from "./modules/provider/pages/ProviderWallet";
+import ProviderCoins from "./modules/provider/pages/ProviderCoins";
 import ProviderSubscriptions from "./modules/provider/pages/ProviderSubscriptions";
 import ProviderBannerPromotion from "./modules/provider/pages/ProviderBannerPromotion";
 
@@ -93,6 +95,7 @@ import AdminLeadForms from "./modules/admin/pages/AdminLeadForms";
 import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
+import AdminCoins from "./modules/admin/pages/AdminCoins";
 import PartnerProgramConfig from "./modules/admin/pages/PartnerProgramConfig";
 import AdminCommissionAnalytics from "./modules/admin/pages/AdminCommissionAnalytics";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
@@ -202,6 +205,8 @@ const App = () => (
                         <Route path="/addresses" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Addresses /></ProtectedRoute>} />
                         <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Notifications /></ProtectedRoute>} />
                         <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Wallet /></ProtectedRoute>} />
+                        <Route path="/coins" element={<ProtectedRoute allowedRoles={["customer"]}><RozSewaCoins /></ProtectedRoute>} />
+                        <Route path="/refer-earn" element={<ProtectedRoute allowedRoles={["customer"]}><ReferEarn /></ProtectedRoute>} />
                         <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><LeadRequirementForm /></ProtectedRoute>} />
                         <Route path="/my-leads" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><MyLeads /></ProtectedRoute>} />
                         <Route path="/scrap" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Scrap /></ProtectedRoute>} />
@@ -259,6 +264,7 @@ const App = () => (
                       <Route path="/provider/profile/privacy" element={<Privacy />} />
                       <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
                       <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
+                      <Route path="/provider/coins" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderCoins /></ProtectedRoute>} />
                       <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
                       <Route path="/provider/leads" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderLeads /></ProtectedRoute>} />
                       <Route path="/provider/banner-promotions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBannerPromotion /></ProtectedRoute>} />
@@ -289,6 +295,7 @@ const App = () => (
                         <Route path="sewak-pricing" element={<SewakPricing />} />
                         <Route path="settings" element={<AdminSettings />} />
                         <Route path="settings/cash-limits" element={<AdminCashLimits />} />
+                        <Route path="coins" element={<AdminCoins />} />
                         <Route path="partner-program" element={<PartnerProgramConfig />} />
                         <Route path="commission-analytics" element={<AdminCommissionAnalytics />} />
                         <Route path="benefit-policies" element={<AdminBenefitPolicies />} />

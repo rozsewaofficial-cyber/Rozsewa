@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowLeft, Bell, UserCircle, Sun, Moon, Clock, Wallet } from "lucide-react";
+import { ArrowLeft, Bell, UserCircle, Sun, Moon, Clock, Wallet, Coins } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -122,6 +122,16 @@ const ProviderTopNav = ({ title, showBack = false }) => {
                 >
                   <Wallet className="h-3 w-3" />
                   <span>{walletBalance < 0 ? `Dues: ₹${Math.abs(walletBalance).toLocaleString()}` : `₹${walletBalance.toLocaleString()}`}</span>
+                </Link>
+              )}
+
+              {!((user?.role === 'sewak' || user?.providerCategory === 'sewak') ? !user?.kycVerified : user?.status !== 'verified') && (
+                <Link
+                  to="/provider/coins"
+                  title="RozSewa Coins"
+                  className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800"
+                >
+                  <Coins className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 </Link>
               )}
 

@@ -99,6 +99,43 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Provider'
     }],
+    // ── RozSewa Coins: referral attribution ──────────────────────────────
+    // Every customer gets a code lazily on first request (see coinController).
+    referralCode: {
+        type: String,
+        unique: true,
+        sparse: true,
+        uppercase: true,
+        trim: true,
+    },
+    // The code this customer signed up under. Stored as the code rather than a
+    // ref so a referrer's code stays resolvable even if their account changes.
+    referredBy: {
+        type: String,
+        default: null,
+        uppercase: true,
+        trim: true,
+    },
+    // Set once the referral has been settled (paid, or permanently blocked by
+    // the anti-fraud checks) so the check doesn't re-run on every later order.
+    referralRewarded: {
+        type: Boolean,
+        default: false,
+    },
+    referralBlockedReason: {
+        type: String,
+        default: null,
+    },
+    // Captured at signup purely to power the anti-fraud checks on referral
+    // payout — same device / same IP as the referrer means no reward.
+    signupIp: {
+        type: String,
+        default: null,
+    },
+    signupDeviceId: {
+        type: String,
+        default: null,
+    },
     kycAccess: {
         type: Boolean,
         default: false,

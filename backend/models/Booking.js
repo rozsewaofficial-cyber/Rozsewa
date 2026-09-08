@@ -170,6 +170,22 @@ const bookingSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // ── RozSewa Coins redemption ─────────────────────────────────────────
+    // The hold that paid for part of this booking. Kept so the coins can be
+    // committed on completion and refunded on cancellation.
+    coinRedemptionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'CoinRedemption',
+        default: null
+    },
+    coinsRedeemed: {
+        type: Number,
+        default: 0
+    },
+    coinDiscount: {
+        type: Number,
+        default: 0
+    },
     totalDiscount: {
         type: Number,
         default: 0
@@ -237,6 +253,15 @@ const bookingSchema = new mongoose.Schema({
         commissionAmount: { type: Number },
         providerEarnings: { type: Number },
         platformEarnings: { type: Number },
+        // The order's value BEFORE any platform-funded coin discount. This is
+        // what commission and payout are computed on, so the partner is paid
+        // the same whether or not the customer spent coins.
+        grossOrderAmount: { type: Number },
+        // The coin discount RozSewa funded on this booking (marketing cost).
+        coinSubsidy: { type: Number, default: 0 },
+        // What the platform actually kept once the subsidy is netted off.
+        // Goes negative when a discount exceeds the commission earned.
+        netPlatformEarnings: { type: Number },
         calculatedAt: { type: Date }
     },
     adminRequest: {
@@ -277,6 +302,58 @@ const bookingSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
+});
+
+/**
+ * RozSewa Coins reversal on cancellation / refund.
+ *
+ * A booking can be cancelled from a lot of places — the customer, the partner,
+ * an admin, an expired counter-offer, the socket reject handler — and several
+ * of those use findOneAndUpdate rather than save(). Hanging the trigger off the
+ * model instead of each call site is what guarantees no path can cancel a
+ * booking and silently keep the customer's coins.
+ *
+ * The handler is idempotent and never throws, so a double-fire is harmless.
+ */
+const fireCoinReversal = (bookingId, reason) => {
+    if (!bookingId) return;
+    setImmediate(async () => {
+        try {
+            const CoinRewardService = require('../services/CoinRewardService');
+            await CoinRewardService.onBookingReversed(bookingId, reason);
+        } catch (err) {
+            console.error('[Coins] Booking reversal hook failed:', err.message);
+        }
+    });
+};
+
+const isReversalState = (status, paymentStatus) =>
+    status === 'cancelled' || paymentStatus === 'refunded';
+
+// Promise-style hook (no `next`), matching the convention used elsewhere in
+// these models — this Mongoose version does not pass a callback here.
+bookingSchema.pre('save', async function () {
+    // Recorded in pre-save because modifiedPaths() is cleared by the time the
+    // post-save hook runs.
+    this.$locals.coinReversal =
+        (this.isModified('status') && this.status === 'cancelled') ||
+        (this.isModified('paymentStatus') && this.paymentStatus === 'refunded');
+});
+
+bookingSchema.post('save', function (doc) {
+    if (this.$locals && this.$locals.coinReversal) {
+        fireCoinReversal(doc._id, doc.status === 'cancelled' ? 'Booking cancelled' : 'Booking refunded');
+    }
+});
+
+// Query-middleware equivalent, for the paths that update without loading a doc.
+bookingSchema.post(['findOneAndUpdate', 'updateOne'], function (result) {
+    const update = this.getUpdate() || {};
+    const fields = { ...(update.$set || {}), ...update };
+    if (isReversalState(fields.status, fields.paymentStatus)) {
+        const id = (result && result._id) || (this.getQuery() || {})._id;
+        fireCoinReversal(id, fields.status === 'cancelled' ? 'Booking cancelled' : 'Booking refunded');
+    }
 });
 
 const Booking = mongoose.model('Booking', bookingSchema);

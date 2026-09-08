@@ -364,6 +364,18 @@ router.put('/kit-orders/:id/cancel', protect, admin, kitOrderController.cancelOr
 
 router.get('/kit-dues', protect, admin, kitOrderController.getAdminDues);
 
+// RozSewa Coins — programme configuration, wallets and manual overrides
+const adminCoinController = require('../controllers/adminCoinController');
+router.get('/coins/config', protect, admin, adminCoinController.getCoinConfig);
+router.put('/coins/config', protect, admin, adminCoinController.updateCoinConfig);
+router.get('/coins/stats', protect, admin, adminCoinController.getCoinStats);
+// `/wallets` must precede the `:ownerId`-shaped route so it isn't captured as an id.
+router.get('/coins/wallets', protect, admin, adminCoinController.getCoinWallets);
+router.get('/coins/wallets/:ownerId/history', protect, admin, adminCoinController.getWalletHistory);
+router.patch('/coins/wallets/:ownerId/freeze', protect, admin, adminCoinController.setWalletFreeze);
+router.post('/coins/adjust', protect, admin, adminCoinController.adjustWallet);
+router.post('/coins/run-expiry', protect, admin, adminCoinController.runExpirySweep);
+
 // Training Panel — admin work queue
 const trainingPanelController = require('../controllers/trainingPanelController');
 router.get('/training-records/stats', protect, admin, trainingPanelController.getTrainingStats);

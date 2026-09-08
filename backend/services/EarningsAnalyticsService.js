@@ -113,7 +113,19 @@ class EarningsAnalyticsService {
     static getOverviewStats(currentBookings, prevBookings, currentWithdrawals, prevWithdrawals, currentStart, currentEnd, prevStart, prevEnd, interval) {
         const getGMV = b => b.totalAmount || 0;
         const getComm = b => b.adminCommission || 0;
-        const getPayout = b => b.providerPayout > 0 ? b.providerPayout : ((b.totalAmount || 0) - (b.adminCommission || 0));
+        // RozSewa Coins spent by the customer are funded by the platform, so
+        // they are a marketing COST sitting against commission — not a discount
+        // the partner gave. Read from the snapshot first (written at completion)
+        // and fall back to the booking field for older rows.
+        const getCoinSubsidy = b => b.commissionSnapshot?.coinSubsidy ?? (b.coinDiscount || 0);
+        // What the platform actually kept once the subsidy is paid for. Goes
+        // negative on a booking whose discount exceeded its commission.
+        const getNetRevenue = b => getComm(b) - getCoinSubsidy(b);
+        // The fallback has to add the subsidy back, because totalAmount is what
+        // the customer paid and the partner is paid on the pre-discount value.
+        const getPayout = b => b.providerPayout > 0
+            ? b.providerPayout
+            : ((b.totalAmount || 0) + getCoinSubsidy(b) - (b.adminCommission || 0));
         const getTravel = b => b.travelCharge?.amount || 0;
         const getRefund = b => (b.paymentStatus === 'refunded' || b.status === 'cancelled') ? (b.totalAmount || 0) : 0;
 
@@ -123,6 +135,8 @@ class EarningsAnalyticsService {
         const partnerPayoutVal = currentBookings.reduce((sum, b) => sum + getPayout(b), 0);
         const travelChargesVal = currentBookings.reduce((sum, b) => sum + getTravel(b), 0);
         const refundsVal = currentBookings.reduce((sum, b) => sum + getRefund(b), 0);
+        const coinSubsidyVal = currentBookings.reduce((sum, b) => sum + getCoinSubsidy(b), 0);
+        const netRevenueVal = currentBookings.reduce((sum, b) => sum + getNetRevenue(b), 0);
         const pendingSettlementVal = currentWithdrawals.reduce((sum, w) => w.status === 'pending' ? sum + w.amount : sum, 0);
 
         // Previous totals
@@ -131,6 +145,8 @@ class EarningsAnalyticsService {
         const prevPartnerPayoutVal = prevBookings.reduce((sum, b) => sum + getPayout(b), 0);
         const prevTravelChargesVal = prevBookings.reduce((sum, b) => sum + getTravel(b), 0);
         const prevRefundsVal = prevBookings.reduce((sum, b) => sum + getRefund(b), 0);
+        const prevCoinSubsidyVal = prevBookings.reduce((sum, b) => sum + getCoinSubsidy(b), 0);
+        const prevNetRevenueVal = prevBookings.reduce((sum, b) => sum + getNetRevenue(b), 0);
         const prevPendingSettlementVal = prevWithdrawals.reduce((sum, w) => w.status === 'pending' ? sum + w.amount : sum, 0);
 
         const calcPercentage = (curr, prev) => {
@@ -143,6 +159,8 @@ class EarningsAnalyticsService {
         const sparklinePayout = this.binData(currentBookings, currentStart, currentEnd, interval, getPayout).map(p => p.value);
         const sparklineTravel = this.binData(currentBookings, currentStart, currentEnd, interval, getTravel).map(p => p.value);
         const sparklineRefund = this.binData(currentBookings, currentStart, currentEnd, interval, getRefund).map(p => p.value);
+        const sparklineCoinSubsidy = this.binData(currentBookings, currentStart, currentEnd, interval, getCoinSubsidy).map(p => p.value);
+        const sparklineNetRevenue = this.binData(currentBookings, currentStart, currentEnd, interval, getNetRevenue).map(p => p.value);
 
         // Withdrawals sparkline
         const sparklineWithdrawal = this.binData(currentWithdrawals, currentStart, currentEnd, interval, w => w.status === 'pending' ? w.amount : 0).map(p => p.value);
@@ -154,11 +172,26 @@ class EarningsAnalyticsService {
                 percentageChange: calcPercentage(grossSalesVal, prevGrossSalesVal),
                 sparkline: sparklineGMV
             },
+            // Commission earned, before the cost of the coin programme.
             companyRevenue: {
                 value: Math.round(companyRevenueVal * 100) / 100,
                 prevValue: Math.round(prevCompanyRevenueVal * 100) / 100,
                 percentageChange: calcPercentage(companyRevenueVal, prevCompanyRevenueVal),
                 sparkline: sparklineComm
+            },
+            // What RozSewa paid out in coin discounts over the period.
+            coinSubsidy: {
+                value: Math.round(coinSubsidyVal * 100) / 100,
+                prevValue: Math.round(prevCoinSubsidyVal * 100) / 100,
+                percentageChange: calcPercentage(coinSubsidyVal, prevCoinSubsidyVal),
+                sparkline: sparklineCoinSubsidy
+            },
+            // companyRevenue less coinSubsidy — the figure that actually lands.
+            netRevenue: {
+                value: Math.round(netRevenueVal * 100) / 100,
+                prevValue: Math.round(prevNetRevenueVal * 100) / 100,
+                percentageChange: calcPercentage(netRevenueVal, prevNetRevenueVal),
+                sparkline: sparklineNetRevenue
             },
             partnerPayout: {
                 value: Math.round(partnerPayoutVal * 100) / 100,
@@ -561,6 +594,11 @@ class EarningsAnalyticsService {
                     paymentMethod: method,
                     transactionType: (b.paymentStatus === 'refunded' || b.status === 'cancelled') ? 'Refund' : 'Commission',
                     amount: Math.round(b.adminCommission * 100) / 100,
+                    // Coin discount RozSewa funded on this booking, and the
+                    // commission net of it — so a row whose commission was
+                    // wholly eaten by a discount is visible as such.
+                    coinSubsidy: Math.round((b.commissionSnapshot?.coinSubsidy ?? (b.coinDiscount || 0)) * 100) / 100,
+                    netAmount: Math.round(((b.adminCommission || 0) - (b.commissionSnapshot?.coinSubsidy ?? (b.coinDiscount || 0))) * 100) / 100,
                     status: (b.paymentStatus === 'refunded' || b.status === 'cancelled') ? 'failed' : b.paymentStatus === 'paid' ? 'success' : 'pending',
                     date: dateStr,
                     rawDate: b.createdAt

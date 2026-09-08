@@ -39,6 +39,7 @@ export const adminSidebarLinks = [
   { path: "/admin/withdrawals", label: "Withdrawal Requests", icon: Landmark },
 
   { path: "/admin/coupons", label: "Coupons", icon: Tag },
+  { path: "/admin/coins", label: "RozSewa Coins", icon: Coins },
   { path: "/admin/provider-reports", label: "Provider Reports", icon: ShieldAlert },
   { path: "/admin/reports", label: "User Reports", icon: MessageSquare },
   { path: "/admin/zones", label: "Zones & Cities", icon: Map },
