@@ -424,6 +424,7 @@ const resolveProviderReport = async (req, res) => {
 
 const Service = require('../models/Service');
 const Combo = require('../models/Combo');
+const ServiceCatalogService = require('../services/ServiceCatalogService');
 
 // @desc    Get all categories with dynamically merged services
 // @route   GET /api/admin/categories
@@ -557,10 +558,22 @@ const updateCategory = async (req, res) => {
                 !(s._id && stillPresent.has(String(s._id))) && !stillPresentNames.has(s.name)
             );
             for (const r of removed) {
+                // Delete the standalone catalog doc(s)...
                 const removeQuery = r._id
                     ? { $or: [{ _id: r._id }, { categoryId: category._id, name: r.name }] }
                     : { categoryId: category._id, name: r.name };
                 await Service.deleteMany(removeQuery);
+
+                // ...then every denormalised copy. The query above only reaches
+                // docs carrying `categoryId`, which a partner's own copy never
+                // sets (createService writes `category`), so those copies —
+                // and the provider's selected services and combos — survived
+                // and kept the removed service visible to customers.
+                await ServiceCatalogService.cascadeServiceRemoval({
+                    serviceId: r._id,
+                    serviceName: r.name,
+                    categoryId: category._id
+                });
             }
 
             category.services = req.body.services.map(s => {
