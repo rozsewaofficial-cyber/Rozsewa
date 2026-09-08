@@ -1,6 +1,7 @@
 const Subcategory = require('../models/Subcategory');
 const Category = require('../models/Category');
 const Service = require('../models/Service');
+const ServiceCatalogService = require('../services/ServiceCatalogService');
 const mongoose = require('mongoose');
 
 const escapeRegex = (str) => {
@@ -386,9 +387,13 @@ const deleteSubcategory = async (req, res) => {
         if (!subcategory) {
             return res.status(404).json({ message: 'Subcategory not found' });
         }
+        // Cascade each service the same way a single deletion would, so the
+        // subcategory's services stop showing on provider and customer
+        // surfaces too — deleting the Service rows alone did not do that.
+        const cleanedUp = await ServiceCatalogService.cascadeSubcategoryRemoval(req.params.id);
         await subcategory.deleteOne();
-        await Service.deleteMany({ subcategoryId: req.params.id });
-        res.json({ message: 'Subcategory and associated services removed' });
+
+        res.json({ message: 'Subcategory and associated services removed', cleanedUp });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -521,18 +526,27 @@ const deleteAdminService = async (req, res) => {
         if (!service) {
             return res.status(404).json({ message: 'Service not found' });
         }
+
+        // Capture what we need before the document goes away.
+        const { _id, name, categoryId } = service;
         await service.deleteOne();
 
-        if (service.categoryId) {
-            const cat = await Category.findById(service.categoryId);
-            if (cat) {
-                cat.services = cat.services.filter(s => (s._id && s._id.toString() !== service._id.toString()) && s.name !== service.name);
-                cat.markModified('services');
-                await cat.save();
-            }
-        }
+        // Removing the catalog row alone used to leave the service visible to
+        // customers, partners and Sewaks, because it is denormalised into the
+        // category, each provider's own service list, their selected services
+        // and any combos. Cascade through all of them.
+        const cleanedUp = await ServiceCatalogService.cascadeServiceRemoval({
+            serviceId: _id,
+            serviceName: name,
+            categoryId
+        });
 
-        res.json({ message: 'Service removed' });
+        res.json({
+            message: cleanedUp.providerCopiesSkipped
+                ? 'Service removed. It had no category, so provider copies were left untouched — remove those from the provider\'s own list if needed.'
+                : 'Service removed',
+            cleanedUp
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
