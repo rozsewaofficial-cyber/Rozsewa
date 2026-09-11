@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserCheck, CalendarDays, IndianRupee, Tag,
   MessageSquare, Briefcase, Settings, Image, ShieldCheck, CreditCard,
   Percent, Landmark, Map, Zap, Wallet, BarChart4, ShieldAlert, TrendingUp,
-  HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin, Recycle, FileText, Coins,
+  Gift, HelpCircle, Megaphone, Terminal, ShieldAlert as SuperShield, Lock, LogOut, UserPlus, History, Moon, MapPin, Recycle, FileText, Coins,
   GraduationCap, Building2, UserCog, Package, Layers, ShoppingCart, ClipboardCheck, Send
 } from "lucide-react";
 
@@ -40,6 +40,7 @@ export const adminSidebarLinks = [
 
   { path: "/admin/coupons", label: "Coupons", icon: Tag },
   { path: "/admin/coins", label: "RozSewa Coins", icon: Coins },
+  { path: "/admin/offer-management", label: "Offer Management", icon: Gift },
   { path: "/admin/provider-reports", label: "Provider Reports", icon: ShieldAlert },
   { path: "/admin/reports", label: "User Reports", icon: MessageSquare },
   { path: "/admin/zones", label: "Zones & Cities", icon: Map },

@@ -6,26 +6,36 @@ import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import OfferCard from "@/components/OfferCard";
 
 const Offers = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [coupons, setCoupons] = useState([]);
+  // Offers and coupons are two different systems: an offer is a discounted
+  // price on a service, a coupon is a code applied at checkout. Shown as two
+  // sections rather than merged, so neither is mistaken for the other.
+  const [offers, setOffers] = useState([]);
   const [copiedCode, setCopiedCode] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchCoupons = async () => {
-      try {
-        const { data } = await API.get("/public/coupons");
-        setCoupons(data);
-      } catch (err) {
-        console.error("Failed to fetch coupons:", err);
-      } finally {
-        setLoading(false);
+    const fetchAll = async () => {
+      // Settled, not all-or-nothing: a failure in one section must not blank
+      // the other.
+      const [offerRes, couponRes] = await Promise.allSettled([
+        API.get("/public/offers"),
+        API.get("/public/coupons"),
+      ]);
+      if (offerRes.status === "fulfilled") {
+        setOffers(offerRes.value.data.offers || []);
       }
+      if (couponRes.status === "fulfilled") {
+        setCoupons(couponRes.value.data || []);
+      }
+      setLoading(false);
     };
-    fetchCoupons();
+    fetchAll();
   }, []);
 
   const handleCopy = (code) => {
@@ -63,6 +73,31 @@ const Offers = () => {
           </div>
         </div>
 
+        {/* Offer cards — discounted service pricing */}
+        {offers.length > 0 && (
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                🎁 Today's Offers
+              </h2>
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                {offers.length} live
+              </span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {offers.map((offer) => (
+                <OfferCard key={offer._id} offer={offer} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {offers.length > 0 && coupons.length > 0 && (
+          <h2 className="pt-2 text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+            Coupon codes
+          </h2>
+        )}
+
         {/* Coupons List */}
         <div className="space-y-4">
           {loading ? (
@@ -74,7 +109,14 @@ const Offers = () => {
               <div className="mx-auto w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
                 <Tag className="h-8 w-8 text-slate-400 dark:text-slate-500" />
               </div>
-              <p className="text-sm font-bold text-slate-500 dark:text-slate-400">No active offers right now.</p>
+              {/* Offers and coupons are separate systems, so this empty state
+                  has to name the coupons specifically — saying "no offers"
+                  under a screen full of live offer cards read as a bug. */}
+              <p className="text-sm font-bold text-slate-500 dark:text-slate-400">
+                {offers.length > 0
+                  ? "No coupon codes right now."
+                  : "No active offers right now."}
+              </p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Check back later for new deals!</p>
             </div>
           ) : (

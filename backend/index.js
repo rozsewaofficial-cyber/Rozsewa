@@ -122,6 +122,7 @@ const startBannerCronJobs = require('./cron/bannerJobs');
 const { startSkillSessionCron } = require('./cron/skillSessionJobs');
 const { startKitDuesCron } = require('./cron/kitDuesJobs');
 const { startCoinCron } = require('./cron/coinJobs');
+const { startOfferCron } = require('./cron/offerJobs');
 startCronJobs();
 startBookingReminderCron();
 startSubscriptionCheckCron();
@@ -130,6 +131,7 @@ startBannerCronJobs();
 startSkillSessionCron();
 startKitDuesCron();
 startCoinCron();
+startOfferCron();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });

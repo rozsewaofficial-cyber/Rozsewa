@@ -123,6 +123,46 @@ const createBooking = async (req, res) => {
         // --- 1. Compute Trusted Subtotal on Backend ---
         let subtotal = 0;
 
+        // ---- RozSewa Offers ----
+        // Live offer prices are resolved HERE, inside the trusted-subtotal
+        // computation, rather than trusted from the request. That keeps the
+        // price on the offer card and the price on the bill derived from the
+        // same source; if this ran alongside instead of inside, a customer
+        // could be shown Rs 109 and charged the Rs 269 catalog price.
+        const OfferService = require('../services/OfferService');
+        const offerItemIds = (items && items.length > 0)
+            ? items.map(i => i.id).filter(Boolean)
+            : [serviceId].filter(Boolean);
+        const activeOffers = await OfferService.getActiveOffersByItemId(offerItemIds);
+
+        // Total the platform is funding on this booking, and whether any applied
+        // offer forbids stacking coins on top.
+        let offerSubsidy = 0;
+        let offerBlocksCoins = false;
+        const appliedOffers = [];
+
+        /** Applies a live offer to one line, returning the price to charge. */
+        const applyOffer = (itemId, catalogPrice, qty) => {
+            const offer = activeOffers.get(String(itemId));
+            if (!offer) return catalogPrice;
+            // MRP is the catalog's own price, so an offer whose snapshot has
+            // drifted above the live price is ignored rather than raising the bill.
+            if (offer.offerPrice >= catalogPrice) return catalogPrice;
+
+            offerSubsidy += (catalogPrice - offer.offerPrice) * qty;
+            if (!offer.allowCoins) offerBlocksCoins = true;
+            appliedOffers.push({
+                offerId: offer._id,
+                serviceName: offer.serviceName,
+                originalPrice: catalogPrice,
+                offerPrice: offer.offerPrice,
+                discountPercent: offer.discountPercent,
+                quantity: qty,
+                allowCoins: offer.allowCoins
+            });
+            return offer.offerPrice;
+        };
+
         let isSewakBooking = requiredProviderCategory === 'sewak';
         if (!isSewakBooking && providerId && mongoose.Types.ObjectId.isValid(providerId)) {
             const checkProv = await Provider.findById(providerId).select('providerCategory');
@@ -221,6 +261,13 @@ const createBooking = async (req, res) => {
                     }
                 }
 
+                // A live offer replaces the catalog price for this line. Only
+                // ever applied to a resolved catalog item — a custom/negotiated
+                // line has no catalog entry to carry an offer.
+                if (itemFound) {
+                    basePrice = applyOffer(itemId, basePrice, qty);
+                }
+
                 subtotal += basePrice * qty;
             }
         } else {
@@ -289,6 +336,10 @@ const createBooking = async (req, res) => {
                 if (!serviceFound) {
                     return res.status(400).json({ message: 'Selected service could not be found in the catalog.' });
                 }
+
+                // Same offer resolution as the items path above — without this,
+                // booking by bare serviceId would bypass the offer price entirely.
+                subtotal = applyOffer(serviceId, subtotal, 1);
             }
             // else: serviceId isn't a catalog reference at all (a genuinely custom/
             // negotiated booking) — subtotal stays 0 and falls to the totalAmount
@@ -453,6 +504,18 @@ const createBooking = async (req, res) => {
         let coinsRedeemed = 0;
         let coinDiscount = 0;
 
+        // The per-offer "Allow Offer + Coins Together" switch. When any applied
+        // offer has it off, the whole basket refuses a coin redemption — the
+        // safe reading, since a mixed basket would otherwise let coins reach an
+        // item the admin excluded them from.
+        if (req.body.coinRedemptionId && offerBlocksCoins) {
+            const blocking = appliedOffers.find(o => !o.allowCoins);
+            return res.status(400).json({
+                message: `RozSewa Coins cannot be used together with the offer on "${blocking.serviceName}". Remove your coins to continue.`,
+                code: 'COINS_NOT_ALLOWED_WITH_OFFER'
+            });
+        }
+
         if (req.body.coinRedemptionId) {
             const CoinService = require('../services/CoinService');
             const CoinRedemption = require('../models/CoinRedemption');
@@ -519,6 +582,8 @@ const createBooking = async (req, res) => {
             coinRedemptionId,
             coinsRedeemed,
             coinDiscount,
+            offerSubsidy,
+            appliedOffers,
             customerOffer: customerOffer !== undefined && customerOffer !== null ? payableAmount : null,
             originalFixedPrice,
             bargainDiscount,
@@ -1976,8 +2041,14 @@ const verifyEndOTP = async (req, res) => {
                     // computed on the pre-discount value of the order. RozSewa carries
                     // the coin discount as a marketing cost; see the settlement below,
                     // where it is netted off what the partner owes.
+                    // Both RozSewa Coins and RozSewa Offers are funded by the
+                    // platform, so they behave identically here: the partner is
+                    // paid on the order's value BEFORE either discount, and the
+                    // combined subsidy is what RozSewa carries.
                     const coinSubsidy = booking.coinDiscount || 0;
-                    const grossOrderAmount = booking.totalAmount + coinSubsidy;
+                    const offerSubsidy = booking.offerSubsidy || 0;
+                    const platformSubsidy = coinSubsidy + offerSubsidy;
+                    const grossOrderAmount = booking.totalAmount + platformSubsidy;
                     const commissionableAmount = Math.max(0, grossOrderAmount - travelChargeAmount);
 
                     // Slab boundaries are matched against the gross total (what the admin configured
@@ -2046,7 +2117,9 @@ const verifyEndOTP = async (req, res) => {
                             platformEarnings: calculation.platformAmount,
                             grossOrderAmount,
                             coinSubsidy,
-                            netPlatformEarnings: calculation.platformAmount - coinSubsidy,
+                            offerSubsidy,
+                            platformSubsidy,
+                            netPlatformEarnings: calculation.platformAmount - platformSubsidy,
                             calculatedAt: Date.now()
                         };
                     }
@@ -2069,20 +2142,20 @@ const verifyEndOTP = async (req, res) => {
                     if (booking.paymentMode !== 'now') {
                         // The partner collected only the discounted amount in cash but is
                         // owed the full payout, so what they actually owe RozSewa is the
-                        // commission LESS the coin discount RozSewa funded:
+                        // commission LESS whatever RozSewa funded (coins and/or offer):
                         //
-                        //   cashCollected - providerPayout === adminCommission - coinSubsidy
+                        //   cashCollected - providerPayout === adminCommission - platformSubsidy
                         //
-                        // A negative figure means the discount exceeded the commission and
+                        // A negative figure means the discounts exceeded the commission and
                         // RozSewa owes the partner — the wallet is credited instead.
-                        const settlementDue = adminCommission - coinSubsidy;
+                        const settlementDue = adminCommission - platformSubsidy;
 
                         wallet.balance -= settlementDue;
                         transactionAmount = Math.abs(settlementDue);
                         transactionType = settlementDue >= 0 ? 'debit' : 'credit';
                         transactionTitle = settlementDue >= 0
                             ? `Commission Deducted: ${booking.serviceName}`
-                            : `Coin Discount Reimbursed: ${booking.serviceName}`;
+                            : `Platform Discount Reimbursed: ${booking.serviceName}`;
 
                         await FinancialLedger.create([{
                             transactionId: txnId,
@@ -2093,14 +2166,16 @@ const verifyEndOTP = async (req, res) => {
                             amount: -settlementDue,
                             previousBalance: prevDuesBalance,
                             newBalance: wallet.balance,
-                            description: coinSubsidy > 0
-                                ? `Cash settlement for booking #${booking._id.toString().slice(-6)} (commission ₹${adminCommission} less ₹${coinSubsidy} RozSewa Coins funded by the platform)`
+                            description: platformSubsidy > 0
+                                ? `Cash settlement for booking #${booking._id.toString().slice(-6)} (commission ₹${adminCommission} less ₹${platformSubsidy} funded by the platform — ₹${coinSubsidy} RozSewa Coins, ₹${offerSubsidy} offer discount)`
                                 : `Cash Commission dues for booking #${booking._id.toString().slice(-6)}`,
                             metadata: {
                                 paymentMode: booking.paymentMode,
                                 grossOrderAmount,
                                 commission: adminCommission,
-                                coinSubsidy
+                                coinSubsidy,
+                                offerSubsidy,
+                                platformSubsidy
                             }
                         }], { session });
                     } else {
@@ -2123,15 +2198,17 @@ const verifyEndOTP = async (req, res) => {
                             amount: providerPayout,
                             previousBalance: prevAvailableBalance,
                             newBalance: wallet.availableBalance,
-                            description: coinSubsidy > 0
-                                ? `Payout credit for booking #${booking._id.toString().slice(-6)} (on the pre-discount value of ₹${grossOrderAmount}; ₹${coinSubsidy} of RozSewa Coins funded by the platform)`
+                            description: platformSubsidy > 0
+                                ? `Payout credit for booking #${booking._id.toString().slice(-6)} (on the pre-discount value of ₹${grossOrderAmount}; ₹${platformSubsidy} funded by the platform — ₹${coinSubsidy} RozSewa Coins, ₹${offerSubsidy} offer discount)`
                                 : `Payout credit for booking #${booking._id.toString().slice(-6)}`,
                             metadata: {
                                 paymentMode: booking.paymentMode,
                                 travelCharge: travelChargePortion,
                                 serviceEarnings: serviceEarningsPortion,
                                 grossOrderAmount,
-                                coinSubsidy
+                                coinSubsidy,
+                                offerSubsidy,
+                                platformSubsidy
                             }
                         }], { session });
                     }

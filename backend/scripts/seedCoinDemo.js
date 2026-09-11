@@ -53,7 +53,19 @@ const run = async () => {
         mobile: '9000000002',
         password: 'demo1234',
         role: 'admin',
-        isVerified: true
+        isVerified: true,
+        // A role:'admin' account with an empty permissions array is redirected
+        // away from every admin page except the dashboard (see AdminLayout).
+        // Granting the pages this demo drives so the seed isn't a dead end.
+        permissions: [
+            '/admin/coins',
+            '/admin/offer-management',
+            '/admin/services',
+            '/admin/bookings',
+            '/admin/earnings',
+            '/admin/users',
+            '/admin/providers'
+        ]
     });
 
     // A second customer holding a referral code, so the "apply a friend's code"

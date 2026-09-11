@@ -170,6 +170,23 @@ const bookingSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // ── RozSewa Offer applied at booking time ────────────────────────────
+    // Snapshotted so a booking stays explainable after the offer is edited,
+    // deactivated or deleted. Like coins, the discount is funded by the
+    // platform: the partner is paid on the pre-offer value of the order.
+    offerSubsidy: {
+        type: Number,
+        default: 0
+    },
+    appliedOffers: [{
+        offerId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceOffer' },
+        serviceName: { type: String },
+        originalPrice: { type: Number },
+        offerPrice: { type: Number },
+        discountPercent: { type: Number },
+        quantity: { type: Number, default: 1 },
+        allowCoins: { type: Boolean, default: false }
+    }],
     // ── RozSewa Coins redemption ─────────────────────────────────────────
     // The hold that paid for part of this booking. Kept so the coins can be
     // committed on completion and refunded on cancellation.
@@ -259,6 +276,10 @@ const bookingSchema = new mongoose.Schema({
         grossOrderAmount: { type: Number },
         // The coin discount RozSewa funded on this booking (marketing cost).
         coinSubsidy: { type: Number, default: 0 },
+        // The offer discount RozSewa funded on this booking.
+        offerSubsidy: { type: Number, default: 0 },
+        // coinSubsidy + offerSubsidy — the platform's total cost on this order.
+        platformSubsidy: { type: Number, default: 0 },
         // What the platform actually kept once the subsidy is netted off.
         // Goes negative when a discount exceeds the commission earned.
         netPlatformEarnings: { type: Number },

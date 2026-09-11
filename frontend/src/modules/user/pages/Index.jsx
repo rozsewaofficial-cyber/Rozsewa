@@ -7,6 +7,7 @@ import BottomNav from "@/modules/user/components/BottomNav";
 import EmergencyButton from "@/modules/user/components/EmergencyButton";
 import SearchBar from "@/modules/user/components/SearchBar";
 import CategoryGrid from "@/modules/user/components/CategoryGrid";
+import OfferCard from "@/components/OfferCard";
 import ServiceCard from "@/modules/user/components/ServiceCard";
 import RecentBookingTracker from "@/modules/user/components/RecentBookingTracker";
 import { useAuth } from "@/context/AuthContext";
@@ -25,6 +26,9 @@ const Index = () => {
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(0);
   const [banners, setBanners] = useState([]);
+  // Live offer cards for the home carousel. Failing to load them must never
+  // block the rest of the home page, so this is fetched on its own.
+  const [homeOffers, setHomeOffers] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [bazaarChats, setBazaarChats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -154,6 +158,14 @@ const Index = () => {
   };
 
   const bannerScrollRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    API.get("/public/offers?limit=10")
+      .then(({ data }) => { if (!cancelled) setHomeOffers(data.offers || []); })
+      .catch(() => { /* home page renders fine without offers */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (banners.length <= 1) return;
@@ -389,6 +401,30 @@ const Index = () => {
               </div>
               <CategoryGrid showAll={showAllCategories} mode={serviceMode} />
             </section>
+
+            {/* 🎁 Live offers carousel */}
+            {homeOffers.length > 0 && (
+              <section className="mt-2 mb-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="flex items-center gap-2 text-lg font-black text-slate-900 dark:text-white">
+                    🎁 Offers for you
+                  </h2>
+                  <button
+                    onClick={() => navigate("/offers")}
+                    className="text-xs font-bold text-blue-600 hover:underline"
+                  >
+                    View all
+                  </button>
+                </div>
+                <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 scrollbar-none snap-x">
+                  {homeOffers.map((offer) => (
+                    <div key={offer._id} className="snap-start">
+                      <OfferCard offer={offer} compact />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Active Bazaar Chats (If any) */}
             {bazaarChats.length > 0 && (

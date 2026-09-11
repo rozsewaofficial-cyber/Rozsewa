@@ -17,8 +17,10 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 process.env.MONGODB_URI =
-    process.env.LOCAL_DB_URI || 'mongodb://127.0.0.1:27018/rozsewa_demo';
+    process.env.LOCAL_DB_URI || 'mongodb://127.0.0.1:27019/rozsewa_demo?directConnection=true';
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
+// Allows a second instance alongside another running backend.
+if (process.env.LOCAL_PORT) process.env.PORT = process.env.LOCAL_PORT;
 
 console.log(`[devLocalDb] Using database: ${process.env.MONGODB_URI}`);
 

@@ -90,6 +90,10 @@ const Checkout = () => {
   // RozSewa Coins hold reserved for this checkout, or null. Only the id is
   // ever sent onward — the server re-derives the discount from it.
   const [coinRedemption, setCoinRedemption] = useState(null);
+  // When the basket came from an offer card, whether coins may stack on it is
+  // an admin decision per offer. The server enforces it; this only hides the
+  // control so the customer isn't offered something that will be rejected.
+  const [offerAllowsCoins, setOfferAllowsCoins] = useState(true);
 
   const checkoutData = JSON.parse(
     localStorage.getItem("rozsewa_checkout_data"),
@@ -1024,6 +1028,27 @@ const Checkout = () => {
    * balance. (The server also sweeps stale holds, but only after 30 minutes —
    * this makes the coins spendable again immediately.)
    */
+  // Resolve the offer behind this basket, if any, to learn whether coins stack.
+  useEffect(() => {
+    const fromOffer = checkoutData?.fromOffer;
+    if (!fromOffer) {
+      setOfferAllowsCoins(true);
+      return;
+    }
+    let cancelled = false;
+    API.get("/public/offers")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const offer = (data.offers || []).find((o) => o._id === fromOffer);
+        // An offer that has since expired simply stops constraining coins; the
+        // server re-resolves the real price either way.
+        setOfferAllowsCoins(offer ? Boolean(offer.allowCoins) : true);
+      })
+      .catch(() => setOfferAllowsCoins(true));
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutData?.fromOffer]);
+
   const releaseCoinHold = async (reason) => {
     if (!coinRedemption?.redemptionId) return;
     try {
@@ -1835,7 +1860,7 @@ const Checkout = () => {
                   <span className="font-black">-₹{totalDiscount}</span>
                 </div>
               )}
-              {!userProposedAmount && (
+              {!userProposedAmount && offerAllowsCoins && (
                 <div className="pt-1">
                   <CoinRedeemCard
                     amount={grossTotal}
@@ -1845,6 +1870,11 @@ const Checkout = () => {
                     disabled={isProcessing}
                   />
                 </div>
+              )}
+              {!offerAllowsCoins && (
+                <p className="rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                  RozSewa Coins cannot be combined with this offer.
+                </p>
               )}
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
                 <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">

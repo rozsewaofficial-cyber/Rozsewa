@@ -96,6 +96,7 @@ import SewakPricing from "./modules/admin/pages/SewakPricing";
 import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
 import AdminCoins from "./modules/admin/pages/AdminCoins";
+import AdminOfferManagement from "./modules/admin/pages/AdminOfferManagement";
 import PartnerProgramConfig from "./modules/admin/pages/PartnerProgramConfig";
 import AdminCommissionAnalytics from "./modules/admin/pages/AdminCommissionAnalytics";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
@@ -296,6 +297,7 @@ const App = () => (
                         <Route path="settings" element={<AdminSettings />} />
                         <Route path="settings/cash-limits" element={<AdminCashLimits />} />
                         <Route path="coins" element={<AdminCoins />} />
+                        <Route path="offer-management" element={<AdminOfferManagement />} />
                         <Route path="partner-program" element={<PartnerProgramConfig />} />
                         <Route path="commission-analytics" element={<AdminCommissionAnalytics />} />
                         <Route path="benefit-policies" element={<AdminBenefitPolicies />} />

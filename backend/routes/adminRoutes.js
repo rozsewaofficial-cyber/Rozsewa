@@ -364,6 +364,17 @@ router.put('/kit-orders/:id/cancel', protect, admin, kitOrderController.cancelOr
 
 router.get('/kit-dues', protect, admin, kitOrderController.getAdminDues);
 
+// RozSewa Offer Management — admin-created discounted pricing on catalog items.
+// Distinct from the provider-submitted promo approval queue.
+const offerManagementController = require('../controllers/offerManagementController');
+// `/targets` must precede the `:id`-shaped routes so it isn't captured as an id.
+router.get('/offers/targets', protect, admin, offerManagementController.getOfferTargets);
+router.get('/offers', protect, admin, offerManagementController.getAdminOffers);
+router.post('/offers', protect, admin, offerManagementController.createOffer);
+router.put('/offers/:id', protect, admin, offerManagementController.updateOffer);
+router.patch('/offers/:id/status', protect, admin, offerManagementController.toggleOfferStatus);
+router.delete('/offers/:id', protect, admin, offerManagementController.deleteOffer);
+
 // RozSewa Coins — programme configuration, wallets and manual overrides
 const adminCoinController = require('../controllers/adminCoinController');
 router.get('/coins/config', protect, admin, adminCoinController.getCoinConfig);

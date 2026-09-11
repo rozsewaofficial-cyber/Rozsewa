@@ -118,14 +118,17 @@ class EarningsAnalyticsService {
         // the partner gave. Read from the snapshot first (written at completion)
         // and fall back to the booking field for older rows.
         const getCoinSubsidy = b => b.commissionSnapshot?.coinSubsidy ?? (b.coinDiscount || 0);
+        // RozSewa Offers are platform-funded on the same basis as coins.
+        const getOfferSubsidy = b => b.commissionSnapshot?.offerSubsidy ?? (b.offerSubsidy || 0);
+        const getPlatformSubsidy = b => getCoinSubsidy(b) + getOfferSubsidy(b);
         // What the platform actually kept once the subsidy is paid for. Goes
         // negative on a booking whose discount exceeded its commission.
-        const getNetRevenue = b => getComm(b) - getCoinSubsidy(b);
+        const getNetRevenue = b => getComm(b) - getPlatformSubsidy(b);
         // The fallback has to add the subsidy back, because totalAmount is what
         // the customer paid and the partner is paid on the pre-discount value.
         const getPayout = b => b.providerPayout > 0
             ? b.providerPayout
-            : ((b.totalAmount || 0) + getCoinSubsidy(b) - (b.adminCommission || 0));
+            : ((b.totalAmount || 0) + getPlatformSubsidy(b) - (b.adminCommission || 0));
         const getTravel = b => b.travelCharge?.amount || 0;
         const getRefund = b => (b.paymentStatus === 'refunded' || b.status === 'cancelled') ? (b.totalAmount || 0) : 0;
 
@@ -136,6 +139,7 @@ class EarningsAnalyticsService {
         const travelChargesVal = currentBookings.reduce((sum, b) => sum + getTravel(b), 0);
         const refundsVal = currentBookings.reduce((sum, b) => sum + getRefund(b), 0);
         const coinSubsidyVal = currentBookings.reduce((sum, b) => sum + getCoinSubsidy(b), 0);
+        const offerSubsidyVal = currentBookings.reduce((sum, b) => sum + getOfferSubsidy(b), 0);
         const netRevenueVal = currentBookings.reduce((sum, b) => sum + getNetRevenue(b), 0);
         const pendingSettlementVal = currentWithdrawals.reduce((sum, w) => w.status === 'pending' ? sum + w.amount : sum, 0);
 
@@ -146,6 +150,7 @@ class EarningsAnalyticsService {
         const prevTravelChargesVal = prevBookings.reduce((sum, b) => sum + getTravel(b), 0);
         const prevRefundsVal = prevBookings.reduce((sum, b) => sum + getRefund(b), 0);
         const prevCoinSubsidyVal = prevBookings.reduce((sum, b) => sum + getCoinSubsidy(b), 0);
+        const prevOfferSubsidyVal = prevBookings.reduce((sum, b) => sum + getOfferSubsidy(b), 0);
         const prevNetRevenueVal = prevBookings.reduce((sum, b) => sum + getNetRevenue(b), 0);
         const prevPendingSettlementVal = prevWithdrawals.reduce((sum, w) => w.status === 'pending' ? sum + w.amount : sum, 0);
 
@@ -160,6 +165,7 @@ class EarningsAnalyticsService {
         const sparklineTravel = this.binData(currentBookings, currentStart, currentEnd, interval, getTravel).map(p => p.value);
         const sparklineRefund = this.binData(currentBookings, currentStart, currentEnd, interval, getRefund).map(p => p.value);
         const sparklineCoinSubsidy = this.binData(currentBookings, currentStart, currentEnd, interval, getCoinSubsidy).map(p => p.value);
+        const sparklineOfferSubsidy = this.binData(currentBookings, currentStart, currentEnd, interval, getOfferSubsidy).map(p => p.value);
         const sparklineNetRevenue = this.binData(currentBookings, currentStart, currentEnd, interval, getNetRevenue).map(p => p.value);
 
         // Withdrawals sparkline
@@ -186,7 +192,15 @@ class EarningsAnalyticsService {
                 percentageChange: calcPercentage(coinSubsidyVal, prevCoinSubsidyVal),
                 sparkline: sparklineCoinSubsidy
             },
-            // companyRevenue less coinSubsidy — the figure that actually lands.
+            // What RozSewa paid out in offer discounts over the period.
+            offerSubsidy: {
+                value: Math.round(offerSubsidyVal * 100) / 100,
+                prevValue: Math.round(prevOfferSubsidyVal * 100) / 100,
+                percentageChange: calcPercentage(offerSubsidyVal, prevOfferSubsidyVal),
+                sparkline: sparklineOfferSubsidy
+            },
+            // companyRevenue less every platform-funded discount — the figure
+            // that actually lands.
             netRevenue: {
                 value: Math.round(netRevenueVal * 100) / 100,
                 prevValue: Math.round(prevNetRevenueVal * 100) / 100,
