@@ -104,351 +104,129 @@ class EarningsAnalyticsService {
     /**
      * Helper to group data into day-by-day or month-by-month bins for sparklines and trends
      */
-    static binData(bookings, startDate, endDate, interval, sumFieldGetter) {
+    /**
+     * The empty bins a chart draws, in order, each with the key that identifies
+     * it in a rollup.
+     *
+     * Split out from binData because the bins are a property of the date range
+     * alone — not of the rows — so they can be drawn once and filled from
+     * either an in-memory list or a database rollup.
+     */
+    static binSeries(startDate, endDate, interval) {
         const bins = [];
-        const start = new Date(startDate);
+        const current = new Date(startDate);
         const end = new Date(endDate);
 
-        if (interval === 'day') {
-            const current = new Date(start);
-            while (current <= end) {
-                const dateStr = current.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-                bins.push({ key: dateStr, dateObj: new Date(current), value: 0 });
-                current.setDate(current.getDate() + 1);
-            }
-
-            bookings.forEach(b => {
-                const bDate = new Date(b.createdAt);
-                const matchBin = bins.find(bin => {
-                    return bin.dateObj.getDate() === bDate.getDate() &&
-                           bin.dateObj.getMonth() === bDate.getMonth() &&
-                           bin.dateObj.getFullYear() === bDate.getFullYear();
-                });
-                if (matchBin) {
-                    matchBin.value += sumFieldGetter(b);
-                }
+        while (current <= end) {
+            bins.push({
+                // What the chart shows.
+                date: interval === 'day'
+                    ? current.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
+                    : current.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
+                // What the rollup keys it by.
+                key: interval === 'day'
+                    ? `${current.getFullYear()}-${current.getMonth() + 1}-${current.getDate()}`
+                    : `${current.getFullYear()}-${current.getMonth() + 1}`
             });
-        } else {
-            // Month interval
-            const current = new Date(start);
-            while (current <= end) {
-                const dateStr = current.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
-                bins.push({ key: dateStr, dateObj: new Date(current), value: 0 });
-                current.setMonth(current.getMonth() + 1);
-            }
-
-            bookings.forEach(b => {
-                const bDate = new Date(b.createdAt);
-                const matchBin = bins.find(bin => {
-                    return bin.dateObj.getMonth() === bDate.getMonth() &&
-                           bin.dateObj.getFullYear() === bDate.getFullYear();
-                });
-                if (matchBin) {
-                    matchBin.value += sumFieldGetter(b);
-                }
-            });
+            if (interval === 'day') current.setDate(current.getDate() + 1);
+            else current.setMonth(current.getMonth() + 1);
         }
 
-        return bins.map(bin => ({ date: bin.key, value: Math.round(bin.value * 100) / 100 }));
+        return bins;
+    }
+
+    /**
+     * One series, filled from a rollup's bins.
+     *
+     * This used to search the bin list once per booking — `bins.find()` inside
+     * a loop over every row — and the overview called it nine times over the
+     * same data. Ninety days of bins and fifty thousand bookings was forty
+     * million date comparisons to draw one card. It is a lookup now.
+     */
+    static binFromRollup(byBin, startDate, endDate, interval, field) {
+        return this.binSeries(startDate, endDate, interval).map(({ date, key }) => ({
+            date,
+            value: Math.round(((byBin[key]?.[field]) || 0) * 100) / 100
+        }));
+    }
+
+    static binData(bookings, startDate, endDate, interval, sumFieldGetter) {
+        // Bin the rows once into a map, then read each bin off it.
+        const byKey = {};
+        bookings.forEach(b => {
+            const d = new Date(b.createdAt);
+            const key = interval === 'day'
+                ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+                : `${d.getFullYear()}-${d.getMonth() + 1}`;
+            byKey[key] = (byKey[key] || 0) + sumFieldGetter(b);
+        });
+
+        return this.binSeries(startDate, endDate, interval).map(({ date, key }) => ({
+            date,
+            value: Math.round((byKey[key] || 0) * 100) / 100
+        }));
     }
 
     /**
      * Executive KPI Overview
      */
     static getOverviewStats(currentBookings, prevBookings, currentWithdrawals, prevWithdrawals, currentStart, currentEnd, prevStart, prevEnd, interval) {
-        const getComm = b => b.adminCommission || 0;
-        // RozSewa Coins spent by the customer are funded by the platform, so
-        // they are a marketing COST sitting against commission — not a discount
-        // the partner gave. Read from the snapshot first (written at completion)
-        // and fall back to the booking field for older rows.
-        const getCoinSubsidy = b => b.commissionSnapshot?.coinSubsidy ?? (b.coinDiscount || 0);
-        // RozSewa Offers are platform-funded on the same basis as coins.
-        const getOfferSubsidy = b => b.commissionSnapshot?.offerSubsidy ?? (b.offerSubsidy || 0);
-        const getPlatformSubsidy = b => EarningsAnalyticsService.platformSubsidy(b);
-        // Gross is the value of the work done, not the cash the customer
-        // happened to hand over. A platform-funded discount does not shrink the
-        // job: commission is charged on the full value and the partner is paid
-        // on it, so counting only totalAmount left gross smaller than the
-        // commission and payout it had to cover. This is the same definition
-        // the settlement engine uses for grossOrderAmount.
-        const getGMV = b => EarningsAnalyticsService.grossValue(b);
-        // What the platform actually kept once the subsidy is paid for. Goes
-        // negative on a booking whose discount exceeded its commission.
-        const getNetRevenue = b => getComm(b) - getPlatformSubsidy(b);
-        // The fallback has to add the subsidy back, because totalAmount is what
-        // the customer paid and the partner is paid on the pre-discount value.
-        const getPayout = b => b.providerPayout > 0
-            ? b.providerPayout
-            : (EarningsAnalyticsService.grossValue(b) - (b.adminCommission || 0));
-        const getTravel = b => b.travelCharge?.amount || 0;
-        const getRefund = b => (b.paymentStatus === 'refunded' || b.status === 'cancelled') ? (b.totalAmount || 0) : 0;
-
-        // Current totals
-        const grossSalesVal = currentBookings.reduce((sum, b) => sum + getGMV(b), 0);
-        const companyRevenueVal = currentBookings.reduce((sum, b) => sum + getComm(b), 0);
-        const partnerPayoutVal = currentBookings.reduce((sum, b) => sum + getPayout(b), 0);
-        const travelChargesVal = currentBookings.reduce((sum, b) => sum + getTravel(b), 0);
-        const refundsVal = currentBookings.reduce((sum, b) => sum + getRefund(b), 0);
-        const coinSubsidyVal = currentBookings.reduce((sum, b) => sum + getCoinSubsidy(b), 0);
-        const offerSubsidyVal = currentBookings.reduce((sum, b) => sum + getOfferSubsidy(b), 0);
-        const netRevenueVal = currentBookings.reduce((sum, b) => sum + getNetRevenue(b), 0);
-        const pendingSettlementVal = currentWithdrawals.reduce((sum, w) => w.status === 'pending' ? sum + w.amount : sum, 0);
-
-        // Previous totals
-        const prevGrossSalesVal = prevBookings.reduce((sum, b) => sum + getGMV(b), 0);
-        const prevCompanyRevenueVal = prevBookings.reduce((sum, b) => sum + getComm(b), 0);
-        const prevPartnerPayoutVal = prevBookings.reduce((sum, b) => sum + getPayout(b), 0);
-        const prevTravelChargesVal = prevBookings.reduce((sum, b) => sum + getTravel(b), 0);
-        const prevRefundsVal = prevBookings.reduce((sum, b) => sum + getRefund(b), 0);
-        const prevCoinSubsidyVal = prevBookings.reduce((sum, b) => sum + getCoinSubsidy(b), 0);
-        const prevOfferSubsidyVal = prevBookings.reduce((sum, b) => sum + getOfferSubsidy(b), 0);
-        const prevNetRevenueVal = prevBookings.reduce((sum, b) => sum + getNetRevenue(b), 0);
-        const prevPendingSettlementVal = prevWithdrawals.reduce((sum, w) => w.status === 'pending' ? sum + w.amount : sum, 0);
-
-        const calcPercentage = (curr, prev) => {
-            if (prev === 0) return 0;
-            return Math.round(((curr - prev) / prev) * 1000) / 10;
-        };
-
-        const sparklineGMV = this.binData(currentBookings, currentStart, currentEnd, interval, getGMV).map(p => p.value);
-        const sparklineComm = this.binData(currentBookings, currentStart, currentEnd, interval, getComm).map(p => p.value);
-        const sparklinePayout = this.binData(currentBookings, currentStart, currentEnd, interval, getPayout).map(p => p.value);
-        const sparklineTravel = this.binData(currentBookings, currentStart, currentEnd, interval, getTravel).map(p => p.value);
-        const sparklineRefund = this.binData(currentBookings, currentStart, currentEnd, interval, getRefund).map(p => p.value);
-        const sparklineCoinSubsidy = this.binData(currentBookings, currentStart, currentEnd, interval, getCoinSubsidy).map(p => p.value);
-        const sparklineOfferSubsidy = this.binData(currentBookings, currentStart, currentEnd, interval, getOfferSubsidy).map(p => p.value);
-        const sparklineNetRevenue = this.binData(currentBookings, currentStart, currentEnd, interval, getNetRevenue).map(p => p.value);
-
-        // Withdrawals sparkline
-        const sparklineWithdrawal = this.binData(currentWithdrawals, currentStart, currentEnd, interval, w => w.status === 'pending' ? w.amount : 0).map(p => p.value);
-
-        return {
-            grossSales: {
-                value: Math.round(grossSalesVal * 100) / 100,
-                prevValue: Math.round(prevGrossSalesVal * 100) / 100,
-                percentageChange: calcPercentage(grossSalesVal, prevGrossSalesVal),
-                sparkline: sparklineGMV
-            },
-            // Commission earned, before the cost of the coin programme.
-            companyRevenue: {
-                value: Math.round(companyRevenueVal * 100) / 100,
-                prevValue: Math.round(prevCompanyRevenueVal * 100) / 100,
-                percentageChange: calcPercentage(companyRevenueVal, prevCompanyRevenueVal),
-                sparkline: sparklineComm
-            },
-            // What RozSewa paid out in coin discounts over the period.
-            coinSubsidy: {
-                value: Math.round(coinSubsidyVal * 100) / 100,
-                prevValue: Math.round(prevCoinSubsidyVal * 100) / 100,
-                percentageChange: calcPercentage(coinSubsidyVal, prevCoinSubsidyVal),
-                sparkline: sparklineCoinSubsidy
-            },
-            // What RozSewa paid out in offer discounts over the period.
-            offerSubsidy: {
-                value: Math.round(offerSubsidyVal * 100) / 100,
-                prevValue: Math.round(prevOfferSubsidyVal * 100) / 100,
-                percentageChange: calcPercentage(offerSubsidyVal, prevOfferSubsidyVal),
-                sparkline: sparklineOfferSubsidy
-            },
-            // companyRevenue less every platform-funded discount — the figure
-            // that actually lands.
-            netRevenue: {
-                value: Math.round(netRevenueVal * 100) / 100,
-                prevValue: Math.round(prevNetRevenueVal * 100) / 100,
-                percentageChange: calcPercentage(netRevenueVal, prevNetRevenueVal),
-                sparkline: sparklineNetRevenue
-            },
-            partnerPayout: {
-                value: Math.round(partnerPayoutVal * 100) / 100,
-                prevValue: Math.round(prevPartnerPayoutVal * 100) / 100,
-                percentageChange: calcPercentage(partnerPayoutVal, prevPartnerPayoutVal),
-                sparkline: sparklinePayout
-            },
-            pendingSettlement: {
-                value: Math.round(pendingSettlementVal * 100) / 100,
-                prevValue: Math.round(prevPendingSettlementVal * 100) / 100,
-                percentageChange: calcPercentage(pendingSettlementVal, prevPendingSettlementVal),
-                sparkline: sparklineWithdrawal
-            },
-            travelCharges: {
-                value: Math.round(travelChargesVal * 100) / 100,
-                prevValue: Math.round(prevTravelChargesVal * 100) / 100,
-                percentageChange: calcPercentage(travelChargesVal, prevTravelChargesVal),
-                sparkline: sparklineTravel
-            },
-            refunds: {
-                value: Math.round(refundsVal * 100) / 100,
-                prevValue: Math.round(prevRefundsVal * 100) / 100,
-                percentageChange: calcPercentage(refundsVal, prevRefundsVal),
-                sparkline: sparklineRefund
-            }
-        };
+        const R = this._rollup();
+        return this.overviewFromRollup(
+            R.foldRows(currentBookings, { interval }),
+            R.foldRows(prevBookings, { interval }),
+            currentWithdrawals,
+            prevWithdrawals,
+            currentStart,
+            currentEnd,
+            interval
+        );
     }
 
     /**
      * Revenue Trend Points
      */
     static getRevenueTrend(currentBookings, currentStart, currentEnd, interval) {
-        // binData returns [{date, value}] — rename value to revenue for Recharts
-        return this.binData(currentBookings, currentStart, currentEnd, interval, b => this.grossValue(b))
-            .map(({ date, value }) => ({ date, revenue: value }));
+        const R = this._rollup();
+        return this.revenueTrendFromRollup(R.foldRows(currentBookings, { interval }), currentStart, currentEnd, interval);
     }
 
     /**
      * Commission Trend Points
      */
     static getCommissionTrend(currentBookings, currentStart, currentEnd, interval) {
-        // binData returns [{date, value}] — rename value to commission for Recharts
-        return this.binData(currentBookings, currentStart, currentEnd, interval, b => b.adminCommission || 0)
-            .map(({ date, value }) => ({ date, commission: value }));
+        const R = this._rollup();
+        return this.commissionTrendFromRollup(R.foldRows(currentBookings, { interval }), currentStart, currentEnd, interval);
     }
 
     /**
      * Revenue Sources breakdown
      */
     static getRevenueSources(currentBookings) {
-        let service = 0, visit = 0, night = 0, holiday = 0, urgent = 0, travel = 0, other = 0;
-
-        currentBookings.forEach(b => {
-            let bTravel = b.travelCharge?.amount || 0;
-            let bVisit = 0, bNight = 0, bHoliday = 0, bUrgent = 0, bOther = 0;
-
-            if (b.extraCharges && b.extraCharges.length > 0) {
-                b.extraCharges.forEach(ec => {
-                    const itemLower = (ec.item || '').toLowerCase();
-                    if (itemLower.includes('visit')) {
-                        bVisit += ec.amount || 0;
-                    } else if (itemLower.includes('night')) {
-                        bNight += ec.amount || 0;
-                    } else if (itemLower.includes('holiday')) {
-                        bHoliday += ec.amount || 0;
-                    } else if (itemLower.includes('urgent')) {
-                        bUrgent += ec.amount || 0;
-                    } else if (itemLower.includes('travel')) {
-                        bTravel += ec.amount || 0;
-                    } else {
-                        bOther += ec.amount || 0;
-                    }
-                });
-            }
-
-            const totalExtras = bTravel + bVisit + bNight + bHoliday + bUrgent + bOther;
-            let bService = EarningsAnalyticsService.grossValue(b) - totalExtras;
-
-            if (bService < 0) {
-                bOther += bService; // Adjust service charges if negative
-                bService = 0;
-            }
-
-            service += bService;
-            visit += bVisit;
-            night += bNight;
-            holiday += bHoliday;
-            urgent += bUrgent;
-            travel += bTravel;
-            other += bOther;
-        });
-
-        const total = service + visit + night + holiday + urgent + travel + other;
-
-        const getPercent = val => total > 0 ? Math.round((val / total) * 1000) / 10 : 0;
-
-        return [
-            { name: 'Service Charges', amount: Math.round(service * 100) / 100, percentage: getPercent(service) },
-            { name: 'Visit Charges', amount: Math.round(visit * 100) / 100, percentage: getPercent(visit) },
-            { name: 'Night Charges', amount: Math.round(night * 100) / 100, percentage: getPercent(night) },
-            { name: 'Holiday Charges', amount: Math.round(holiday * 100) / 100, percentage: getPercent(holiday) },
-            { name: 'Urgent Booking Charges', amount: Math.round(urgent * 100) / 100, percentage: getPercent(urgent) },
-            { name: 'Travel Charges', amount: Math.round(travel * 100) / 100, percentage: getPercent(travel) },
-            { name: 'Other Charges', amount: Math.round(other * 100) / 100, percentage: getPercent(other) }
-        ];
+        const R = this._rollup();
+        return this.revenueSourcesFromRollup(R.foldRows(currentBookings));
     }
 
     /**
      * Category Breakdown statistics
      */
     static getCategoryBreakdown(currentBookings) {
-        const groups = {};
-        let totalCommission = 0;
-
-        currentBookings.forEach(b => {
-            const categoryName = b.commissionSnapshot?.bookingCategorySnapshot?.name || b.serviceName || 'Unknown';
-            const commission = b.adminCommission || 0;
-            const revenue = EarningsAnalyticsService.grossValue(b);
-
-            if (!groups[categoryName]) {
-                groups[categoryName] = { category: categoryName, revenue: 0, bookings: 0, commission: 0 };
-            }
-
-            groups[categoryName].revenue += revenue;
-            groups[categoryName].bookings += 1;
-            groups[categoryName].commission += commission;
-            totalCommission += commission;
-        });
-
-        return Object.values(groups).map(g => ({
-            category: g.category,
-            revenue: Math.round(g.revenue * 100) / 100,
-            bookings: g.bookings,
-            averageTicket: g.bookings > 0 ? Math.round((g.revenue / g.bookings) * 100) / 100 : 0,
-            commission: Math.round(g.commission * 100) / 100,
-            percent: totalCommission > 0 ? Math.round((g.commission / totalCommission) * 100) : 0
-        })).sort((a, b) => b.revenue - a.revenue);
+        const R = this._rollup();
+        return this.categoryBreakdownFromRollup(R.foldRows(currentBookings));
     }
 
     /**
      * Travel charge analytics
      */
     static getTravelAnalytics(currentBookings, currentStart, currentEnd) {
-        let totalTravelCharges = 0;
-        let totalDistance = 0;
-        let countWithTravel = 0;
-        let highestCharge = 0;
-        let travelChargesToday = 0;
-
-        const startOfToday = new Date();
-        startOfToday.setHours(0, 0, 0, 0);
-
-        currentBookings.forEach(b => {
-            const trAmt = b.travelCharge?.amount || 0;
-            const dist = b.travelCharge?.distanceKm || b.travelCharge?.billableDistanceKm || 0;
-
-            if (trAmt > 0) {
-                totalTravelCharges += trAmt;
-                totalDistance += dist;
-                countWithTravel += 1;
-                if (trAmt > highestCharge) {
-                    highestCharge = trAmt;
-                }
-
-                const bDate = new Date(b.createdAt);
-                if (bDate >= startOfToday) {
-                    travelChargesToday += trAmt;
-                }
-            }
-        });
-
-        // Travel Trend for the last 7 days
+        const R = this._rollup();
         const last7DaysStart = new Date(currentEnd);
         last7DaysStart.setDate(last7DaysStart.getDate() - 6);
         last7DaysStart.setHours(0, 0, 0, 0);
-        const travelTrend = this.binData(
-            currentBookings.filter(b => new Date(b.createdAt) >= last7DaysStart),
-            last7DaysStart,
-            currentEnd,
-            'day',
-            b => b.travelCharge?.amount || 0
+        return this.travelAnalyticsFromRollup(
+            R.foldRows(currentBookings, { last7DaysStart }),
+            currentEnd
         );
-
-        return {
-            totalTravelCharges: Math.round(totalTravelCharges * 100) / 100,
-            averageDistance: countWithTravel > 0 ? Math.round((totalDistance / countWithTravel) * 10) / 10 : 0,
-            averageTravelCharge: countWithTravel > 0 ? Math.round((totalTravelCharges / countWithTravel) * 100) / 100 : 0,
-            highestCharge: Math.round(highestCharge * 100) / 100,
-            paidToPartners: Math.round(totalTravelCharges * 100) / 100, // 100% goes to partner
-            travelChargesToday: Math.round(travelChargesToday * 100) / 100,
-            trend: travelTrend
-        };
     }
 
     /**
@@ -517,95 +295,24 @@ class EarningsAnalyticsService {
      * this reports what is true.
      */
     static getPaymentAnalytics(currentBookings) {
-        const distribution = {
-            'Paid Online': { value: 0, count: 0 },
-            'Cash on Completion': { value: 0, count: 0 }
-        };
-
-        currentBookings.forEach(b => {
-            const bucket = b.paymentMode === 'after' ? 'Cash on Completion' : 'Paid Online';
-            distribution[bucket].value += EarningsAnalyticsService.grossValue(b);
-            distribution[bucket].count += 1;
-        });
-
-        return Object.entries(distribution).map(([name, data]) => ({
-            name,
-            value: Math.round(data.value * 100) / 100,
-            count: data.count
-        })).filter(item => item.count > 0);
+        const R = this._rollup();
+        return this.paymentAnalyticsFromRollup(R.foldRows(currentBookings));
     }
 
     /**
      * Top Partners
      */
     static getTopPartners(currentBookings) {
-        const partners = {};
-
-        currentBookings.forEach(b => {
-            if (!b.providerId) return;
-            const pid = b.providerId._id.toString();
-            if (!partners[pid]) {
-                partners[pid] = {
-                    name: b.providerId.shopName || b.providerId.ownerName || 'Partner',
-                    avatar: b.providerId.profileImage || '',
-                    revenue: 0,
-                    bookings: 0,
-                    ratingSum: 0,
-                    ratingCount: 0
-                };
-            }
-            partners[pid].revenue += EarningsAnalyticsService.grossValue(b);
-            partners[pid].bookings += 1;
-            if (b.rating > 0) {
-                partners[pid].ratingSum += b.rating;
-                partners[pid].ratingCount += 1;
-            }
-        });
-
-        return Object.values(partners).map(p => ({
-            name: p.name,
-            avatar: p.avatar,
-            revenue: Math.round(p.revenue * 100) / 100,
-            bookings: p.bookings,
-            rating: p.ratingCount > 0 ? Math.round((p.ratingSum / p.ratingCount) * 10) / 10 : 4.5
-        })).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+        const R = this._rollup();
+        return this.topPartnersFromRollup(R.foldRows(currentBookings));
     }
 
     /**
      * Top Categories and their growth
      */
     static getTopCategories(currentBookings, prevBookings) {
-        const currCats = {};
-        const prevCats = {};
-
-        currentBookings.forEach(b => {
-            const cat = b.commissionSnapshot?.bookingCategorySnapshot?.name || b.serviceName || 'Unknown';
-            if (!currCats[cat]) {
-                currCats[cat] = { category: cat, revenue: 0, bookings: 0 };
-            }
-            currCats[cat].revenue += EarningsAnalyticsService.grossValue(b);
-            currCats[cat].bookings += 1;
-        });
-
-        prevBookings.forEach(b => {
-            const cat = b.commissionSnapshot?.bookingCategorySnapshot?.name || b.serviceName || 'Unknown';
-            if (!prevCats[cat]) {
-                prevCats[cat] = { category: cat, revenue: 0, bookings: 0 };
-            }
-            prevCats[cat].revenue += EarningsAnalyticsService.grossValue(b);
-            prevCats[cat].bookings += 1;
-        });
-
-        return Object.values(currCats).map(c => {
-            const prev = prevCats[c.category] || { revenue: 0, bookings: 0 };
-            const growth = prev.revenue > 0 ? Math.round(((c.revenue - prev.revenue) / prev.revenue) * 1000) / 10 : 0;
-            return {
-                category: c.category,
-                revenue: Math.round(c.revenue * 100) / 100,
-                bookings: c.bookings,
-                growth
-            };
-        }).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+        const R = this._rollup();
+        return this.topCategoriesFromRollup(R.foldRows(currentBookings), R.foldRows(prevBookings));
     }
 
     /**
@@ -742,6 +449,255 @@ class EarningsAnalyticsService {
         return txns.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
     }
 
+
+    /* ================================================================== */
+    /* Rendering from a rollup                                            */
+    /* ================================================================== */
+
+    /**
+     * Everything below draws the dashboard from buckets rather than from a
+     * list of bookings.
+     *
+     * The array-taking functions above now fold their rows into the same
+     * buckets and call straight through to these, so there is one definition
+     * of every figure and the in-memory path cannot drift from the database
+     * one. EarningsRollupService fills the same buckets by aggregation, and
+     * scripts/earningsRollupCheck.js holds the two against each other.
+     */
+    static _rollup() {
+        // Required here rather than at the top: the rollup service needs this
+        // one for the gross definition, so requiring it up there would be a
+        // cycle.
+        return require('./EarningsRollupService');
+    }
+
+    static overviewFromRollup(curr, prev, currentWithdrawals, prevWithdrawals, currentStart, currentEnd, interval) {
+        const pct = (c, p) => (p === 0 ? 0 : Math.round(((c - p) / p) * 1000) / 10);
+        const round = (v) => Math.round(v * 100) / 100;
+        const pending = (list) => list.reduce((sum, w) => (w.status === 'pending' ? sum + w.amount : sum), 0);
+
+        const card = (field, currValue, prevValue) => ({
+            value: round(currValue),
+            prevValue: round(prevValue),
+            percentageChange: pct(currValue, prevValue),
+            sparkline: this.binFromRollup(curr.byBin, currentStart, currentEnd, interval, field).map(p => p.value)
+        });
+
+        const pendingNow = pending(currentWithdrawals);
+        return {
+            grossSales: card('gross', curr.totals.gross, prev.totals.gross),
+            // Commission earned, before the cost of the coin programme.
+            companyRevenue: card('commission', curr.totals.commission, prev.totals.commission),
+            // What RozSewa paid out in coin discounts over the period.
+            coinSubsidy: card('coinSubsidy', curr.totals.coinSubsidy, prev.totals.coinSubsidy),
+            // What RozSewa paid out in offer discounts over the period.
+            offerSubsidy: card('offerSubsidy', curr.totals.offerSubsidy, prev.totals.offerSubsidy),
+            // companyRevenue less every platform-funded discount — the figure
+            // that actually lands.
+            netRevenue: card('netRevenue', curr.totals.netRevenue, prev.totals.netRevenue),
+            partnerPayout: card('payout', curr.totals.payout, prev.totals.payout),
+            pendingSettlement: {
+                value: round(pendingNow),
+                prevValue: round(pending(prevWithdrawals)),
+                percentageChange: pct(pendingNow, pending(prevWithdrawals)),
+                sparkline: this.binData(currentWithdrawals, currentStart, currentEnd, interval,
+                    w => (w.status === 'pending' ? w.amount : 0)).map(p => p.value)
+            },
+            travelCharges: card('travel', curr.totals.travel, prev.totals.travel),
+            refunds: card('refunds', curr.totals.refunds, prev.totals.refunds)
+        };
+    }
+
+    static revenueTrendFromRollup(curr, currentStart, currentEnd, interval) {
+        return this.binFromRollup(curr.byBin, currentStart, currentEnd, interval, 'gross')
+            .map(({ date, value }) => ({ date, revenue: value }));
+    }
+
+    static commissionTrendFromRollup(curr, currentStart, currentEnd, interval) {
+        return this.binFromRollup(curr.byBin, currentStart, currentEnd, interval, 'commission')
+            .map(({ date, value }) => ({ date, commission: value }));
+    }
+
+    static revenueSourcesFromRollup(curr) {
+        const s = curr.sources;
+        const total = s.service + s.visit + s.night + s.holiday + s.urgent + s.travel + s.other;
+        const pc = (v) => (total > 0 ? Math.round((v / total) * 1000) / 10 : 0);
+        const round = (v) => Math.round(v * 100) / 100;
+        return [
+            { name: 'Service Charges', amount: round(s.service), percentage: pc(s.service) },
+            { name: 'Visit Charges', amount: round(s.visit), percentage: pc(s.visit) },
+            { name: 'Night Charges', amount: round(s.night), percentage: pc(s.night) },
+            { name: 'Holiday Charges', amount: round(s.holiday), percentage: pc(s.holiday) },
+            { name: 'Urgent Booking Charges', amount: round(s.urgent), percentage: pc(s.urgent) },
+            { name: 'Travel Charges', amount: round(s.travel), percentage: pc(s.travel) },
+            { name: 'Other Charges', amount: round(s.other), percentage: pc(s.other) }
+        ];
+    }
+
+    static categoryBreakdownFromRollup(curr) {
+        const totalCommission = Object.values(curr.byCategory).reduce((sum, g) => sum + g.commission, 0);
+        return Object.entries(curr.byCategory).map(([category, g]) => ({
+            category,
+            revenue: Math.round(g.revenue * 100) / 100,
+            bookings: g.bookings,
+            averageTicket: g.bookings > 0 ? Math.round((g.revenue / g.bookings) * 100) / 100 : 0,
+            commission: Math.round(g.commission * 100) / 100,
+            percent: totalCommission > 0 ? Math.round((g.commission / totalCommission) * 100) : 0
+        })).sort((a, b) => b.revenue - a.revenue || a.category.localeCompare(b.category));
+    }
+
+    static travelAnalyticsFromRollup(curr, currentEnd) {
+        const t = curr.travel;
+        const round = (v) => Math.round(v * 100) / 100;
+
+        const last7DaysStart = new Date(currentEnd);
+        last7DaysStart.setDate(last7DaysStart.getDate() - 6);
+        last7DaysStart.setHours(0, 0, 0, 0);
+
+        return {
+            totalTravelCharges: round(t.total),
+            averageDistance: t.count > 0 ? Math.round((t.distance / t.count) * 10) / 10 : 0,
+            averageTravelCharge: t.count > 0 ? round(t.total / t.count) : 0,
+            highestCharge: round(t.highest),
+            paidToPartners: round(t.total), // 100% goes to partner
+            travelChargesToday: round(t.today),
+            trend: this.binFromRollup(curr.travelByDay, last7DaysStart, currentEnd, 'day', 'value')
+        };
+    }
+
+    static paymentAnalyticsFromRollup(curr) {
+        return Object.entries(curr.byPayment).map(([name, d]) => ({
+            name,
+            value: Math.round(d.value * 100) / 100,
+            count: d.count
+        })).filter(item => item.count > 0);
+    }
+
+    static topPartnersFromRollup(curr) {
+        return Object.values(curr.byPartner).map(p => ({
+            name: p.name || 'Partner',
+            avatar: p.avatar || '',
+            revenue: Math.round(p.revenue * 100) / 100,
+            bookings: p.bookings,
+            rating: p.ratingCount > 0 ? Math.round((p.ratingSum / p.ratingCount) * 10) / 10 : 4.5
+        }))
+            // Partners tie on revenue often enough to matter, and a tie with no
+            // second key reorders itself between one request and the next — the
+            // same screen refreshed showed a different top five. Name breaks it.
+            .sort((a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name))
+            .slice(0, 5);
+    }
+
+    /**
+     * How many rows the ledger holds, by type, without building them.
+     *
+     * A booking contributes a Commission row (or a Refund row, if it was
+     * cancelled or refunded) and a second Travel Charge row if it carried one;
+     * a withdrawal contributes a Partner Payout. Counted in the database so the
+     * figure under a table showing the newest fifty still describes the period.
+     */
+    static async ledgerRowCounts(Booking, match, instaRows, withdrawals) {
+        const isRefund = {
+            $or: [{ $eq: ['$paymentStatus', 'refunded'] }, { $eq: ['$status', 'cancelled'] }]
+        };
+        const hasLedgerRow = {
+            $or: [
+                { $gt: [{ $ifNull: ['$adminCommission', 0] }, 0] },
+                { $gt: [{ $ifNull: ['$totalAmount', 0] }, 0] }
+            ]
+        };
+
+        const [row] = await Booking.aggregate([
+            { $match: match },
+            {
+                $group: {
+                    _id: null,
+                    commission: { $sum: { $cond: [{ $and: [hasLedgerRow, { $not: isRefund }] }, 1, 0] } },
+                    refund: { $sum: { $cond: [{ $and: [hasLedgerRow, isRefund] }, 1, 0] } },
+                    travel: { $sum: { $cond: [{ $gt: [{ $ifNull: ['$travelCharge.amount', 0] }, 0] }, 1, 0] } }
+                }
+            }
+        ]);
+
+        const counts = {
+            commission: row?.commission || 0,
+            refund: row?.refund || 0,
+            'travel charge': row?.travel || 0,
+            'partner payout': withdrawals.length
+        };
+
+        // Insta rows are already in hand, so they are counted the same way here.
+        (instaRows || []).forEach(b => {
+            const refund = b.paymentStatus === 'refunded' || b.status === 'cancelled';
+            if (b.adminCommission > 0 || b.totalAmount > 0) counts[refund ? 'refund' : 'commission'] += 1;
+            if (b.travelCharge?.amount > 0) counts['travel charge'] += 1;
+        });
+
+        counts.total = counts.commission + counts.refund + counts['travel charge'] + counts['partner payout'];
+        return counts;
+    }
+
+    /**
+     * The options the earnings filters offer, taken from the whole period.
+     *
+     * These used to be derived from the ledger rows, which was fine while every
+     * row was loaded and became wrong the moment the ledger was cut down to the
+     * ones on screen. The rollup already knows every category and every partner
+     * with activity, so they come from there.
+     */
+    static async filterOptionsFromRollup(rollup, withdrawals, categories = []) {
+        const Provider = require('../models/Provider');
+
+        const partnerIds = Object.keys(rollup.byPartner);
+        withdrawals.forEach(w => {
+            const id = w.providerId?._id || w.providerId;
+            if (id) partnerIds.push(String(id));
+        });
+
+        const docs = partnerIds.length
+            ? await Provider.find({ _id: { $in: [...new Set(partnerIds)] } })
+                .select('shopName ownerName city')
+                .lean()
+            : [];
+
+        const partners = [];
+        const cities = new Set();
+        docs.forEach(p => {
+            const name = p.shopName || p.ownerName;
+            // The ledger skipped rows whose partner had no usable name.
+            if (name && name !== 'Partner' && name !== 'N/A') {
+                partners.push({ id: String(p._id), name });
+            }
+            if (p.city) cities.add(p.city);
+        });
+
+        const categorySet = new Set(Object.keys(rollup.byCategory));
+        // A period of nothing but settlements has no categories in the ledger.
+        if (categorySet.size === 0) categories.forEach(c => categorySet.add(c.category));
+
+        // Sorted, which the old list was not: it came out in whatever order the
+        // most recent transactions happened to mention things. The contents are
+        // the same either way.
+        return {
+            categories: Array.from(categorySet).sort(),
+            partners: partners.sort((a, b) => a.name.localeCompare(b.name)),
+            cities: Array.from(cities).sort()
+        };
+    }
+
+    static topCategoriesFromRollup(curr, prev) {
+        return Object.entries(curr.byCategory).map(([category, c]) => {
+            const p = prev.byCategory[category] || { revenue: 0, bookings: 0 };
+            return {
+                category,
+                revenue: Math.round(c.revenue * 100) / 100,
+                bookings: c.bookings,
+                growth: p.revenue > 0 ? Math.round(((c.revenue - p.revenue) / p.revenue) * 1000) / 10 : 0
+            };
+        })
+            .sort((a, b) => b.revenue - a.revenue || a.category.localeCompare(b.category))
+            .slice(0, 5);
+    }
 }
 
 module.exports = EarningsAnalyticsService;

@@ -1,0 +1,218 @@
+/**
+ * The earnings dashboard has two ways to reach the same numbers: folding rows
+ * in memory, and grouping them in the database. They must not disagree.
+ *
+ * This runs both over the same generated bookings and compares every bucket.
+ * No database needed for the folding side; the aggregation side is exercised
+ * against a throwaway instance when one is supplied:
+ *
+ *   node scripts/earningsRollupCheck.js
+ *   EARNINGS_TEST_URI=mongodb://127.0.0.1:27020/scratch node scripts/earningsRollupCheck.js
+ */
+const assert = require('assert');
+const path = require('path');
+const fs = require('fs');
+
+const S = require('../services/EarningsAnalyticsService');
+const R = require('../services/EarningsRollupService');
+
+let passed = 0;
+const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
+
+/* ------------------------------------------------------------------ */
+/* The rule these buckets exist to serve                               */
+/* ------------------------------------------------------------------ */
+
+console.log('\nThe buckets the dashboard is drawn from');
+
+const booking = (over = {}) => ({
+    _id: '000000000000000000000001',
+    totalAmount: 1000,
+    adminCommission: 100,
+    providerPayout: 900,
+    createdAt: new Date('2026-03-15T10:00:00'),
+    paymentMode: 'now',
+    paymentStatus: 'paid',
+    status: 'completed',
+    serviceName: 'Plumbing',
+    travelCharge: { amount: 0 },
+    extraCharges: [],
+    ...over
+});
+
+check('a platform-funded discount counts toward gross, not against it', () => {
+    const r = R.foldRows([booking({
+        totalAmount: 960,
+        commissionSnapshot: { coinSubsidy: 40 }
+    })]);
+    // The job was worth 1000; the customer paid 960 and RozSewa funded 40.
+    assert.strictEqual(r.totals.gross, 1000);
+    assert.strictEqual(r.totals.coinSubsidy, 40);
+    // Commission earned less what the discount cost.
+    assert.strictEqual(r.totals.netRevenue, 60);
+});
+
+check('a cancelled booking is a refund, whatever it was paid with', () => {
+    const r = R.foldRows([booking({ status: 'cancelled' })]);
+    assert.strictEqual(r.totals.refunds, 1000);
+});
+
+check('payout falls back to gross less commission, not to the paid price', () => {
+    const r = R.foldRows([booking({
+        totalAmount: 960,
+        providerPayout: 0,
+        commissionSnapshot: { coinSubsidy: 40 }
+    })]);
+    // 1000 of work, 100 of commission — the discount is RozSewa's cost, not a
+    // deduction from the partner.
+    assert.strictEqual(r.totals.payout, 900);
+});
+
+check('an extra charge lands in the bucket its wording points at', () => {
+    const r = R.foldRows([booking({
+        extraCharges: [
+            { item: 'Night Visit Charge', amount: 50 },
+            { item: 'Holiday surcharge', amount: 30 },
+            { item: 'Something else', amount: 20 }
+        ]
+    })]);
+    // "Night Visit Charge" contains both words; visit is checked first, which
+    // is the order the screen has always applied.
+    assert.strictEqual(r.sources.visit, 50);
+    assert.strictEqual(r.sources.holiday, 30);
+    assert.strictEqual(r.sources.other, 20);
+    assert.strictEqual(r.sources.service, 900);
+});
+
+check('the extras never add up to more than the job was worth', () => {
+    const r = R.foldRows([booking({
+        totalAmount: 100,
+        extraCharges: [{ item: 'Urgent', amount: 500 }]
+    })]);
+    assert.strictEqual(r.sources.service, 0);
+    // The overshoot moves to "other" rather than making service negative.
+    assert.strictEqual(r.sources.other, -400);
+});
+
+check('two rollups add up', () => {
+    const a = R.foldRows([booking()]);
+    const b = R.foldRows([booking({ adminCommission: 50 })]);
+    const m = R.mergeRollups(a, b);
+    assert.strictEqual(m.totals.gross, 2000);
+    assert.strictEqual(m.totals.commission, 150);
+    assert.strictEqual(m.totals.count, 2);
+});
+
+check('merging takes the highest single travel charge, not their sum', () => {
+    const a = R.foldRows([booking({ travelCharge: { amount: 40, distanceKm: 5 } })]);
+    const b = R.foldRows([booking({ travelCharge: { amount: 90, distanceKm: 9 } })]);
+    const m = R.mergeRollups(a, b);
+    assert.strictEqual(m.travel.highest, 90);
+    assert.strictEqual(m.travel.total, 130);
+    assert.strictEqual(m.travel.count, 2);
+});
+
+console.log('\nThe rendered figures come from the buckets');
+
+check('the array entry points go through the same buckets', () => {
+    // If these ever stop delegating there are two definitions of the money
+    // again, and only one of them gets fixed next time.
+    const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'EarningsAnalyticsService.js'), 'utf8');
+    ['getOverviewStats', 'getRevenueSources', 'getCategoryBreakdown', 'getTopPartners',
+        'getPaymentAnalytics', 'getTravelAnalytics', 'getTopCategories'].forEach(fn => {
+            const body = src.slice(src.indexOf(`static ${fn}(`), src.indexOf(`static ${fn}(`) + 700);
+            assert.ok(/R\.foldRows\(/.test(body), `${fn} must fold its rows into the shared buckets`);
+        });
+});
+
+check('a tie in the top five resolves the same way every time', () => {
+    // Equal revenue used to leave the order to whatever the data happened to
+    // produce, so the same screen refreshed showed a different five.
+    const rollup = R.emptyRollup();
+    ['Zeta', 'Alpha', 'Mid'].forEach((name, i) => {
+        rollup.byPartner['p' + i] = { name, avatar: '', revenue: 100, bookings: 1, ratingSum: 0, ratingCount: 0 };
+    });
+    const once = S.topPartnersFromRollup(rollup).map(p => p.name);
+    const twice = S.topPartnersFromRollup(rollup).map(p => p.name);
+    assert.deepStrictEqual(once, twice);
+    assert.deepStrictEqual(once, ['Alpha', 'Mid', 'Zeta']);
+});
+
+check('a bin with nothing in it still appears, at zero', () => {
+    const rollup = R.foldRows([booking({ createdAt: new Date('2026-03-15T10:00:00') })], { interval: 'day' });
+    const series = S.binFromRollup(rollup.byBin, new Date('2026-03-14'), new Date('2026-03-16'), 'day', 'gross');
+    assert.strictEqual(series.length, 3);
+    assert.deepStrictEqual(series.map(p => p.value), [0, 1000, 0]);
+});
+
+check('binData and the rollup bin to the same buckets', () => {
+    const rows = [
+        booking({ createdAt: new Date('2026-03-15T23:30:00') }),
+        booking({ createdAt: new Date('2026-03-16T00:30:00') })
+    ];
+    const start = new Date('2026-03-15');
+    const end = new Date('2026-03-16T23:59:59');
+
+    const direct = S.binData(rows, start, end, 'day', b => S.grossValue(b));
+    const viaRollup = S.binFromRollup(R.foldRows(rows, { interval: 'day' }).byBin, start, end, 'day', 'gross');
+    assert.deepStrictEqual(direct, viaRollup);
+});
+
+/* ------------------------------------------------------------------ */
+/* And against the database, when one is offered                       */
+/* ------------------------------------------------------------------ */
+
+const URI = process.env.EARNINGS_TEST_URI;
+
+const withDatabase = async () => {
+    if (URI === process.env.MONGODB_URI) {
+        console.error('\nREFUSING: EARNINGS_TEST_URI is the configured production database.');
+        process.exit(1);
+    }
+
+    const mongoose = require('mongoose');
+    const Booking = require('../models/Booking');
+    await mongoose.connect(URI);
+
+    const match = {};
+    const rows = await Booking.find(match)
+        .select('totalAmount adminCommission providerPayout coinDiscount offerSubsidy commissionSnapshot'
+            + ' travelCharge paymentMode paymentStatus status createdAt serviceName extraCharges rating providerId')
+        .lean();
+
+    console.log(`\nAgainst ${rows.length} real bookings`);
+
+    for (const interval of ['day', 'month']) {
+        const inMemory = R.foldRows(rows, { interval });
+        const fromDb = await R.fromDatabase(match, { interval });
+
+        const near = (a, b) => Math.abs((a || 0) - (b || 0)) < 0.005;
+        check(`the two paths agree, binned by ${interval}`, () => {
+            Object.keys(inMemory.totals).forEach(k => {
+                assert.ok(near(inMemory.totals[k], fromDb.totals[k]),
+                    `totals.${k}: ${inMemory.totals[k]} vs ${fromDb.totals[k]}`);
+            });
+            Object.keys(inMemory.sources).forEach(k => {
+                assert.ok(near(inMemory.sources[k], fromDb.sources[k]),
+                    `sources.${k}: ${inMemory.sources[k]} vs ${fromDb.sources[k]}`);
+            });
+            Object.keys(inMemory.byBin).forEach(k => {
+                assert.ok(near(inMemory.byBin[k].gross, fromDb.byBin[k]?.gross),
+                    `byBin[${k}].gross`);
+            });
+            Object.keys(inMemory.byCategory).forEach(k => {
+                assert.ok(near(inMemory.byCategory[k].revenue, fromDb.byCategory[k]?.revenue),
+                    `byCategory[${k}].revenue`);
+            });
+        });
+    }
+
+    await mongoose.disconnect();
+};
+
+(async () => {
+    if (URI) await withDatabase();
+    else console.log('\n  (set EARNINGS_TEST_URI to a throwaway database to also check the aggregation)');
+
+    console.log(`\n${passed} earnings rollup checks passed.\n`);
+})().catch(e => { console.error(e); process.exit(1); });

@@ -298,14 +298,35 @@ check('the Insta side keeps the same finished-job definition', () => {
 console.log('\nThe earnings dashboard does not haul the whole ledger into memory');
 const earnSrc = () => read('controllers/commissionController.js');
 
-check('rows are lean, not hydrated documents', () => {
-    // At 20,000 bookings the hydrated form cost 371 MB and six seconds; the same
-    // rows lean and projected cost 14 MB, for identical numbers.
+check('the figures come from a rollup, not from a list of bookings', () => {
+    // This went in two steps. First the rows were made lean and projected: at
+    // 20,000 bookings the hydrated form cost 371 MB and six seconds, the same
+    // rows lean cost 14 MB for identical numbers. That still grew with the
+    // data, so the sums moved into the database — a year of bookings now costs
+    // the API nothing to total, because none of them travel.
     const src = earnSrc();
-    const current = src.slice(src.indexOf('let currentBookings'), src.indexOf('let currentBookings') + 400);
-    assert.ok(/\.lean\(\)/.test(current), 'the current window must load lean');
-    const prev = src.slice(src.indexOf('let prevBookings'), src.indexOf('let prevBookings') + 400);
-    assert.ok(/\.lean\(\)/.test(prev), 'the comparison window must load lean too');
+    assert.ok(/Rollup\.fromDatabase\(/.test(src), 'the period must be rolled up by the database');
+    assert.ok(!/let currentBookings = await Booking\.find/.test(src),
+        'the whole window must not be loaded into memory');
+    assert.ok(!/let prevBookings = await Booking\.find/.test(src),
+        'nor the comparison window');
+
+    // The ledger is the one part that needs rows, and it only shows a page.
+    assert.ok(/ledgerBookings[\s\S]{0,400}\.limit\(LEDGER_ROWS\)/.test(src),
+        'the ledger rows must be bounded');
+    assert.ok(/\.lean\(\)/.test(src), 'and lean');
+});
+
+check('the two ways of filling the buckets stay in step', () => {
+    // One of them folds rows in memory, the other groups them in the database.
+    // If they drift, the dashboard reports different money depending on which
+    // path produced it — so both live in one file and are checked against each
+    // other in scripts/earningsRollupCheck.js.
+    const rollup = read('services/EarningsRollupService.js');
+    assert.ok(/const foldRows =/.test(rollup) && /const fromDatabase =/.test(rollup),
+        'both paths belong in the same file');
+    assert.ok(fs.existsSync(path.join(__dirname, 'earningsRollupCheck.js')),
+        'and the check that holds them together must exist');
 });
 
 check('only the fields the analytics read are fetched', () => {
@@ -324,12 +345,26 @@ check('the projection covers every field the analytics actually read', () => {
     // zero a figure, so the two lists are compared rather than trusted.
     const src = earnSrc();
     const projection = (src.match(/const EARNINGS_FIELDS =[\s\S]*?;/) || [''])[0];
+
+    // Only the places that actually read a booking: the fold, and the ledger
+    // rows. Scanning whole files picked up `b` as a sort comparator's second
+    // argument and demanded a projection for `b.category`.
+    const rollup = read('services/EarningsRollupService.js');
     const analytics = read('services/EarningsAnalyticsService.js');
+    const foldBody = rollup.slice(rollup.indexOf('const foldRows ='), rollup.indexOf('/* ---', rollup.indexOf('const foldRows =')));
+    const ledgerBody = analytics.slice(
+        analytics.indexOf('static getRecentTransactions('),
+        analytics.indexOf('currentWithdrawals.forEach')
+    );
+
     const used = new Set(
-        (analytics.match(/\bb\.([a-zA-Z]+)/g) || []).map(m => m.slice(2))
+        [...foldBody.matchAll(/\bb\.([a-zA-Z]+)/g), ...ledgerBody.matchAll(/\bb\.([a-zA-Z]+)/g)]
+            .map(m => m[1])
     );
     // Fields the analytics compute for themselves rather than read from a row.
     ['rawDate', 'revenue'].forEach(k => used.delete(k));
+
+    assert.ok(used.size > 5, 'the scan must actually find the fields being read');
     used.forEach(field => {
         assert.ok(projection.includes(field), `the projection is missing ${field}`);
     });
@@ -352,13 +387,21 @@ check('the ledger sent is capped', () => {
 });
 
 check('narrowing the response does not narrow the filter dropdowns', () => {
-    // The screen builds its category, partner and city options from the ledger.
-    // Capping the ledger without this would silently shrink them.
+    // The screen's category, partner and city options used to be read off the
+    // ledger rows, so they had to be taken before the ledger was cut down.
+    // They come from the rollup now — which knows every category and partner in
+    // the period regardless of how few rows are shipped — so the ordering the
+    // old version depended on cannot go wrong any more.
     const src = earnSrc();
-    const optionsAt = src.indexOf('getFilterOptions');
-    const sliceAt = src.indexOf('transactions.slice(0, LEDGER_ROWS)');
-    assert.ok(optionsAt > 0 && sliceAt > optionsAt,
-        'the options must be derived before the ledger is cut');
+    assert.ok(/filterOptionsFromRollup\(/.test(src),
+        'the options must come from the rollup, not from the rows on screen');
+    assert.ok(!/getFilterOptions\(transactions/.test(src),
+        'and not from the ledger the response was cut down to');
+
+    const analytics = read('services/EarningsAnalyticsService.js');
+    const body = analytics.slice(analytics.indexOf('static async filterOptionsFromRollup('));
+    assert.ok(/rollup\.byCategory/.test(body) && /rollup\.byPartner/.test(body),
+        'they are taken from the buckets, which cover the whole period');
 
     const ui = frontend('modules', 'admin', 'pages', 'AdminEarnings.jsx');
     assert.ok(/analyticsData\.filterOptions/.test(ui), 'the screen must use them');

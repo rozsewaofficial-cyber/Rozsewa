@@ -11,6 +11,7 @@ const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
 const Provider = require('../models/Provider');
 const { pageParams, paginate } = require('../utils/pagination');
 const SettlementQueue = require('../services/SettlementQueueService');
+const Rollup = require('../services/EarningsRollupService');
 
 // @desc    Get commission and settlement data
 // @route   GET /api/admin/commission
@@ -468,28 +469,19 @@ const getEarningsData = async (req, res) => {
             currentMatch.providerId = targetProviderId;
         }
 
-        let currentBookings = await Booking.find(currentMatch)
-            .select(EARNINGS_FIELDS)
-            .populate('providerId', EARNINGS_PROVIDER_FIELDS)
-            .populate('userId', EARNINGS_CUSTOMER_FIELDS)
-            .lean();
-
-        // Insta Work jobs are reported alongside bookings. They are appended
-        // after the Booking query rather than merged into it because the two
-        // live in different collections with different status vocabularies;
-        // the adapter translates one into the other. Appended here, before the
-        // city and payment-method filters, so those apply to Insta rows too.
-        currentBookings = currentBookings.concat(await InstaEarningsAdapter.getJobsForEarnings({
-            start: currentStart,
-            end: currentEnd,
-            providerId: targetProviderId,
-            status: currentMatch.status,
-            category
-        }));
-
-        // In-memory filter for city (since providerId is populated)
+        // The city filter used to run over populated provider documents in
+        // memory. Resolved to ids up front instead, so it narrows the query
+        // rather than the result.
         if (city) {
-            currentBookings = currentBookings.filter(b => b.providerId && b.providerId.city && b.providerId.city.toLowerCase() === city.toLowerCase());
+            const safeCity = String(city).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+            const inCity = await Provider.find({ city: new RegExp(`^${safeCity}$`, 'i') })
+                .select('_id')
+                // Every partner in one town, which is a town-sized number.
+                .limit(5000)
+                .lean();
+            currentMatch.providerId = currentMatch.providerId
+                ? currentMatch.providerId
+                : { $in: inCity.map(p => p._id) };
         }
 
         // Filter by how the customer paid.
@@ -502,9 +494,7 @@ const getEarningsData = async (req, res) => {
         // and treated as prepaid, rather than a saved dashboard returning
         // nothing.
         if (paymentMethod) {
-            const wantsCash = /^cash/i.test(paymentMethod);
-            currentBookings = currentBookings.filter(b =>
-                wantsCash ? b.paymentMode === 'after' : b.paymentMode !== 'after');
+            currentMatch.paymentMode = /^cash/i.test(paymentMethod) ? 'after' : { $ne: 'after' };
         }
 
         // Fetch bookings for previous period (matching same criteria)
@@ -512,29 +502,63 @@ const getEarningsData = async (req, res) => {
             createdAt: { $gte: prevStart, $lte: prevEnd },
             status: currentMatch.status
         };
+        if (currentMatch.$or) prevMatch.$or = currentMatch.$or;
+        if (currentMatch.providerId) prevMatch.providerId = currentMatch.providerId;
+        if (currentMatch.paymentMode) prevMatch.paymentMode = currentMatch.paymentMode;
 
-        if (currentMatch.$or) {
-            prevMatch.$or = currentMatch.$or;
-        }
-        if (currentMatch.providerId) {
-            prevMatch.providerId = currentMatch.providerId;
-        }
+        const last7DaysStart = new Date(currentEnd);
+        last7DaysStart.setDate(last7DaysStart.getDate() - 6);
+        last7DaysStart.setHours(0, 0, 0, 0);
 
-        let prevBookings = await Booking.find(prevMatch)
-            .select(EARNINGS_FIELDS)
-            .populate('providerId', EARNINGS_PROVIDER_FIELDS)
-            .lean();
-        prevBookings = prevBookings.concat(await InstaEarningsAdapter.getJobsForEarnings({
+        // Every figure on this dashboard is a sum or a count over the same
+        // bookings. They used to be reached by loading all of them — a year of
+        // rows, one object each, in this process — and adding them up here.
+        // The database groups them instead and hands back the buckets, so the
+        // memory this endpoint uses no longer depends on how much the platform
+        // has sold. Insta Work jobs live in another collection with another
+        // vocabulary, so the adapter folds those into the same buckets and the
+        // two are added together.
+        const instaCurrent = await InstaEarningsAdapter.getJobsForEarnings({
+            start: currentStart,
+            end: currentEnd,
+            providerId: targetProviderId,
+            status: currentMatch.status,
+            category
+        });
+        const instaPrev = await InstaEarningsAdapter.getJobsForEarnings({
             start: prevStart,
             end: prevEnd,
             providerId: targetProviderId,
             status: currentMatch.status,
             category
-        }));
+        });
 
-        if (city) {
-            prevBookings = prevBookings.filter(b => b.providerId && b.providerId.city && b.providerId.city.toLowerCase() === city.toLowerCase());
-        }
+        // The same two filters, applied to the Insta rows the adapter returns.
+        const applyInstaFilters = (rows) => {
+            let out = rows;
+            if (city) {
+                out = out.filter(b => b.providerId && b.providerId.city
+                    && b.providerId.city.toLowerCase() === city.toLowerCase());
+            }
+            if (paymentMethod) {
+                const wantsCash = /^cash/i.test(paymentMethod);
+                out = out.filter(b => (wantsCash ? b.paymentMode === 'after' : b.paymentMode !== 'after'));
+            }
+            return out;
+        };
+
+        const instaCurrentRows = applyInstaFilters(instaCurrent);
+        const instaPrevRows = applyInstaFilters(instaPrev);
+
+        const rollup = Rollup.mergeRollups(
+            await Rollup.fromDatabase(currentMatch, { interval, last7DaysStart }),
+            Rollup.foldRows(instaCurrentRows, { interval, last7DaysStart })
+        );
+        const prevRollup = Rollup.mergeRollups(
+            await Rollup.fromDatabase(prevMatch, { interval }),
+            Rollup.foldRows(instaPrevRows, { interval })
+        );
+        await Rollup.nameTopPartners(rollup);
 
         // Fetch withdrawals (settlements)
         const withdrawalMatch = {
@@ -575,7 +599,7 @@ const getEarningsData = async (req, res) => {
         const bannerCount = bannerTotals?.count || 0;
         const bannerRevenue = Math.round((bannerTotals?.paid || 0) * 1.18);
 
-        const hasHistoricalData = currentBookings.length > 0 || currentWithdrawals.length > 0 || bannerCount > 0;
+        const hasHistoricalData = rollup.totals.count > 0 || currentWithdrawals.length > 0 || bannerCount > 0;
 
         if (!hasHistoricalData) {
             return res.json({
@@ -622,54 +646,82 @@ const getEarningsData = async (req, res) => {
         }
 
         // Compute analytics using service layer
-        const overview = EarningsAnalyticsService.getOverviewStats(
-            currentBookings,
-            prevBookings,
+        const overview = EarningsAnalyticsService.overviewFromRollup(
+            rollup,
+            prevRollup,
             currentWithdrawals,
             prevWithdrawals,
             currentStart,
             currentEnd,
-            prevStart,
-            prevEnd,
             interval
         );
 
         const trends = {
-            '7d': range === '7d' ? EarningsAnalyticsService.getRevenueTrend(currentBookings, currentStart, currentEnd, 'day') : [],
-            '30d': range === '30d' || !range ? EarningsAnalyticsService.getRevenueTrend(currentBookings, currentStart, currentEnd, 'day') : [],
-            '90d': range === '90d' ? EarningsAnalyticsService.getRevenueTrend(currentBookings, currentStart, currentEnd, 'day') : [],
-            'year': (range === 'year' || range === '12m') ? EarningsAnalyticsService.getRevenueTrend(currentBookings, currentStart, currentEnd, 'month') : []
+            // Only the range that was asked for is drawn; the bins already
+            // match its interval, so the others stay empty as before.
+            '7d': range === '7d' ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'day') : [],
+            '30d': range === '30d' || !range ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'day') : [],
+            '90d': range === '90d' ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'day') : [],
+            'year': (range === 'year' || range === '12m') ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'month') : []
         };
 
         // Load trends on demand if not matching current selection to save overhead, or pre-populate current selection
         const activeTrendLabel = (range === 'year' || range === '12m') ? 'year' : (range || '30d');
         const activeTrendRevenue = trends[activeTrendLabel];
         const activeTrendCommission = (range === 'year' || range === '12m')
-            ? EarningsAnalyticsService.getCommissionTrend(currentBookings, currentStart, currentEnd, 'month')
-            : EarningsAnalyticsService.getCommissionTrend(currentBookings, currentStart, currentEnd, 'day');
+            ? EarningsAnalyticsService.commissionTrendFromRollup(rollup, currentStart, currentEnd, 'month')
+            : EarningsAnalyticsService.commissionTrendFromRollup(rollup, currentStart, currentEnd, 'day');
 
-        const categories = EarningsAnalyticsService.getCategoryBreakdown(currentBookings);
-        const revenueSources = EarningsAnalyticsService.getRevenueSources(currentBookings);
-        const travel = EarningsAnalyticsService.getTravelAnalytics(currentBookings, currentStart, currentEnd);
+        const categories = EarningsAnalyticsService.categoryBreakdownFromRollup(rollup);
+        const revenueSources = EarningsAnalyticsService.revenueSourcesFromRollup(rollup);
+        const travel = EarningsAnalyticsService.travelAnalyticsFromRollup(rollup, currentEnd);
         const settlements = EarningsAnalyticsService.getSettlementAnalytics(currentWithdrawals);
-        const payments = EarningsAnalyticsService.getPaymentAnalytics(currentBookings);
-        const topPartners = EarningsAnalyticsService.getTopPartners(currentBookings);
-        const topCategories = EarningsAnalyticsService.getTopCategories(currentBookings, prevBookings);
-        let transactions = EarningsAnalyticsService.getRecentTransactions(currentBookings, currentWithdrawals);
+        const payments = EarningsAnalyticsService.paymentAnalyticsFromRollup(rollup);
+        const topPartners = EarningsAnalyticsService.topPartnersFromRollup(rollup);
+        const topCategories = EarningsAnalyticsService.topCategoriesFromRollup(rollup, prevRollup);
+        // The ledger is the one part of this screen that needs rows rather than
+        // sums, and it only ever shows the most recent handful. Taking that many
+        // bookings, newest first, gives exactly the rows the table would have
+        // shown: every booking left behind is older than all of these, so it
+        // could only have produced rows further down the list.
+        const ledgerBookings = await Booking.find(currentMatch)
+            .select(EARNINGS_FIELDS)
+            .populate('providerId', EARNINGS_PROVIDER_FIELDS)
+            .populate('userId', EARNINGS_CUSTOMER_FIELDS)
+            .sort({ createdAt: -1 })
+            .limit(LEDGER_ROWS)
+            .lean();
+
+        // The Insta rows are already in memory and are the smaller set.
+        const ledgerRows = ledgerBookings.concat(instaCurrentRows);
+
+        let transactions = EarningsAnalyticsService.getRecentTransactions(ledgerRows, currentWithdrawals);
 
         // Filter transactions list if transactionType is specified
         if (transactionType) {
             transactions = transactions.filter(t => t.transactionType.toLowerCase() === transactionType.toLowerCase());
         }
 
-        // The ledger carries a row or two per booking, so a wide range used to
-        // put tens of thousands of them in one response. The table only ever
-        // shows the most recent, but the screen also builds its filter
-        // dropdowns from this list — so the options are sent separately,
-        // derived from the whole set, and only the visible rows are shipped.
-        const transactionsTotal = transactions.length;
-        const filterOptions = EarningsAnalyticsService.getFilterOptions(transactions, categories);
+        // How many rows the ledger really has, counted rather than measured off
+        // the page above — otherwise a table showing the newest fifty would
+        // report that the period contained fifty transactions.
+        const ledgerCounts = await EarningsAnalyticsService.ledgerRowCounts(
+            Booking, currentMatch, instaCurrentRows, currentWithdrawals
+        );
+        const transactionsTotal = transactionType
+            ? (ledgerCounts[transactionType.toLowerCase()] || 0)
+            : ledgerCounts.total;
+
+        // The dropdowns describe the whole period, so they are built from the
+        // rollup and the partners in it rather than from the rows on screen.
+        // Only the rows the table shows are shipped. The query above took that
+        // many bookings and each can emit two rows, so this trims the overshoot.
         transactions = transactions.slice(0, LEDGER_ROWS);
+
+        const filterOptions = await EarningsAnalyticsService.filterOptionsFromRollup(
+            rollup, currentWithdrawals, categories
+        );
+
 
         res.json({
             hasHistoricalData: true,
