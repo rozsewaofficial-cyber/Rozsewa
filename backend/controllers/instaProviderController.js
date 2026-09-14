@@ -471,6 +471,12 @@ const requestExtension = async (req, res) => {
         if (job.status !== 'WORK_STARTED') {
             return res.status(400).json({ message: 'Extensions can only be requested while work is running.' });
         }
+        // Only hourly work has a clock to extend. On measured work the
+        // request is meaningless, and asking the customer to approve more
+        // minutes on a job billed by the unit is simply confusing.
+        if (!job.isTimed) {
+            return res.status(400).json({ message: 'This job is not billed by time, so it cannot be extended.' });
+        }
         const config = await InstaConfig.getConfig();
         expireStaleExtensions(job, config.extensionResponseMinutes);
         if (job.extensions.some(e => e.status === 'pending')) {
@@ -534,6 +540,23 @@ const stopWork = async (req, res) => {
                 return res.status(400).json({ message: 'Enter a valid completed quantity.' });
             }
             job.actualQuantity = actualQuantity;
+        }
+
+        // Custom work is quoted on site: there is no quantity to measure and
+        // no admin rate to fall back on, so without the amount the worker
+        // sets here the job has no price at all and settles at zero — the
+        // whole pricing type was unbillable. Stored on the rate, because a
+        // custom job is one unit priced at whatever the work was worth, and
+        // every downstream figure already derives from quantity x rate.
+        if (service.pricingType === 'custom') {
+            try {
+                job.rate = Pricing.resolveCustomAmount({
+                    service,
+                    amount: req.body.finalAmount ?? req.body.customAmount
+                });
+            } catch (err) {
+                return res.status(400).json({ message: err.message });
+            }
         }
 
         const bill = Pricing.finalBill({

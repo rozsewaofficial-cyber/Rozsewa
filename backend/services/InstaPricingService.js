@@ -194,6 +194,29 @@ const finalBill = ({
  * Sewaks never reach this: their rate is admin-fixed and they cannot change it.
  * Returns the rate to store, or throws with a message the Partner will see.
  */
+/**
+ * Validates the price a worker sets on site for a `custom` job.
+ *
+ * Custom work has no quantity to measure, so the worker's figure IS the
+ * bill. That makes it the one number a worker can choose freely, which is
+ * exactly why it is held to the service's admin band rather than trusted.
+ */
+const resolveCustomAmount = ({ service, amount }) => {
+    const asked = Number(amount);
+    if (!Number.isFinite(asked) || asked <= 0) {
+        throw new Error(`Enter the amount to charge for ${service.name}.`);
+    }
+    const min = Number(service.minRate) || 0;
+    const max = Number(service.maxRate) || 0;
+    if (min > 0 && asked < min) {
+        throw new Error(`The amount must be at least ₹${min} for ${service.name}.`);
+    }
+    if (max > 0 && asked > max) {
+        throw new Error(`The amount cannot exceed ₹${max} for ${service.name}.`);
+    }
+    return asked;
+};
+
 const resolveProviderRate = ({ service, providerCategory, requestedRate }) => {
     if (providerCategory === 'sewak') {
         // Managed workforce: the admin rate is the only rate.
@@ -298,6 +321,7 @@ module.exports = {
     estimate,
     finalBill,
     resolveProviderRate,
+    resolveCustomAmount,
     chargeableIdleMinutes,
     needsExtension,
     minutesBetween

@@ -430,4 +430,87 @@ check('an unknown distance ranks mid-table, never first', () => {
     assert.ok(A.sewakScore(known) < A.sewakScore(unknown));
 });
 
+
+console.log('\nCustom work is priced on site, within the admin band');
+const oddJob = { name: 'Odd Jobs', pricingType: 'custom', minRate: 100, maxRate: 5000 };
+
+check('the amount the worker sets becomes the bill', () => {
+    // Custom work has no quantity to measure, so this figure IS the price. It
+    // had no way in at all: the job was created at rate 0 and stopWork only
+    // accepted a quantity, so every custom job settled at zero.
+    assert.strictEqual(P.resolveCustomAmount({ service: oddJob, amount: 1250 }), 1250);
+});
+
+check('a custom job with no amount cannot be billed', () => {
+    [undefined, null, '', 0, -50].forEach(amount => {
+        assert.throws(() => P.resolveCustomAmount({ service: oddJob, amount }),
+            `an amount of ${JSON.stringify(amount)} should be refused`);
+    });
+});
+
+check('the admin band bounds what a worker may charge', () => {
+    // The one number a worker picks freely, so it is checked rather than trusted.
+    assert.throws(() => P.resolveCustomAmount({ service: oddJob, amount: 50 }), /at least/);
+    assert.throws(() => P.resolveCustomAmount({ service: oddJob, amount: 999999 }), /cannot exceed/);
+    assert.strictEqual(P.resolveCustomAmount({ service: oddJob, amount: 100 }), 100);
+    assert.strictEqual(P.resolveCustomAmount({ service: oddJob, amount: 5000 }), 5000);
+});
+
+check('stopWork asks for that amount and refuses without it', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaProviderController.js'), 'utf8');
+    assert.ok(src.includes('resolveCustomAmount'), 'stopWork must resolve the on-site amount');
+});
+
+console.log('\nOnly timed work has a clock to extend');
+check('an extension on measured work is refused', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaProviderController.js'), 'utf8');
+    // Asking a customer to approve more minutes on a job billed by the unit is
+    // incoherent, and it leaves a pending request on a job with no timer.
+    assert.ok(/if \(!job\.isTimed\) \{[\s\S]{0,200}cannot be extended/.test(src),
+        'requestExtension must reject untimed jobs');
+});
+
+console.log('\nAll five pricing types bill correctly');
+const bill = (service, opts) => P.finalBill({ service, rate: opts.rate, ...opts }).subtotal;
+
+check('per hour rounds up to the billing block', () => {
+    const s = { pricingType: 'per_hour', name: 'Clean' };
+    assert.strictEqual(bill(s, { rate: 150, bookedQuantity: 2, workedMinutes: 70, billingIntervalMinutes: 30 }), 225);
+});
+check('per km charges the distance actually covered, plus any base', () => {
+    const s = { pricingType: 'per_km', name: 'Delivery', baseChargeEnabled: true, baseCharge: 30 };
+    assert.strictEqual(bill(s, { rate: 15, bookedQuantity: 8, actualQuantity: 10 }), 30 + 150);
+});
+check('per meter can bill less than was booked', () => {
+    // The worker records what was done; booking 20m and painting 18m costs 18m.
+    const s = { pricingType: 'per_meter', name: 'Fence' };
+    assert.strictEqual(bill(s, { rate: 40, bookedQuantity: 20, actualQuantity: 18 }), 720);
+});
+check('per unit can bill more than was booked', () => {
+    const s = { pricingType: 'per_unit', name: 'Taps', baseChargeEnabled: true, baseCharge: 50 };
+    assert.strictEqual(bill(s, { rate: 120, bookedQuantity: 3, actualQuantity: 4 }), 50 + 480);
+});
+check('custom is one job at the quoted price', () => {
+    const s = { pricingType: 'custom', name: 'Odd Jobs' };
+    assert.strictEqual(bill(s, { rate: 1250, bookedQuantity: 1 }), 1250);
+});
+
+console.log('\nA Partner is booked at their own rate, not the Sewak rate');
+const banded = { name: 'Clean', pricingType: 'per_hour', sewakRate: 150, minRate: 150, maxRate: 250 };
+check('a Sewak always gets the admin rate, whatever is asked for', () => {
+    assert.strictEqual(P.resolveProviderRate({ service: banded, providerCategory: 'sewak', requestedRate: 9999 }), 150);
+});
+check('a Partner rate inside the band is honoured', () => {
+    assert.strictEqual(P.resolveProviderRate({ service: banded, providerCategory: 'partner', requestedRate: 200 }), 200);
+});
+check('a Partner rate outside the band is refused', () => {
+    // The customer's client sends this figure, so it is re-validated server-side.
+    assert.throws(() => P.resolveProviderRate({ service: banded, providerCategory: 'partner', requestedRate: 50 }));
+    assert.throws(() => P.resolveProviderRate({ service: banded, providerCategory: 'partner', requestedRate: 5000 }));
+});
+
 console.log(`\n${passed} Insta Work checks passed.\n`);

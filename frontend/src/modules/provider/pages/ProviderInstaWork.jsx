@@ -126,6 +126,9 @@ const ProviderInstaWork = () => {
   }, [profile?.enabled]);
 
   const activeJob = jobs.find((j) => ACTIVE_STATUSES.includes(j.status));
+  // Custom work is quoted on site rather than measured, so the controls below
+  // ask for an amount instead of a quantity.
+  const isCustomJob = activeJob?.pricingType === 'custom';
 
   const act = async (fn, successTitle) => {
     setBusy(true);
@@ -411,7 +414,7 @@ const ProviderInstaWork = () => {
 
               {activeJob.status === "WORK_STARTED" && (
                 <>
-                  {!pendingExtension && (
+                  {activeJob.isTimed && !pendingExtension && (
                     <button
                       onClick={() =>
                         act(async () => {
@@ -428,20 +431,31 @@ const ProviderInstaWork = () => {
                     <input
                       value={actualQty}
                       onChange={(e) => setActualQty(e.target.value)}
-                      placeholder={`Actual ${activeJob.unitLabel}s`}
+                      /* Custom work has nothing to count — the worker prices the
+                         job on site, and that figure is the bill. Asking for an
+                         "Actual Jobs" quantity here left it with no price at all. */
+                      placeholder={
+                        isCustomJob ? "Amount to charge (₹)" : `Actual ${activeJob.unitLabel}s`
+                      }
                       type="number"
-                      className="h-11 w-36 rounded-xl border border-border bg-background px-3 text-sm font-bold outline-none"
+                      className="h-11 w-44 rounded-xl border border-border bg-background px-3 text-sm font-bold outline-none"
                     />
                   )}
                   <button
                     onClick={() =>
                       jobAction(
                         "stop",
-                        actualQty !== "" ? { actualQuantity: Number(actualQty) } : {},
+                        actualQty === ""
+                          ? {}
+                          : isCustomJob
+                            ? { finalAmount: Number(actualQty) }
+                            : { actualQuantity: Number(actualQty) },
                         "Work completed",
                       )
                     }
-                    disabled={busy}
+                    /* A custom job with no amount would settle at zero, so the
+                       worker cannot finish one without pricing it. */
+                    disabled={busy || (isCustomJob && actualQty === "")}
                     className="h-11 flex-1 rounded-xl bg-rose-600 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50"
                   >
                     <Square className="mr-1 inline h-4 w-4" /> Stop & bill

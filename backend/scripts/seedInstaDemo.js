@@ -167,6 +167,63 @@ const run = async () => {
         createdBy: admin._id
     });
 
+    // The remaining three pricing types, so all five are bookable in a demo
+    // run rather than only the two from the spec worked example.
+    const fencing = await InstaService.create({
+        name: 'Fence Painting',
+        description: 'Boundary painting, charged by the running meter',
+        icon: 'Ruler',
+        categoryId: category._id,
+        categoryName: category.name,
+        pricingType: 'per_meter',
+        sewakRate: 40,
+        minRate: 35,
+        maxRate: 60,
+        minQuantity: 1,
+        maxQuantity: 200,
+        availableFor: ['sewak', 'partner'],
+        isActive: true,
+        createdBy: admin._id
+    });
+
+    const fitting = await InstaService.create({
+        name: 'Tap Fitting',
+        description: 'Per-tap replacement, charged by the unit',
+        icon: 'Wrench',
+        categoryId: category._id,
+        categoryName: category.name,
+        pricingType: 'per_unit',
+        sewakRate: 120,
+        minRate: 100,
+        maxRate: 180,
+        baseChargeEnabled: true,
+        baseCharge: 50,
+        minQuantity: 1,
+        maxQuantity: 20,
+        availableFor: ['sewak', 'partner'],
+        isActive: true,
+        createdBy: admin._id
+    });
+
+    // Custom work is quoted on site, so it carries no quantity and no
+    // meaningful estimate until the worker sets the final amount.
+    const custom = await InstaService.create({
+        name: 'Odd Jobs',
+        description: 'Miscellaneous help, priced on site',
+        icon: 'HelpCircle',
+        categoryId: category._id,
+        categoryName: category.name,
+        pricingType: 'custom',
+        sewakRate: 0,
+        minRate: 0,
+        maxRate: 5000,
+        minQuantity: 1,
+        maxQuantity: 1,
+        availableFor: ['sewak', 'partner'],
+        isActive: true,
+        createdBy: admin._id
+    });
+
     /** Puts a worker live on a service with a fresh GPS ping. */
     const goLive = async (provider, entries) => {
         provider.instaWork.enabled = true;
@@ -178,12 +235,18 @@ const run = async () => {
 
     await goLive(sewak, [
         { serviceId: cleaning._id, serviceName: cleaning.name, rate: cleaning.sewakRate },
-        { serviceId: delivery._id, serviceName: delivery.name, rate: delivery.sewakRate }
+        { serviceId: delivery._id, serviceName: delivery.name, rate: delivery.sewakRate },
+        { serviceId: fencing._id, serviceName: fencing.name, rate: fencing.sewakRate },
+        { serviceId: fitting._id, serviceName: fitting.name, rate: fitting.sewakRate },
+        { serviceId: custom._id, serviceName: custom.name, rate: custom.sewakRate }
     ]);
     await goLive(partner, [
-        // Inside the 150-250 band.
+        // Each rate sits inside that service's own guardrail band.
         { serviceId: cleaning._id, serviceName: cleaning.name, rate: 200 },
-        { serviceId: delivery._id, serviceName: delivery.name, rate: 20 }
+        { serviceId: delivery._id, serviceName: delivery.name, rate: 20 },
+        { serviceId: fencing._id, serviceName: fencing.name, rate: 50 },
+        { serviceId: fitting._id, serviceName: fitting.name, rate: 150 },
+        { serviceId: custom._id, serviceName: custom.name, rate: 0 }
     ]);
 
     console.log('\nSeeded Insta Work demo:');
@@ -191,7 +254,11 @@ const run = async () => {
     console.log(`  customer  9000000001 / demo1234        (${customer._id})`);
     console.log(`  sewak     9000000007 / demo1234  live @ Rs 150/hr   (${sewak._id})`);
     console.log(`  partner   9000000009 / demo1234  live @ Rs 200/hr   (${partner._id})`);
-    console.log(`  services  ${cleaning.name} (per hour), ${delivery.name} (per km + Rs 30 base)`);
+    console.log(`  services  ${cleaning.name} (per hour @ ${cleaning.sewakRate})`);
+    console.log(`            ${delivery.name} (per km @ ${delivery.sewakRate} + Rs ${delivery.baseCharge} base)`);
+    console.log(`            ${fencing.name} (per meter @ ${fencing.sewakRate})`);
+    console.log(`            ${fitting.name} (per unit @ ${fitting.sewakRate} + Rs ${fitting.baseCharge} base)`);
+    console.log(`            ${custom.name} (custom, quoted on site)`);
     console.log('');
 
     await mongoose.disconnect();
