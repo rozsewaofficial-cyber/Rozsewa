@@ -11,16 +11,36 @@ import { useAuth } from "@/context/AuthContext";
 import { ToastAction } from "@/components/ui/toast";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
-const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
+/**
+ * The tabs this list offers. The dashboard shows only the two that need
+ * acting on; the full bookings page shows the history as well.
+ */
+const TAB_IDS = (hideCompletedAndCancelled) =>
+    hideCompletedAndCancelled ? ['pending', 'active'] : ['pending', 'active', 'completed', 'cancelled'];
+
+/**
+ * Remembering the chosen tab is per-surface.
+ *
+ * One shared key meant switching tabs on the bookings page silently moved
+ * the dashboard's widget too, and the dashboard could inherit 'completed' —
+ * a tab it does not render — leaving it stuck on an empty list with nothing
+ * to explain why.
+ */
+const tabStorageKey = (surface) => `bookings_active_tab:${surface}`;
+
+const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'bookings' }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const tabIds = TAB_IDS(hideCompletedAndCancelled);
   const [activeTab, setActiveTab] = useState(() => {
-    return sessionStorage.getItem('bookings_active_tab') || "pending";
+    const remembered = sessionStorage.getItem(tabStorageKey(surface));
+    // A remembered tab this instance cannot show is worse than no memory.
+    return tabIds.includes(remembered) ? remembered : "pending";
   });
 
   useEffect(() => {
-    sessionStorage.setItem('bookings_active_tab', activeTab);
-  }, [activeTab]);
+    sessionStorage.setItem(tabStorageKey(surface), activeTab);
+  }, [activeTab, surface]);
   const [staffList, setStaffList] = useState([]);
   const [activeTracking, setActiveTracking] = useState(null);
   const [pollingIntervalId, setPollingIntervalId] = useState(null);
@@ -532,14 +552,14 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
   return (
     <div className="space-y-6">
       <div className="flex p-1 bg-muted rounded-2xl w-full sm:w-fit overflow-x-auto no-scrollbar">
-        {[
-          { id: "pending", label: "New", color: "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400" },
-          { id: "active", label: "Active", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400" },
-          ...(hideCompletedAndCancelled ? [] : [
-            { id: "completed", label: "Completed", color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-800/30 dark:text-emerald-300" },
-            { id: "cancelled", label: "Rejected", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400" }
-          ])
-        ].map((tab) => (
+        {/* Driven by the same list the remembered tab is validated against,
+            so the two can never disagree about what exists. */}
+        {tabIds.map((id) => ({
+          pending: { id: "pending", label: "New", color: "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400" },
+          active: { id: "active", label: "Active", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400" },
+          completed: { id: "completed", label: "Completed", color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-800/30 dark:text-emerald-300" },
+          cancelled: { id: "cancelled", label: "Rejected", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400" }
+        }[id])).map((tab) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`relative flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-xl transition-all whitespace-nowrap ${activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}>

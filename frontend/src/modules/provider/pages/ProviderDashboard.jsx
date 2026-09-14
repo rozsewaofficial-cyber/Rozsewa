@@ -838,7 +838,7 @@ const ProviderDashboard = () => {
 
         {/* Activity Stream */}
         <section className="animate-in slide-in-from-bottom-3 duration-700 delay-100">
-          <RecentBookingsList hideCompletedAndCancelled={true} />
+          <RecentBookingsList hideCompletedAndCancelled={true} surface="dashboard" />
         </section>
 
         {/* Global Stats */}

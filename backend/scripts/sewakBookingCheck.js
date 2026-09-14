@@ -118,4 +118,35 @@ check('a card that leaves the filtered list unmounts at once', () => {
     assert.ok(!/\blayout\b/.test(card[0]), 'layout animation stalls the unmount');
 });
 
+
+console.log('\nEach surface remembers its own tab');
+check('the remembered tab is stored per surface', () => {
+    // One shared key meant switching tabs on the bookings page silently moved
+    // the dashboard widget too.
+    const src = frontend('modules', 'provider', 'components', 'RecentBookingsList.jsx');
+    assert.ok(/bookings_active_tab:\$\{surface\}/.test(src), 'the key must be scoped to the surface');
+    assert.ok(!/sessionStorage\.getItem\('bookings_active_tab'\)/.test(src), 'no unscoped read may remain');
+    assert.ok(!/sessionStorage\.setItem\('bookings_active_tab',/.test(src), 'no unscoped write may remain');
+});
+
+check('the two mount points identify themselves differently', () => {
+    const dash = frontend('modules', 'provider', 'pages', 'ProviderDashboard.jsx');
+    assert.ok(/surface="dashboard"/.test(dash), 'the dashboard widget needs its own surface');
+});
+
+check('a remembered tab this surface cannot show is discarded', () => {
+    // The dashboard hides Completed and Rejected, so inheriting 'completed'
+    // left it on an empty list with nothing to explain why.
+    const src = frontend('modules', 'provider', 'components', 'RecentBookingsList.jsx');
+    assert.ok(/tabIds\.includes\(remembered\)/.test(src), 'the remembered tab must be validated');
+});
+
+check('the tabs rendered and the tabs accepted come from one list', () => {
+    // Two separate lists would drift, and the validation would start rejecting
+    // tabs that are on screen.
+    const src = frontend('modules', 'provider', 'components', 'RecentBookingsList.jsx');
+    assert.ok(/const TAB_IDS = \(hideCompletedAndCancelled\)/.test(src), 'one source for the tab ids');
+    assert.ok(/\{tabIds\.map\(\(id\) => \(\{/.test(src), 'the tab bar must render from that list');
+});
+
 console.log(`\n${passed} Sewak booking checks passed.\n`);
