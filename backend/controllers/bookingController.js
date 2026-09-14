@@ -1102,6 +1102,68 @@ const updateBooking = async (req, res) => {
     }
 };
 
+// The unclaimed jobs this worker may actually take: inside their service
+// radius, and within what they are allowed to owe. Shared, so the counts above
+// the list describe the same set the list is drawn from.
+const eligiblePendingFor = async (provider) => {
+    const pendingBookings = await Booking.find({
+        status: 'pending',
+        providerId: { $in: [null, undefined] },
+        requiredProviderCategory: provider.providerCategory || 'partner',
+        rejectedProviders: { $ne: provider._id },
+        serviceLocation: { $in: provider.serviceModes && provider.serviceModes.length ? provider.serviceModes : ['home'] }
+    })
+        .populate('userId', 'ownerName name mobile address')
+        // A live feed of unclaimed jobs: newest first, and bounded so a
+        // backlog of never-accepted bookings cannot grow into the response.
+        .sort({ createdAt: -1 })
+        .limit(200);
+
+    const { Wallet } = require('../models/Wallet');
+    const Setting = require('../models/Setting');
+    const [wallet, configSetting] = await Promise.all([
+        Wallet.findOne({ providerId: provider._id }),
+        Setting.findOne({ key: 'cash_limits_config' })
+    ]);
+    const walletBalance = wallet ? wallet.balance : 0;
+
+    let defaultLimit = 1500;
+    let catLimitOverride = null;
+    let cfg = null;
+    if (configSetting && configSetting.value) {
+        cfg = configSetting.value;
+        defaultLimit = Number(cfg.defaultLimit) || 1500;
+        if (provider.vendorType) {
+            const catId = provider.vendorType.toString();
+            const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
+            if (catLimitObj) catLimitOverride = Number(catLimitObj.limit);
+        }
+    }
+
+    // Filter by provider service radius and debt limits
+    const bLon = provider.location?.coordinates?.[0];
+    const bLat = provider.location?.coordinates?.[1];
+    const providerRadius = provider.serviceRadius || 15;
+
+    return pendingBookings.filter(b => {
+        // Debt limit check per booking
+        let bookingLimit = catLimitOverride !== null ? catLimitOverride : defaultLimit;
+        const bookingServiceId = b.serviceId ? b.serviceId.toString() : null;
+        if (bookingServiceId && cfg && cfg.serviceLimits) {
+            const srvLimitObj = cfg.serviceLimits.find(s => s.serviceId === bookingServiceId);
+            if (srvLimitObj) bookingLimit = Number(srvLimitObj.limit);
+        }
+        if (walletBalance <= -bookingLimit) return false;
+
+        // Radius check
+        if (!b.location || !b.location.coordinates || b.location.coordinates.length < 2) return true; // fallback
+        if (!bLat || !bLon) return true; // fallback if provider location is not set
+        const dist = DistanceChargeService.calculateDistance(b.location.coordinates[1], b.location.coordinates[0], bLat, bLon);
+        return dist <= providerRadius;
+    });
+};
+
+// @desc    Get bookings for the logged-in provider
 // @route   GET /api/bookings/provider
 // @access  Private (Provider)
 const getProviderBookings = async (req, res) => {
@@ -1110,64 +1172,7 @@ const getProviderBookings = async (req, res) => {
         if (!provider) {
             return res.status(404).json({ message: "Provider not found" });
         }
-
-        // Fetch pending broadcast bookings eligible for this provider
-        const pendingBookings = await Booking.find({
-            status: 'pending',
-            providerId: { $in: [null, undefined] },
-            requiredProviderCategory: provider.providerCategory || 'partner',
-            rejectedProviders: { $ne: provider._id },
-            serviceLocation: { $in: provider.serviceModes && provider.serviceModes.length ? provider.serviceModes : ['home'] }
-        })
-            .populate('userId', 'ownerName name mobile address')
-            // A live feed of unclaimed jobs: newest first, and bounded so a
-            // backlog of never-accepted bookings cannot grow into the response.
-            .sort({ createdAt: -1 })
-            .limit(200);
-
-        // Fetch Wallet and Cash Limits
-        const { Wallet } = require('../models/Wallet');
-        const Setting = require('../models/Setting');
-        const [wallet, configSetting] = await Promise.all([
-            Wallet.findOne({ providerId: req.user._id }),
-            Setting.findOne({ key: 'cash_limits_config' })
-        ]);
-        const walletBalance = wallet ? wallet.balance : 0;
-
-        let defaultLimit = 1500;
-        let catLimitOverride = null;
-        let cfg = null;
-        if (configSetting && configSetting.value) {
-            cfg = configSetting.value;
-            defaultLimit = Number(cfg.defaultLimit) || 1500;
-            if (provider.vendorType) {
-                const catId = provider.vendorType.toString();
-                const catLimitObj = cfg.categoryLimits?.find(c => c.categoryId === catId);
-                if (catLimitObj) catLimitOverride = Number(catLimitObj.limit);
-            }
-        }
-
-        // Filter by provider service radius and debt limits
-        const bLon = provider.location?.coordinates?.[0];
-        const bLat = provider.location?.coordinates?.[1];
-        const providerRadius = provider.serviceRadius || 15;
-
-        const eligiblePending = pendingBookings.filter(b => {
-            // Debt limit check per booking
-            let bookingLimit = catLimitOverride !== null ? catLimitOverride : defaultLimit;
-            const bookingServiceId = b.serviceId ? b.serviceId.toString() : null;
-            if (bookingServiceId && cfg && cfg.serviceLimits) {
-                const srvLimitObj = cfg.serviceLimits.find(s => s.serviceId === bookingServiceId);
-                if (srvLimitObj) bookingLimit = Number(srvLimitObj.limit);
-            }
-            if (walletBalance <= -bookingLimit) return false;
-
-            // Radius check
-            if (!b.location || !b.location.coordinates || b.location.coordinates.length < 2) return true; // fallback
-            if (!bLat || !bLon) return true; // fallback if provider location is not set
-            const dist = DistanceChargeService.calculateDistance(b.location.coordinates[1], b.location.coordinates[0], bLat, bLon);
-            return dist <= providerRadius;
-        });
+        const eligiblePending = await eligiblePendingFor(provider);
 
         // Fetch bookings assigned to this provider
         // Everything ever assigned to this worker; the same applies.
@@ -1183,6 +1188,52 @@ const getProviderBookings = async (req, res) => {
         combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         res.json(combined);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Counts behind the tabs above the provider booking list
+// @route   GET /api/bookings/provider/stats
+// @access  Private (Provider)
+// The list itself arrives one page at a time, so the tabs cannot be counted
+// from it — a worker with three hundred finished jobs would see the number
+// stop at whatever the page held.
+const getProviderBookingStats = async (req, res) => {
+    try {
+        const provider = await Provider.findById(req.user._id);
+        if (!provider) {
+            return res.status(404).json({ message: "Provider not found" });
+        }
+
+        const [eligiblePending, rows] = await Promise.all([
+            eligiblePendingFor(provider),
+            Booking.aggregate([
+                { $match: { providerId: new mongoose.Types.ObjectId(String(provider._id)) } },
+                {
+                    $group: {
+                        _id: { status: '$status', paymentStatus: '$paymentStatus' },
+                        count: { $sum: 1 }
+                    }
+                }
+            ])
+        ]);
+
+        // Same rules the list uses to decide which tab a booking belongs under.
+        const counts = { pending: eligiblePending.length, active: 0, cancelled: 0, completed: 0 };
+        rows.forEach(({ _id, count }) => {
+            const { status, paymentStatus } = _id;
+            if (status === 'pending') counts.pending += count;
+            else if (['confirmed', 'on_the_way', 'started'].includes(status)) counts.active += count;
+            else if (status === 'cancelled') counts.cancelled += count;
+            else if (status === 'completed') {
+                if (paymentStatus === 'paid') counts.completed += count;
+                // Finished but not yet paid for is still the worker's problem.
+                else counts.active += count;
+            }
+        });
+
+        res.json(counts);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -2462,6 +2513,65 @@ const verifyEndOTP = async (req, res) => {
 };
 
 // @desc    Get provider reviews
+/**
+ * A provider's rating, count and star distribution, over every review they have.
+ *
+ * The screens used to work these out from the list of reviews they had been
+ * sent. That was only right while the list was every review ever left — the
+ * moment it became a page, a worker with a long history saw an average of their
+ * most recent few, and so did a customer deciding whether to book them.
+ */
+const reviewStats = async (providerId) => {
+    const rows = await Booking.aggregate([
+        { $match: { providerId: new mongoose.Types.ObjectId(String(providerId)), rating: { $gt: 0 } } },
+        { $group: { _id: '$rating', count: { $sum: 1 } } }
+    ]);
+
+    // Index 0 is one star.
+    const distribution = [0, 0, 0, 0, 0];
+    let total = 0;
+    let sum = 0;
+    rows.forEach(r => {
+        const stars = Number(r._id);
+        if (stars >= 1 && stars <= 5) distribution[stars - 1] = r.count;
+        total += r.count;
+        sum += stars * r.count;
+    });
+
+    return {
+        total,
+        average: total > 0 ? Number((sum / total).toFixed(1)) : 0,
+        distribution,
+        // The share of reviews at four stars or better, which is what the
+        // screens present as "positive".
+        positivePercent: total > 0
+            ? Math.round(((distribution[3] + distribution[4]) / total) * 100)
+            : 0
+    };
+};
+
+// @desc    Rating summary for the signed-in worker
+// @route   GET /api/bookings/provider/reviews/stats
+// @access  Private (Provider)
+const getProviderReviewStats = async (req, res) => {
+    try {
+        res.json(await reviewStats(req.user._id));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Rating summary shown on a provider's public profile
+// @route   GET /api/bookings/providers/:id/reviews/stats
+// @access  Public
+const getPublicReviewStats = async (req, res) => {
+    try {
+        res.json(await reviewStats(req.params.id));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const getProviderReviews = async (req, res) => {
     try {
         // Reviews only ever grow, and a worker reads their own reviews a page at a time.
@@ -3080,6 +3190,9 @@ module.exports = {
     verifyStartOTP,
     verifyEndOTP,
     getProviderReviews,
+    getProviderBookingStats,
+    getProviderReviewStats,
+    getPublicReviewStats,
     getPublicProviderReviews,
     submitReview,
     proposeSchedule,

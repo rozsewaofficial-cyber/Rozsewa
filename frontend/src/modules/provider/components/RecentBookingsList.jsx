@@ -30,6 +30,8 @@ const tabStorageKey = (surface) => `bookings_active_tab:${surface}`;
 
 const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'bookings' }) => {
   const [requests, setRequests] = useState([]);
+  // Counts across every booking this worker has, not just the page on screen.
+  const [counts, setCounts] = useState({ pending: 0, active: 0, cancelled: 0, completed: 0 });
   const [loading, setLoading] = useState(true);
   const tabIds = TAB_IDS(hideCompletedAndCancelled);
   const [activeTab, setActiveTab] = useState(() => {
@@ -149,8 +151,14 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
 
   const fetchBookings = async () => {
     try {
-      const { data } = await API.get("/bookings/provider");
+      // The list is one page of this worker's bookings. The numbers on the
+      // tabs count every booking they have, which a page cannot tell us.
+      const [{ data }, { data: tabCounts }] = await Promise.all([
+        API.get("/bookings/provider"),
+        API.get("/bookings/provider/stats")
+      ]);
       setRequests(data);
+      setCounts(tabCounts);
 
       // Fetch staff from API
       const { data: staffData } = await API.get("/provider/staff");
@@ -414,12 +422,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
 
     return true;
   });
-  const counts = {
-    pending: requests.filter(r => r.status === "pending").length,
-    active: requests.filter(r => (['confirmed', 'on_the_way', 'started'].includes(r.status) || (r.status === 'completed' && r.paymentStatus !== 'paid'))).length,
-    cancelled: requests.filter(r => r.status === "cancelled").length,
-    completed: requests.filter(r => r.status === "completed" && r.paymentStatus === 'paid').length,
-  };
+
 
   const [otpBooking, setOtpBooking] = useState(null);
   const [otpType, setOtpType] = useState('start');

@@ -16,6 +16,19 @@ const getWallet = async (req, res) => {
             pageParams(req)
         );
 
+        // Earned and spent are lifetime figures, so they are totalled over the
+        // whole statement rather than by the screen over the page it holds.
+        const [totals] = await Transaction.aggregate([
+            { $match: query },
+            {
+                $group: {
+                    _id: null,
+                    totalEarned: { $sum: { $cond: [{ $eq: ['$type', 'credit'] }, { $abs: '$amount' }, 0] } },
+                    totalSpent: { $sum: { $cond: [{ $eq: ['$type', 'debit'] }, { $abs: '$amount' }, 0] } }
+                }
+            }
+        ]);
+
         res.json({
             balance: wallet ? wallet.balance : 0,
             availableBalance: wallet ? wallet.availableBalance : 0,
@@ -23,6 +36,8 @@ const getWallet = async (req, res) => {
             // How many there are in total, so a statement showing one page can
             // page through the rest instead of stopping at what it was handed.
             transactionsTotal: await Transaction.countDocuments(query),
+            totalEarned: Math.round((totals?.totalEarned || 0) * 100) / 100,
+            totalSpent: Math.round((totals?.totalSpent || 0) * 100) / 100
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

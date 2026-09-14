@@ -78,7 +78,9 @@ app.use(cors({
     // unless they are named here. Lists that return a page put the real row
     // count in X-Total-Count, and a screen that cannot read it would go back to
     // reporting the size of the page as the size of the collection.
-    exposedHeaders: ['X-Total-Count']
+    // A custom response header the browser cannot see is the same as one that
+    // was never sent, so every header a screen reads is listed here.
+    exposedHeaders: ['X-Total-Count', 'X-Total-Value', 'X-Pending-Count']
 }));
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds

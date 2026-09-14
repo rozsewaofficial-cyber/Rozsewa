@@ -274,9 +274,17 @@ check('the totals describe the queue, not the page being viewed', () => {
 
 check('the admin screen asks for a page instead of slicing everything', () => {
     const ui = frontend('modules', 'admin', 'pages', 'AdminCommission.jsx');
-    assert.ok(/params: \{ page, limit: itemsPerPage \}/.test(ui), 'the page must be requested');
-    assert.ok(/\}, \[commissionPage\]\)/.test(ui), 'turning a page must refetch');
-    assert.ok(!/queue\.slice\(/.test(ui), 'no client-side slicing may remain');
+    assert.ok(/params: \{ page, limit: itemsPerPage/.test(ui), 'the page must be requested');
+    // Pinned as a contract, not as one dependency array: every table here has a
+    // page number, and turning it has to become a request.
+    ['commissionPage', 'settlementPage', 'withdrawalPage'].forEach(p => {
+        assert.ok(new RegExp(`\\}, \\[[^\\]]*\\b${p}\\b[^\\]]*\\]\\)`).test(ui),
+            `turning the ${p} must refetch`);
+    });
+    ['queue', 'settlements', 'withdrawals'].forEach(list => {
+        assert.ok(!new RegExp(`\\b${list}\\.slice\\(`).test(ui),
+            `no client-side slicing of ${list} may remain`);
+    });
 });
 
 check('the Insta side keeps the same finished-job definition', () => {
@@ -511,7 +519,8 @@ check('that header is readable from the browser', () => {
     // unless it is named, so the screen would silently fall back to the page
     // size and report it as the total.
     const server = read('index.js');
-    assert.ok(/exposedHeaders: \['X-Total-Count'\]/.test(server),
+    const exposed = (server.match(/exposedHeaders:\s*\[([^\]]*)\]/) || [])[1] || '';
+    assert.ok(exposed.includes('X-Total-Count'),
         'X-Total-Count must be exposed to the browser');
 });
 

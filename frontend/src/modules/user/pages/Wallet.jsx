@@ -68,16 +68,22 @@ const WalletPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [viewAll, setViewAll] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  // A statement grows for the life of the account, so it arrives one page at
+  // a time and the figures that describe all of it come from the server.
+  const [transactionsTotal, setTransactionsTotal] = useState(0);
+  const [totals, setTotals] = useState({ totalEarned: 0, totalSpent: 0 });
   const itemsPerPage = 8;
 
   useScrollLock(showAddMoney);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchWalletData = async () => {
+  const fetchWalletData = async (page = 1) => {
     try {
-      const { data } = await API.get("/wallet");
+      const { data } = await API.get("/wallet", { params: { page, limit: itemsPerPage } });
       setBalance(data.balance);
       setTransactions(data.transactions);
+      setTotals({ totalEarned: data.totalEarned || 0, totalSpent: data.totalSpent || 0 });
+      setTransactionsTotal(data.transactionsTotal ?? data.transactions.length);
     } catch (err) {
       console.error("Failed to fetch wallet data", err);
     } finally {
@@ -86,23 +92,17 @@ const WalletPage = () => {
   };
 
   useEffect(() => {
-    fetchWalletData();
-  }, []);
+    fetchWalletData(currentPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
-  const totalEarned = transactions
-    .filter((t) => t.type === "credit")
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  const totalSpent = transactions
-    .filter((t) => t.type === "debit")
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  // Lifetime figures over the whole statement. Adding up the page would make
+  // them describe only the most recent handful of transactions.
+  const { totalEarned, totalSpent } = totals;
 
-  const displayTransactions = viewAll
-    ? transactions.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage,
-      )
-    : transactions.slice(0, 4);
-  const totalPages = Math.ceil(transactions.length / itemsPerPage);
+  // Already one page from the server; the collapsed view just shows less of it.
+  const displayTransactions = viewAll ? transactions : transactions.slice(0, 4);
+  const totalPages = Math.ceil(transactionsTotal / itemsPerPage);
 
   const handleAddMoney = async (e) => {
     e.preventDefault();
@@ -160,7 +160,7 @@ const WalletPage = () => {
               });
               setAddAmount("");
               setShowAddMoney(false);
-              fetchWalletData(); // Refresh balance
+              fetchWalletData(currentPage); // Refresh balance
             }
           } catch (err) {
             toast({

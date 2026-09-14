@@ -40,6 +40,13 @@ const AdminCommission = () => {
     const [queueTotals, setQueueTotals] = useState({ jobV: 0, com: 0, pay: 0 });
     const [settlements, setSettlements] = useState([]);
     const [withdrawals, setWithdrawals] = useState([]);
+    // Every table here shows one page. How many rows there are, what they add
+    // up to, and how many are still pending are facts about the whole set, so
+    // the server reports them rather than the page being counted.
+    const [settlementsTotal, setSettlementsTotal] = useState(0);
+    const [settlementsTotals, setSettlementsTotals] = useState({ inDebtCount: 0, currentDues: 0, totalSettled: 0 });
+    const [withdrawalsTotal, setWithdrawalsTotal] = useState(0);
+    const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0);
     const [processing, setProcessing] = useState({});
     const [rejectModal, setRejectModal] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
@@ -54,25 +61,30 @@ const AdminCommission = () => {
 
     useEffect(() => {
         setTitle("Commission & Settlements");
-        fetchWithdrawals();
     }, [setTitle]);
 
     // Turning a page is now a request, not a slice.
     useEffect(() => {
-        fetchData(commissionPage);
+        fetchData(commissionPage, settlementPage);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [commissionPage]);
+    }, [commissionPage, settlementPage]);
 
-    const fetchData = async (page = 1) => {
+    useEffect(() => {
+        fetchWithdrawals(withdrawalPage);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [withdrawalPage]);
+
+    const fetchData = async (page = 1, sPage = 1) => {
         setLoading(true);
         try {
-            const { data } = await API.get('/admin/commission', { params: { page, limit: itemsPerPage } });
+            const { data } = await API.get('/admin/commission', { params: { page, limit: itemsPerPage, settlementPage: sPage } });
             setStats(data.stats);
             setQueue(data.queue);
             setQueueTotal(data.queueTotal ?? data.queue.length);
             setQueueTotals(data.queueTotals || { jobV: 0, com: 0, pay: 0 });
             setSettlements(data.settlements || []);
-            setSettlementPage(1);
+            setSettlementsTotal(data.settlementsTotal ?? (data.settlements || []).length);
+            setSettlementsTotals(data.settlementsTotals || { inDebtCount: 0, currentDues: 0, totalSettled: 0 });
             setLoading(false);
         } catch (error) {
             toast({ title: "Error", description: "Failed to fetch commission data", variant: "destructive" });
@@ -80,11 +92,12 @@ const AdminCommission = () => {
         }
     };
 
-    const fetchWithdrawals = async () => {
+    const fetchWithdrawals = async (page = 1) => {
         try {
-            const { data } = await API.get('/admin/withdrawals');
-            setWithdrawals(data);
-            setWithdrawalPage(1);
+            const res = await API.get('/admin/withdrawals', { params: { page, limit: itemsPerPage } });
+            setWithdrawals(res.data);
+            setWithdrawalsTotal(Number(res.headers['x-total-count']) || res.data.length);
+            setPendingWithdrawalsCount(Number(res.headers['x-pending-count']) || 0);
         } catch (error) {
             console.error('Failed to fetch withdrawals', error);
         }
@@ -95,7 +108,7 @@ const AdminCommission = () => {
         try {
             await API.patch(`/admin/withdrawals/${id}`, { status, reason });
             toast({ title: `Withdrawal ${status}`, description: `Request has been ${status} successfully.` });
-            fetchWithdrawals();
+            fetchWithdrawals(withdrawalPage);
             setRejectModal(null);
             setRejectReason('');
         } catch (error) {
@@ -107,17 +120,15 @@ const AdminCommission = () => {
 
     const avgRate = stats.totalJobValue > 0 ? ((stats.platformRevenue / stats.totalJobValue) * 100).toFixed(1) : '0';
 
-    const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
-    const inDebtProviders = settlements.filter(s => s.currentDues > 0);
-
     const totalCommissionPages = Math.ceil(queueTotal / itemsPerPage);
-    const totalSettlementPages = Math.ceil(settlements.length / itemsPerPage);
-    const totalWithdrawalPages = Math.ceil(withdrawals.length / itemsPerPage);
+    const totalSettlementPages = Math.ceil(settlementsTotal / itemsPerPage);
+    const totalWithdrawalPages = Math.ceil(withdrawalsTotal / itemsPerPage);
 
     // Already one page from the server; nothing left to slice.
     const paginatedQueue = queue;
-    const paginatedSettlements = settlements.slice((settlementPage - 1) * itemsPerPage, settlementPage * itemsPerPage);
-    const paginatedWithdrawals = withdrawals.slice((withdrawalPage - 1) * itemsPerPage, withdrawalPage * itemsPerPage);
+    // Both already arrive one page at a time; nothing left to slice.
+    const paginatedSettlements = settlements;
+    const paginatedWithdrawals = withdrawals;
 
     const renderPagination = (currentPage, totalPages, onPageChange, totalRecords) => {
         if (totalPages <= 1) return null;
@@ -168,8 +179,8 @@ const AdminCommission = () => {
 
     const TABS = [
         { id: 'commission', label: 'Commission Breakdown', icon: <ArrowRightLeft className="h-4 w-4" /> },
-        { id: 'cash_limit', label: 'Cash Limit', icon: <ShieldAlert className="h-4 w-4" />, badge: inDebtProviders.length },
-        { id: 'withdrawal', label: 'Withdrawal Requests', icon: <ArrowDownToLine className="h-4 w-4" />, badge: pendingWithdrawals.length },
+        { id: 'cash_limit', label: 'Cash Limit', icon: <ShieldAlert className="h-4 w-4" />, badge: settlementsTotals.inDebtCount },
+        { id: 'withdrawal', label: 'Withdrawal Requests', icon: <ArrowDownToLine className="h-4 w-4" />, badge: pendingWithdrawalsCount },
     ];
 
     return (
@@ -182,7 +193,7 @@ const AdminCommission = () => {
                 </div>
                 <button 
                     onClick={async () => { 
-                        await Promise.all([fetchData(), fetchWithdrawals()]);
+                        await Promise.all([fetchData(commissionPage, settlementPage), fetchWithdrawals(withdrawalPage)]);
                         toast({ title: "Refreshed", description: "Data has been updated." });
                     }} 
                     disabled={loading}
@@ -201,7 +212,7 @@ const AdminCommission = () => {
                     { title: "Provider Payouts", value: `₹${stats.totalProviderPayout.toLocaleString()}`, icon: <CreditCard className="h-4 w-4" />, color: "text-violet-700 bg-violet-50 border-violet-200" },
                     { title: "Avg Commission", value: `${avgRate}%`, icon: <Percent className="h-4 w-4" />, color: "text-orange-700 bg-orange-50 border-orange-200" },
                     { title: "Total Completed", value: stats.totalCompleted, icon: <CalendarCheck className="h-4 w-4" />, color: "text-cyan-700 bg-cyan-50 border-cyan-200" },
-                    { title: "Pending Withdrawals", value: `${pendingWithdrawals.length}`, icon: <Landmark className="h-4 w-4" />, color: "text-amber-700 bg-amber-50 border-amber-200" },
+                    { title: "Pending Withdrawals", value: `${pendingWithdrawalsCount}`, icon: <Landmark className="h-4 w-4" />, color: "text-amber-700 bg-amber-50 border-amber-200" },
                 ].map((s, i) => (
                     <div key={i} className={`rounded-xl border p-4 ${s.color}`}>
                         <div className="flex items-center gap-1.5 mb-2 opacity-80">{s.icon}<p className="text-[10px] font-bold uppercase tracking-wider">{s.title}</p></div>
@@ -339,18 +350,18 @@ const AdminCommission = () => {
             {/* === TAB: CASH LIMIT === */}
             {activeTab === 'cash_limit' && (
                 <div className="space-y-4">
-                    {inDebtProviders.length > 0 && (
+                    {settlementsTotals.inDebtCount > 0 && (
                         <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 rounded-2xl px-5 py-3">
                             <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
                             <p className="text-sm font-bold text-rose-800">
-                                {inDebtProviders.length} provider{inDebtProviders.length > 1 ? 's are' : ' is'} currently in debt — total dues: ₹{inDebtProviders.reduce((s, r) => s + r.currentDues, 0).toLocaleString()}
+                                {settlementsTotals.inDebtCount} provider{settlementsTotals.inDebtCount > 1 ? 's are' : ' is'} currently in debt — total dues: ₹{settlementsTotals.currentDues.toLocaleString()}
                             </p>
                         </div>
                     )}
                     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                             <h3 className="font-bold text-gray-900 flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-rose-600"/> Provider Debt & Cash Limit Ledger</h3>
-                            <span className="text-xs font-bold text-gray-400 uppercase">{settlements.length} Records</span>
+                            <span className="text-xs font-bold text-gray-400 uppercase">{settlementsTotal} Records</span>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -411,15 +422,15 @@ const AdminCommission = () => {
                                         </tr>
                                     ))}
                                 </tbody>
-                                {!loading && settlements.length > 0 && (
+                                {!loading && settlementsTotal > 0 && (
                                     <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                                         <tr>
                                             <td colSpan="3" className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Platform Totals</td>
                                             <td className="px-4 py-3 text-right text-xs font-black text-red-600">
-                                                ₹{settlements.reduce((s, r) => s + (r.currentDues || 0), 0).toLocaleString()}
+                                                ₹{settlementsTotals.currentDues.toLocaleString()}
                                             </td>
                                             <td className="px-4 py-3 text-right text-xs font-black text-emerald-700">
-                                                ₹{settlements.reduce((s, r) => s + (r.totalSettled || 0), 0).toLocaleString()}
+                                                ₹{settlementsTotals.totalSettled.toLocaleString()}
                                             </td>
                                             <td></td>
                                         </tr>
@@ -427,7 +438,7 @@ const AdminCommission = () => {
                                 )}
                             </table>
                         </div>
-                        {renderPagination(settlementPage, totalSettlementPages, setSettlementPage, settlements.length)}
+                        {renderPagination(settlementPage, totalSettlementPages, setSettlementPage, settlementsTotal)}
                     </div>
                 </div>
             )}
@@ -435,18 +446,18 @@ const AdminCommission = () => {
             {/* === TAB: WITHDRAWAL REQUESTS === */}
             {activeTab === 'withdrawal' && (
                 <div className="space-y-4">
-                    {pendingWithdrawals.length > 0 && (
+                    {pendingWithdrawalsCount > 0 && (
                         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3">
                             <Clock className="h-5 w-5 text-amber-600 shrink-0" />
                             <p className="text-sm font-bold text-amber-800">
-                                {pendingWithdrawals.length} pending request{pendingWithdrawals.length > 1 ? 's' : ''} — total: ₹{pendingWithdrawals.reduce((s, w) => s + w.amount, 0).toLocaleString()}
+                                {pendingWithdrawalsCount} pending request{pendingWithdrawalsCount > 1 ? 's' : ''} — total: ₹{(stats.pendingPayouts || 0).toLocaleString()}
                             </p>
                         </div>
                     )}
                     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                             <h3 className="font-bold text-gray-900 flex items-center gap-2"><ArrowDownToLine className="h-4 w-4 text-violet-600"/> Withdrawal Requests</h3>
-                            <span className="text-xs font-bold text-gray-400 uppercase">{withdrawals.length} Total</span>
+                            <span className="text-xs font-bold text-gray-400 uppercase">{withdrawalsTotal} Total</span>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm whitespace-nowrap">
@@ -533,7 +544,7 @@ const AdminCommission = () => {
                                 </tbody>
                             </table>
                         </div>
-                        {renderPagination(withdrawalPage, totalWithdrawalPages, setWithdrawalPage, withdrawals.length)}
+                        {renderPagination(withdrawalPage, totalWithdrawalPages, setWithdrawalPage, withdrawalsTotal)}
                     </div>
                 </div>
             )}

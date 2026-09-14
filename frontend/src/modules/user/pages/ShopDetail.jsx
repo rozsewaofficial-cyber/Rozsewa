@@ -69,6 +69,9 @@ const ShopDetail = () => {
   const [servicesList, setServicesList] = useState([]);
   const [combosList, setCombosList] = useState([]);
   const [reviewsList, setReviewsList] = useState([]);
+  // The reviews below are one page of them. The rating shown beside them is
+  // of every review this provider has, so it is not measured off the page.
+  const [reviewStats, setReviewStats] = useState({ total: 0, average: 0, distribution: [0, 0, 0, 0, 0] });
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -131,9 +134,13 @@ const ShopDetail = () => {
       }));
       setCombosList(mappedCombos);
 
-      // 3. Fetch reviews
-      const { data: reviewsData } = await API.get(`/public/providers/${id}/reviews`);
+      // 3. Fetch reviews, and the rating across all of them
+      const [{ data: reviewsData }, { data: reviewTotals }] = await Promise.all([
+        API.get(`/public/providers/${id}/reviews`),
+        API.get(`/public/providers/${id}/reviews/stats`)
+      ]);
       setReviewsList(reviewsData || []);
+      setReviewStats(reviewTotals || { total: 0, average: 0, distribution: [0, 0, 0, 0, 0] });
 
     } catch (error) {
       console.error("Error loading shop detail:", error);
@@ -467,10 +474,8 @@ const ShopDetail = () => {
           {tab === "reviews" && (
             <motion.div key="reviews" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
               {(() => {
-                const totalReviews = reviewsList.length;
-                const avgRating = totalReviews > 0
-                  ? (reviewsList.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
-                  : "0.0";
+                const totalReviews = reviewStats.total;
+                const avgRating = totalReviews > 0 ? Number(reviewStats.average).toFixed(1) : "0.0";
 
                 return (
                   <div className="flex flex-col sm:flex-row items-center gap-6 rounded-[24px] border border-amber-200 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/20 dark:to-slate-900 p-6 shadow-sm">

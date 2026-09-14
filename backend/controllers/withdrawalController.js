@@ -129,12 +129,18 @@ const requestWithdrawal = async (req, res) => {
 const getWithdrawals = async (req, res) => {
     try {
         // No filter at all: every withdrawal request in the platform.
+        const scope = req.query.status ? { status: req.query.status } : {};
         const withdrawals = await paginate(
-            Withdrawal.find()
+            Withdrawal.find(scope)
                 .populate('providerId', 'shopName ownerName mobile')
                 .sort({ createdAt: -1 }),
             pageParams(req)
         );
+
+        // Screens count the pending ones for a badge. Counting the page would
+        // stop the badge at whatever the page happened to hold.
+        res.set('X-Total-Count', String(await Withdrawal.countDocuments(scope)));
+        res.set('X-Pending-Count', String(await Withdrawal.countDocuments({ status: 'pending' })));
         res.json(withdrawals);
     } catch (error) {
         res.status(500).json({ message: error.message });

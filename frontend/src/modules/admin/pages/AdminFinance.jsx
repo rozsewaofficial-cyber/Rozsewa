@@ -20,6 +20,12 @@ const AdminFinance = () => {
   // Stats & Ledger state
   const [stats, setStats] = useState({ escrowBalance: 0, gstPayable: 0, platformProfit: 0, cashManaged: 0, gstRate: 18 });
   const [ledger, setLedger] = useState([]);
+  // The ledger is a page of the cash book, and the search and status filter
+  // are questions about all of it — so both are the server's job. Filtering
+  // here could only ever find what had already been sent.
+  const [ledgerTotal, setLedgerTotal] = useState(0);
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const ledgerPerPage = 20;
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
   
@@ -45,15 +51,18 @@ const AdminFinance = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const params = { range };
+      const params = { range, page: ledgerPage, limit: ledgerPerPage };
       if (range === "custom") {
         if (!startDate || !endDate) return; // Wait for both dates
         params.startDate = startDate;
         params.endDate = endDate;
       }
+      if (searchTerm) params.search = searchTerm;
+      if (statusFilter !== "all") params.status = statusFilter;
       const { data } = await API.get('/admin/finance', { params });
       setStats(data.stats);
       setLedger(data.ledger);
+      setLedgerTotal(data.ledgerTotal ?? data.ledger.length);
       setTimeline(data.timeline || []);
       setNewGstRate(data.stats.gstRate.toString());
       setLoading(false);
@@ -67,9 +76,17 @@ const AdminFinance = () => {
     }
   };
 
+  // A new question starts at its first page.
   useEffect(() => {
-    fetchData();
-  }, [range, startDate, endDate]);
+    setLedgerPage(1);
+  }, [searchTerm, statusFilter, range, startDate, endDate]);
+
+  // Typing asks the server, so it waits for a pause rather than firing per key.
+  useEffect(() => {
+    const t = setTimeout(() => fetchData(), searchTerm ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, startDate, endDate, searchTerm, statusFilter, ledgerPage]);
 
   const handleUpdateGstRate = async (e) => {
     e.preventDefault();
@@ -116,13 +133,27 @@ const AdminFinance = () => {
     }
   };
 
-  const handleExportCSV = () => {
-    if (filteredLedger.length === 0) {
+  const handleExportCSV = async () => {
+    if (ledgerTotal === 0) {
       toast({ title: "No Data", description: "No ledger transactions found to export." });
       return;
     }
+
+    // The table holds one page, so exporting it would quietly produce a file
+    // of twenty rows. This asks for everything that matched instead.
+    let exportRows = filteredLedger;
+    try {
+      const params = { range, limit: 1000 };
+      if (range === "custom") { params.startDate = startDate; params.endDate = endDate; }
+      if (searchTerm) params.search = searchTerm;
+      if (statusFilter !== "all") params.status = statusFilter;
+      const { data } = await API.get('/admin/finance', { params });
+      exportRows = data.ledger;
+    } catch {
+      toast({ title: "Exporting this page only", description: "Could not load the full ledger.", variant: "destructive" });
+    }
     const headers = ["Transaction ID", "Vendor", "Cash Due (₹)", "Platform Cut (₹)", "Status", "Date"];
-    const rows = filteredLedger.map(item => [
+    const rows = exportRows.map(item => [
       item.id,
       item.vendor,
       item.amount,
@@ -155,12 +186,9 @@ const AdminFinance = () => {
     return `₹${tickItem}`;
   };
 
-  const filteredLedger = ledger.filter(item => {
-    const matchesSearch = item.vendor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || item.status.toLowerCase() === statusFilter.toLowerCase();
-    return matchesSearch && matchesStatus;
-  });
+  // Already the answer to the search and the filter; nothing left to narrow.
+  const filteredLedger = ledger;
+  const ledgerPages = Math.ceil(ledgerTotal / ledgerPerPage);
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -558,6 +586,33 @@ const AdminFinance = () => {
             </tbody>
           </table>
         </div>
+
+        {ledgerPages > 1 && (
+          <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+              {ledgerTotal.toLocaleString('en-IN')} transactions
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setLedgerPage((p) => Math.max(1, p - 1))}
+                disabled={ledgerPage === 1}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition"
+              >
+                Previous
+              </button>
+              <span className="text-xs font-bold text-gray-500">
+                Page {ledgerPage} of {ledgerPages}
+              </span>
+              <button
+                onClick={() => setLedgerPage((p) => Math.min(ledgerPages, p + 1))}
+                disabled={ledgerPage === ledgerPages}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-200 text-gray-600 disabled:opacity-40 hover:bg-gray-50 transition"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

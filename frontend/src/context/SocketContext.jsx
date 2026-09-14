@@ -253,9 +253,10 @@ export const SocketProvider = ({ children }) => {
                 // Refresh updated count
                 const fetchPendingWithdrawals = async () => {
                     try {
-                        const res = await API.get("/admin/withdrawals");
-                        const count = res.data.filter(w => w.status === 'pending').length;
-                        setPendingWithdrawalsCount(count);
+                        // Asking for none of the rows: the badge is a count of every
+                        // pending request, which the page of rows cannot tell us.
+                        const res = await API.get("/admin/withdrawals", { params: { limit: 1 } });
+                        setPendingWithdrawalsCount(Number(res.headers['x-pending-count']) || 0);
                     } catch (err) {
                         console.error("Error updating pending withdrawals count:", err);
                     }
@@ -286,9 +287,10 @@ export const SocketProvider = ({ children }) => {
             };
             const fetchPendingWithdrawals = async () => {
                 try {
-                    const res = await API.get("/admin/withdrawals");
-                    const count = res.data.filter(w => w.status === 'pending').length;
-                    setPendingWithdrawalsCount(count);
+                    // Asking for none of the rows: the badge is a count of every
+                    // pending request, which the page of rows cannot tell us.
+                    const res = await API.get("/admin/withdrawals", { params: { limit: 1 } });
+                    setPendingWithdrawalsCount(Number(res.headers['x-pending-count']) || 0);
                 } catch (err) {
                     console.error("Error fetching initial pending withdrawals:", err);
                 }

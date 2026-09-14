@@ -11,6 +11,9 @@ const ProviderReviews = () => {
   const navigate = useNavigate();
   const [filterRating, setFilterRating] = useState(0); // 0 = all
   const [reviews, setReviews] = useState([]);
+  // The list below is one page of reviews. The headline figures describe
+  // every review this worker has ever had, so they come from the server.
+  const [stats, setStats] = useState({ avg: 0, total: 0, dist: [0, 0, 0, 0, 0], positive: 0 });
   const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState("");
@@ -32,8 +35,17 @@ const ProviderReviews = () => {
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const { data } = await API.get("/bookings/provider/reviews");
+        const [{ data }, { data: totals }] = await Promise.all([
+          API.get("/bookings/provider/reviews"),
+          API.get("/bookings/provider/reviews/stats")
+        ]);
         setReviews(data);
+        setStats({
+          avg: totals.average,
+          total: totals.total,
+          dist: totals.distribution,
+          positive: totals.positivePercent
+        });
       } catch (err) {
         console.error("Failed to fetch reviews", err);
       } finally {
@@ -43,18 +55,6 @@ const ProviderReviews = () => {
     fetchReviews();
   }, []);
 
-  const stats = useMemo(() => {
-    if (reviews.length === 0) return { avg: 0, total: 0, dist: [0, 0, 0, 0, 0], positive: 0 };
-    const dist = [0, 0, 0, 0, 0];
-    let sum = 0;
-    reviews.forEach(r => { sum += r.rating; dist[r.rating - 1]++; });
-    return {
-      avg: (sum / reviews.length).toFixed(1),
-      total: reviews.length,
-      dist,
-      positive: Math.round(((dist[3] + dist[4]) / reviews.length) * 100),
-    };
-  }, [reviews]);
 
   const filtered = filterRating > 0 ? reviews.filter(r => r.rating === filterRating) : reviews;
 
@@ -62,7 +62,7 @@ const ProviderReviews = () => {
     const tips = [];
     if (stats.avg < 4) tips.push("Focus on completing jobs on time to improve ratings.");
     if (stats.dist[0] + stats.dist[1] > 0) tips.push("Address low-rated reviews to prevent pattern of complaints.");
-    if (reviews.length < 10) tips.push("Complete more bookings to build your review profile.");
+    if (stats.total < 10) tips.push("Complete more bookings to build your review profile.");
     if (stats.positive < 80) tips.push("Maintain professional behaviour to increase positive reviews.");
     if (tips.length === 0) tips.push("Great job! Keep up the excellent service quality. 🌟");
     return tips;
@@ -90,7 +90,7 @@ const ProviderReviews = () => {
             <div className="flex flex-col sm:flex-row items-center gap-6">
               {/* Big Rating */}
               <div className="text-center">
-                <div className="text-5xl font-black text-foreground">{stats.avg}</div>
+                <div className="text-5xl font-black text-foreground">{Number(stats.avg).toFixed(1)}</div>
                 <div className="flex gap-1 mt-1 justify-center">
                   {[1, 2, 3, 4, 5].map(s => (
                     <Star key={s} className={`h-4 w-4 ${s <= Math.round(stats.avg) ? "fill-amber-400 text-amber-400" : "text-border"}`} />

@@ -37,6 +37,7 @@ const AdminBookings = () => {
   // How many rows match the current search and filter. The table shows one
   // page of them, so it cannot work this out for itself.
   const [matchingTotal, setMatchingTotal] = useState(0);
+  const [matchingValue, setMatchingValue] = useState(0);
 
   // Reset pagination when search or filters change
   useEffect(() => {
@@ -83,6 +84,8 @@ const AdminBookings = () => {
       setServerStats(totals.data);
       const reported = Number(list.headers?.["x-total-count"]);
       setMatchingTotal(Number.isFinite(reported) ? reported : list.data.length);
+      const value = Number(list.headers?.["x-total-value"]);
+      setMatchingValue(Number.isFinite(value) ? value : 0);
     } catch (err) {
       toast({ title: "Fetch Failed", description: "Could not load bookings history.", variant: "destructive" });
     } finally {
@@ -460,7 +463,8 @@ const AdminBookings = () => {
               </button>
             </div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider hidden sm:block">
-              Total Value: ₹{filteredBookings.reduce((s, b) => s + (b.totalAmount || 0), 0).toLocaleString()}
+              {/* Of everything that matched, not of the page being shown. */}
+              Total Value: ₹{matchingValue.toLocaleString()}
             </p>
           </div>
         )}

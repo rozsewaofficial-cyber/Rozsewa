@@ -464,9 +464,18 @@ const getBookings = async (req, res) => {
             pageParams(req)
         );
 
-        // How many there really are, so a screen showing a page can still say
-        // so. Sent as a header because several callers expect a bare array.
-        res.set('X-Total-Count', String(await Booking.countDocuments(query)));
+        // How many there really are, and what they come to, so a screen showing
+        // a page can still say so. Sent as headers because several callers
+        // expect a bare array.
+        const [count, [value]] = await Promise.all([
+            Booking.countDocuments(query),
+            Booking.aggregate([
+                { $match: query },
+                { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            ])
+        ]);
+        res.set('X-Total-Count', String(count));
+        res.set('X-Total-Value', String(Math.round((value?.total || 0) * 100) / 100));
         res.json(bookings);
     } catch (error) {
         res.status(500).json({ message: error.message });

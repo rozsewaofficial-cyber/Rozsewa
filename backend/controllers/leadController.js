@@ -1091,8 +1091,57 @@ const getAdminLeads = async (req, res) => {
     try {
         const { status, category, page = 1, limit = 50 } = req.query;
         const query = {};
-        if (status) query.status = status;
+        // The screen's status tabs cover two states each, so they are widened
+        // here rather than narrowed to one and then re-filtered in the browser.
+        if (status === 'available') query.status = { $in: ['available', 'partially_unlocked'] };
+        else if (status === 'unlocked') query.status = { $in: ['partially_unlocked', 'fully_unlocked'] };
+        else if (status) query.status = status;
         if (category) query.categoryId = category;
+
+        // Date range, as the screen's two date pickers describe it.
+        const { from, to, city, search } = req.query;
+        if (from || to) {
+            query.createdAt = {};
+            if (from) query.createdAt.$gte = new Date(new Date(from).setHours(0, 0, 0, 0));
+            if (to) query.createdAt.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+        }
+
+        const escape = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // A city is looked for across the parts of an address, the way the
+        // screen used to join them together before searching the text.
+        if (city) {
+            const rx = new RegExp(escape(city), 'i');
+            query.$and = (query.$and || []).concat([{
+                $or: [
+                    { 'locationDetail.city': rx },
+                    { 'locationDetail.state': rx },
+                    { 'locationDetail.area': rx },
+                    { 'locationDetail.street': rx },
+                    { 'locationDetail.landmark': rx },
+                    { 'locationDetail.apartment': rx },
+                    { 'locationDetail.houseNo': rx },
+                    { 'locationDetail.pincode': rx },
+                    { 'requirementForm.address': rx }
+                ]
+            }]);
+        }
+
+        // Searching in the browser could only ever find what had already been
+        // sent, which on a paged list is the first page.
+        if (search) {
+            const User = require('../models/User');
+            const rx = new RegExp(escape(search), 'i');
+            const customers = await User.find({ name: rx }).select('_id').lean();
+            query.$and = (query.$and || []).concat([{
+                $or: [
+                    { service: rx },
+                    { requirementTitle: rx },
+                    { customer: { $in: customers.map(c => c._id) } },
+                    { $expr: { $regexMatch: { input: { $toString: '$_id' }, regex: escape(search), options: 'i' } } }
+                ]
+            }]);
+        }
 
         const total = await Lead.countDocuments(query);
         const leads = await Lead.find(query)

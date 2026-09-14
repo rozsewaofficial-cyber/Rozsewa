@@ -11,12 +11,19 @@ const Notifications = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const { data } = await API.get("/notifications");
+        // The list is the twenty most recent. How many are unread is a
+        // question about all of them, so it is asked separately.
+        const [{ data }, { data: unread }] = await Promise.all([
+          API.get("/notifications"),
+          API.get("/notifications/unread-count")
+        ]);
         setNotifications(data);
+        setUnreadCount(unread.count ?? 0);
       } catch (err) {
         console.error("Failed to fetch notifications", err);
       }
@@ -116,7 +123,7 @@ const Notifications = () => {
 
   const grouped = groupByCategory(notifications);
   const groups = ["Today", "Yesterday", "Older"].filter(g => grouped[g] && grouped[g].length > 0);
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 font-sans pb-28 md:pb-8">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -38,15 +38,26 @@ const AdminLeads = () => {
   const todayDate = new Date().toLocaleDateString("en-CA");
 
   const [currentPage, setCurrentPage] = useState(1);
+  // The leads list is one page of the table. Everything the screen asks of
+  // it — the status tab, the search, the city, the dates — travels with the
+  // request, so the count beside the pager is of what actually matched.
+  const [leadsTotal, setLeadsTotal] = useState(0);
   const itemsPerPage = 10;
 
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, search, filterCity, filterFromDate, filterToDate]);
 
+  // Every one of these is the server's question now, so changing any of them is
+  // a request. Typing waits for a pause rather than firing per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => fetchLeadsData(true), search ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, search, filterCity, filterFromDate, filterToDate, currentPage]);
+
   useEffect(() => {
     setTitle("Leads Management");
-    fetchLeadsData();
 
     const handleNewNotification = (e) => {
       const data = e.detail;
@@ -62,12 +73,20 @@ const AdminLeads = () => {
   const fetchLeadsData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
+      const leadParams = { page: currentPage, limit: itemsPerPage };
+      if (filter !== "all") leadParams.status = filter;
+      if (search) leadParams.search = search;
+      if (filterCity) leadParams.city = filterCity;
+      if (filterFromDate) leadParams.from = filterFromDate;
+      if (filterToDate) leadParams.to = filterToDate;
+
       const [leadsRes, disputesRes, statsRes] = await Promise.all([
-        API.get("/admin/leads"),
+        API.get("/admin/leads", { params: leadParams }),
         API.get("/admin/leads/disputes"),
         API.get("/admin/leads/stats")
       ]);
       setLeads(Array.isArray(leadsRes.data) ? leadsRes.data : (leadsRes.data.leads || []));
+      setLeadsTotal(leadsRes.data.total ?? (leadsRes.data.leads || leadsRes.data).length);
       setDisputes(disputesRes.data);
       setStats(statsRes.data);
     } catch (err) {
@@ -102,60 +121,14 @@ const AdminLeads = () => {
     }
   };
 
-  const filteredLeads = useMemo(() => {
-    return (leads || [])
-      .filter(l => {
-        if (filter === "all") return true;
-        if (filter === "available") return l.status === "available" || l.status === "partially_unlocked";
-        if (filter === "unlocked") return l.status === "partially_unlocked" || l.status === "fully_unlocked";
-        return l.status === filter;
-      })
-      .filter(l => {
-        const searchLower = search.toLowerCase();
-        const serviceName = l.service || l.requirementTitle || l.categoryId?.name || '';
+  // The server answered the status tab, the search, the city and the dates, so
+  // these rows are already the answer. Filtering them again here could only
+  // disagree with it.
+  const filteredLeads = leads || [];
 
-        // Search text
-        if (search && !l._id.toLowerCase().includes(searchLower) && !serviceName.toLowerCase().includes(searchLower) && !(l.customer?.name || '').toLowerCase().includes(searchLower)) {
-          return false;
-        }
-
-        // City / Address filter
-        if (filterCity) {
-          const addr = [
-            l.locationDetail?.houseNo, l.locationDetail?.apartment, l.locationDetail?.street,
-            l.locationDetail?.landmark, l.locationDetail?.area, l.locationDetail?.city,
-            l.locationDetail?.state, l.locationDetail?.pincode
-          ].filter(Boolean).join(', ') + ' ' + (l.requirementForm?.address || '');
-
-          if (!addr.toLowerCase().includes(filterCity.toLowerCase())) {
-            return false;
-          }
-        }
-
-        // Date filter
-        if (filterFromDate || filterToDate) {
-          if (!l.createdAt) return false;
-          const bDate = new Date(l.createdAt);
-          if (filterFromDate) {
-            const fDate = new Date(filterFromDate);
-            fDate.setHours(0, 0, 0, 0);
-            if (bDate < fDate) return false;
-          }
-          if (filterToDate) {
-            const tDate = new Date(filterToDate);
-            tDate.setHours(23, 59, 59, 999);
-            if (bDate > tDate) return false;
-          }
-        }
-
-        return true;
-      });
-  }, [leads, filter, search, filterCity, filterFromDate, filterToDate]);
-
-  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
-  const paginatedLeads = useMemo(() => {
-    return filteredLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  }, [filteredLeads, currentPage]);
+  const totalPages = Math.ceil(leadsTotal / itemsPerPage);
+  // Already the page that was asked for; nothing left to slice.
+  const paginatedLeads = filteredLeads;
 
   const statusConfig = {
     pending: { bg: "bg-slate-100 text-slate-700", label: "Pending" },
@@ -505,9 +478,9 @@ const AdminLeads = () => {
           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
             Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
             <span className="text-gray-900 font-black">
-              {Math.min(currentPage * itemsPerPage, filteredLeads.length)}
+              {Math.min(currentPage * itemsPerPage, leadsTotal)}
             </span>{" "}
-            of <span className="text-gray-900 font-black">{filteredLeads.length}</span> leads
+            of <span className="text-gray-900 font-black">{leadsTotal}</span> leads
           </p>
 
           <div className="flex items-center gap-1">

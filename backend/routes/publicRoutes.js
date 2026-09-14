@@ -10,6 +10,9 @@ router.get('/featured-providers', getFeaturedProviders);
 router.get('/providers', getPublicProviders);
 router.get('/providers/:id', getPublicProviderById);
 router.get('/providers/:id/reviews', getPublicProviderReviews);
+// The reviews above arrive one page at a time; the rating beside them is of
+// every review the provider has.
+router.get('/providers/:id/reviews/stats', require('../controllers/bookingController').getPublicReviewStats);
 router.get('/services/:providerId', getPublicServiceByProvider);
 router.get('/coupons', getPublicCoupons);
 router.post('/coupons/validate', validateCoupon);

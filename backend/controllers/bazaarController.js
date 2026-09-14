@@ -817,7 +817,11 @@ exports.checkUnlockStatus = async (req, res) => {
     // Resolve the applicable fee: per-product override OR global setting
     let fee = ad.unlockFee;
     if (fee === null || fee === undefined) {
-      const setting = await Setting.findOne({ key: 'bazaar_rules' });
+      // Counted rather than measured off the page above, which shows the most
+    // recent unlocks rather than all of them.
+    const totalUnlocks = await BazaarUnlockTransaction.countDocuments({ status: 'success' });
+
+    const setting = await Setting.findOne({ key: 'bazaar_rules' });
       fee = setting?.value?.bazaarCommissionFee ?? 20;
     }
 

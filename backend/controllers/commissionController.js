@@ -8,6 +8,8 @@ const mongoose = require('mongoose');
 const AuditLog = require('../models/AuditLog');
 const ProviderBanner = require('../models/ProviderBanner');
 const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
+const Provider = require('../models/Provider');
+const { pageParams, paginate } = require('../utils/pagination');
 const SettlementQueue = require('../services/SettlementQueueService');
 
 // @desc    Get commission and settlement data
@@ -15,8 +17,6 @@ const SettlementQueue = require('../services/SettlementQueueService');
 // @access  Private (Admin)
 const getCommissionData = async (req, res) => {
     try {
-        const { Transaction } = require('../models/Wallet');
-
         // Totals come from the database, and only one page of rows is loaded.
         // This used to pull every completed booking and every completed Insta
         // job into memory — populated — to produce four numbers and one
@@ -28,43 +28,116 @@ const getCommissionData = async (req, res) => {
         ]);
         const { platformRevenue, totalJobValue, totalProviderPayout } = totals;
 
-        const pendingWithdrawals = await Withdrawal.find({ status: 'pending' });
-        const pendingPayouts = pendingWithdrawals.reduce((sum, w) => sum + w.amount, 0);
-
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
-        const processedTodayDocs = await Withdrawal.find({ status: 'approved', updatedAt: { $gte: startOfToday } });
-        const processedToday = processedTodayDocs.reduce((sum, w) => sum + w.amount, 0);
 
-        // Settlements Logic
-        const wallets = await Wallet.find({ providerId: { $exists: true } }).populate('providerId', 'shopName ownerName vendorCode');
-        // Every settlement transaction ever was loaded and then filtered in
-        // JavaScript once per wallet. Grouped by provider instead, so the work
-        // happens once and only the totals come back.
-        const settlementTotals = new Map(
-            (await Transaction.aggregate([
-                { $match: { title: 'Debt Settlement', status: 'completed' } },
-                { $group: { _id: '$providerId', amount: { $sum: '$amount' } } }
-            ])).map(r => [String(r._id), r])
-        );
+        // Two figures, so two sums. These used to pull every pending withdrawal
+        // and every one approved today into memory to add up their amounts.
+        const [withdrawalSums] = await Withdrawal.aggregate([
+            {
+                $match: {
+                    $or: [
+                        { status: 'pending' },
+                        { status: 'approved', updatedAt: { $gte: startOfToday } }
+                    ]
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, '$amount', 0] } },
+                    processedToday: { $sum: { $cond: [{ $eq: ['$status', 'approved'] }, '$amount', 0] } }
+                }
+            }
+        ]);
+        const pendingPayouts = withdrawalSums?.pending || 0;
+        const processedToday = withdrawalSums?.processedToday || 0;
 
-        const settlements = wallets.map(w => {
-           if (!w.providerId) return null;
-           const totalSettled = settlementTotals.get(String(w.providerId._id))?.amount || 0;
-           
-           if (w.balance < 0 || totalSettled > 0) {
-              return {
-                 _id: w.providerId._id,
-                 shopName: w.providerId.shopName,
-                 ownerName: w.providerId.ownerName,
-                 vendorCode: w.providerId.vendorCode,
-                 currentDues: w.balance < 0 ? Math.abs(w.balance) : 0,
-                 totalSettled: totalSettled,
-                 walletBalance: w.balance
-              }
-           }
-           return null;
-        }).filter(Boolean);
+        // Settlements: one row per provider who owes money or has ever settled
+        // some. This used to load every provider wallet, populated, and every
+        // settlement transaction ever recorded, then narrow both in JavaScript.
+        // Now the database narrows it and hands back one page plus the totals,
+        // so the row under the table describes all of it and not just the page.
+        const settlementRows = [
+            { $match: { providerId: { $exists: true, $ne: null } } },
+            {
+                $lookup: {
+                    from: 'transactions',
+                    let: { pid: '$providerId' },
+                    pipeline: [
+                        {
+                            $match: {
+                                title: 'Debt Settlement',
+                                status: 'completed',
+                                $expr: { $eq: ['$providerId', '$$pid'] }
+                            }
+                        },
+                        { $group: { _id: null, amount: { $sum: '$amount' } } }
+                    ],
+                    as: 'settled'
+                }
+            },
+            {
+                $addFields: {
+                    totalSettled: { $ifNull: [{ $arrayElemAt: ['$settled.amount', 0] }, 0] },
+                    currentDues: { $cond: [{ $lt: ['$balance', 0] }, { $abs: '$balance' }, 0] }
+                }
+            },
+            { $match: { $or: [{ currentDues: { $gt: 0 } }, { totalSettled: { $gt: 0 } }] } }
+        ];
+
+        const settlementLimit = Math.min(200, Math.max(1, Number(limit) || 10));
+        const settlementPage = Math.max(1, Number(req.query.settlementPage) || 1);
+
+        const [settlementFacet] = await Wallet.aggregate([
+            ...settlementRows,
+            {
+                $facet: {
+                    totals: [
+                        {
+                            $group: {
+                                _id: null,
+                                count: { $sum: 1 },
+                                inDebt: { $sum: { $cond: [{ $gt: ['$currentDues', 0] }, 1, 0] } },
+                                currentDues: { $sum: '$currentDues' },
+                                totalSettled: { $sum: '$totalSettled' }
+                            }
+                        }
+                    ],
+                    page: [
+                        { $sort: { currentDues: -1, _id: 1 } },
+                        { $skip: (settlementPage - 1) * settlementLimit },
+                        { $limit: settlementLimit },
+                        // Only the rows being shown need their provider.
+                        {
+                            $lookup: {
+                                from: 'providers',
+                                localField: 'providerId',
+                                foreignField: '_id',
+                                as: 'provider'
+                            }
+                        },
+                        { $unwind: '$provider' },
+                        {
+                            $project: {
+                                _id: 0,
+                                providerId: '$provider._id',
+                                shopName: '$provider.shopName',
+                                ownerName: '$provider.ownerName',
+                                vendorCode: '$provider.vendorCode',
+                                currentDues: 1,
+                                totalSettled: 1,
+                                walletBalance: '$balance'
+                            }
+                        }
+                    ]
+                }
+            }
+        ]);
+
+        // The screen keys rows by _id, as it did when these were wallets.
+        const settlements = (settlementFacet?.page || []).map(r => ({ ...r, _id: r.providerId }));
+        const settlementTotals = settlementFacet?.totals?.[0] || { count: 0, currentDues: 0, totalSettled: 0 };
 
         res.json({
             stats: {
@@ -88,7 +161,14 @@ const getCommissionData = async (req, res) => {
                 com: Math.round(platformRevenue * 100) / 100,
                 pay: Math.round(totalProviderPayout * 100) / 100
             },
-            settlements
+            settlements,
+            settlementsPage: settlementPage,
+            settlementsTotal: settlementTotals.count,
+            settlementsTotals: {
+                inDebtCount: settlementTotals.inDebt || 0,
+                currentDues: Math.round(settlementTotals.currentDues * 100) / 100,
+                totalSettled: Math.round(settlementTotals.totalSettled * 100) / 100
+            }
         });
     } catch (error) {
         console.error('getCommissionData error:', error);
@@ -104,15 +184,22 @@ const getFinanceData = async (req, res) => {
         const { range, startDate, endDate } = req.query;
         const { currentStart, currentEnd, interval } = EarningsAnalyticsService.getPeriodDates(range, startDate, endDate);
 
-        // Escrow Balance (Sum of all wallet balances - point-in-time)
-        const wallets = await Wallet.find();
-        const escrowBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
+        // Escrow Balance (Sum of all wallet balances - point-in-time). One
+        // number, so it is added up in the database rather than by loading
+        // every wallet on the platform to add them up here.
+        const [escrow] = await Wallet.aggregate([
+            { $group: { _id: null, balance: { $sum: '$balance' } } }
+        ]);
+        const escrowBalance = escrow?.balance || 0;
 
-        // Filter bookings by date range
+        // The chart bins these by date, so the rows are still needed — but only
+        // two fields of each, and without hydrating them into documents.
         const completedBookings = await Booking.find({
             status: 'completed',
             createdAt: { $gte: currentStart, $lte: currentEnd }
-        });
+        })
+            .select('adminCommission createdAt')
+            .lean();
         const platformRevenue = completedBookings.reduce((sum, b) => sum + (b.adminCommission || 0), 0);
 
         // Dynamic GST rate from settings
@@ -122,15 +209,54 @@ const getFinanceData = async (req, res) => {
         const gstPayable = platformRevenue * (gstRate / 100);
         const platformProfit = platformRevenue - gstPayable;
 
-        // Cash Managed (COD bookings in date range)
-        const codBookings = await Booking.find({
+        // Cash Managed (COD bookings in date range). The headline figure covers
+        // every one of them; the ledger below it is a page.
+        const codScope = {
             status: 'completed',
             paymentMode: 'after',
             createdAt: { $gte: currentStart, $lte: currentEnd }
-        }).populate('providerId', 'shopName');
-        const cashManaged = codBookings.reduce((sum, b) => sum + b.totalAmount, 0);
+        };
+        const [codTotals] = await Booking.aggregate([
+            { $match: codScope },
+            { $group: { _id: null, cash: { $sum: '$totalAmount' } } }
+        ]);
+        const cashManaged = codTotals?.cash || 0;
 
-        // Ledger
+        // Ledger. The screen searches by vendor name and filters by whether the
+        // cash has been collected, so both happen here — searching in the browser
+        // could only ever find what had already been sent, which is one page.
+        const ledgerScope = { ...codScope };
+        const wanted = String(req.query.status || "").toLowerCase();
+        if (wanted === 'settled') ledgerScope.paymentStatus = 'paid';
+        else if (wanted === 'due') ledgerScope.paymentStatus = { $ne: 'paid' };
+
+        const term = String(req.query.search || "").trim();
+        if (term) {
+            // Escaped both times: what was typed is a name to look for, not a
+            // pattern to run.
+            const escape = (v) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const rx = new RegExp(escape(term), "i");
+            // A ledger id is the tail of the booking id, so a search for one is a
+            // search for bookings whose id ends that way.
+            const bare = escape(term.replace(/^COD-/i, ""));
+            const shops = await Provider.find({ shopName: rx }).select("_id").lean();
+            ledgerScope.$or = [
+                { providerId: { $in: shops.map(p => p._id) } },
+                { $expr: { $regexMatch: { input: { $toString: "$_id" }, regex: bare, options: "i" } } }
+            ];
+        }
+
+        const ledgerParams = pageParams(req);
+        const [ledgerTotal, codBookings] = await Promise.all([
+            Booking.countDocuments(ledgerScope),
+            paginate(
+                Booking.find(ledgerScope)
+                    .populate('providerId', 'shopName')
+                    .sort({ createdAt: -1 }),
+                ledgerParams
+            )
+        ]);
+
         const ledger = codBookings.map(b => ({
             _id: b._id,
             id: `COD-${b._id.toString().slice(-6).toUpperCase()}`,
@@ -171,6 +297,9 @@ const getFinanceData = async (req, res) => {
                 gstRate
             },
             ledger,
+            // What matched, so the table can page through it and the export can
+            // cover it rather than stopping at the rows on screen.
+            ledgerTotal,
             timeline
         });
     } catch (error) {

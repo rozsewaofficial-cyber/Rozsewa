@@ -426,7 +426,7 @@ const TransactionsTab = () => {
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center">
           <TrendingUp className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-          <p className="text-2xl font-black text-blue-600">{data.transactions.length}</p>
+          <p className="text-2xl font-black text-blue-600">{data.totalUnlocks ?? data.transactions.length}</p>
           <p className="text-xs text-slate-500 mt-0.5">Total Unlocks</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center">

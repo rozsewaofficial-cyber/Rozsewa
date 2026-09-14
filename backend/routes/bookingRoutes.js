@@ -3,7 +3,10 @@ const router = express.Router();
 const { 
     createBooking, getUserBookings, getProviderBookings, updateBooking, 
     updateBookingStatusByProvider, verifyStartOTP, verifyEndOTP, 
-    getProviderReviews, submitReview, replyReview,
+    getProviderReviews,
+    getProviderBookingStats,
+    getProviderReviewStats,
+    submitReview, replyReview,
     proposeSchedule, acceptSchedule, rejectSchedule, checkOverlapStatus,
     counterOfferBooking, acceptCounterOffer, rejectCounterOffer, collectPayment
 } = require('../controllers/bookingController');
@@ -12,6 +15,7 @@ const { protect } = require('../middleware/authMiddleware');
 router.post('/', protect, createBooking);
 router.get('/', protect, getUserBookings);
 router.get('/provider', protect, getProviderBookings);
+router.get('/provider/stats', protect, getProviderBookingStats);
 router.get('/provider/overlap-check', protect, checkOverlapStatus);
 router.put('/:id', protect, updateBooking);
 router.patch('/:id/status', protect, updateBookingStatusByProvider);
@@ -19,6 +23,8 @@ router.post('/:id/start', protect, verifyStartOTP);
 router.post('/:id/complete', protect, verifyEndOTP);
 router.post('/:id/review', protect, submitReview);
 router.get('/provider/reviews', protect, getProviderReviews);
+// The rating itself, over every review rather than the page above.
+router.get('/provider/reviews/stats', protect, getProviderReviewStats);
 router.post('/:id/reply', protect, replyReview);
 
 router.patch('/:id/propose-schedule', protect, proposeSchedule);
