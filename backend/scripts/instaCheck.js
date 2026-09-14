@@ -682,4 +682,80 @@ check('the customer is warned before booking, not at the end', () => {
     assert.ok(/estimatedTotal/.test(src), 'and what they will actually pay');
 });
 
+
+console.log('\nOnly time the customer approved may be billed');
+const extSrc = () => require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'controllers', 'instaCustomerController.js'), 'utf8');
+
+check('approving adds exactly what was asked for, declining adds nothing', () => {
+    const src = extSrc();
+    assert.ok(/job\.approvedExtraMinutes = \(job\.approvedExtraMinutes \|\| 0\) \+ pending\.requestedMinutes/.test(src),
+        'an approval must add the requested minutes');
+    // Scoped to this handler: the file has many else branches, and only this
+    // one's treatment of the ceiling is under test.
+    const handler = src.slice(src.indexOf('const respondToExtension'), src.indexOf('const selectPartner'));
+    const declineBranch = handler.slice(handler.indexOf('} else {'), handler.indexOf('Declined duration extension') + 40);
+    assert.ok(declineBranch.length > 0, 'the decline branch must still exist');
+    assert.ok(!/approvedExtraMinutes/.test(declineBranch), 'declining must not move the ceiling');
+});
+
+check('a request the customer sat on cannot still be cashed in', () => {
+    // Expiry is applied when the response is read, not only by the cron, so a
+    // late approval cannot revive a request that has already lapsed.
+    const src = extSrc();
+    assert.ok(/expireStaleExtensions\(job, cfg\.extensionResponseMinutes\)/.test(src),
+        'stale requests must expire before a response is accepted');
+    assert.ok(/if \(!pending\)[\s\S]{0,160}may have expired/.test(src),
+        'with no pending request the response must be refused');
+});
+
+check('the ceiling is booked time plus approvals plus the admin tolerance', () => {
+    // Declined: 60 booked + 0 + 30 tolerance.
+    assert.strictEqual(P.billableMinutes({
+        workedMinutes: 170, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes: 0
+    }).authorisedMinutes, 90);
+    // Approved an hour: the ceiling moves by exactly that hour.
+    assert.strictEqual(P.billableMinutes({
+        workedMinutes: 170, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes: 60
+    }).authorisedMinutes, 150);
+    // Two approvals stack.
+    assert.strictEqual(P.billableMinutes({
+        workedMinutes: 230, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes: 90
+    }).authorisedMinutes, 180);
+});
+
+check('the answer is worth real money, which is the point of asking', () => {
+    const service = { pricingType: 'per_hour', name: 'Clean' };
+    const bill = (approvedExtraMinutes) => {
+        const cap = P.billableMinutes({ workedMinutes: 170, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes });
+        return P.finalBill({
+            service, rate: 150, bookedQuantity: 1,
+            workedMinutes: cap.billableMinutes, billingIntervalMinutes: 30
+        }).subtotal;
+    };
+    // Same work, same request — only the customer's answer differs.
+    assert.strictEqual(bill(0), 225);
+    assert.strictEqual(bill(60), 375);
+});
+
+check('time beyond the ceiling is recorded rather than silently dropped', () => {
+    // The worker can query what they were not paid for.
+    const cap = P.billableMinutes({ workedMinutes: 170, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes: 60 });
+    assert.strictEqual(cap.billableMinutes, 150);
+    assert.strictEqual(cap.unbilledOverrunMinutes, 20);
+});
+
+check('the customer is actually given a way to answer', () => {
+    // The approval endpoint is worth nothing if the prompt never reaches them —
+    // the same way custom pricing was unbillable for want of an input.
+    const api = extSrc();
+    assert.ok(/pendingExtension: job\.extensions\.find\(e => e\.status === 'pending'\)/.test(api),
+        'the live job must expose the pending request');
+    const ui = require('fs').readFileSync(
+        require('path').join(__dirname, '..', '..', 'frontend', 'src', 'modules', 'user', 'pages', 'InstaWork.jsx'), 'utf8');
+    assert.ok(/live\?\.pendingExtension/.test(ui), 'the customer screen must read it');
+    assert.ok(/approve: true/.test(ui) && /approve: false/.test(ui),
+        'both answers must be offered');
+});
+
 console.log(`\n${passed} Insta Work checks passed.\n`);
