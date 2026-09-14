@@ -352,13 +352,18 @@ const checkExpiringSubscriptions = async () => {
         twoDaysLater.setDate(today.getDate() + 2);
 
         // Find providers whose subscription expires in exactly 2 days
+        // A reminder fan-out: only who to reach and what to call them, and
+        // capped so one bad expiry date cannot turn this into a full scan.
         const providers = await Provider.find({
             isSubscribed: true,
             subscriptionExpiry: {
                 $gte: today,
                 $lte: twoDaysLater
             }
-        });
+        })
+            .select('ownerName shopName mobile email subscriptionExpiry fcmTokens')
+            .limit(5000)
+            .lean();
 
         for (const provider of providers) {
             await sendNotificationToUser(provider._id, 'provider', {

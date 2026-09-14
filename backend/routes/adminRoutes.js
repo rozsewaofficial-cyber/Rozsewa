@@ -43,6 +43,7 @@ const {
     addZone,
     deleteZone,
     getEmployees,
+    getEmployeeStats,
     addEmployee,
     updateEmployee,
     deleteEmployee,
@@ -125,6 +126,7 @@ router.get('/notifications', protect, employee, getAdminNotifications);
 // HRM Management
 
 router.get('/employees', protect, supervisor, getEmployees);
+router.get('/employees/stats', protect, supervisor, getEmployeeStats);
 router.post('/employees', protect, supervisor, addEmployee);
 router.put('/employees/:id', protect, supervisor, updateEmployee);
 router.delete('/employees/:id', protect, supervisor, deleteEmployee);

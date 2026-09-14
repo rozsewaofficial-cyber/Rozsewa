@@ -1570,46 +1570,149 @@ async function deleteZone(req, res) {
 // @desc    Get all employees
 // @route   GET /api/admin/employees
 // @access  Private/Admin
-async function getEmployees(req, res) {
+/**
+ * Which employees this admin may see. A supervisor sees their own team; an
+ * admin sees everyone. Shared with the stats below so a card's count and the
+ * rows under it can never describe two different sets.
+ */
+const employeeScope = async (req, { includeStatus = true, includeSearch = true } = {}) => {
+    const { status, view, role, city, supervisorCode } = req.query;
+    let query = includeStatus && status ? { status } : {};
+
+    // The screen shows supervisors and everyone else as two separate tables.
+    if (view === 'supervisor') query.role = 'supervisor';
+    else if (view === 'employee') query.role = { $ne: 'supervisor' };
+    if (role && role !== 'all') query.role = role;
+
+    if (city && city !== 'all') query.city = city;
+    if (supervisorCode && supervisorCode !== 'all') query.supervisorCode = supervisorCode;
+
+    // Searching in the browser could only ever find what had already been sent,
+    // which on a paged list is one page.
+    const term = String(includeSearch ? (req.query.search || '') : '').trim();
+    if (term) {
+        const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c), 'i');
+        query.$and = (query.$and || []).concat([{
+            $or: [{ name: rx }, { email: rx }, { mobile: rx }, { ownCode: rx }, { city: rx }, { supervisorCode: rx }]
+        }]);
+    }
+
+    if (req.user.role === 'supervisor') {
+        const supervisorEmp = await Employee.findOne({ userId: req.user._id }).select("_id").lean();
+        query = supervisorEmp
+            ? { ...query, $or: [{ managedBy: supervisorEmp._id }, { createdBy: req.user._id }] }
+            : { ...query, createdBy: req.user._id };
+    }
+
+    return query;
+};
+
+// @desc    Counts behind the HRM screen
+// @route   GET /api/admin/employees/stats
+// @access  Private/Supervisor
+// The table arrives one page at a time, so counting its rows would report the
+// size of the page as the size of the staff.
+async function getEmployeeStats(req, res) {
     try {
-        const { status } = req.query;
-        let query = status ? { status } : {};
+        // Not narrowed by the status filter or the view, since the cards count
+        // both groups, and not by the search, so they keep describing the staff
+        // while the table answers what was typed.
+        const scope = await employeeScope(
+            { ...req, query: { ...req.query, view: undefined, role: undefined } },
+            { includeStatus: false, includeSearch: false }
+        );
 
-        if (req.user.role === 'supervisor') {
-            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
-            if (supervisorEmp) {
-                query = { ...query, $or: [{ managedBy: supervisorEmp._id }, { createdBy: req.user._id }] };
-            } else {
-                query = { ...query, createdBy: req.user._id };
-            }
-        }
-
-        const employees = await Employee.find(query)
-            .populate('userId')
-            .populate('managedBy')
-            .populate({ path: 'createdBy', select: 'name role' })
-            .sort({ createdAt: -1 });
-
-        const updatedEmployees = await Promise.all(employees.map(async (emp) => {
-            let empObj = emp.toObject();
-
-            // Check if managedBy was set to a User ID instead of an Employee ID, or if missing and created by supervisor
-            if (!empObj.managedBy || !empObj.managedBy.ownCode) {
-                const targetUserId = empObj.managedBy || (empObj.createdBy && empObj.createdBy.role === 'supervisor' ? empObj.createdBy._id : null);
-                if (targetUserId) {
-                    const supervisor = await Employee.findOne({ userId: targetUserId });
-                    if (supervisor) {
-                        empObj.managedBy = {
-                            _id: supervisor._id,
-                            ownCode: supervisor.ownCode,
-                            name: supervisor.name
-                        };
-                    }
+        const rows = await Employee.aggregate([
+            { $match: scope },
+            {
+                $group: {
+                    _id: { role: '$role', status: '$status' },
+                    n: { $sum: 1 }
                 }
             }
-            return empObj;
-        }));
+        ]);
 
+        // The screen splits staff into supervisors and everyone else, and shows
+        // a different set of cards for each.
+        const supervisor = { total: 0, verified: 0, pending: 0 };
+        const staff = { total: 0, fieldStaff: 0, employees: 0, pending: 0 };
+
+        rows.forEach(({ _id, n }) => {
+            const isSupervisor = _id.role === 'supervisor';
+            const bucket = isSupervisor ? supervisor : staff;
+            bucket.total += n;
+            if (_id.status === 'pending') bucket.pending += n;
+            if (isSupervisor) {
+                if (_id.status === 'verified') supervisor.verified += n;
+            } else {
+                if (_id.role === 'field_staff') staff.fieldStaff += n;
+                if (_id.role === 'employee') staff.employees += n;
+            }
+        });
+
+        // The dropdowns offer the cities and supervisors that exist, which one
+        // page of rows cannot know.
+        const [cities, supervisors] = await Promise.all([
+            Employee.distinct('city', scope),
+            Employee.distinct('supervisorCode', scope)
+        ]);
+
+        res.json({
+            supervisor,
+            staff,
+            cities: cities.filter(Boolean).sort(),
+            supervisors: supervisors.filter(Boolean).sort()
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+}
+
+async function getEmployees(req, res) {
+    try {
+        const query = await employeeScope(req);
+
+        const employees = await paginate(
+            Employee.find(query)
+                .populate('userId')
+                .populate('managedBy')
+                .populate({ path: 'createdBy', select: 'name role' })
+                .sort({ createdAt: -1 })
+                .lean(),
+            pageParams(req)
+        );
+
+        // Some rows have managedBy pointing at a User rather than an Employee.
+        // The repair used to run a findOne per row inside a map; it is one query
+        // for whichever rows on this page need it.
+        const needsRepair = employees.filter(e => !e.managedBy || !e.managedBy.ownCode);
+        const targetUserIds = needsRepair
+            .map(e => e.managedBy || (e.createdBy && e.createdBy.role === 'supervisor' ? e.createdBy._id : null))
+            .filter(Boolean);
+
+        const supervisors = targetUserIds.length
+            ? await Employee.find({ userId: { $in: targetUserIds } }).select('_id userId ownCode name').lean()
+            : [];
+        const supervisorByUser = new Map(supervisors.map(s => [String(s.userId), s]));
+
+        const updatedEmployees = employees.map((empObj) => {
+            if (empObj.managedBy && empObj.managedBy.ownCode) return empObj;
+
+            const targetUserId = empObj.managedBy || (empObj.createdBy && empObj.createdBy.role === 'supervisor' ? empObj.createdBy._id : null);
+            const supervisor = targetUserId ? supervisorByUser.get(String(targetUserId)) : null;
+            if (!supervisor) return empObj;
+
+            return {
+                ...empObj,
+                managedBy: {
+                    _id: supervisor._id,
+                    ownCode: supervisor.ownCode,
+                    name: supervisor.name
+                }
+            };
+        });
+
+        res.set('X-Total-Count', String(await Employee.countDocuments(query)));
         res.json(updatedEmployees);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1897,7 +2000,10 @@ const deleteEmergencyAlert = async (req, res) => {
 
 const getAllAdmins = async (req, res) => {
     try {
-        const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } }).select('-password').sort({ createdAt: -1 });
+        const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } })
+            .select('-password')
+            .sort({ createdAt: -1 })
+            .limit(500);
         res.json(admins);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -2348,34 +2454,28 @@ const getPendingSewaks = async (req, res) => {
         };
 
         if (req.user.role === 'supervisor') {
-            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
-            if (supervisorEmp) {
-                const employees = await Employee.find({
-                    $or: [
-                        { managedBy: supervisorEmp._id },
-                        { supervisorCode: supervisorEmp.ownCode },
-                        { createdBy: req.user._id }
-                    ]
-                });
-                const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
-                const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
-                query = {
-                    ...query,
-                    $and: [
-                        {
-                            $or: [
-                                { referredBy: { $in: teamCodes } },
-                                { onboardedByStaff: { $in: teamCodes } }
-                            ]
-                        }
-                    ]
-                };
-            } else {
-                return res.json([]);
-            }
+            const team = await teamCodesFor(req.user._id);
+            // No employee record means no team, which means nothing to see.
+            if (!team) return res.json([]);
+
+            // `$and`, not a merged `$or`: this query already has one, and
+            // folding the team restriction into it would widen it instead of
+            // narrowing it.
+            query = {
+                ...query,
+                $and: [{ $or: sewaksOfTeam(team.codes).$or }]
+            };
         }
 
-        const sewaks = await Provider.find(query).sort({ updatedAt: -1 });
+        // A KYC queue is worked through, not read in one go.
+        const sewaks = await paginate(
+            Provider.find(query)
+                .select(SEWAK_LIST_FIELDS)
+                .sort({ updatedAt: -1 }),
+            pageParams(req)
+        );
+
+        res.set('X-Total-Count', String(await Provider.countDocuments(query)));
         res.json(sewaks);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -2926,7 +3026,10 @@ const getAdminKycPerformance = async (req, res) => {
         ]);
 
         // Merge with Admin details to show limit etc.
-        const admins = await User.find({ role: 'admin' }, 'name kycLimit kycBonusPerVerification kycAccess');
+        // Joined against the performance rows above; capped like any other read.
+        const admins = await User.find({ role: 'admin' }, 'name kycLimit kycBonusPerVerification kycAccess')
+            .limit(500)
+            .lean();
 
         const report = admins.map(admin => {
             const perf = performance.find(p => p._id && p._id.toString() === admin._id.toString()) || { totalVerified: 0, totalBonus: 0, totalSewakVerified: 0, totalVendorVerified: 0 };
@@ -2972,20 +3075,36 @@ const getSewakIncentives = async (req, res) => {
         // Fetch Sewaks
         const sewakQuery = { providerCategory: 'sewak' };
         if (sewakId) sewakQuery._id = sewakId;
-        const sewaks = await Provider.find(sewakQuery).select('ownerName mobile shopName');
+        const sewaks = await Provider.find(sewakQuery)
+            .select('ownerName mobile shopName')
+            .limit(5000)
+            .lean();
 
-        // Calculate counts for each sewak
-        const logs = await Promise.all(sewaks.map(async (sewak) => {
-            const dailyBookingCount = await Booking.countDocuments({
-                providerId: sewak._id,
-                status: 'completed',
-                updatedAt: { $gte: startOfDay, $lte: endOfDay }
-            });
+        const sewakIds = sewaks.map(s => s._id);
 
-            const incentiveLog = await SewakIncentiveLog.findOne({
-                sewakId: sewak._id,
-                date: queryDate
-            });
+        // Three queries for the whole report, not two per sewak. This used to
+        // run a countDocuments and a findOne inside a map over every sewak on
+        // the platform, so a thousand of them meant two thousand round trips.
+        const [dayCounts, incentiveLogs] = await Promise.all([
+            Booking.aggregate([
+                {
+                    $match: {
+                        providerId: { $in: sewakIds },
+                        status: 'completed',
+                        updatedAt: { $gte: startOfDay, $lte: endOfDay }
+                    }
+                },
+                { $group: { _id: '$providerId', n: { $sum: 1 } } }
+            ]),
+            SewakIncentiveLog.find({ sewakId: { $in: sewakIds }, date: queryDate }).lean()
+        ]);
+
+        const countByProvider = new Map(dayCounts.map(r => [String(r._id), r.n]));
+        const logBySewak = new Map(incentiveLogs.map(l => [String(l.sewakId), l]));
+
+        const logs = sewaks.map((sewak) => {
+            const dailyBookingCount = countByProvider.get(String(sewak._id)) || 0;
+            const incentiveLog = logBySewak.get(String(sewak._id));
 
             return {
                 _id: incentiveLog?._id || sewak._id, // Fallback to sewak ID if no log
@@ -2995,7 +3114,7 @@ const getSewakIncentives = async (req, res) => {
                 earned: dailyBookingCount > threshold,
                 date: queryDate
             };
-        }));
+        });
 
         // Sort by count descending
         logs.sort((a, b) => b.dailyBookingCount - a.dailyBookingCount);
@@ -3543,7 +3662,9 @@ const clearUnauthorizedPaymentFlag = async (req, res) => {
 const getBookingPaymentAudit = async (req, res) => {
     try {
         const PaymentAudit = require('../models/PaymentAudit');
+        // One booking's payment trail. Capped: an audit log only grows.
         const audit = await PaymentAudit.find({ bookingId: req.params.id })
+            .limit(500)
             .sort({ createdAt: 1 })
             .populate('providerId', 'ownerName shopName')
             .populate('staffId', 'name')
@@ -3677,6 +3798,7 @@ module.exports = {
     addZone,
     deleteZone,
     getEmployees,
+    getEmployeeStats,
     addEmployee,
     updateEmployee,
     deleteEmployee,

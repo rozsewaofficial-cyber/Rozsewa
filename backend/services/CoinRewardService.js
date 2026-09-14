@@ -281,6 +281,9 @@ const onBookingReversed = async (bookingId, reason = 'Order cancelled or refunde
 
         // 2. Take back what was earned off the back of this order.
         const bookingRef = booking._id.toString();
+        // Everything credited off the back of one order. Capped: a single
+        // booking should never have hundreds of reward rows, and if it does
+        // that is a bug to find rather than a query to run unbounded.
         const earned = await CoinLedger.find({
             type: 'CREDIT',
             source: { $in: ['FIRST_ORDER', 'TARGET_ACHIEVEMENT', 'REFERRAL_REWARD'] },
@@ -289,7 +292,7 @@ const onBookingReversed = async (bookingId, reason = 'Order cancelled or refunde
                 { 'meta.bookingId': bookingRef },
                 { 'meta.triggerBookingId': bookingRef }
             ]
-        });
+        }).limit(500);
 
         for (const row of earned) {
             await clawback(row, reason);

@@ -857,7 +857,12 @@ exports.getOfferHistory = async (req, res) => {
          const specificOffer = await BazaarOffer.findById(offerId).populate('buyerId', 'name avatar').lean();
          return res.json({ success: true, data: specificOffer ? [specificOffer] : [] });
        }
-       const offers = await BazaarOffer.find({ adId }).populate('buyerId', 'name avatar').lean();
+       // Every negotiation on one listing — few in practice, capped all the same.
+    const offers = await BazaarOffer.find({ adId })
+      .populate('buyerId', 'name avatar')
+      .sort({ updatedAt: -1 })
+      .limit(500)
+      .lean();
        return res.json({ success: true, data: offers });
     } else {
        offer = await BazaarOffer.findOne({ adId, buyerId: userId }).lean();

@@ -49,7 +49,9 @@ walk(path.join(BE, 'controllers')).concat(walk(path.join(BE, 'services'))).forEa
         if (CONFIG.test(m[1])) return;
         if (!/await|return|=\s*$/.test(lines.slice(Math.max(0, i - 2), i + 1).join(' '))) return;
 
-        const stmt = lines.slice(i, i + 16).join(' ');
+        // An aggregation pipeline can run long before it reaches its $limit, so
+        // it gets a wider window than a find() chain.
+        const stmt = lines.slice(i, i + (/\.aggregate\(/.test(line) ? 45 : 16)).join(' ');
         const bounded =
             /\.limit\(/.test(stmt) ||
             /\$limit/.test(stmt) ||
@@ -58,7 +60,7 @@ walk(path.join(BE, 'controllers')).concat(walk(path.join(BE, 'services'))).forEa
             // Looking up a known set of ids is bounded by that set — which is
             // usually the page of rows that produced it. This is the shape a
             // fixed N+1 takes, so flagging it would flag the cure.
-            /_id: \{ \$in:/.test(stmt) ||
+            /\w*[iI]d: \{ \$in:/.test(stmt) ||
             // An aggregation that only groups down to totals is bounded by its
             // own shape, however many documents it reads on the way.
             (/\.aggregate\(/.test(line) && /_id: null/.test(stmt) && !/\$push/.test(stmt));

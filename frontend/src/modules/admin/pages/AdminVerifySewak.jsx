@@ -27,6 +27,7 @@ const AdminVerifySewak = () => {
   
   // Data States
   const [sewaks, setSewaks] = useState([]);
+  const [pendingTotal, setPendingTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   
   // Selection States
@@ -59,8 +60,11 @@ const AdminVerifySewak = () => {
   const fetchPendingSewaks = async () => {
     setLoading(true);
     try {
-      const { data } = await API.get("/admin/sewaks/pending-kyc");
+      const res = await API.get("/admin/sewaks/pending-kyc");
+      const { data } = res;
       setSewaks(data);
+      // How many applicants are waiting, across the whole queue.
+      setPendingTotal(Number(res.headers?.["x-total-count"]) || data.length);
       if (data.length > 0) {
         setSelectedSewakId(data[0]._id);
       }
@@ -486,7 +490,7 @@ const AdminVerifySewak = () => {
           <div className={`${isSidebarOpen ? 'block' : 'hidden'} lg:block lg:col-span-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm p-4 space-y-4 max-h-[85vh] overflow-y-auto`}>
             <div className="flex justify-between items-center px-1">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Pending applicants ({sortedSewaks.length})
+                Pending applicants ({pendingTotal})
               </span>
               <button 
                 onClick={fetchPendingSewaks}

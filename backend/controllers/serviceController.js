@@ -60,10 +60,16 @@ const getMyServices = async (req, res) => {
         // Latest non-cancelled session per service, for the Skill Session badges.
         const sessionsByKey = new Map();
         if (isSewak) {
+            // One badge per service, so only the fields a badge shows — and a
+            // ceiling, since re-sessions accumulate.
             const sessions = await SkillSession.find({
                 sewakId: req.user._id,
                 status: { $ne: 'cancelled' }
-            }).sort({ createdAt: -1 }).lean();
+            })
+                .select('serviceKey serviceName status mode scheduledDate scheduledTime centerId')
+                .sort({ createdAt: -1 })
+                .limit(1000)
+                .lean();
             for (const s of sessions) {
                 if (!sessionsByKey.has(s.serviceKey)) sessionsByKey.set(s.serviceKey, s);
             }

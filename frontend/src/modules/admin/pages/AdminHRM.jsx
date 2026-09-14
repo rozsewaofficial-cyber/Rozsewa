@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import TablePager from "@/modules/admin/components/TablePager";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -43,6 +44,13 @@ const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 
 const AdminHRM = ({ view }) => {
     const { setTitle } = useOutletContext();
     const [allEmployees, setAllEmployees] = useState([]);
+    // The table shows one page. The cards above it, the city and supervisor
+    // dropdowns and the pager all describe the whole staff, so they come from
+    // the server — and the search and filters travel with the request.
+    const [employeesTotal, setEmployeesTotal] = useState(0);
+    const [serverStats, setServerStats] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -165,7 +173,18 @@ const AdminHRM = ({ view }) => {
         else if (view === 'employee') setTitle("Staff / Employees");
         else setTitle("HRM Portal");
     }, [view, setTitle]);
-    useEffect(() => { fetchEmployees(); }, []);
+    // A new question starts at its first page.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [view, search, roleFilter, cityFilter, supervisorFilter]);
+
+    // Every filter is the server's question now. Typing waits for a pause
+    // rather than firing per keystroke.
+    useEffect(() => {
+        const t = setTimeout(() => fetchEmployees(), search ? 350 : 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [view, search, roleFilter, cityFilter, supervisorFilter, currentPage]);
 
     useEffect(() => {
         if (aadhaarCooldown <= 0) return;
@@ -178,7 +197,28 @@ const AdminHRM = ({ view }) => {
 
     const fetchEmployees = async () => {
         try {
-            const { data } = await API.get("/admin/employees");
+            const scope = {
+                ...(view !== "all" ? { view } : {}),
+                ...(roleFilter !== "all" ? { role: roleFilter } : {}),
+                ...(cityFilter !== "all" ? { city: cityFilter } : {}),
+                ...(supervisorFilter !== "all" ? { supervisorCode: supervisorFilter } : {})
+            };
+            // The stats call carries neither the view nor the search, so the
+            // cards keep describing the whole staff.
+            const [list, totals] = await Promise.all([
+                API.get("/admin/employees", {
+                    params: {
+                        ...scope,
+                        ...(search ? { search } : {}),
+                        page: currentPage,
+                        limit: itemsPerPage
+                    }
+                }),
+                API.get("/admin/employees/stats")
+            ]);
+            const { data } = list;
+            setEmployeesTotal(Number(list.headers?.["x-total-count"]) || data.length);
+            setServerStats(totals.data);
             setAllEmployees(data);
             setLoading(false);
         } catch (error) {
@@ -186,64 +226,43 @@ const AdminHRM = ({ view }) => {
         }
     };
 
+    // The server answered the view, the search, the role, the city and the
+    // supervisor, so these rows are already the answer.
     useEffect(() => {
-        let filtered = allEmployees;
-        if (view === 'supervisor') filtered = allEmployees.filter(e => e.role === 'supervisor');
-        else if (view === 'employee') filtered = allEmployees.filter(e => e.role !== 'supervisor');
-
-        if (cityFilter !== "all") {
-            filtered = filtered.filter(e => e.city === cityFilter || e.userId?.city === cityFilter);
-        }
-
-        if (supervisorFilter !== "all") {
-            filtered = filtered.filter(e => (e.managedBy?.ownCode === supervisorFilter) || (e.supervisorCode === supervisorFilter));
-        }
-
-        if (search) {
-            const s = search.toLowerCase();
-            filtered = filtered.filter(e =>
-                e.name.toLowerCase().includes(s) ||
-                (e.email || "").toLowerCase().includes(s) ||
-                (e.mobile || "").includes(s) ||
-                (e.ownCode || "").toLowerCase().includes(s) ||
-                (e.city || e.userId?.city || "").toLowerCase().includes(s) ||
-                (e.supervisorCode || e.managedBy?.ownCode || "").toLowerCase().includes(s)
-            );
-        }
-        if (roleFilter !== "all") filtered = filtered.filter(e => e.role === roleFilter);
-        setEmployees(filtered);
-    }, [allEmployees, view, search, roleFilter, cityFilter, supervisorFilter, user]);
-
-    const uniqueCities = useMemo(() => {
-        const cities = allEmployees.map(e => e.city || e.userId?.city).filter(Boolean);
-        return [...new Set(cities)].sort();
+        setEmployees(allEmployees);
     }, [allEmployees]);
+
+    // The cities and supervisors that exist, which one page cannot know.
+    const uniqueCities = useMemo(() => {
+        if (serverStats?.cities) return serverStats.cities;
+        return [...new Set(allEmployees.map(e => e.city || e.userId?.city).filter(Boolean))].sort();
+    }, [allEmployees, serverStats]);
 
     const uniqueSupervisors = useMemo(() => {
-        const sups = allEmployees.map(e => e.managedBy?.ownCode || e.supervisorCode).filter(Boolean);
-        return [...new Set(sups)].sort();
-    }, [allEmployees]);
+        if (serverStats?.supervisors) return serverStats.supervisors;
+        return [...new Set(allEmployees.map(e => e.managedBy?.ownCode || e.supervisorCode).filter(Boolean))].sort();
+    }, [allEmployees, serverStats]);
 
-    // Stats
+    // Counts of the whole staff, not of the page on screen. The local
+    // fallback only covers the moment before the first response arrives.
     const stats = useMemo(() => {
+        if (serverStats) return view === 'supervisor' ? serverStats.supervisor : serverStats.staff;
+
         const supervisorsList = allEmployees.filter(e => e.role === 'supervisor');
         const employeesList = allEmployees.filter(e => e.role !== 'supervisor');
-
-        if (view === 'supervisor') {
-            return {
+        return view === 'supervisor'
+            ? {
                 total: supervisorsList.length,
                 verified: supervisorsList.filter(e => e.status === 'verified').length,
-                pending: supervisorsList.filter(e => e.status === 'pending').length,
-            };
-        } else {
-            return {
+                pending: supervisorsList.filter(e => e.status === 'pending').length
+            }
+            : {
                 total: employeesList.length,
                 fieldStaff: employeesList.filter(e => e.role === 'field_staff').length,
                 employees: employeesList.filter(e => e.role === 'employee').length,
-                pending: employeesList.filter(e => e.status === 'pending').length,
+                pending: employeesList.filter(e => e.status === 'pending').length
             };
-        }
-    }, [allEmployees, view]);
+    }, [allEmployees, view, serverStats]);
 
     const filteredStates = useMemo(() => {
         const val = (formData.state || "").trim().toLowerCase();
@@ -686,7 +705,13 @@ const AdminHRM = ({ view }) => {
                 {/* Footer */}
                 {employees.length > 0 && (
                     <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex items-center justify-between">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Showing {employees.length} of {stats.total} {view === 'supervisor' ? 'supervisors' : 'staff'}</p>
+                        <TablePager
+                            page={currentPage}
+                            total={employeesTotal}
+                            perPage={itemsPerPage}
+                            onPage={setCurrentPage}
+                            noun={view === 'supervisor' ? 'supervisors' : 'staff'}
+                        />
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Commission: ₹{employees.reduce((s, e) => s + (e.registrationCommission || 0), 0).toLocaleString()}</p>
                     </div>
                 )}

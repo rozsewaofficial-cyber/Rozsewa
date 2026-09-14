@@ -16,6 +16,11 @@ const AuditLog = require('../models/AuditLog');
 const { notifyUser } = require('../config/notificationService');
 const { adminRecipients } = require('../utils/adminRecipients');
 
+// How many workers one lead may be offered to. Lead targeting is a race to
+// unlock, not a broadcast; candidates come back nearest-first, so this keeps
+// the ones most likely to take it.
+const LEAD_FANOUT_CAP = 500;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getSettingVal = async (key, defaultValue) => {
@@ -87,7 +92,7 @@ const logActivity = async (leadId, actorId, actorRole, event, detail = {}) => {
  *   3. Business model  (providerType IN ['lead', 'both'])
  *   4. Account status  (status === 'verified')
  *   5. Online/Active   (isOnline === true)
- *   6. Geofence        ($geoWithin $centerSphere)
+ *   6. Geofence        ($nearSphere, nearest first)
  *   7. Lead receive    (canReceiveLead === true)
  *   8. Wallet minimum  (availableBalance >= lead_min_wallet_balance)
  *   9. Subscription    (if category requires: isSubscribed + creditsRemaining > 0)
@@ -102,20 +107,38 @@ const findEligibleProviders = async (lead, category) => {
     console.log(`[LeadTargeting] Geofence: ${geofenceRadius} km, Min wallet balance required: ₹${minWalletBalance}`);
 
     // Build base geo+DB query (Layers 1, 3, 4, 5, 6, 7 done in DB)
+    //
+    // $nearSphere rather than $geoWithin: both cover the same circle, but this
+    // one returns the closest first, which is what makes the ceiling below a
+    // sensible rule ("the nearest N") instead of an arbitrary slice.
     const geoQuery = {
         vendorType:     lead.categoryId,
         status:         'verified',                     // Layer 4
         isOnline:       true,                           // Layer 5
         canReceiveLead: true,                           // Layer 7
         location: {
-            $geoWithin: {
-                $centerSphere: [[lng, lat], radiusInRadians] // Layer 6
+            $nearSphere: {
+                $geometry: { type: 'Point', coordinates: [lng, lat] },
+                $maxDistance: radiusInRadians * 6371 * 1000 // Layer 6, in metres
             }
         }
     };
 
-    const candidates = await Provider.find(geoQuery).lean();
+    // A lead goes to the workers nearest it, not to everyone a wide net
+    // catches. Nearest first so the ceiling keeps the closest, and only the
+    // fields the eligibility layers below actually read.
+    const candidates = await Provider.find(geoQuery)
+        .select('shopName ownerName subServices isSubscribed subscriptionExpiry location vendorType')
+        .limit(LEAD_FANOUT_CAP)
+        .lean();
     console.log(`[LeadTargeting] Found ${candidates.length} candidates in database matching geo-queries & online/verified criteria.`);
+
+    // Layer 8 needs a wallet balance per candidate. Fetched once for all of
+    // them rather than inside the loop, which cost one query per provider.
+    const wallets = await Wallet.find({ providerId: { $in: candidates.map(p => p._id) } })
+        .select('providerId balance availableBalance')
+        .lean();
+    const walletByProvider = new Map(wallets.map(w => [String(w.providerId), w]));
 
     const eligible = [];
     for (const p of candidates) {
@@ -134,7 +157,7 @@ const findEligibleProviders = async (lead, category) => {
         }
 
         // Layer 8 — Wallet minimum
-        const wallet = await Wallet.findOne({ providerId: p._id }).lean();
+        const wallet = walletByProvider.get(String(p._id));
         const balance = wallet ? (wallet.availableBalance ?? wallet.balance ?? 0) : 0;
         if (balance < minWalletBalance) {
             console.log(`  ➔ [Layer 8] Skip: Insufficient wallet balance (Has ₹${balance}, needs ₹${minWalletBalance}).`);
@@ -1133,7 +1156,9 @@ const getAdminLeads = async (req, res) => {
         if (search) {
             const User = require('../models/User');
             const rx = new RegExp(escape(search), 'i');
-            const customers = await User.find({ name: rx }).select('_id').lean();
+            // Ids of customers whose name matches, to narrow the lead query.
+            // Capped: a one-letter search should not load the customer base.
+            const customers = await User.find({ name: rx }).select('_id').limit(5000).lean();
             query.$and = (query.$and || []).concat([{
                 $or: [
                     { service: rx },

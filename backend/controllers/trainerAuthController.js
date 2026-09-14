@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Trainer = require('../models/Trainer');
 const SkillSession = require('../models/SkillSession');
 const generateToken = require('../utils/generateToken');
@@ -53,12 +54,17 @@ const getMyAssignedSessions = async (req, res) => {
         const query = { trainerId: req.trainer._id };
         if (status) query.status = status;
 
-        const sessions = await SkillSession.find(query)
-            .populate('sewakId', 'ownerName mobile city vendorCode')
-            .populate('categoryId', 'name icon')
-            .sort({ scheduledDate: 1, scheduledTime: 1 })
-            .lean();
+        // A trainer's history grows session by session.
+        const sessions = await paginate(
+            SkillSession.find(query)
+                .populate('sewakId', 'ownerName mobile city vendorCode')
+                .populate('categoryId', 'name icon')
+                .sort({ scheduledDate: 1, scheduledTime: 1 })
+                .lean(),
+            pageParams(req)
+        );
 
+        res.set('X-Total-Count', String(await SkillSession.countDocuments(query)));
         res.json(sessions);
     } catch (error) {
         res.status(500).json({ message: error.message });
