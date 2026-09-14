@@ -95,11 +95,20 @@ exports.getLiveAds = async (req, res) => {
       if (maxPrice) query.price.$lte = Number(maxPrice);
     }
 
+    // Escaped: what a shopper typed is text to look for, not a pattern to run.
+    const escape = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+
     if (search) {
+      const safe = escape(search);
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { title: { $regex: safe, $options: 'i' } },
+        { description: { $regex: safe, $options: 'i' } }
       ];
+    }
+
+    // The browse screen filters by town, which it cannot do over one page.
+    if (req.query.city) {
+      query['location.city'] = { $regex: escape(req.query.city), $options: 'i' };
     }
 
     // GeoSpatial Search if lat/lng provided
@@ -115,29 +124,52 @@ exports.getLiveAds = async (req, res) => {
       };
     }
 
-    let ads = await BazaarAd.find(query)
-      .select('-contactDetails -location.exactAddress -location.houseNumber') // STRICTLY HIDE SENSITIVE INFO
-      .sort(lat && lng ? {} : { createdAt: -1 })
-      .lean();
+    // A marketplace listing page is browsed, not exhausted: one page at a
+    // time, with the count so the browser knows there is more.
+    const adParams = pageParams(req);
+    const [adTotal, ads] = await Promise.all([
+      BazaarAd.countDocuments(query),
+      paginate(
+        BazaarAd.find(query)
+          .select('-contactDetails -location.exactAddress -location.houseNumber') // STRICTLY HIDE SENSITIVE INFO
+          .sort(lat && lng ? {} : { createdAt: -1 })
+          .lean(),
+        adParams
+      )
+    ]);
 
     const User = require('../models/User');
     const Provider = require('../models/Provider');
 
+    // Two queries for the whole page, rather than two per ad on it. This used
+    // to run a findById per listing, so a page of thirty cost sixty round trips.
+    const sellerIds = [...new Set(ads.map(a => a.sellerId).filter(Boolean).map(String))];
+    const [sellerUsers, sellerProviders] = await Promise.all([
+      User.find({ _id: { $in: sellerIds } }).select('name sellerProfile.isVerifiedSeller sellerProfile.trustScore').lean(),
+      Provider.find({ _id: { $in: sellerIds } }).select('ownerName name isVerified').lean()
+    ]);
+
+    const sellerById = new Map();
+    sellerUsers.forEach(u => sellerById.set(String(u._id), u));
+    // A provider selling something is shown the same way a user is, so their
+    // fields are normalised here rather than at every point of use.
+    sellerProviders.forEach(p => {
+      if (sellerById.has(String(p._id))) return;
+      sellerById.set(String(p._id), {
+        ...p,
+        name: p.ownerName || p.name,
+        sellerProfile: { isVerifiedSeller: p.isVerified, trustScore: 100 }
+      });
+    });
+
     for (let ad of ads) {
       if (ad.sellerId) {
-        let seller = await User.findById(ad.sellerId).select('name sellerProfile.isVerifiedSeller sellerProfile.trustScore').lean();
-        if (!seller) {
-          seller = await Provider.findById(ad.sellerId).select('ownerName name isVerified').lean();
-          if (seller) {
-            seller.name = seller.ownerName || seller.name;
-            seller.sellerProfile = { isVerifiedSeller: seller.isVerified, trustScore: 100 };
-          }
-        }
-        ad.sellerId = seller || { _id: ad.sellerId }; // Fallback
+        ad.sellerId = sellerById.get(String(ad.sellerId)) || { _id: ad.sellerId }; // Fallback
       }
     }
 
-    res.json({ success: true, count: ads.length, data: ads });
+    // How many listings match, so the browser knows there are more pages.
+    res.json({ success: true, count: adTotal, pageCount: ads.length, data: ads });
   } catch (error) {
     console.error('Get Live Ads Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -148,8 +180,13 @@ exports.getLiveAds = async (req, res) => {
 exports.getUserAds = async (req, res) => {
   try {
     const userId = req.user._id;
-    const ads = await BazaarAd.find({ sellerId: userId }).sort({ createdAt: -1 });
-    res.json({ success: true, count: ads.length, data: ads });
+    // A seller's own listings grow without limit, so they arrive a page at a
+    // time and the count describes all of them rather than the page.
+    const [count, ads] = await Promise.all([
+      BazaarAd.countDocuments({ sellerId: userId }),
+      paginate(BazaarAd.find({ sellerId: userId }).sort({ createdAt: -1 }), pageParams(req))
+    ]);
+    res.json({ success: true, count, data: ads });
   } catch (error) {
     console.error('Get User Ads Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -184,10 +221,15 @@ exports.markAdSold = async (req, res) => {
     // Notify buyers with an still-open (non-rejected) negotiation thread so
     // they aren't left waiting on a deal that can no longer close.
     try {
+      // Everyone still negotiating on this one ad. Only the buyer is read off
+      // each, and a ceiling keeps a notification fan-out bounded.
       const openOffers = await BazaarOffer.find({
         adId: id,
         status: { $in: ['pending', 'countered', 'deal_locked'] }
-      });
+      })
+        .select('buyerId')
+        .limit(500)
+        .lean();
       for (const offer of openOffers) {
         await new Notification({
           recipientId: offer.buyerId,
@@ -250,11 +292,17 @@ exports.getSingleAd = async (req, res) => {
 // Get Pending Ads for Manual Review
 exports.getPendingAds = async (req, res) => {
   try {
-    const ads = await BazaarAd.find({ status: 'pending_review' })
-      .populate('sellerId', 'name mobile')
-      .sort({ createdAt: 1 });
-    
-    res.json({ success: true, data: ads });
+    // A moderation queue is worked through, not read in one go.
+    const scope = { status: 'pending_review' };
+    const [total, ads] = await Promise.all([
+      BazaarAd.countDocuments(scope),
+      paginate(
+        BazaarAd.find(scope).populate('sellerId', 'name mobile').sort({ createdAt: 1 }),
+        pageParams(req)
+      )
+    ]);
+
+    res.json({ success: true, total, data: ads });
   } catch (error) {
     console.error('Get Pending Ads Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -272,16 +320,22 @@ exports.getAllAdminAds = async (req, res) => {
       query.status = { $ne: 'pending_review' };
     }
     if (search) {
+      // Escaped: what was typed is a title to look for, not a pattern to run.
+      const safe = String(search).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
       query.$or = [
-        { title: { $regex: search, $options: 'i' } }
+        { title: { $regex: safe, $options: 'i' } }
       ];
     }
 
-    const ads = await BazaarAd.find(query)
-      .populate('sellerId', 'name mobile')
-      .sort({ createdAt: -1 });
-    
-    res.json({ success: true, data: ads });
+    const [total, ads] = await Promise.all([
+      BazaarAd.countDocuments(query),
+      paginate(
+        BazaarAd.find(query).populate('sellerId', 'name mobile').sort({ createdAt: -1 }),
+        pageParams(req)
+      )
+    ]);
+
+    res.json({ success: true, total, data: ads });
   } catch (error) {
     console.error('Get All Admin Ads Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -372,6 +426,29 @@ exports.reviewAd = async (req, res) => {
 // ========================
 
 // Get all active categories (Public)
+// The towns and categories that actually have something for sale right now.
+// The browse screen used to derive these from the listings it had been sent,
+// which now means the page it is looking at.
+exports.getLiveFacets = async (req, res) => {
+  try {
+    const [cities, categories] = await Promise.all([
+      BazaarAd.distinct('location.city', { status: 'live' }),
+      BazaarAd.distinct('category', { status: 'live' })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        cities: cities.filter(Boolean).sort(),
+        categories: categories.filter(Boolean).sort()
+      }
+    });
+  } catch (error) {
+    console.error('Get Live Facets Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error' });
+  }
+};
+
 exports.getCategories = async (req, res) => {
   try {
     const categories = await BazaarCategory.find({ isActive: true }).sort({ order: 1, name: 1 });
@@ -636,16 +713,21 @@ exports.makeOffer = async (req, res) => {
 exports.getUserOffers = async (req, res) => {
   try {
     const userId = req.user._id;
-    const offers = await BazaarOffer.find({
+    const offerScope = {
       $or: [
         { sellerId: userId },
         { buyerId: userId }
       ]
-    })
-    .populate('adId', 'title price images')
-    .populate('buyerId', 'name')
-    .populate('sellerId', 'name')
-    .sort({ updatedAt: -1 });
+    };
+    // Negotiations accumulate for as long as someone uses the marketplace.
+    const offers = await paginate(
+      BazaarOffer.find(offerScope)
+        .populate('adId', 'title price images')
+        .populate('buyerId', 'name')
+        .populate('sellerId', 'name')
+        .sort({ updatedAt: -1 }),
+      pageParams(req)
+    );
 
     res.json({ success: true, data: offers });
   } catch (error) {
@@ -1271,14 +1353,18 @@ exports.getSellerOfferRequests = async (req, res) => {
     const userId = req.user._id;
 
     // Find all ads belonging to this user
-    const myAds = await BazaarAd.find({ sellerId: userId }, '_id');
+    // The offers carry the ad they are on, so the seller's listings are only
+    // needed as ids.
+    const myAds = await BazaarAd.find({ sellerId: userId }).select('_id').lean();
     const adIds = myAds.map(a => a._id);
 
-    const offers = await BazaarOffer
-      .find({ adId: { $in: adIds } })
-      .populate('adId', 'title images price')
-      .populate('buyerId', 'name avatar')
-      .sort({ updatedAt: -1 });
+    const offers = await paginate(
+      BazaarOffer.find({ adId: { $in: adIds } })
+        .populate('adId', 'title images price')
+        .populate('buyerId', 'name avatar')
+        .sort({ updatedAt: -1 }),
+      pageParams(req)
+    );
 
     res.json({ success: true, data: offers });
   } catch (error) {
@@ -1290,13 +1376,20 @@ exports.getSellerOfferRequests = async (req, res) => {
 // Get all Bazaar offer chats for Admin Inspection
 exports.getAllBazaarOffersAdmin = async (req, res) => {
   try {
-    const offers = await BazaarOffer.find()
-      .populate('adId', 'title category price images')
-      .populate('buyerId', 'name mobile email')
-      .populate('sellerId', 'name mobile email')
-      .sort({ updatedAt: -1 });
+    // Every negotiation ever held on the platform, so: a page of them.
+    const [total, offers] = await Promise.all([
+      BazaarOffer.countDocuments(),
+      paginate(
+        BazaarOffer.find()
+          .populate('adId', 'title category price images')
+          .populate('buyerId', 'name mobile email')
+          .populate('sellerId', 'name mobile email')
+          .sort({ updatedAt: -1 }),
+        pageParams(req)
+      )
+    ]);
 
-    res.json({ success: true, data: offers });
+    res.json({ success: true, total, data: offers });
   } catch (error) {
     console.error('Get All Bazaar Offers Admin Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -1309,12 +1402,19 @@ exports.getAllBazaarOffersAdmin = async (req, res) => {
 
 exports.getPIIViolations = async (req, res) => {
   try {
-    const violations = await BazaarPIIViolation.find()
-      .populate('userId', 'name mobile email')
-      .populate('adId', 'title category price')
-      .sort({ createdAt: -1 });
+    // A log only grows.
+    const [total, violations] = await Promise.all([
+      BazaarPIIViolation.countDocuments(),
+      paginate(
+        BazaarPIIViolation.find()
+          .populate('userId', 'name mobile email')
+          .populate('adId', 'title category price')
+          .sort({ createdAt: -1 }),
+        pageParams(req)
+      )
+    ]);
 
-    res.json({ success: true, data: violations });
+    res.json({ success: true, total, data: violations });
   } catch (error) {
     console.error('Get PII Violations Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });

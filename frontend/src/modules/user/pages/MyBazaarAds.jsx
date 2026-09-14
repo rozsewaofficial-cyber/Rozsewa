@@ -13,6 +13,8 @@ const MyBazaarAds = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [ads, setAds] = useState([]);
+  // How many this seller has, which one page cannot report.
+  const [adsTotal, setAdsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [markingSoldId, setMarkingSoldId] = useState(null);
 
@@ -26,6 +28,8 @@ const MyBazaarAds = () => {
       const res = await api.get('/bazaar/my-ads');
       if (res.data.success) {
         setAds(res.data.data);
+        // How many listings this seller has, not how many are on screen.
+        setAdsTotal(res.data.count ?? res.data.data.length);
       }
     } catch (err) {
       console.error('Failed to load my ads:', err);
@@ -106,7 +110,7 @@ const MyBazaarAds = () => {
       <div className="max-w-2xl mx-auto px-4 -mt-8 relative z-10">
         <div className="flex items-center justify-between mb-4 px-1">
           <p className="text-xs font-bold text-blue-100">
-            Showing <span className="text-white">{ads.length}</span> ads
+            Showing <span className="text-white">{adsTotal}</span> ads
           </p>
           <button 
             onClick={() => navigate('/scrap/add')}

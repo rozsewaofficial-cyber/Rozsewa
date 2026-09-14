@@ -4,6 +4,7 @@ const { protect, admin } = require('../middleware/authMiddleware');
 const {
   postAd,
   getLiveAds,
+  getLiveFacets,
   getSingleAd,
   getPendingAds,
   getAllAdminAds,
@@ -39,6 +40,7 @@ const {
 // PUBLIC / BUYER ROUTES
 // ========================
 router.get('/live', getLiveAds);
+router.get('/live-facets', getLiveFacets);
 router.get('/live/:id', getSingleAd);
 router.get('/categories', getCategories);
 

@@ -12,6 +12,9 @@ const RojsewaBazaar = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [items, setItems] = useState([]);
+  // What matched in total, and the towns and categories to offer as filters.
+  const [itemsTotal, setItemsTotal] = useState(0);
+  const [facets, setFacets] = useState({ cities: [], categories: [] });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('');
@@ -23,17 +26,35 @@ const RojsewaBazaar = () => {
 
   useScrollLock(!!selectedItem);
 
+  // The filters are the server's question now, so changing one is a request.
+  // Typing waits for a pause rather than firing per keystroke.
   useEffect(() => {
-    fetchBazaarItems();
-  }, []);
+    const t = setTimeout(() => fetchBazaarItems(), search ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, cityFilter, categoryFilter]);
 
   const fetchBazaarItems = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/bazaar/live');
+      // The search, the town and the category are the server's question: a
+      // browser can only ever filter the page it was sent.
+      const [res, facetsRes] = await Promise.all([
+        api.get('/bazaar/live', {
+          params: {
+            ...(search ? { search } : {}),
+            ...(cityFilter ? { city: cityFilter } : {}),
+            ...(categoryFilter ? { category: categoryFilter } : {}),
+            limit: 60
+          }
+        }),
+        api.get('/bazaar/live-facets')
+      ]);
       if (res.data.success) {
         setItems(res.data.data);
+        setItemsTotal(res.data.count ?? res.data.data.length);
       }
+      if (facetsRes.data.success) setFacets(facetsRes.data.data);
     } catch (err) {
       console.error('Failed to load bazaar items:', err);
     } finally {
@@ -53,20 +74,9 @@ const RojsewaBazaar = () => {
     return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
   };
 
+  // The server answered the search, the town and the category. Distance is
+  // still worked out here, because it depends on where this browser is.
   const filteredItems = items.filter(item => {
-    const matchSearch =
-      !search ||
-      item.title.toLowerCase().includes(search.toLowerCase()) ||
-      (item.description && item.description.toLowerCase().includes(search.toLowerCase()));
-    
-    const matchCity =
-      !cityFilter ||
-      (item.location?.city && item.location.city.toLowerCase().includes(cityFilter.toLowerCase()));
-      
-    const matchCategory = 
-      !categoryFilter || 
-      item.category === categoryFilter;
-
     let matchRadius = true;
     if (radiusFilter > 0 && userLocation?.lat && userLocation?.lng && item.location?.coordinates) {
       const [lng, lat] = item.location.coordinates;
@@ -74,11 +84,17 @@ const RojsewaBazaar = () => {
       matchRadius = dist <= radiusFilter;
     }
 
-    return matchSearch && matchCity && matchCategory && matchRadius;
+    return matchRadius;
   });
 
-  const uniqueCities = [...new Set(items.map(i => i.location?.city).filter(Boolean))];
-  const uniqueCategories = [...new Set(items.map(i => i.category).filter(Boolean))];
+  // The towns and categories that have something for sale, which one page of
+  // listings cannot know.
+  const uniqueCities = facets.cities.length
+    ? facets.cities
+    : [...new Set(items.map(i => i.location?.city).filter(Boolean))];
+  const uniqueCategories = facets.categories.length
+    ? facets.categories
+    : [...new Set(items.map(i => i.category).filter(Boolean))];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-28">
@@ -189,7 +205,9 @@ const RojsewaBazaar = () => {
         {/* Info row */}
         <div className="flex items-center justify-between mb-4 px-1">
           <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-            Showing <span className="text-slate-900 dark:text-white">{filteredItems.length}</span> items
+            {/* Of everything that matched, not of the page in hand — unless a
+                distance filter is narrowing it further here. */}
+            Showing <span className="text-slate-900 dark:text-white">{radiusFilter > 0 ? filteredItems.length : itemsTotal}</span> items
           </p>
         </div>
 
