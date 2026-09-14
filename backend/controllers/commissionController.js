@@ -8,6 +8,7 @@ const mongoose = require('mongoose');
 const AuditLog = require('../models/AuditLog');
 const ProviderBanner = require('../models/ProviderBanner');
 const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
+const SettlementQueue = require('../services/SettlementQueueService');
 
 // @desc    Get commission and settlement data
 // @route   GET /api/admin/commission
@@ -15,66 +16,25 @@ const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
 const getCommissionData = async (req, res) => {
     try {
         const { Transaction } = require('../models/Wallet');
-        // Stats
-        // Insta Work settles through the same commission engine, so its jobs
-        // belong in these totals — without them the platform under-reports its
-        // own revenue.
-        const instaCompleted = await InstaEarningsAdapter.getProviderJobs(null, { populate: true });
-        const completedBookings = [
-            ...(await Booking.find({ status: 'completed' })),
-            ...instaCompleted
-        ];
-        
-        const platformRevenue = completedBookings.reduce((sum, b) => sum + (b.adminCommission || 0), 0);
-        const totalJobValue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
-        const totalProviderPayout = completedBookings.reduce((sum, b) => {
-            // For legacy bookings where providerPayout was never set, use totalAmount - adminCommission
-            const payout = b.providerPayout != null ? b.providerPayout : (b.totalAmount - (b.adminCommission || 0));
-            return sum + payout;
-        }, 0);
-        
+
+        // Totals come from the database, and only one page of rows is loaded.
+        // This used to pull every completed booking and every completed Insta
+        // job into memory — populated — to produce four numbers and one
+        // screenful, which does not survive a real dataset.
+        const { page, limit } = req.query;
+        const [totals, formattedQueue] = await Promise.all([
+            SettlementQueue.getTotals(),
+            SettlementQueue.getPage({ page, limit })
+        ]);
+        const { platformRevenue, totalJobValue, totalProviderPayout } = totals;
+
         const pendingWithdrawals = await Withdrawal.find({ status: 'pending' });
         const pendingPayouts = pendingWithdrawals.reduce((sum, w) => sum + w.amount, 0);
-        
+
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const processedTodayDocs = await Withdrawal.find({ status: 'approved', updatedAt: { $gte: startOfToday } });
         const processedToday = processedTodayDocs.reduce((sum, w) => sum + w.amount, 0);
-
-        // Queue (Recent completed bookings with actual data)
-        const bookingQueue = await Booking.find({ status: 'completed' })
-            .populate('providerId', 'shopName ownerName bankDetails planType providerCategory')
-            .sort({ createdAt: -1 });
-        const queue = [...bookingQueue, ...instaCompleted]
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-        const formattedQueue = queue.map(b => {
-            const commission = b.adminCommission || 0;
-            // For legacy bookings, payout = totalAmount - commission
-            const payout = b.providerPayout != null ? b.providerPayout : (b.totalAmount - commission);
-            const commissionRate = b.totalAmount > 0 ? ((commission / b.totalAmount) * 100).toFixed(1) : '0';
-            
-            return {
-                _id: b._id,
-                bookingId: b._id.toString().slice(-6).toUpperCase(),
-                vendor: b.providerId?.shopName || 'N/A',
-                vendorOwner: b.providerId?.ownerName || '',
-                vendorPlan: b.providerId?.planType || 'none',
-                vendorCategory: b.providerId?.providerCategory || 'provider',
-                serviceName: b.serviceName,
-                bookingDate: b.bookingDate,
-                bookingTime: b.bookingTime,
-                jobV: b.totalAmount,
-                com: commission,
-                comRate: commissionRate,
-                pay: payout,
-                commissionStatus: b.commissionStatus || 'free',
-                paymentMode: b.paymentMode || 'now',
-                paymentStatus: b.paymentStatus,
-                status: b.paymentStatus === 'paid' ? 'Processed' : 'Ready to Pay',
-                createdAt: b.createdAt
-            };
-        });
 
         // Settlements Logic
         const wallets = await Wallet.find({ providerId: { $exists: true } }).populate('providerId', 'shopName ownerName vendorCode');
@@ -104,12 +64,23 @@ const getCommissionData = async (req, res) => {
                 platformRevenue: Math.round(platformRevenue * 100) / 100,
                 totalJobValue: Math.round(totalJobValue * 100) / 100,
                 totalProviderPayout: Math.round(totalProviderPayout * 100) / 100,
-                totalCompleted: completedBookings.length,
+                totalCompleted: totals.totalCompleted,
                 pendingPayouts: Math.round(pendingPayouts * 100) / 100,
                 processedToday: Math.round(processedToday * 100) / 100,
                 disputedHold: 0
             },
             queue: formattedQueue,
+            // The table pages server-side now, so it needs to be told how many
+            // rows exist and what the whole queue adds up to — its totals row
+            // describes the queue, not the page being looked at.
+            queuePage: Math.max(1, Number(page) || 1),
+            queueLimit: formattedQueue.length,
+            queueTotal: totals.totalCompleted,
+            queueTotals: {
+                jobV: Math.round(totalJobValue * 100) / 100,
+                com: Math.round(platformRevenue * 100) / 100,
+                pay: Math.round(totalProviderPayout * 100) / 100
+            },
             settlements
         });
     } catch (error) {

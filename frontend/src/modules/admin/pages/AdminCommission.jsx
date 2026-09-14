@@ -33,6 +33,11 @@ const AdminCommission = () => {
     const [activeTab, setActiveTab] = useState('commission');
     const [stats, setStats] = useState({ platformRevenue: 0, totalJobValue: 0, totalProviderPayout: 0, totalCompleted: 0, pendingPayouts: 0, processedToday: 0, disputedHold: 0 });
     const [queue, setQueue] = useState([]);
+    // The commission table is paged by the server, so the page holds only one
+    // screenful. Its record count and the totals row describe the whole queue,
+    // which the server sends alongside — they must not shift as pages turn.
+    const [queueTotal, setQueueTotal] = useState(0);
+    const [queueTotals, setQueueTotals] = useState({ jobV: 0, com: 0, pay: 0 });
     const [settlements, setSettlements] = useState([]);
     const [withdrawals, setWithdrawals] = useState([]);
     const [processing, setProcessing] = useState({});
@@ -49,18 +54,24 @@ const AdminCommission = () => {
 
     useEffect(() => {
         setTitle("Commission & Settlements");
-        fetchData();
         fetchWithdrawals();
     }, [setTitle]);
 
-    const fetchData = async () => {
+    // Turning a page is now a request, not a slice.
+    useEffect(() => {
+        fetchData(commissionPage);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [commissionPage]);
+
+    const fetchData = async (page = 1) => {
         setLoading(true);
         try {
-            const { data } = await API.get('/admin/commission');
+            const { data } = await API.get('/admin/commission', { params: { page, limit: itemsPerPage } });
             setStats(data.stats);
             setQueue(data.queue);
+            setQueueTotal(data.queueTotal ?? data.queue.length);
+            setQueueTotals(data.queueTotals || { jobV: 0, com: 0, pay: 0 });
             setSettlements(data.settlements || []);
-            setCommissionPage(1);
             setSettlementPage(1);
             setLoading(false);
         } catch (error) {
@@ -99,11 +110,12 @@ const AdminCommission = () => {
     const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
     const inDebtProviders = settlements.filter(s => s.currentDues > 0);
 
-    const totalCommissionPages = Math.ceil(queue.length / itemsPerPage);
+    const totalCommissionPages = Math.ceil(queueTotal / itemsPerPage);
     const totalSettlementPages = Math.ceil(settlements.length / itemsPerPage);
     const totalWithdrawalPages = Math.ceil(withdrawals.length / itemsPerPage);
 
-    const paginatedQueue = queue.slice((commissionPage - 1) * itemsPerPage, commissionPage * itemsPerPage);
+    // Already one page from the server; nothing left to slice.
+    const paginatedQueue = queue;
     const paginatedSettlements = settlements.slice((settlementPage - 1) * itemsPerPage, settlementPage * itemsPerPage);
     const paginatedWithdrawals = withdrawals.slice((withdrawalPage - 1) * itemsPerPage, withdrawalPage * itemsPerPage);
 
@@ -222,7 +234,7 @@ const AdminCommission = () => {
                 <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                         <h3 className="font-bold text-gray-900 flex items-center gap-2"><ArrowRightLeft className="h-4 w-4 text-emerald-600"/> Booking-wise Commission Breakdown</h3>
-                        <span className="text-xs font-bold text-gray-400 uppercase">{queue.length} Records</span>
+                        <span className="text-xs font-bold text-gray-400 uppercase">{queueTotal} Records</span>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm whitespace-nowrap">
@@ -247,7 +259,7 @@ const AdminCommission = () => {
                                             <div className="flex items-center justify-center gap-2"><div className="h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div> Loading...</div>
                                         </td>
                                     </tr>
-                                ) : queue.length === 0 ? (
+                                ) : queueTotal === 0 ? (
                                     <tr>
                                         <td colSpan="10" className="px-4 py-8 text-center text-gray-400">No completed bookings found.</td>
                                     </tr>
@@ -298,21 +310,21 @@ const AdminCommission = () => {
                                     </tr>
                                 ))}
                             </tbody>
-                            {!loading && queue.length > 0 && (
+                            {!loading && queueTotal > 0 && (
                                 <tfoot className="bg-gray-50 border-t-2 border-gray-200">
                                     <tr>
-                                        <td colSpan="4" className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Totals ({queue.length} bookings)</td>
+                                        <td colSpan="4" className="px-4 py-3 text-xs font-black text-gray-700 uppercase">Totals ({queueTotal} bookings)</td>
                                         <td className="px-4 py-3 text-right text-xs font-black text-gray-800">
-                                            ₹{queue.reduce((s, r) => s + (r.jobV || 0), 0).toLocaleString()}
+                                            ₹{queueTotals.jobV.toLocaleString()}
                                         </td>
                                         <td className="px-4 py-3 text-right text-xs font-black text-red-600">
-                                            -₹{queue.reduce((s, r) => s + (r.com || 0), 0).toLocaleString()}
+                                            -₹{queueTotals.com.toLocaleString()}
                                         </td>
                                         <td className="px-4 py-3 text-right text-xs font-bold text-orange-600">
                                             {avgRate}%
                                         </td>
                                         <td className="px-4 py-3 text-right text-xs font-black text-emerald-700">
-                                            ₹{queue.reduce((s, r) => s + (r.pay || 0), 0).toLocaleString()}
+                                            ₹{queueTotals.pay.toLocaleString()}
                                         </td>
                                         <td colSpan="2"></td>
                                     </tr>
@@ -320,7 +332,7 @@ const AdminCommission = () => {
                             )}
                         </table>
                     </div>
-                    {renderPagination(commissionPage, totalCommissionPages, setCommissionPage, queue.length)}
+                    {renderPagination(commissionPage, totalCommissionPages, setCommissionPage, queueTotal)}
                 </div>
             )}
 

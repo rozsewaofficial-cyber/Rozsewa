@@ -18,6 +18,7 @@ let passed = 0;
 const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
 
 const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+const frontend = (...p) => fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'src', ...p), 'utf8');
 
 console.log('\nCash collection moves no money');
 check('CashSettlementService never touches a wallet', () => {
@@ -204,6 +205,85 @@ check('both admin dashboards use that expression', () => {
     assert.ok(!/\$sum: "\$totalAmount"/.test(admin), 'a dashboard still totals the discounted price');
     const uses = (admin.match(/grossAggregationExpr\(\)/g) || []).length;
     assert.strictEqual(uses, 2, 'both the platform and supervisor dashboards must use it');
+});
+
+
+console.log('\nThe settlement queue is computed in the database, not in memory');
+const SettlementQueue = require('../services/SettlementQueueService');
+const queueSrc = () => read('services/SettlementQueueService.js');
+
+check('nothing loads every completed row to render one screen', () => {
+    // This page used to pull every completed booking and every completed Insta
+    // job into the process — populated — for four numbers and one screenful.
+    const controller = read('controllers/commissionController.js');
+    assert.ok(!/Booking\.find\(\{ status: 'completed' \}\)/.test(controller),
+        'the controller must not load every completed booking');
+    assert.ok(!/getProviderJobs\(null/.test(controller),
+        'nor every completed Insta job');
+    assert.ok(/SettlementQueue\.getTotals\(\)/.test(controller), 'totals must be aggregated');
+    assert.ok(/SettlementQueue\.getPage\(/.test(controller), 'rows must be paged');
+});
+
+check('both collections are merged into one ordered list', () => {
+    // Paging each collection separately and stitching the halves gives a
+    // different set of rows per page depending on how the dates interleave.
+    const src = queueSrc();
+    assert.ok(/\$unionWith/.test(src), 'the two collections must be merged in one pipeline');
+    assert.ok(/\$sort: \{ createdAt: -1, _id: -1 \}/.test(src), 'and sorted as a single list');
+    assert.ok(/\$skip/.test(src) && /\$limit/.test(src), 'and paged in the database');
+});
+
+check('only the rows on the page are joined to their provider', () => {
+    const src = queueSrc();
+    const lookupAt = src.indexOf('$lookup');
+    const limitAt = src.indexOf('$limit');
+    assert.ok(lookupAt > limitAt && limitAt > 0,
+        'the provider join must come after the page is cut, not before');
+});
+
+check('a caller cannot ask for an unbounded page', () => {
+    const src = queueSrc();
+    assert.ok(/Math\.min\(Math\.max\(1, Number\(limit\) \|\| \d+\), \d+\)/.test(src),
+        'the page size must be clamped');
+});
+
+check('a row reports the value of the work, subsidy included', () => {
+    // Otherwise a platform-funded discount leaves a row whose commission and
+    // payout do not add up to its own job value.
+    assert.ok(/grossAggregationExpr\(\)/.test(queueSrc()),
+        'the queue must use the shared gross definition');
+});
+
+check('a legacy row with no stored payout still settles', () => {
+    // Reporting zero would understate what is owed to the partner.
+    const src = queueSrc();
+    assert.ok(/\$subtract: \['\$totalAmount', '\$adminCommission'\]/.test(src),
+        'payout must be derived when it was never written');
+});
+
+check('the totals describe the queue, not the page being viewed', () => {
+    // They would otherwise change as the admin pages, which reads as a bug.
+    const controller = read('controllers/commissionController.js');
+    assert.ok(/queueTotals: \{/.test(controller), 'whole-queue totals must be sent');
+    assert.ok(/queueTotal: totals\.totalCompleted/.test(controller), 'as must the full count');
+    const ui = frontend('modules', 'admin', 'pages', 'AdminCommission.jsx');
+    assert.ok(/queueTotals\.jobV/.test(ui), 'the totals row must use them');
+    assert.ok(!/queue\.reduce\(\(s, r\) => s \+ \(r\.jobV/.test(ui),
+        'and must not re-sum the page it happens to hold');
+});
+
+check('the admin screen asks for a page instead of slicing everything', () => {
+    const ui = frontend('modules', 'admin', 'pages', 'AdminCommission.jsx');
+    assert.ok(/params: \{ page, limit: itemsPerPage \}/.test(ui), 'the page must be requested');
+    assert.ok(/\}, \[commissionPage\]\)/.test(ui), 'turning a page must refetch');
+    assert.ok(!/queue\.slice\(/.test(ui), 'no client-side slicing may remain');
+});
+
+check('the Insta side keeps the same finished-job definition', () => {
+    // Two different ideas of "finished" would make the settlement queue and the
+    // earnings adapter disagree about the same job.
+    const Adapter = require('../services/InstaEarningsAdapter');
+    assert.deepStrictEqual(SettlementQueue.INSTA_DONE, Adapter.DONE_STATUSES);
 });
 
 console.log(`\n${passed} checks passed.\n`);
