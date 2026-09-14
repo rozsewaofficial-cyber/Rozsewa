@@ -1,3 +1,4 @@
+const DistanceChargeService = require('../services/DistanceChargeService');
 const Banner = require('../models/Banner');
 const Category = require('../models/Category');
 const Provider = require('../models/Provider');
@@ -322,7 +323,11 @@ const getPublicConfig = async (req, res) => {
             registrationPrice: config.vendorCardPrice || 99,
             currency: "INR",
             supportNumber: config.supportNumber || "91XXXXXXXXXX",
-            distanceCharge: config.distance_charge_config || { enabled: false, fallbackCharge: 40 },
+            // Read through the same service that actually applies the charge.
+            // These were two separate defaults for one setting: with no config
+            // row saved, this said disabled while booking creation said enabled,
+            // so a customer was charged a travel fee the checkout never showed.
+            distanceCharge: await DistanceChargeService.getConfig(),
             nightCharge: config.night_charge_config || { enabled: false, defaultPercent: 10, startTime: '21:00', endTime: '06:00' }
         });
     } catch (error) {

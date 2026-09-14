@@ -632,9 +632,9 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
         </div>
       )}
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence initial={false}>
         {loading ? (
-          <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          <div key="loading" className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : filteredRequests.length === 0 ? (
           <motion.div key={`empty-${activeTab}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-border rounded-3xl">
@@ -643,9 +643,13 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
             <p className="text-sm text-muted-foreground mt-1 max-w-[200px]">Active requests will appear here.</p>
           </motion.div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div key="list" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Cards carry no exit animation and no layout: one leaving the
+                filtered list must unmount at once. Animating it out kept the old
+                card on screen after the worker acted on it, still offering Accept
+                and Reject on a booking they had already accepted. */}
             {filteredRequests.map(req => (
-              <motion.div key={req._id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              <motion.div key={req._id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                 className={`relative overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all hover:shadow-md border-border`}>
 
                 <div className="flex justify-between items-start mb-2">

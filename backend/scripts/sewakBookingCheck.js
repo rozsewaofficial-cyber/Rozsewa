@@ -71,4 +71,51 @@ check('the worker is told what actually happened, not what was requested', () =>
         'a transition the server did not grant must not be reported as success');
 });
 
+
+console.log('\nThe customer is never charged something the checkout did not show');
+check('the public config reads the same distance config that bills', () => {
+    // These were two separate defaults for one setting: with no config row
+    // saved, the public config said disabled while booking creation said
+    // enabled, so a Partner booking quietly gained a travel charge the
+    // checkout never displayed. One source, or they drift again.
+    const home = backend('controllers', 'homeController.js');
+    assert.ok(/distanceCharge: await DistanceChargeService\.getConfig\(\)/.test(home),
+        'the public config must read the real distance config');
+    assert.ok(!/distanceCharge: config\.distance_charge_config \|\| \{ enabled: false/.test(home),
+        'it must not carry its own competing default');
+});
+
+check('the service and the public surface cannot disagree', () => {
+    const service = backend('services', 'DistanceChargeService.js');
+    // One default, in the service that actually applies the charge.
+    const defaults = service.match(/enabled:\s*(true|false)/);
+    assert.ok(defaults, 'the service must state a default');
+});
+
+console.log('\nA card leaves the worker\'s list the moment they act on it');
+const list = () => frontend('modules', 'provider', 'components', 'RecentBookingsList.jsx');
+
+check('the list does not hold one branch waiting for another', () => {
+    // mode="wait" held the whole list until the outgoing branch finished
+    // exiting, so a card the worker had just accepted stayed on screen.
+    assert.ok(!/<AnimatePresence mode="wait">/.test(list()),
+        'the bookings list must not use mode="wait"');
+});
+
+check('branches are keyed so they can be told apart', () => {
+    const src = list();
+    assert.ok(/key="loading"/.test(src), 'the loading branch needs an identity');
+    assert.ok(/key="list"/.test(src), 'the card grid needs an identity');
+});
+
+check('a card that leaves the filtered list unmounts at once', () => {
+    // Its exit animation never completed inside a removing parent, so the card
+    // lingered — still offering Accept and Reject on an accepted booking, which
+    // is one tap from cancelling work already taken.
+    const card = list().match(/<motion\.div key=\{req\._id\}[^>]*/);
+    assert.ok(card, 'the booking card must still be there');
+    assert.ok(!/exit=/.test(card[0]), 'a booking card must not animate out');
+    assert.ok(!/\blayout\b/.test(card[0]), 'layout animation stalls the unmount');
+});
+
 console.log(`\n${passed} Sewak booking checks passed.\n`);

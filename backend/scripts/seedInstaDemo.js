@@ -25,6 +25,7 @@ const Provider = require('../models/Provider');
 const Category = require('../models/Category');
 const InstaService = require('../models/InstaService');
 const { Wallet } = require('../models/Wallet');
+const Service = require('../models/Service');
 
 // Indore, so the customer and both workers are within matching range.
 const LNG = 75.8577;
@@ -224,6 +225,35 @@ const run = async () => {
         createdBy: admin._id
     });
 
+    // A Partner is browsed and booked through their OWN catalogue, unlike a
+    // Sewak who sells the category's services via subServices. A Partner with
+    // no Service rows is skipped by the browse endpoint — rightly, since they
+    // have listed nothing — so the demo Partner gets a real catalogue.
+    await Service.insertMany([
+        {
+            providerId: partner._id,
+            categoryId: category._id,
+            category: category.name,
+            name: 'Deep Home Cleaning',
+            description: 'Full-home deep clean by a Local Expert',
+            price: 899,
+            duration: '3 hr',
+            serviceType: ['home'],
+            visible: true
+        },
+        {
+            providerId: partner._id,
+            categoryId: category._id,
+            category: category.name,
+            name: 'Sofa Shampooing',
+            description: 'Per-sofa wet shampoo and dry',
+            price: 499,
+            duration: '1 hr 30 min',
+            serviceType: ['home'],
+            visible: true
+        }
+    ]);
+
     /** Puts a worker live on a service with a fresh GPS ping. */
     const goLive = async (provider, entries) => {
         provider.instaWork.enabled = true;
@@ -254,6 +284,7 @@ const run = async () => {
     console.log(`  customer  9000000001 / demo1234        (${customer._id})`);
     console.log(`  sewak     9000000007 / demo1234  live @ Rs 150/hr   (${sewak._id})`);
     console.log(`  partner   9000000009 / demo1234  live @ Rs 200/hr   (${partner._id})`);
+    console.log('            catalogue: Deep Home Cleaning Rs 899, Sofa Shampooing Rs 499');
     console.log(`  services  ${cleaning.name} (per hour @ ${cleaning.sewakRate})`);
     console.log(`            ${delivery.name} (per km @ ${delivery.sewakRate} + Rs ${delivery.baseCharge} base)`);
     console.log(`            ${fencing.name} (per meter @ ${fencing.sewakRate})`);
