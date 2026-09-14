@@ -27,6 +27,8 @@ const AdminKitOrders = () => {
 
   const [tab, setTab] = useState("orders");
   const [orders, setOrders] = useState([]);
+  // Pending orders across the whole queue, which one page cannot report.
+  const [pendingCount, setPendingCount] = useState(0);
   const [inventory, setInventory] = useState(null);
   const [dues, setDues] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,8 +46,11 @@ const AdminKitOrders = () => {
     setLoading(true);
     try {
       const params = statusFilter ? { status: statusFilter } : {};
-      const { data } = await API.get("/admin/kit-orders", { params });
-      setOrders(data || []);
+      const res = await API.get("/admin/kit-orders", { params });
+      setOrders(res.data || []);
+      // How many orders are still pending, across all of them rather than
+      // across the page on screen.
+      setPendingCount(Number(res.headers?.["x-pending-count"]) || 0);
     } catch {
       toast({ title: "Could not load orders", variant: "destructive" });
     } finally { setLoading(false); }
@@ -117,7 +122,7 @@ const AdminKitOrders = () => {
     } finally { setBusyId(null); }
   };
 
-  const pendingCount = orders.filter((o) => o.status === "pending").length;
+
   const inputCls = "w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2.5 text-sm font-semibold outline-none focus:border-emerald-500";
 
   return (

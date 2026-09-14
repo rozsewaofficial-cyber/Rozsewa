@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const ProviderBanner = require('../models/ProviderBanner');
 const Provider = require('../models/Provider');
 
@@ -93,28 +94,23 @@ exports.createBannerWithWallet = async (req, res) => {
 // @desc Get all banners for logged in provider
 exports.getMyBanners = async (req, res) => {
     try {
-        let banners = await ProviderBanner.find({ provider: req.user.id }).sort({ createdAt: -1 });
-        
-        // Dynamically update expired banners
-        const now = new Date();
-        let changed = false;
-        
-        for (let banner of banners) {
-            if (banner.status === 'Active' && banner.endDate && new Date(banner.endDate) < now) {
-                banner.status = 'Expired';
-                await banner.save();
-                changed = true;
-            }
-        }
-        
-        if (changed) {
-            banners = await ProviderBanner.find({ provider: req.user.id }).sort({ createdAt: -1 });
-        }
-        
-        // Filter out Expired banners so they don't show in the provider's dashboard
-        const activeBanners = banners.filter(b => b.status !== 'Expired');
+        // A banner expires because of the clock, not because someone looked at
+        // it. One write for all of them, rather than a save per banner followed
+        // by reading the whole list a second time.
+        await ProviderBanner.updateMany(
+            { provider: req.user.id, status: 'Active', endDate: { $lt: new Date() } },
+            { $set: { status: 'Expired' } }
+        );
 
-        res.json({ success: true, banners: activeBanners });
+        // Expired banners are excluded by the query rather than by filtering
+        // them back out of what was loaded.
+        const scope = { provider: req.user.id, status: { $ne: 'Expired' } };
+        const [total, banners] = await Promise.all([
+            ProviderBanner.countDocuments(scope),
+            paginate(ProviderBanner.find(scope).sort({ createdAt: -1 }), pageParams(req))
+        ]);
+
+        res.json({ success: true, total, banners });
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: 'Server error' });
@@ -127,29 +123,24 @@ exports.getMyBanners = async (req, res) => {
 // @desc Get all provider banners for admin review
 exports.getAllBanners = async (req, res) => {
     try {
-        let banners = await ProviderBanner.find()
-            .populate('provider', 'ownerName shopName mobile vendorCode address city state')
-            .sort({ createdAt: -1 });
+        // Same as above: expiry is a single write, not a save per row.
+        await ProviderBanner.updateMany(
+            { status: 'Active', endDate: { $lt: new Date() } },
+            { $set: { status: 'Expired' } }
+        );
 
-        // Dynamically update expired banners
-        const now = new Date();
-        let changed = false;
-        
-        for (let banner of banners) {
-            if (banner.status === 'Active' && banner.endDate && new Date(banner.endDate) < now) {
-                banner.status = 'Expired';
-                await banner.save();
-                changed = true;
-            }
-        }
-        
-        if (changed) {
-            banners = await ProviderBanner.find()
-                .populate('provider', 'ownerName shopName mobile vendorCode address city state')
-                .sort({ createdAt: -1 });
-        }
+        const scope = req.query.status ? { status: req.query.status } : {};
+        const [total, banners] = await Promise.all([
+            ProviderBanner.countDocuments(scope),
+            paginate(
+                ProviderBanner.find(scope)
+                    .populate('provider', 'ownerName shopName mobile vendorCode address city state')
+                    .sort({ createdAt: -1 }),
+                pageParams(req)
+            )
+        ]);
 
-        res.json({ success: true, banners });
+        res.json({ success: true, total, banners });
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: 'Server error' });
@@ -213,9 +204,12 @@ exports.getActiveBannersByLocation = async (req, res) => {
 
         query.$or = locationConditions;
 
+        // A carousel shows a handful; there is no reason to load every banner
+        // running in a city to fill it.
         const banners = await ProviderBanner.find(query)
             .populate('provider', 'name businessName profileImage rating')
-            .sort({ planType: -1 }); // Priority to Premium Top, etc.
+            .sort({ planType: -1 }) // Priority to Premium Top, etc.
+            .limit(Math.min(100, Math.max(1, Number(req.query.limit) || 50)));
 
         // Increment views for these banners
         if (banners.length > 0) {

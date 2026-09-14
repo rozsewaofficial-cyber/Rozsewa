@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import TablePager from '@/modules/admin/components/TablePager';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, CheckCircle2, XCircle, Upload, Eye, Save, Trash2 } from 'lucide-react';
 import API from '@/lib/api';
@@ -6,6 +7,11 @@ import API from '@/lib/api';
 const AdminProviderBanners = () => {
   const { toast } = useToast();
   const [banners, setBanners] = useState([]);
+  // The table shows one page of requests; the pager is told how many there
+  // are rather than counting the rows it can see.
+  const [bannersTotal, setBannersTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
   const [loading, setLoading] = useState(true);
   const [selectedBanner, setSelectedBanner] = useState(null);
   const [uploadUrl, setUploadUrl] = useState('');
@@ -21,9 +27,14 @@ const AdminProviderBanners = () => {
   const [savingPlans, setSavingPlans] = useState(false);
 
   useEffect(() => {
-    fetchBanners();
     fetchPlans();
   }, []);
+
+  // Turning a page is a request.
+  useEffect(() => {
+    fetchBanners();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
   const fetchPlans = async () => {
     try {
@@ -56,8 +67,9 @@ const AdminProviderBanners = () => {
   const fetchBanners = async () => {
     try {
       setLoading(true);
-      const res = await API.get('/admin/provider-banners');
+      const res = await API.get('/admin/provider-banners', { params: { page: currentPage, limit: itemsPerPage } });
       setBanners(res.data.banners || []);
+      setBannersTotal(res.data.total ?? (res.data.banners || []).length);
     } catch (error) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch provider banners' });
     } finally {
@@ -201,6 +213,13 @@ const AdminProviderBanners = () => {
             ))}
           </tbody>
         </table>
+        <TablePager
+          page={currentPage}
+          total={bannersTotal}
+          perPage={itemsPerPage}
+          onPage={setCurrentPage}
+          noun="banner requests"
+        />
       </div>
 
       {selectedBanner && (

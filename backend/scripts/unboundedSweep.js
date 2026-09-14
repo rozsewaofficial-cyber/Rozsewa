@@ -35,7 +35,7 @@ const rel = (base, f) => path.relative(base, f).replace(/\\/g, '/');
 // Collections that are configuration: a row per category, per zone, per
 // setting. Bounded by how the business is set up, so reading them whole is the
 // point rather than an oversight.
-const CONFIG = /^(Setting|Category|Subcategory|Zone|Banner|BenefitPolicy|SubscriptionPlan|Combo|BazaarCategory|BazaarChatTemplate|Service|InstaService|Promotion|Coupon|Faq|FAQ|Guide|Page|StarterKitItem|KitCombo)$/;
+const CONFIG = /^(CommissionSlab|PartnerPolicy|Setting|Category|Subcategory|Zone|Banner|BenefitPolicy|SubscriptionPlan|Combo|BazaarCategory|BazaarChatTemplate|Service|InstaService|Promotion|Coupon|Faq|FAQ|Guide|Page|StarterKitItem|KitCombo)$/;
 
 /* ------------------------- reads without a ceiling ------------------------ */
 const unbounded = [];
@@ -55,6 +55,10 @@ walk(path.join(BE, 'controllers')).concat(walk(path.join(BE, 'services'))).forEa
             /\$limit/.test(stmt) ||
             /paginate\(/.test(lines.slice(Math.max(0, i - 3), i + 3).join(' ')) ||
             /countDocuments|distinct/.test(line) ||
+            // Looking up a known set of ids is bounded by that set — which is
+            // usually the page of rows that produced it. This is the shape a
+            // fixed N+1 takes, so flagging it would flag the cure.
+            /_id: \{ \$in:/.test(stmt) ||
             // An aggregation that only groups down to totals is bounded by its
             // own shape, however many documents it reads on the way.
             (/\.aggregate\(/.test(line) && /_id: null/.test(stmt) && !/\$push/.test(stmt));

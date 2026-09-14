@@ -1351,10 +1351,16 @@ const getLeadForms = async (req, res) => {
         const { categoryId } = req.query;
         const query = { isArchived: false };
         if (categoryId) query.categoryId = categoryId;
-        const forms = await LeadForm.find(query)
-            .populate('categoryId', 'name')
-            .populate('serviceId', 'name')
-            .sort({ updatedAt: -1 });
+        // One form per service, so this is bounded by the catalogue — but the
+        // catalogue is something the business grows.
+        const forms = await paginate(
+            LeadForm.find(query)
+                .populate('categoryId', 'name')
+                .populate('serviceId', 'name')
+                .sort({ updatedAt: -1 }),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await LeadForm.countDocuments(query)));
         res.json(forms);
     } catch (err) {
         res.status(500).json({ message: err.message });

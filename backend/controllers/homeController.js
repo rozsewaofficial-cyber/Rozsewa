@@ -273,7 +273,13 @@ const getPublicProviders = async (req, res) => {
         }
 
         // Fetch active banners for this location to boost those providers
-        const activeBanners = await ProviderBanner.find({ status: 'Active' });
+        // Only the plan and who it belongs to are read off each banner, and
+        // the list is capped: this decides which providers to boost, not what
+        // to draw.
+        const activeBanners = await ProviderBanner.find({ status: 'Active' })
+            .select('provider planType locationValue')
+            .limit(2000)
+            .lean();
         // Create a Set of provider IDs that have an active banner in this location
         // Here we could filter banners by location (like in getActiveBannersByLocation)
         const boostedProviderIds = new Set();

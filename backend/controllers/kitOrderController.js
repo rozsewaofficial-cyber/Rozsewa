@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const mongoose = require('mongoose');
 const StarterKitItem = require('../models/StarterKitItem');
 const KitCombo = require('../models/KitCombo');
@@ -313,9 +314,13 @@ const placeOrder = async (req, res) => {
 // @access  Private (Sewak)
 const getMyOrders = async (req, res) => {
     try {
-        const orders = await KitOrder.find({ sewakId: req.user._id })
-            .sort({ createdAt: -1 })
-            .lean();
+        // A sewak's order history grows with every kit they buy.
+        const scope = { sewakId: req.user._id };
+        const orders = await paginate(
+            KitOrder.find(scope).sort({ createdAt: -1 }).lean(),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await KitOrder.countDocuments(scope)));
         res.json(orders);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -347,19 +352,32 @@ const getMyDues = async (req, res) => {
         const provider = await Provider.findById(req.user._id).lean();
 
         const [dues, wallet] = await Promise.all([
-            KitDue.find({ sewakId: req.user._id }).populate('orderId', 'comboName lines totalAmount').sort({ createdAt: -1 }).lean(),
+            // Instalments accumulate for as long as a sewak keeps buying.
+            paginate(
+                KitDue.find({ sewakId: req.user._id }).populate('orderId', 'comboName lines totalAmount').sort({ createdAt: -1 }).lean(),
+                pageParams(req)
+            ),
             Wallet.findOne({ providerId: req.user._id }).lean()
         ]);
 
         const balance = wallet?.balance ?? 0;
-        const activeDues = dues.filter(d => d.status === 'active');
         const cfg = provider?.vendorType ? await getConfigFor(provider.vendorType) : DEFAULT_CONFIG;
+
+        // Over every due this sewak has, not over the page of them returned
+        // above. This decides whether their payouts are locked, so measuring it
+        // off a page would release the lock for anyone with enough instalments
+        // to push the active ones onto a later page.
+        const [outstanding] = await KitDue.aggregate([
+            { $match: { sewakId: req.user._id, status: 'active' } },
+            { $group: { _id: null, count: { $sum: 1 }, balance: { $sum: '$balance' } } }
+        ]);
+        const activeCount = outstanding?.count || 0;
 
         res.json({
             walletBalance: balance,
-            totalOutstanding: activeDues.reduce((s, d) => s + d.balance, 0),
-            payoutLocked: !!(cfg.blockPayoutOnDues && activeDues.length > 0 && balance < 0),
-            payoutLockReason: (cfg.blockPayoutOnDues && activeDues.length > 0 && balance < 0)
+            totalOutstanding: Math.round((outstanding?.balance || 0) * 100) / 100,
+            payoutLocked: !!(cfg.blockPayoutOnDues && activeCount > 0 && balance < 0),
+            payoutLockReason: (cfg.blockPayoutOnDues && activeCount > 0 && balance < 0)
                 ? 'Your wallet balance is negative because of pending kit instalments. Withdrawals resume once the balance is back above zero.'
                 : '',
             dues
@@ -389,11 +407,19 @@ const getAdminOrders = async (req, res) => {
             if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); query.createdAt.$lte = d; }
         }
 
-        const orders = await KitOrder.find(query)
-            .populate('sewakId', 'ownerName mobile city vendorCode')
-            .populate('categoryId', 'name')
-            .sort({ createdAt: -1 })
-            .lean();
+        const orders = await paginate(
+            KitOrder.find(query)
+                .populate('sewakId', 'ownerName mobile city vendorCode')
+                .populate('categoryId', 'name')
+                .sort({ createdAt: -1 })
+                .lean(),
+            pageParams(req)
+        );
+
+        // The screen shows how many orders are still pending, which one page
+        // of them cannot say.
+        res.set('X-Total-Count', String(await KitOrder.countDocuments(query)));
+        res.set('X-Pending-Count', String(await KitOrder.countDocuments({ ...query, status: 'pending' })));
 
         // Pending first — they're the only rows needing a human.
         const rank = { pending: 0, confirmed: 1, dispatched: 2, delivered: 3, cancelled: 4 };
@@ -644,17 +670,35 @@ const getAdminDues = async (req, res) => {
             query.sewakId = req.query.sewakId;
         }
 
-        const dues = await KitDue.find(query)
-            .populate('sewakId', 'ownerName mobile vendorCode city')
-            .populate('categoryId', 'name')
-            .sort({ status: 1, nextDeductionDate: 1 })
-            .lean();
+        const dues = await paginate(
+            KitDue.find(query)
+                .populate('sewakId', 'ownerName mobile vendorCode city')
+                .populate('categoryId', 'name')
+                .sort({ status: 1, nextDeductionDate: 1 })
+                .lean(),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await KitDue.countDocuments(query)));
+
+        // Totalled over every matching due, not over the page of them above —
+        // outstanding money is the whole point of this screen.
+        const [totals] = await KitDue.aggregate([
+            { $match: query },
+            {
+                $group: {
+                    _id: null,
+                    active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+                    cleared: { $sum: { $cond: [{ $eq: ['$status', 'cleared'] }, 1, 0] } },
+                    outstanding: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, '$balance', 0] } }
+                }
+            }
+        ]);
 
         res.json({
             totals: {
-                active: dues.filter(d => d.status === 'active').length,
-                cleared: dues.filter(d => d.status === 'cleared').length,
-                outstanding: dues.filter(d => d.status === 'active').reduce((s, d) => s + d.balance, 0)
+                active: totals?.active || 0,
+                cleared: totals?.cleared || 0,
+                outstanding: Math.round((totals?.outstanding || 0) * 100) / 100
             },
             dues
         });
