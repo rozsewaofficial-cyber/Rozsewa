@@ -42,7 +42,8 @@ export default function AdminCommissionAnalytics() {
       const [catsRes, subsRes, provsRes] = await Promise.all([
         API.get('/admin/categories'),
         API.get('/admin/subscriptions'),
-        API.get('/admin/providers')
+        // A dropdown needs names and ids, not every provider document.
+        API.get('/admin/providers/picker')
       ]);
       setCategories(catsRes.data || []);
       setSubPlans(subsRes.data || []);

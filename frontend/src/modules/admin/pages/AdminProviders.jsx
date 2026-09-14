@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import TablePager from "@/modules/admin/components/TablePager";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -24,6 +25,14 @@ const AdminProviders = () => {
     const { toast } = useToast();
     const confirm = useConfirm();
     const [providers, setProviders] = useState([]);
+    // The table shows one page. The status cards, the city dropdown and the
+    // pager all describe every provider that matched, so they come from the
+    // server — and the search and filters travel with the request, because a
+    // browser can only ever search the page it was sent.
+    const [providersTotal, setProvidersTotal] = useState(0);
+    const [serverStats, setServerStats] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [filter, setFilter] = useState("all");
@@ -56,9 +65,21 @@ const AdminProviders = () => {
 
     useEffect(() => {
         setTitle("Manage Providers");
-        fetchProviders();
         fetchCategories();
     }, [setTitle]);
+
+    // A new question starts at its first page.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filter, cityFilter, fromDate, toDate]);
+
+    // Every filter is the server's question now, so changing one is a request.
+    // Typing waits for a pause rather than firing per keystroke.
+    useEffect(() => {
+        const t = setTimeout(() => fetchProviders(), searchTerm ? 350 : 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, filter, cityFilter, fromDate, toDate, currentPage]);
 
     useEffect(() => {
         if (selectedProvider) {
@@ -205,8 +226,29 @@ const AdminProviders = () => {
     const fetchProviders = async () => {
         setLoading(true);
         try {
-            const { data } = await API.get("/admin/providers");
-            setProviders(data);
+            const scope = {
+                ...(filter !== "all" ? { status: filter } : {}),
+                ...(cityFilter !== "all" ? { city: cityFilter } : {}),
+                ...(fromDate ? { from: fromDate } : {}),
+                ...(toDate ? { to: toDate } : {})
+            };
+            // The stats call carries no search, so the cards keep describing the
+            // whole scope while the table answers what was typed.
+            const [list, totals] = await Promise.all([
+                API.get("/admin/providers", {
+                    params: {
+                        ...scope,
+                        ...(searchTerm ? { search: searchTerm } : {}),
+                        page: currentPage,
+                        limit: itemsPerPage
+                    }
+                }),
+                API.get("/admin/providers/stats", { params: scope })
+            ]);
+            setProviders(list.data);
+            const reported = Number(list.headers?.["x-total-count"]);
+            setProvidersTotal(Number.isFinite(reported) ? reported : list.data.length);
+            setServerStats(totals.data);
         } catch (err) {
             toast({
                 title: "Fetch Failed",
@@ -275,54 +317,28 @@ const AdminProviders = () => {
         }
     };
 
+    // Counts of every provider in scope, not of the page on screen. The local
+    // fallback only covers the moment before the first response arrives.
     const stats = useMemo(() => {
+        if (serverStats) return serverStats;
         return {
             total: providers.length,
             verified: providers.filter(p => p.status === 'verified').length,
             pending: providers.filter(p => p.status === 'pending').length,
             suspended: providers.filter(p => p.status === 'suspended').length
         };
-    }, [providers]);
+    }, [providers, serverStats]);
 
+    // The cities that exist, which a page of rows cannot know.
     const uniqueCities = useMemo(() => {
-        const cities = providers.map(p => p.city).filter(Boolean);
-        return [...new Set(cities)].sort();
-    }, [providers]);
+        if (serverStats?.cities) return serverStats.cities;
+        return [...new Set(providers.map(p => p.city).filter(Boolean))].sort();
+    }, [providers, serverStats]);
 
-    const filteredProviders = (providers || []).filter(p => {
-        const sName = p?.shopName || "";
-        const oName = p?.ownerName || "";
-        const pId = p?.vendorCode || p?._id || "";
-        const pCity = p?.city || "";
-        const search = (searchTerm || "").toLowerCase();
-
-        const matchesSearch = sName.toLowerCase().includes(search) ||
-            oName.toLowerCase().includes(search) ||
-            pId.toLowerCase().includes(search) ||
-            pCity.toLowerCase().includes(search);
-        
-        const matchesStatus = filter === "all" || p.status === filter;
-        const matchesCity = cityFilter === "all" || p.city === cityFilter;
-        
-        let matchesDate = true;
-        if (fromDate || toDate) {
-            const joinedDate = new Date(p.createdAt);
-            joinedDate.setHours(0, 0, 0, 0);
-            
-            if (fromDate) {
-                const fDate = new Date(fromDate);
-                fDate.setHours(0, 0, 0, 0);
-                if (joinedDate < fDate) matchesDate = false;
-            }
-            if (toDate) {
-                const tDate = new Date(toDate);
-                tDate.setHours(23, 59, 59, 999);
-                if (joinedDate > tDate) matchesDate = false;
-            }
-        }
-
-        return matchesSearch && matchesStatus && matchesCity && matchesDate;
-    });
+    // The server answered the search, the status, the city and the dates, so
+    // these rows are already the answer. Filtering them again here could only
+    // disagree with it.
+    const filteredProviders = providers || [];
 
     if (loading && providers.length === 0) return (
         <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -633,6 +649,13 @@ const AdminProviders = () => {
                             )}
                         </tbody>
                     </table>
+                    <TablePager
+                        page={currentPage}
+                        total={providersTotal}
+                        perPage={itemsPerPage}
+                        onPage={setCurrentPage}
+                        noun="providers"
+                    />
                 </div>
             </div>
 

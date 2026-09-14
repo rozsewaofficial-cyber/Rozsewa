@@ -5,6 +5,8 @@ const partnerPolicyController = require('../controllers/partnerPolicyController'
 const broadcastController = require('../controllers/broadcastController');
 const {
     getProviders,
+    getProviderStats,
+    getProviderPicker,
     getProviderReports,
     resolveProviderReport,
     deleteProvider,
@@ -18,6 +20,7 @@ const {
     updateCategory,
     deleteCategory,
     getUsers,
+    getUserStats,
     getUserWalletByAdmin,
     toggleUserStatus,
     getBanners,
@@ -54,6 +57,7 @@ const {
     deleteAdmin,
     updateAdmin,
     getAllSewaks,
+    getSewakStats,
     getSewakById,
     createSewak,
     updateSewak,
@@ -129,6 +133,8 @@ router.put('/employees/:id/reject', protect, admin, rejectEmployee);
 
 // Provider management
 router.get('/providers', protect, admin, getProviders);
+router.get('/providers/stats', protect, admin, getProviderStats);
+router.get('/providers/picker', protect, admin, getProviderPicker);
 router.get('/provider-reports', protect, admin, getProviderReports);
 router.patch('/provider-reports/:id/resolve', protect, admin, resolveProviderReport);
 router.delete('/providers/:id', protect, admin, deleteProvider);
@@ -150,6 +156,7 @@ router.delete('/categories/:id', protect, admin, deleteCategory);
 
 // User management
 router.get('/users', protect, admin, getUsers);
+router.get('/users/stats', protect, admin, getUserStats);
 router.get('/users/:id/wallet', protect, admin, getUserWalletByAdmin);
 router.put('/users/:id/toggle-status', protect, admin, toggleUserStatus);
 router.delete('/users/:id', protect, admin, deleteUser);
@@ -237,6 +244,7 @@ router.delete('/subscriptions/:id', protect, admin, deleteSubscriptionPlan);
 
 // Sewak Management
 router.get('/sewaks', protect, supervisorWithAllScope, getAllSewaks);
+router.get('/sewaks/stats', protect, supervisorWithAllScope, getSewakStats);
 router.get('/sewaks/pending-kyc', protect, supervisorWithAllScope, getPendingSewaks);
 router.get('/sewaks/:id', protect, supervisorWithAllScope, getSewakById);
 router.post('/sewaks', protect, supervisorWithAllScope, createSewak);

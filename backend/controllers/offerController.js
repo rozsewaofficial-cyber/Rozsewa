@@ -33,7 +33,7 @@ const createProviderOffer = async (req, res) => {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
             
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
             
             for (const admin of admins) {
                 await sendNotificationToUser(admin._id, 'admin', {

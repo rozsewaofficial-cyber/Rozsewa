@@ -1,6 +1,7 @@
 const Provider = require('../models/Provider');
 const generateToken = require('../utils/generateToken');
 const Employee = require('../models/Employee');
+const { adminRecipients } = require('../utils/adminRecipients');
 
 // @desc    Register a new provider
 // @route   POST /api/provider/register
@@ -128,7 +129,7 @@ const registerProvider = async (req, res) => {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
 
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
 
             for (const admin of admins) {
                 await sendNotificationToUser(admin._id, 'admin', {
@@ -349,7 +350,7 @@ const registerSewak = async (req, res) => {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
 
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
 
             for (const admin of admins) {
                 await sendNotificationToUser(admin._id, 'admin', {
@@ -836,7 +837,7 @@ const sendEmergencyAlert = async (req, res) => {
                 const populatedAlert = await EmergencyAlert.findById(alert._id)
                     .populate('providerId', 'name shopName ownerName mobile address location');
 
-                const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+                const admins = await adminRecipients();
                 const io = getIO();
 
                 for (const admin of admins) {
@@ -940,7 +941,7 @@ const uploadDocument = async (req, res) => {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
 
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
 
             for (const admin of admins) {
                 await sendNotificationToUser(admin._id, 'admin', {
@@ -1228,7 +1229,7 @@ const submitKYC = async (req, res) => {
 
         // Notify Admins
         try {
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
             const title = isReSubmission ? 'KYC Re-submitted' : 'New KYC Request';
             const body = isReSubmission
                 ? `Partner ${provider.ownerName} has re-submitted their rejected KYC items.`

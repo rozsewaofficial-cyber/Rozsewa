@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import TablePager from "@/modules/admin/components/TablePager";
 import { useOutletContext } from "react-router-dom";
 import { useScrollLock } from "@/lib/scrollLock";
 import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail, X, MapPin, ChevronLeft, ChevronRight, Users, Activity, AlertOctagon, TrendingUp } from "lucide-react";
@@ -12,6 +13,11 @@ const AdminUsers = () => {
     const { toast } = useToast();
     const confirm = useConfirm();
     const [users, setUsers] = useState([]);
+    // The table shows one page of customers. The cards above it and the pager
+    // below it describe every customer that matched, so they come from the
+    // server — a page cannot know how many there are.
+    const [usersTotal, setUsersTotal] = useState(0);
+    const [serverStats, setServerStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedUser, setSelectedUser] = useState(null);
@@ -48,14 +54,40 @@ const AdminUsers = () => {
 
     useEffect(() => {
         setTitle("Manage Platform Users");
-        fetchUsers();
     }, [setTitle]);
+
+    // A new search starts at its first page.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    // Searching is the server's job now, so it waits for a pause in typing
+    // rather than firing per keystroke.
+    useEffect(() => {
+        const t = setTimeout(() => fetchUsers(), searchTerm ? 350 : 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, currentPage]);
 
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const { data } = await API.get("/admin/users");
-            setUsers(data);
+            // The stats call carries no search, so the cards keep describing every
+            // customer while the table answers what was typed.
+            const [list, totals] = await Promise.all([
+                API.get("/admin/users", {
+                    params: {
+                        ...(searchTerm ? { search: searchTerm } : {}),
+                        page: currentPage,
+                        limit: itemsPerPage
+                    }
+                }),
+                API.get("/admin/users/stats")
+            ]);
+            setUsers(list.data);
+            const reported = Number(list.headers?.["x-total-count"]);
+            setUsersTotal(Number.isFinite(reported) ? reported : list.data.length);
+            setServerStats(totals.data);
         } catch (err) {
             toast({ title: "Fetch Failed", variant: "destructive" });
         } finally {
@@ -95,21 +127,15 @@ const AdminUsers = () => {
         }
     };
 
-    const filteredUsers = (users || []).filter(u => {
-        const name = (u?.name || "").toLowerCase();
-        const mobile = (u?.mobile || "").toLowerCase();
-        const email = (u?.email || "").toLowerCase();
-        const search = (searchTerm || "").toLowerCase();
+    // The server answered the search, so these rows are already the answer,
+    // and already the page that was asked for.
+    const filteredUsers = users || [];
+    const paginatedUsers = filteredUsers;
 
-        return name.includes(search) ||
-            mobile.includes(search) ||
-            email.includes(search);
-    });
-
-    const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-    const paginatedUsers = filteredUsers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
+    // Counts of every customer, not of the page on screen. The local fallback
+    // only covers the moment before the first response arrives.
     const stats = useMemo(() => {
+        if (serverStats) return serverStats;
         const active = users.filter(u => u.isActive !== false).length;
         const blocked = users.filter(u => u.isActive === false).length;
         const recent = users.filter(u => {
@@ -118,7 +144,7 @@ const AdminUsers = () => {
         }).length;
         
         return { total: users.length, active, blocked, recent };
-    }, [users]);
+    }, [users, serverStats]);
 
     if (loading) return (
         <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -260,48 +286,13 @@ const AdminUsers = () => {
                     </table>
                 </div>
 
-                {/* Pagination Footer */}
-                {totalPages > 1 && (
-                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-4">
-                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
-                            Showing <span className="text-gray-900 font-black">{((currentPage - 1) * itemsPerPage) + 1}</span> to{" "}
-                            <span className="text-gray-900 font-black">
-                                {Math.min(currentPage * itemsPerPage, filteredUsers.length)}
-                            </span>{" "}
-                            of <span className="text-gray-900 font-black">{filteredUsers.length}</span> users
-                        </p>
-
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                disabled={currentPage === 1}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                <button
-                                    key={page}
-                                    onClick={() => setCurrentPage(page)}
-                                    className={`h-8 min-w-8 px-2.5 flex items-center justify-center rounded-lg text-[10px] font-black transition-all shadow-sm ${
-                                        page === currentPage
-                                            ? "bg-blue-600 text-white border border-blue-600"
-                                            : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                                    }`}
-                                >
-                                    {page}
-                                </button>
-                            ))}
-                            <button
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                disabled={currentPage === totalPages}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                <TablePager
+                    page={currentPage}
+                    total={usersTotal}
+                    perPage={itemsPerPage}
+                    onPage={setCurrentPage}
+                    noun="users"
+                />
             </div>
 
             {/* User Details Drawer (Consistent with SuperAdmin Drawer) */}

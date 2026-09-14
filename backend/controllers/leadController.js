@@ -14,6 +14,7 @@ const Setting = require('../models/Setting');
 const { Wallet, Transaction } = require('../models/Wallet');
 const AuditLog = require('../models/AuditLog');
 const { notifyUser } = require('../config/notificationService');
+const { adminRecipients } = require('../utils/adminRecipients');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -496,7 +497,7 @@ const createLead = async (req, res) => {
         // Notify admins
         try {
             const User = require('../models/User');
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
             for (const adminUser of admins) {
                 try {
                     await notifyUser({
@@ -906,7 +907,7 @@ const unlockLead = async (req, res) => {
         try {
             const { emitToUser } = require('../config/socket');
             const User = require('../models/User');
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
             for (const adminUser of admins) {
                 emitToUser(adminUser._id, 'NEW_NOTIFICATION', { type: 'lead', leadId: lead._id.toString() });
             }

@@ -2,6 +2,7 @@ const { pageParams, paginate } = require('../utils/pagination');
 const Withdrawal = require('../models/Withdrawal');
 const Provider = require('../models/Provider');
 const { Wallet, Transaction } = require('../models/Wallet');
+const { adminRecipients } = require('../utils/adminRecipients');
 
 // @desc    Request a withdrawal
 // @route   POST /api/provider/withdraw
@@ -67,7 +68,7 @@ const requestWithdrawal = async (req, res) => {
                 const User = require('../models/User');
                 const { sendNotificationToUser } = require('../config/notificationService');
                 
-                const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+                const admins = await adminRecipients();
                 
                 for (const admin of admins) {
                     sendNotificationToUser(admin._id, 'admin', {

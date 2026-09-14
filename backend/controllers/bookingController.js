@@ -15,6 +15,7 @@ const Coupon = require('../models/Coupon');
 const DistanceChargeService = require('../services/DistanceChargeService');
 const CashSettlementService = require('../services/CashSettlementService');
 const { sendEmail } = require('../utils/emailService');
+const { adminRecipients } = require('../utils/adminRecipients');
 
 // Helper to check if time is within night window
 const isNightTime = (timeStr, startStr, endStr) => {
@@ -1890,7 +1891,7 @@ const updateBookingStatusByProvider = async (req, res) => {
 
                     // 4. Notify admin(s)
                     const { sendNotificationToUser } = require('../config/notificationService');
-                    const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+                    const admins = await adminRecipients();
 
                     for (const admin of admins) {
                         await sendNotificationToUser(admin._id, 'admin', {
@@ -3087,7 +3088,7 @@ const collectPayment = async (req, res) => {
                 try {
                     const User = require('../models/User');
                     const { sendNotificationToUser } = require('../config/notificationService');
-                    const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } }).select('_id');
+                    const admins = await adminRecipients();
                     for (const adminUser of admins) {
                         sendNotificationToUser(adminUser._id, 'admin', {
                             title: '⚠️ Unauthorized Payment Attempt',

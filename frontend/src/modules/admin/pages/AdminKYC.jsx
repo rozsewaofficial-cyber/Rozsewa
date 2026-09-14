@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import TablePager from "@/modules/admin/components/TablePager";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,6 +24,12 @@ const AdminKYC = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const [providers, setProviders] = useState([]);
+    // The table shows one page of requests. The number on each status tab is
+    // how many exist, which the page cannot know.
+    const [providersTotal, setProvidersTotal] = useState(0);
+    const [serverStats, setServerStats] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
     const [loading, setLoading] = useState(true);
     const [selectedDoc, setSelectedDoc] = useState(null);
     const [selectedProvider, setSelectedProvider] = useState(null);
@@ -31,14 +38,41 @@ const AdminKYC = () => {
 
     useEffect(() => {
         setTitle("KYC Verification");
-        fetchKycRequests();
     }, [setTitle]);
+
+    // A new question starts at its first page.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, statusFilter]);
+
+    // The status tab and the search are the server's question now. Typing waits
+    // for a pause rather than firing per keystroke.
+    useEffect(() => {
+        const t = setTimeout(() => fetchKycRequests(), searchTerm ? 350 : 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, statusFilter, currentPage]);
 
     const fetchKycRequests = async () => {
         setLoading(true);
         try {
-            const { data } = await API.get("/admin/providers");
-            setProviders(data);
+            // The stats call carries no search, so the tabs keep counting every
+            // request while the table answers what was typed.
+            const [list, totals] = await Promise.all([
+                API.get("/admin/providers", {
+                    params: {
+                        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+                        ...(searchTerm ? { search: searchTerm } : {}),
+                        page: currentPage,
+                        limit: itemsPerPage
+                    }
+                }),
+                API.get("/admin/providers/stats")
+            ]);
+            setProviders(list.data);
+            const reported = Number(list.headers?.["x-total-count"]);
+            setProvidersTotal(Number.isFinite(reported) ? reported : list.data.length);
+            setServerStats(totals.data);
         } catch (err) {
             toast({ title: "Fetch Failed", variant: "destructive" });
         } finally {
@@ -57,22 +91,21 @@ const AdminKYC = () => {
         }
     };
 
-    // Stats
-    const stats = useMemo(() => ({
-        total: providers.length,
-        pending: providers.filter(p => p.status === 'pending').length,
-        verified: providers.filter(p => p.status === 'verified').length,
-        rejected: providers.filter(p => p.status === 'rejected').length,
-    }), [providers]);
+    // Counts of every request, not of the page on screen. The local fallback
+    // only covers the moment before the first response arrives.
+    const stats = useMemo(() => {
+        if (serverStats) return serverStats;
+        return {
+            total: providers.length,
+            pending: providers.filter(p => p.status === 'pending').length,
+            verified: providers.filter(p => p.status === 'verified').length,
+            rejected: providers.filter(p => p.status === 'rejected').length,
+        };
+    }, [providers, serverStats]);
 
-    const filteredRequests = providers.filter(p => {
-        const searchMatch = (searchTerm === "") ||
-            p.shopName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.ownerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.vendorCode?.toLowerCase().includes(searchTerm.toLowerCase());
-        const statusMatch = statusFilter === 'all' || p.status === statusFilter;
-        return searchMatch && statusMatch;
-    });
+    // The server answered the search and the status tab, so these rows are
+    // already the answer.
+    const filteredRequests = providers;
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 pb-12">
@@ -295,12 +328,13 @@ const AdminKYC = () => {
                         </tbody>
                     </table>
                 </div>
-                {/* Footer */}
-                {filteredRequests.length > 0 && (
-                    <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex items-center justify-between">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Showing {filteredRequests.length} of {providers.length} requests</p>
-                    </div>
-                )}
+                <TablePager
+                    page={currentPage}
+                    total={providersTotal}
+                    perPage={itemsPerPage}
+                    onPage={setCurrentPage}
+                    noun="requests"
+                />
             </div>
 
             {/* Document Preview Modal */}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import TablePager from "@/modules/admin/components/TablePager";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
@@ -28,8 +29,20 @@ const AdminProviderSubscriptions = () => {
 
     useEffect(() => {
         setTitle("Provider & Sewak Subscriptions");
-        fetchInitialData();
     }, [setTitle]);
+
+    // A new question starts at its first page.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filter, roleFilter]);
+
+    // The filters are the server's question now. Typing waits for a pause
+    // rather than firing per keystroke.
+    useEffect(() => {
+        const t = setTimeout(() => fetchInitialData(), searchTerm ? 350 : 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, filter, roleFilter, currentPage]);
 
     const fetchInitialData = async () => {
         setLoading(true);
@@ -75,37 +88,12 @@ const AdminProviderSubscriptions = () => {
             }
         });
 
-        return { total: providers.length, subscribed, free, expired, partners, sewaks };
-    }, [providers]);
+        return serverStats || { total: providers.length, subscribed, free, expired, partners, sewaks };
+    }, [providers, serverStats]);
 
-    const filteredProviders = useMemo(() => {
-        return (providers || []).filter(p => {
-            const sName = p?.shopName || "";
-            const oName = p?.ownerName || "";
-            const pId = p?.vendorCode || p?._id || "";
-            const search = (searchTerm || "").toLowerCase();
-
-            const matchesSearch = sName.toLowerCase().includes(search) ||
-                oName.toLowerCase().includes(search) ||
-                pId.toLowerCase().includes(search);
-
-            // Role filter
-            let matchesRole = true;
-            if (roleFilter === "sewak") matchesRole = p.providerCategory === "sewak";
-            if (roleFilter === "partner") matchesRole = p.providerCategory !== "sewak";
-
-            // Status filter
-            let matchesFilter = true;
-            if (filter === "subscribed") {
-                const isExpired = p.isSubscribed && p.subscriptionExpiry && new Date(p.subscriptionExpiry) < new Date();
-                matchesFilter = p.isSubscribed && !isExpired;
-            }
-            if (filter === "free") matchesFilter = !p.isSubscribed;
-            if (filter === "expired") matchesFilter = p.isSubscribed && p.subscriptionExpiry && new Date(p.subscriptionExpiry) < new Date();
-
-            return matchesSearch && matchesRole && matchesFilter;
-        });
-    }, [providers, searchTerm, filter, roleFilter]);
+    // The server answered the search, the subscription state and the partner
+    // or sewak split, so these rows are already the answer.
+    const filteredProviders = providers || [];
 
     const formatToDDMMYYYY = (isoDateStr) => {
         if (!isoDateStr) return "";
@@ -429,6 +417,13 @@ const AdminProviderSubscriptions = () => {
                             )}
                         </tbody>
                     </table>
+                    <TablePager
+                        page={currentPage}
+                        total={providersTotal}
+                        perPage={itemsPerPage}
+                        onPage={setCurrentPage}
+                        noun="providers"
+                    />
                 </div>
             </div>
 

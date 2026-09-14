@@ -13,23 +13,207 @@ const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Employee = require('../models/Employee');
 const Coupon = require('../models/Coupon');
 const axios = require('axios');
+const { teamCodesFor, sewaksOfTeam, teamSewakIds } = require('../utils/supervisorScope');
 // Trigger restart
 
 // @desc    Get all providers for admin
 // @route   GET /api/admin/providers
 // @access  Private/Admin
+/**
+ * What an admin screen is asking for when it asks for providers: the status
+ * tab, the partner/sewak split, and anything typed into the search box.
+ *
+ * Shared with the stats below so a tab's count and the rows under it can never
+ * describe two different sets. `includeSearch` is false for the stats: the
+ * cards keep describing the whole scope while the table answers what was typed.
+ */
+const adminProviderScope = (params, { includeSearch = true } = {}) => {
+    const { status, category, providerCategory, city } = params;
+    const query = status ? { status } : {};
+
+    const cat = category || providerCategory;
+    if (cat === 'sewak') {
+        query.providerCategory = 'sewak';
+    } else if (cat === 'partner') {
+        query.providerCategory = { $ne: 'sewak' };
+    }
+
+    const escape = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+    if (params.businessType && params.businessType !== 'all') query.businessType = params.businessType;
+
+    if (city && city !== 'all') query.city = new RegExp(`^${escape(city)}$`, "i");
+
+    // The joined-on range, as the screen's two date pickers describe it.
+    const { from, to } = params;
+    if (from || to) {
+        query.createdAt = {};
+        if (from) query.createdAt.$gte = new Date(new Date(from).setHours(0, 0, 0, 0));
+        if (to) query.createdAt.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    }
+
+    // Subscription state, as the subscriptions screen groups it: paying, lapsed,
+    // or never subscribed. "Expired" is a subscription with a date in the past,
+    // which is why it cannot be a plain field match.
+    const now = new Date();
+    if (params.subscription === 'subscribed') {
+        query.isSubscribed = true;
+        query.$and = (query.$and || []).concat([{
+            $or: [{ subscriptionExpiry: null }, { subscriptionExpiry: { $gte: now } }]
+        }]);
+    } else if (params.subscription === 'expired') {
+        query.isSubscribed = true;
+        query.subscriptionExpiry = { $lt: now };
+    } else if (params.subscription === 'free') {
+        query.isSubscribed = { $ne: true };
+    }
+
+    const term = String(includeSearch ? (params.search || "") : "").trim();
+    if (term) {
+        const rx = new RegExp(escape(term), "i");
+        query.$or = [
+            { shopName: rx },
+            { ownerName: rx },
+            { mobile: rx },
+            { email: rx },
+            { vendorCode: rx }
+        ];
+    }
+
+    return query;
+};
+
+// A provider document carries its KYC documents, its Insta service list and
+// its push tokens. None of that belongs in a table of providers.
+const PROVIDER_LIST_FIELDS = '-password -documents -fcmTokens -fcmTokenMobile -subServices -instaWork.services';
+
 const getProviders = async (req, res) => {
     try {
-        const { status, category, providerCategory } = req.query;
-        const query = status ? { status } : {};
-        const cat = category || providerCategory;
-        if (cat === 'sewak') {
-            query.providerCategory = 'sewak';
-        } else if (cat === 'partner') {
-            query.providerCategory = { $ne: 'sewak' };
-        }
-        const providers = await Provider.find(query).sort({ createdAt: -1 });
+        const query = adminProviderScope(req.query);
+        const providers = await paginate(
+            Provider.find(query)
+                .select(PROVIDER_LIST_FIELDS)
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+
+        // How many matched, so a screen showing a page can say so.
+        res.set('X-Total-Count', String(await Provider.countDocuments(query)));
         res.json(providers);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Providers as a dropdown: a name and an id, nothing else
+// @route   GET /api/admin/providers/picker
+// @access  Private/Admin
+// A picker used to load every provider document in full to render a list of
+// names. It now asks for the two fields it draws, and has a ceiling.
+const PICKER_LIMIT = 1000;
+const getProviderPicker = async (req, res) => {
+    try {
+        const query = adminProviderScope(req.query);
+        const providers = await Provider.find(query)
+            .select('_id shopName ownerName')
+            .sort({ shopName: 1, ownerName: 1 })
+            .limit(PICKER_LIMIT)
+            .lean();
+
+        res.set('X-Total-Count', String(await Provider.countDocuments(query)));
+        res.json(providers);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Counts behind the provider screens, and the cities to filter by
+// @route   GET /api/admin/providers/stats
+// @access  Private/Admin
+// The list arrives one page at a time, so a screen counting its own rows would
+// report the size of the page as the size of the business.
+const getProviderStats = async (req, res) => {
+    try {
+        // A tab showing a count must not already be narrowed to itself, or every
+        // tab would report the one that is selected. So each breakdown is taken
+        // over the scope minus its own filter.
+        const full = adminProviderScope(req.query, { includeSearch: false });
+        const { status, ...withoutStatus } = full;
+        const withoutSubscription = adminProviderScope(
+            { ...req.query, subscription: undefined },
+            { includeSearch: false }
+        );
+
+        const now = new Date();
+        const [statusRows, subscriptionRow, cities] = await Promise.all([
+            Provider.aggregate([
+                { $match: withoutStatus },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            Provider.aggregate([
+                { $match: withoutSubscription },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        // Paying, lapsed, or never subscribed — the three the
+                        // subscriptions screen groups by.
+                        subscribed: {
+                            $sum: {
+                                $cond: [{
+                                    $and: [
+                                        { $eq: ['$isSubscribed', true] },
+                                        { $or: [
+                                            { $eq: [{ $ifNull: ['$subscriptionExpiry', null] }, null] },
+                                            { $gte: ['$subscriptionExpiry', now] }
+                                        ] }
+                                    ]
+                                }, 1, 0]
+                            }
+                        },
+                        expired: {
+                            $sum: {
+                                $cond: [{
+                                    $and: [
+                                        { $eq: ['$isSubscribed', true] },
+                                        { $ne: [{ $ifNull: ['$subscriptionExpiry', null] }, null] },
+                                        { $lt: ['$subscriptionExpiry', now] }
+                                    ]
+                                }, 1, 0]
+                            }
+                        },
+                        free: { $sum: { $cond: [{ $ne: ['$isSubscribed', true] }, 1, 0] } },
+                        sewaks: { $sum: { $cond: [{ $eq: ['$providerCategory', 'sewak'] }, 1, 0] } },
+                        partners: { $sum: { $cond: [{ $ne: ['$providerCategory', 'sewak'] }, 1, 0] } }
+                    }
+                }
+            ]),
+            // The filter dropdown offers the cities that exist, which the page
+            // of rows on screen cannot know.
+            Provider.distinct('city', withoutStatus)
+        ]);
+
+        const byStatus = {};
+        let total = 0;
+        statusRows.forEach(({ _id, count }) => {
+            byStatus[_id || 'unknown'] = count;
+            total += count;
+        });
+
+        const subs = subscriptionRow[0] || {};
+        res.json({
+            total,
+            byStatus,
+            verified: byStatus.verified || 0,
+            pending: byStatus.pending || 0,
+            rejected: byStatus.rejected || 0,
+            suspended: byStatus.suspended || 0,
+            subscribed: subs.subscribed || 0,
+            expired: subs.expired || 0,
+            free: subs.free || 0,
+            sewaks: subs.sewaks || 0,
+            partners: subs.partners || 0,
+            cities: cities.filter(Boolean).sort()
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -173,39 +357,25 @@ const updateProviderCategory = async (req, res) => {
 const getAdminStats = async (req, res) => {
     try {
         if (req.user.role === 'supervisor') {
-    const supervisorEmp = await Employee.findOne({ userId: req.user._id });
-    if (!supervisorEmp) {
-        return res.json({
-            totalProviders: 0,
-            pendingProviders: 0,
-            totalUsers: 0,
-            totalBookings: 0,
-            activeBookings: 0,
-            revenue: 0,
-            recentBookings: []
-        });
-    }
+            const team = await teamCodesFor(req.user._id);
+            if (!team) {
+                return res.json({
+                    totalProviders: 0,
+                    pendingProviders: 0,
+                    totalUsers: 0,
+                    totalBookings: 0,
+                    activeBookings: 0,
+                    revenue: 0,
+                    recentBookings: []
+                });
+            }
 
-    const employees = await Employee.find({
-        $or: [
-            { managedBy: supervisorEmp._id },
-            { supervisorCode: supervisorEmp.ownCode },
-            { createdBy: req.user._id }
-        ]
-    });
-    const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
-    const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
+            const teamScope = sewaksOfTeam(team.codes);
+            const sewakIds = await teamSewakIds(team.codes);
 
-    const teamSewaks = await Provider.find({
-        providerCategory: 'sewak',
-        $or: [
-            { referredBy: { $in: teamCodes } },
-            { onboardedByStaff: { $in: teamCodes } }
-        ]
-    });
-            const sewakIds = teamSewaks.map(s => s._id);
-
-            const pendingSewaksCount = teamSewaks.filter(s => s.status === 'pending').length;
+            // Counted in the database rather than by loading every one of this
+            // team's sewaks to look at a status field.
+            const pendingSewaksCount = await Provider.countDocuments({ ...teamScope, status: 'pending' });
 
             const totalBookings = await Booking.countDocuments({ providerId: { $in: sewakIds } });
             const activeBookings = await Booking.countDocuments({
@@ -246,9 +416,11 @@ const getAdminStats = async (req, res) => {
             }));
 
             return res.json({
-                totalProviders: teamSewaks.length,
+                // Counted, not measured off a list that is now capped.
+                totalProviders: await Provider.countDocuments(teamScope),
                 pendingProviders: pendingSewaksCount,
-                totalUsers: employees.length,
+                // "Users" on a supervisor's dashboard means their team.
+                totalUsers: team.teamSize,
                 totalBookings,
                 activeBookings,
                 revenue,
@@ -358,27 +530,11 @@ const adminBookingScope = async (req, { includeSearch = false } = {}) => {
     }
 
     if (req.user.role === 'supervisor') {
-        const supervisorEmp = await Employee.findOne({ userId: req.user._id });
-        if (!supervisorEmp) return null;
-
-        const employees = await Employee.find({
-            $or: [
-                { managedBy: supervisorEmp._id },
-                { supervisorCode: supervisorEmp.ownCode },
-                { createdBy: req.user._id }
-            ]
-        });
-        const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
-        const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
-
-        const teamSewaks = await Provider.find({
-            providerCategory: 'sewak',
-            $or: [
-                { referredBy: { $in: teamCodes } },
-                { onboardedByStaff: { $in: teamCodes } }
-            ]
-        });
-        query.providerId = { $in: teamSewaks.map(s => s._id) };
+        const team = await teamCodesFor(req.user._id);
+        // No employee record means no team, which means nothing to see —
+        // not everything.
+        if (!team) return null;
+        query.providerId = { $in: await teamSewakIds(team.codes) };
     }
 
     return query;
@@ -885,11 +1041,69 @@ const deleteCategory = async (req, res) => {
 // @desc    Get all users for admin
 // @route   GET /api/admin/users
 // @access  Private/Admin
+// What an admin screen is asking for when it asks for users. Shared with the
+// stats below so a card's count and the rows under it describe the same set.
+const adminUserScope = (params, { includeSearch = true } = {}) => {
+    // Correcting the role factor: default role in User model is 'customer'
+    const query = { role: 'customer' };
+
+    if (params.status === 'active') query.isActive = { $ne: false };
+    else if (params.status === 'blocked') query.isActive = false;
+
+    const term = String(includeSearch ? (params.search || '') : '').trim();
+    if (term) {
+        const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c), 'i');
+        query.$or = [{ name: rx }, { mobile: rx }, { email: rx }];
+    }
+
+    return query;
+};
+
 const getUsers = async (req, res) => {
     try {
-        // Correcting the role factor: default role in User model is 'customer'
-        const users = await User.find({ role: 'customer' }).select('-password').sort({ createdAt: -1 });
+        const query = adminUserScope(req.query);
+        const users = await paginate(
+            User.find(query).select('-password').sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+
+        res.set('X-Total-Count', String(await User.countDocuments(query)));
         res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Counts behind the users screen
+// @route   GET /api/admin/users/stats
+// @access  Private/Admin
+// The table arrives one page at a time, so counting its rows would report the
+// size of the page as the size of the customer base.
+const getUserStats = async (req, res) => {
+    try {
+        // Not narrowed by the status tab: each tab shows its own count.
+        const scope = adminUserScope({ ...req.query, status: undefined }, { includeSearch: false });
+
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const [row] = await User.aggregate([
+            { $match: scope },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    active: { $sum: { $cond: [{ $ne: ['$isActive', false] }, 1, 0] } },
+                    blocked: { $sum: { $cond: [{ $eq: ['$isActive', false] }, 1, 0] } },
+                    recent: { $sum: { $cond: [{ $gte: ['$createdAt', weekAgo] }, 1, 0] } }
+                }
+            }
+        ]);
+
+        res.json({
+            total: row?.total || 0,
+            active: row?.active || 0,
+            blocked: row?.blocked || 0,
+            recent: row?.recent || 0
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -1769,31 +1983,97 @@ const updateAdmin = async (req, res) => {
     }
 };
 
+// The sewak roster renders a link per uploaded document, so unlike the provider
+// table it keeps `documents` — but still not the push tokens or service lists.
+const SEWAK_LIST_FIELDS = '-password -fcmTokens -fcmTokenMobile -subServices -instaWork.services';
+
+/**
+ * A supervisor sees their own team's sewaks and no one else's. That restriction
+ * and the screen's own search both want to be `$or` clauses, so they are
+ * combined with `$and` — merging them into one `$or` would widen the first by
+ * the second, and a supervisor who typed in the search box would see everyone.
+ */
+const sewakScope = async (req) => {
+    const scope = adminProviderScope(req.query, { includeSearch: true });
+    const query = { ...scope, providerCategory: 'sewak' };
+
+    if (req.user.role === 'supervisor') {
+        const team = await teamCodesFor(req.user._id);
+        if (!team) return null;
+
+        const clauses = [{ $or: sewaksOfTeam(team.codes).$or }];
+        if (query.$or) {
+            clauses.push({ $or: query.$or });
+            delete query.$or;
+        }
+        query.$and = (query.$and || []).concat(clauses);
+    }
+
+    return query;
+};
+
 const getAllSewaks = async (req, res) => {
     try {
-        let query = { providerCategory: 'sewak' };
-        if (req.user.role === 'supervisor') {
-            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
-            if (supervisorEmp) {
-                const employees = await Employee.find({
-                    $or: [
-                        { managedBy: supervisorEmp._id },
-                        { supervisorCode: supervisorEmp.ownCode },
-                        { createdBy: req.user._id }
-                    ]
-                });
-                const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
-                const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
-                query.$or = [
-                    { referredBy: { $in: teamCodes } },
-                    { onboardedByStaff: { $in: teamCodes } }
-                ];
-            } else {
-                return res.json([]);
-            }
-        }
-        const sewaks = await Provider.find(query).select('-password').sort({ createdAt: -1 });
+        // No team means nothing to see, not everything.
+        const query = await sewakScope(req);
+        if (!query) return res.json([]);
+
+        // Handed over one page at a time: a roster of field staff only grows.
+        const sewaks = await paginate(
+            Provider.find(query)
+                .select(SEWAK_LIST_FIELDS)
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+
+        res.set('X-Total-Count', String(await Provider.countDocuments(query)));
         res.json(sewaks);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Counts behind the sewak roster, and the business types to filter by
+// @route   GET /api/admin/sewaks/stats
+// @access  Private/Admin
+const getSewakStats = async (req, res) => {
+    try {
+        // Not narrowed by the business-type tab: each tab shows its own count.
+        const scoped = await sewakScope({ ...req, query: { ...req.query, businessType: undefined, search: undefined } });
+        if (!scoped) return res.json({ total: 0, internal: 0, specialized: 0, verified: 0, businessTypes: [] });
+
+        const [row, businessTypes] = await Promise.all([
+            Provider.aggregate([
+                { $match: scoped },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        internal: { $sum: { $cond: [{ $eq: ['$businessType', 'Internal Service'] }, 1, 0] } },
+                        specialized: { $sum: { $cond: [{ $ne: ['$businessType', 'Internal Service'] }, 1, 0] } },
+                        verified: { $sum: { $cond: [{ $eq: ['$status', 'verified'] }, 1, 0] } }
+                    }
+                }
+            ]),
+            Provider.distinct('businessType', scoped)
+        ]);
+
+        // Each tab carries its own count, which the page of rows cannot supply.
+        const byType = {};
+        await Promise.all(
+            businessTypes.filter(Boolean).map(async (t) => {
+                byType[t] = await Provider.countDocuments({ ...scoped, businessType: t });
+            })
+        );
+
+        res.json({
+            total: row[0]?.total || 0,
+            internal: row[0]?.internal || 0,
+            specialized: row[0]?.specialized || 0,
+            verified: row[0]?.verified || 0,
+            businessTypes: businessTypes.filter(Boolean).sort(),
+            byType
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -3360,6 +3640,8 @@ const deleteCoupon = async (req, res) => {
 
 module.exports = {
     getProviders,
+    getProviderStats,
+    getProviderPicker,
     getProviderReports,
     resolveProviderReport,
     updateProviderStatus,
@@ -3372,6 +3654,7 @@ module.exports = {
     updateCategory,
     deleteCategory,
     getUsers,
+    getUserStats,
     getUserWalletByAdmin,
     toggleUserStatus,
     getBanners,
@@ -3408,6 +3691,7 @@ module.exports = {
     deleteAdmin,
     updateAdmin,
     getAllSewaks,
+    getSewakStats,
     getSewakById,
     createSewak,
     updateSewak,

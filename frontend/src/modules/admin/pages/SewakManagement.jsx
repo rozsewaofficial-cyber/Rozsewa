@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import TablePager from '@/modules/admin/components/TablePager';
 import { useScrollLock } from '@/lib/scrollLock';
 import {
     Users, Plus, Search, Phone, Mail, Trash2, Building2,
@@ -25,6 +26,12 @@ const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 
 const SewakManagement = () => {
     const { setTitle } = useOutletContext();
     const [sewaks, setSewaks] = useState([]);
+    // The roster arrives one page at a time, so the cards, the tab counts and
+    // the list of business types all come from the server.
+    const [sewaksTotal, setSewaksTotal] = useState(0);
+    const [serverStats, setServerStats] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 20;
     const [loading, setLoading] = useState(true);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
@@ -116,9 +123,21 @@ const SewakManagement = () => {
     };
 
     useEffect(() => {
-        fetchSewaks();
         fetchCategories();
     }, []);
+
+    // A new question starts at its first page.
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, categoryFilter]);
+
+    // The search and the tab are the server's question now. Typing waits for
+    // a pause rather than firing per keystroke.
+    useEffect(() => {
+        const t = setTimeout(() => fetchSewaks(), searchTerm ? 350 : 0);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, categoryFilter, currentPage]);
 
     useEffect(() => {
         setTitle("Sewak Management");
@@ -135,7 +154,23 @@ const SewakManagement = () => {
 
     const fetchSewaks = async () => {
         try {
-            const { data } = await API.get('/admin/sewaks');
+            // The stats call carries neither the search nor the tab, so the cards
+            // and tab counts keep describing the whole roster.
+            const [list, totals] = await Promise.all([
+                API.get('/admin/sewaks', {
+                    params: {
+                        ...(searchTerm ? { search: searchTerm } : {}),
+                        ...(categoryFilter !== 'all' ? { businessType: categoryFilter } : {}),
+                        page: currentPage,
+                        limit: itemsPerPage
+                    }
+                }),
+                API.get('/admin/sewaks/stats')
+            ]);
+            const data = list.data;
+            const reported = Number(list.headers?.["x-total-count"]);
+            setSewaksTotal(Number.isFinite(reported) ? reported : data.length);
+            setServerStats(totals.data);
             setSewaks(data);
         } catch (error) {
             toast.error("Failed to fetch Sewak list");
@@ -249,21 +284,19 @@ const SewakManagement = () => {
         internal: sewaks.filter(s => s.businessType === 'Internal Service').length,
         specialized: sewaks.filter(s => s.businessType !== 'Internal Service').length,
         verified: sewaks.filter(s => s.status === 'verified').length,
-    }), [sewaks]);
+        ...(serverStats || {})
+    }), [sewaks, serverStats]);
 
     // Categories for filter
     const uniqueCategories = useMemo(() => {
+        if (serverStats?.businessTypes) return serverStats.businessTypes;
         const cats = new Set(sewaks.map(s => s.businessType || 'Internal Service'));
         return Array.from(cats);
-    }, [sewaks]);
+    }, [sewaks, serverStats]);
 
-    const filteredSewaks = sewaks.filter(s => {
-        const searchMatch = s.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            s.mobile.includes(searchTerm) ||
-                            (s.vendorCode && s.vendorCode.toLowerCase().includes(searchTerm.toLowerCase()));
-        const categoryMatch = categoryFilter === 'all' || s.businessType === categoryFilter;
-        return searchMatch && categoryMatch;
-    });
+    // The server answered the search and the business-type tab, so these rows
+    // are already the answer.
+    const filteredSewaks = sewaks;
 
     return (
         <div className="mx-auto max-w-7xl space-y-6 pb-12">
@@ -309,7 +342,7 @@ const SewakManagement = () => {
                         }`}
                     >
                         All
-                        <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${categoryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{sewaks.length}</span>
+                        <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${categoryFilter === 'all' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>{stats.total}</span>
                     </button>
                     {uniqueCategories.map(cat => (
                         <button
@@ -321,7 +354,7 @@ const SewakManagement = () => {
                         >
                             {cat}
                             <span className={`text-[9px] rounded-full px-1.5 py-0.5 font-black ${categoryFilter === cat ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                {sewaks.filter(s => s.businessType === cat).length}
+                                {serverStats?.byType?.[cat] ?? sewaks.filter(s => s.businessType === cat).length}
                             </span>
                         </button>
                     ))}
@@ -479,6 +512,13 @@ const SewakManagement = () => {
                             )}
                         </tbody>
                     </table>
+                    <TablePager
+                        page={currentPage}
+                        total={sewaksTotal}
+                        perPage={itemsPerPage}
+                        onPage={setCurrentPage}
+                        noun="sewaks"
+                    />
                 </div>
                 {/* Footer */}
                 {filteredSewaks.length > 0 && (

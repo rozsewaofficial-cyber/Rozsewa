@@ -26,7 +26,9 @@ const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 
 const AdminSuper = () => {
     const { setTitle } = useOutletContext();
     const [admins, setAdmins] = useState([]);
-    const [sewaks, setSewaks] = useState([]);
+    // How many sewaks exist. This screen never lists them, so it takes the
+    // number from the server rather than measuring an array it holds.
+    const [sewaksTotal, setSewaksTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     
     // Pagination state
@@ -116,8 +118,9 @@ const AdminSuper = () => {
 
     const fetchSewaks = async () => {
         try {
-            const response = await API.get('/admin/sewaks');
-            setSewaks(response.data);
+            // Only the count is shown, so no rows are asked for.
+            const response = await API.get('/admin/sewaks', { params: { limit: 1 } });
+            setSewaksTotal(Number(response.headers?.["x-total-count"]) || 0);
         } catch (error) {
             toast.error("Failed to fetch sewaks");
         }
@@ -254,11 +257,11 @@ const AdminSuper = () => {
     const stats = useMemo(() => {
         return {
             totalAdmins: admins.length,
-            sewaks: sewaks.length,
+            sewaks: sewaksTotal,
             activeKycAdmins: admins.filter(a => a.kycAccess).length,
             baseCommission: settings.commission_basic
         };
-    }, [admins, sewaks, settings]);
+    }, [admins, sewaksTotal, settings]);
 
     // Pagination logic
     const totalPages = Math.ceil(admins.length / itemsPerPage);

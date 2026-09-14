@@ -6,6 +6,7 @@ const KitOrder = require('../models/KitOrder');
 const KitDue = require('../models/KitDue');
 const Provider = require('../models/Provider');
 const { applyKitWalletMovement, firstDueDate } = require('../utils/kitWallet');
+const { adminRecipients } = require('../utils/adminRecipients');
 
 const DEFAULT_CONFIG = {
     paymentMode: 'full',
@@ -289,7 +290,7 @@ const placeOrder = async (req, res) => {
         try {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
-            const admins = await User.find({ role: { $in: ['admin', 'superadmin'] } });
+            const admins = await adminRecipients();
             for (const admin of admins) {
                 await sendNotificationToUser(admin._id, 'admin', {
                     title: 'New Starter Kit Order',
