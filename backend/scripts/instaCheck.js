@@ -8,6 +8,9 @@ const assert = require('assert');
 const P = require('../services/InstaPricingService');
 const A = require('../services/InstaAssignmentService');
 const C = require('../services/InstaConfigService');
+// Only for its schema methods — requiring a model registers it, it does not
+// open a connection.
+const InstaJob = require('../models/InstaJob');
 
 let passed = 0;
 const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
@@ -511,6 +514,90 @@ check('a Partner rate outside the band is refused', () => {
     // The customer's client sends this figure, so it is re-validated server-side.
     assert.throws(() => P.resolveProviderRate({ service: banded, providerCategory: 'partner', requestedRate: 50 }));
     assert.throws(() => P.resolveProviderRate({ service: banded, providerCategory: 'partner', requestedRate: 5000 }));
+});
+
+
+console.log('\nWaiting is charged only past the grace window');
+const waited = (minutes, graceMinutes = 10) => P.chargeableIdleMinutes({
+    arrivedAt: new Date(Date.now() - minutes * 60000),
+    workStartedAt: new Date(),
+    graceMinutes
+});
+
+check('waiting inside the grace window is free', () => {
+    // The customer is never billed for a worker arriving a few minutes early.
+    assert.strictEqual(waited(0), 0);
+    assert.strictEqual(waited(5), 0);
+    assert.strictEqual(waited(10), 0);
+});
+check('only the time past the grace window is charged', () => {
+    assert.strictEqual(waited(25), 15);
+    assert.strictEqual(waited(40), 30);
+});
+check('a worker who never marked arrival cannot charge waiting', () => {
+    // Otherwise the charge would start from a moment nobody recorded.
+    assert.strictEqual(P.chargeableIdleMinutes({ arrivedAt: null, workStartedAt: new Date() }), 0);
+});
+check('the clock stops when work starts, not when the bill is read', () => {
+    const arrivedAt = new Date(Date.now() - 60 * 60000);
+    const workStartedAt = new Date(Date.now() - 40 * 60000);
+    // Waited 20 minutes before starting, so 10 are chargeable — the 40 minutes
+    // of work since must not be added to the waiting charge as well.
+    assert.strictEqual(P.chargeableIdleMinutes({ arrivedAt, workStartedAt, graceMinutes: 10 }), 10);
+});
+check('the waiting charge appears on the bill as its own line', () => {
+    // A charge the customer cannot see is a charge they will dispute.
+    const bill = P.finalBill({
+        service: { pricingType: 'per_hour', name: 'Clean' },
+        rate: 150, bookedQuantity: 2, workedMinutes: 70, billingIntervalMinutes: 30,
+        idleMinutes: 30, idleChargePerMinute: 2
+    });
+    assert.strictEqual(bill.subtotal, 225 + 60);
+    assert.ok(bill.breakdown.some(l => /wait/i.test(l.label)), 'a waiting line must be shown');
+});
+
+console.log('\nThe cancellation fee follows how far the job had got');
+const stageOf = (status) => {
+    const job = { status, cancellationStageNow: InstaJob.schema.methods.cancellationStageNow };
+    return job.cancellationStageNow();
+};
+check('each stage maps to its own band', () => {
+    // A worker who has already driven out has lost more than one who has not.
+    assert.strictEqual(stageOf('ASSIGNED'), 'beforeAcceptance');
+    assert.strictEqual(stageOf('ACCEPTED'), 'afterAcceptance');
+    assert.strictEqual(stageOf('ON_THE_WAY'), 'afterAcceptance');
+    assert.strictEqual(stageOf('ARRIVED'), 'afterArrival');
+    assert.strictEqual(stageOf('WORK_STARTED'), 'workStarted');
+});
+check('the fee rises with each stage', () => {
+    const f = C.DEFAULT_CONFIG.cancellationFees;
+    assert.ok(f.beforeAcceptance < f.afterAcceptance);
+    assert.ok(f.afterAcceptance < f.afterArrival);
+    assert.ok(f.afterArrival < f.workStarted);
+});
+
+console.log('\nRepeated cancellation escalates against the worker');
+check('the policy escalates in order, and each step is reachable', () => {
+    const p = C.DEFAULT_CONFIG.cancellationPolicy;
+    assert.ok(p.warnAfter < p.restrictAfter, 'a warning must come before a restriction');
+    assert.ok(p.restrictAfter < p.disableAfter, 'a restriction must come before disabling');
+    assert.ok(p.restrictionHours > 0, 'a restriction with no duration never lifts');
+});
+check('a restriction lifts once its time has passed', () => {
+    // Stored as an expiry rather than a flag, so nothing has to remember to
+    // clear it.
+    const now = new Date();
+    assert.strictEqual(A.isRestricted({ instaWork: { restrictedUntil: new Date(+now + 3600000) } }, now), true);
+    assert.strictEqual(A.isRestricted({ instaWork: { restrictedUntil: new Date(+now - 3600000) } }, now), false);
+    assert.strictEqual(A.isRestricted({ instaWork: {} }, now), false);
+});
+check('a worker cancelling is what escalates, not a customer cancelling', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const providerSrc = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaProviderController.js'), 'utf8');
+    const customerSrc = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaCustomerController.js'), 'utf8');
+    assert.ok(/cancelCount/.test(providerSrc), 'a worker cancelling must count against them');
+    assert.ok(!/cancelCount/.test(customerSrc), 'a customer cancelling must not count against the worker');
 });
 
 console.log(`\n${passed} Insta Work checks passed.\n`);
