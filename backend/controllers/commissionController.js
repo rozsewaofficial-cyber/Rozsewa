@@ -7,6 +7,7 @@ const CashSettlementService = require('../services/CashSettlementService');
 const mongoose = require('mongoose');
 const AuditLog = require('../models/AuditLog');
 const ProviderBanner = require('../models/ProviderBanner');
+const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
 
 // @desc    Get commission and settlement data
 // @route   GET /api/admin/commission
@@ -15,7 +16,14 @@ const getCommissionData = async (req, res) => {
     try {
         const { Transaction } = require('../models/Wallet');
         // Stats
-        const completedBookings = await Booking.find({ status: 'completed' });
+        // Insta Work settles through the same commission engine, so its jobs
+        // belong in these totals — without them the platform under-reports its
+        // own revenue.
+        const instaCompleted = await InstaEarningsAdapter.getProviderJobs(null, { populate: true });
+        const completedBookings = [
+            ...(await Booking.find({ status: 'completed' })),
+            ...instaCompleted
+        ];
         
         const platformRevenue = completedBookings.reduce((sum, b) => sum + (b.adminCommission || 0), 0);
         const totalJobValue = completedBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
@@ -34,9 +42,11 @@ const getCommissionData = async (req, res) => {
         const processedToday = processedTodayDocs.reduce((sum, w) => sum + w.amount, 0);
 
         // Queue (Recent completed bookings with actual data)
-        const queue = await Booking.find({ status: 'completed' })
+        const bookingQueue = await Booking.find({ status: 'completed' })
             .populate('providerId', 'shopName ownerName bankDetails planType providerCategory')
             .sort({ createdAt: -1 });
+        const queue = [...bookingQueue, ...instaCompleted]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
         const formattedQueue = queue.map(b => {
             const commission = b.adminCommission || 0;
@@ -340,6 +350,19 @@ const getEarningsData = async (req, res) => {
             .populate('providerId')
             .populate('userId');
 
+        // Insta Work jobs are reported alongside bookings. They are appended
+        // after the Booking query rather than merged into it because the two
+        // live in different collections with different status vocabularies;
+        // the adapter translates one into the other. Appended here, before the
+        // city and payment-method filters, so those apply to Insta rows too.
+        currentBookings = currentBookings.concat(await InstaEarningsAdapter.getJobsForEarnings({
+            start: currentStart,
+            end: currentEnd,
+            providerId: targetProviderId,
+            status: currentMatch.status,
+            category
+        }));
+
         // In-memory filter for city (since providerId is populated)
         if (city) {
             currentBookings = currentBookings.filter(b => b.providerId && b.providerId.city && b.providerId.city.toLowerCase() === city.toLowerCase());
@@ -376,6 +399,13 @@ const getEarningsData = async (req, res) => {
         }
 
         let prevBookings = await Booking.find(prevMatch).populate('providerId');
+        prevBookings = prevBookings.concat(await InstaEarningsAdapter.getJobsForEarnings({
+            start: prevStart,
+            end: prevEnd,
+            providerId: targetProviderId,
+            status: currentMatch.status,
+            category
+        }));
 
         if (city) {
             prevBookings = prevBookings.filter(b => b.providerId && b.providerId.city && b.providerId.city.toLowerCase() === city.toLowerCase());

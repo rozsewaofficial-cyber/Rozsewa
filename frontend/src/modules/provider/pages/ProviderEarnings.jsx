@@ -90,7 +90,12 @@ const ProviderEarnings = () => {
                     <p className="text-[10px] text-muted-foreground font-mono mt-1">Ref: {t._id?.slice(-6).toUpperCase()}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-base font-black text-emerald-600">+ ₹{t.amount || 0}</p>
+                    {/* A debit is money the worker owes, not money they made.
+                        Painting every row green showed commission charges as
+                        earnings. */}
+                    <p className={`text-base font-black ${t.type === 'debit' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {t.type === 'debit' ? '−' : '+'} ₹{t.amount || 0}
+                    </p>
                     <span className="mt-1 inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-emerald-700 border border-emerald-100">
                       <Check className="h-2.5 w-2.5" /> Settled
                     </span>

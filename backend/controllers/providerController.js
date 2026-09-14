@@ -719,10 +719,13 @@ const updateProviderProfile = async (req, res) => {
 const getProviderStats = async (req, res) => {
     try {
         const Booking = require('../models/Booking');
-        const bookings = await Booking.find({
-            providerId: req.user._id,
-            status: 'completed'
-        });
+        const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
+        // A Sewak may earn entirely through Insta Work, so counting only
+        // bookings would show them a dashboard of zeroes after a full day.
+        const bookings = [
+            ...(await Booking.find({ providerId: req.user._id, status: 'completed' })),
+            ...(await InstaEarningsAdapter.getProviderJobs(req.user._id))
+        ];
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);

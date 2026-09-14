@@ -1,0 +1,433 @@
+/**
+ * Pins down the Insta Work rules that are easy to break later.
+ * Pure logic, no database — safe to run anywhere:
+ *
+ *   node scripts/instaCheck.js
+ */
+const assert = require('assert');
+const P = require('../services/InstaPricingService');
+const A = require('../services/InstaAssignmentService');
+const C = require('../services/InstaConfigService');
+
+let passed = 0;
+const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
+
+const hourly = { pricingType: 'per_hour', rate: 150, baseCharge: 0, baseChargeEnabled: false, name: 'Bathroom Cleaning' };
+
+console.log('\nThe billing example from the spec');
+check('booked 2 hrs @ Rs 150 estimates Rs 300', () => {
+    assert.strictEqual(P.estimate({ service: hourly, rate: 150, quantity: 2 }).subtotal, 300);
+});
+check('2 hrs 10 mins rounds up to 2.5 hrs and bills Rs 375', () => {
+    const bill = P.finalBill({ service: hourly, rate: 150, bookedQuantity: 2, workedMinutes: 130, billingIntervalMinutes: 30 });
+    assert.strictEqual(bill.billedMinutes, 150);
+    assert.strictEqual(bill.quantity, 2.5);
+    assert.strictEqual(bill.subtotal, 375);
+});
+
+console.log('\nBilling blocks round up, never down');
+check('15-minute blocks', () => {
+    assert.strictEqual(P.roundUpToBlock(1, 15), 15);
+    assert.strictEqual(P.roundUpToBlock(15, 15), 15);
+    assert.strictEqual(P.roundUpToBlock(16, 15), 30);
+});
+check('30-minute blocks', () => {
+    assert.strictEqual(P.roundUpToBlock(1, 30), 30);
+    assert.strictEqual(P.roundUpToBlock(130, 30), 150);
+});
+check('60-minute blocks', () => {
+    assert.strictEqual(P.roundUpToBlock(61, 60), 120);
+    assert.strictEqual(P.roundUpToBlock(120, 60), 120);
+});
+check('zero worked minutes bills nothing', () => {
+    assert.strictEqual(P.roundUpToBlock(0, 30), 0);
+    const bill = P.finalBill({ service: hourly, rate: 150, bookedQuantity: 2, workedMinutes: 0, billingIntervalMinutes: 30 });
+    assert.strictEqual(bill.subtotal, 0);
+});
+
+console.log('\nAll five pricing types');
+check('per hour', () => {
+    assert.strictEqual(P.calculate({ pricingType: 'per_hour', rate: 150, quantity: 3 }).subtotal, 450);
+});
+check('per km', () => {
+    assert.strictEqual(P.calculate({ pricingType: 'per_km', rate: 15, quantity: 8 }).subtotal, 120);
+});
+check('per meter', () => {
+    assert.strictEqual(P.calculate({ pricingType: 'per_meter', rate: 20, quantity: 12 }).subtotal, 240);
+});
+check('per unit', () => {
+    assert.strictEqual(P.calculate({ pricingType: 'per_unit', rate: 50, quantity: 6 }).subtotal, 300);
+});
+check('custom is a single priced job regardless of quantity', () => {
+    const r = P.calculate({ pricingType: 'custom', rate: 900, quantity: 7 });
+    assert.strictEqual(r.quantity, 1);
+    assert.strictEqual(r.subtotal, 900);
+});
+check('an unknown pricing type is refused', () => {
+    assert.throws(() => P.calculate({ pricingType: 'per_furlong', rate: 10, quantity: 1 }), /Unknown pricing type/);
+});
+
+console.log('\nBase + variable charge');
+check("the spec's delivery example: Rs 30 base + Rs 15/km x 8 = Rs 150", () => {
+    const r = P.calculate({
+        pricingType: 'per_km', rate: 15, quantity: 8,
+        baseCharge: 30, baseChargeEnabled: true
+    });
+    assert.strictEqual(r.baseAmount, 30);
+    assert.strictEqual(r.variableAmount, 120);
+    assert.strictEqual(r.subtotal, 150);
+});
+check('switching the base charge off removes it entirely', () => {
+    const r = P.calculate({ pricingType: 'per_km', rate: 15, quantity: 8, baseCharge: 30, baseChargeEnabled: false });
+    assert.strictEqual(r.baseAmount, 0);
+    assert.strictEqual(r.subtotal, 120);
+});
+
+console.log('\nArrival grace period and waiting charges');
+const minsAgo = (n) => new Date(Date.now() - n * 60000);
+check('nothing is charged inside the grace period', () => {
+    assert.strictEqual(P.chargeableIdleMinutes({ arrivedAt: minsAgo(8), graceMinutes: 10 }), 0);
+    assert.strictEqual(P.chargeableIdleMinutes({ arrivedAt: minsAgo(10), graceMinutes: 10 }), 0);
+});
+check('only the minutes beyond the grace period are chargeable', () => {
+    assert.strictEqual(P.chargeableIdleMinutes({ arrivedAt: minsAgo(25), graceMinutes: 10 }), 15);
+});
+check('waiting stops counting the moment work starts', () => {
+    const arrived = minsAgo(40);
+    const started = minsAgo(20);   // waited 20, grace 10 -> 10 chargeable
+    assert.strictEqual(P.chargeableIdleMinutes({ arrivedAt: arrived, workStartedAt: started, graceMinutes: 10 }), 10);
+});
+check('no arrival means no waiting charge', () => {
+    assert.strictEqual(P.chargeableIdleMinutes({ arrivedAt: null, graceMinutes: 10 }), 0);
+});
+check('waiting charge appears on the bill as its own line', () => {
+    const bill = P.finalBill({
+        service: hourly, rate: 150, bookedQuantity: 1, workedMinutes: 60,
+        billingIntervalMinutes: 30, idleMinutes: 15, idleChargePerMinute: 2
+    });
+    assert.strictEqual(bill.idleAmount, 30);
+    assert.strictEqual(bill.subtotal, 180);       // 150 work + 30 waiting
+    assert.ok(bill.breakdown.some(b => /Waiting charge/.test(b.label)));
+});
+
+console.log('\nDuration extension');
+check('within the booked time plus threshold, no approval is needed', () => {
+    assert.strictEqual(P.needsExtension({ bookedMinutes: 120, workedMinutes: 140, overrunThresholdMinutes: 30 }), false);
+    assert.strictEqual(P.needsExtension({ bookedMinutes: 120, workedMinutes: 150, overrunThresholdMinutes: 30 }), false);
+});
+check('past the threshold, approval is required', () => {
+    assert.strictEqual(P.needsExtension({ bookedMinutes: 120, workedMinutes: 151, overrunThresholdMinutes: 30 }), true);
+});
+check('an approved extension pushes the limit out', () => {
+    assert.strictEqual(
+        P.needsExtension({ bookedMinutes: 120, workedMinutes: 175, overrunThresholdMinutes: 30, approvedExtraMinutes: 30 }),
+        false
+    );
+});
+
+console.log('\nPartner rate guardrail');
+const guarded = { name: 'Bathroom Cleaning', sewakRate: 150, minRate: 150, maxRate: 250 };
+check('a rate inside the band is accepted', () => {
+    assert.strictEqual(P.resolveProviderRate({ service: guarded, providerCategory: 'partner', requestedRate: 200 }), 200);
+    assert.strictEqual(P.resolveProviderRate({ service: guarded, providerCategory: 'partner', requestedRate: 150 }), 150);
+    assert.strictEqual(P.resolveProviderRate({ service: guarded, providerCategory: 'partner', requestedRate: 250 }), 250);
+});
+check('below the floor is refused', () => {
+    assert.throws(() => P.resolveProviderRate({ service: guarded, providerCategory: 'partner', requestedRate: 100 }), /at least/);
+});
+check('above the ceiling is refused', () => {
+    assert.throws(() => P.resolveProviderRate({ service: guarded, providerCategory: 'partner', requestedRate: 400 }), /cannot exceed/);
+});
+check('a Sewak always gets the admin rate, whatever they ask for', () => {
+    assert.strictEqual(P.resolveProviderRate({ service: guarded, providerCategory: 'sewak', requestedRate: 9999 }), 150);
+});
+
+console.log('\nWorker eligibility');
+const freshProvider = (over = {}) => ({
+    instaWork: {
+        enabled: true,
+        lastPingAt: new Date(),
+        lastPing: { coordinates: [75.8577, 22.7196] },
+        workingHours: { start: '', end: '' },
+        restrictedUntil: null,
+        disabledByAdmin: false,
+        ...over
+    },
+    location: { coordinates: [75.8577, 22.7196] }
+});
+check('a recent ping counts as online', () => {
+    assert.strictEqual(A.hasFreshPing(freshProvider(), 5), true);
+});
+check('a stale ping counts as offline however the toggle is set', () => {
+    assert.strictEqual(A.hasFreshPing(freshProvider({ lastPingAt: minsAgo(30) }), 5), false);
+});
+check('a worker who never pinged is not available', () => {
+    assert.strictEqual(A.hasFreshPing(freshProvider({ lastPingAt: null }), 5), false);
+});
+check('an admin-disabled worker is restricted', () => {
+    assert.strictEqual(A.isRestricted(freshProvider({ disabledByAdmin: true })), true);
+});
+check('a live temporary restriction blocks the worker', () => {
+    assert.strictEqual(A.isRestricted(freshProvider({ restrictedUntil: new Date(Date.now() + 3600e3) })), true);
+});
+check('an expired restriction does not', () => {
+    assert.strictEqual(A.isRestricted(freshProvider({ restrictedUntil: new Date(Date.now() - 3600e3) })), false);
+});
+check('unset working hours mean always available', () => {
+    assert.strictEqual(A.withinWorkingHours(freshProvider()), true);
+});
+check('a window spanning midnight is handled', () => {
+    const p = freshProvider({ workingHours: { start: '22:00', end: '06:00' } });
+    assert.strictEqual(A.withinWorkingHours(p, new Date('2026-01-01T23:30:00')), true);
+    assert.strictEqual(A.withinWorkingHours(p, new Date('2026-01-01T03:00:00')), true);
+    assert.strictEqual(A.withinWorkingHours(p, new Date('2026-01-01T12:00:00')), false);
+});
+
+console.log('\nSewak auto-assignment ranking');
+check('the nearer worker wins when all else is equal', () => {
+    const near = { distanceKm: 1, rating: 4, activeJobs: 0 };
+    const far = { distanceKm: 8, rating: 4, activeJobs: 0 };
+    assert.ok(A.sewakScore(near) < A.sewakScore(far));
+});
+check('a busy worker is deprioritised against an idle one nearby', () => {
+    const busy = { distanceKm: 1, rating: 5, activeJobs: 1 };
+    const free = { distanceKm: 2, rating: 5, activeJobs: 0 };
+    assert.ok(A.sewakScore(free) < A.sewakScore(busy));
+});
+check('rating breaks a tie between equally close workers', () => {
+    const good = { distanceKm: 3, rating: 5, activeJobs: 0 };
+    const poor = { distanceKm: 3, rating: 2, activeJobs: 0 };
+    assert.ok(A.sewakScore(good) < A.sewakScore(poor));
+});
+check('ETA is derived from distance and never shows zero', () => {
+    assert.strictEqual(A.etaFromDistance(10, 20), 30);
+    assert.strictEqual(A.etaFromDistance(0.1, 20), 1);
+    assert.strictEqual(A.etaFromDistance(null, 20), null);
+});
+
+console.log('\nConfiguration guards');
+check('the shipping defaults match the spec', () => {
+    const d = C.DEFAULT_CONFIG;
+    assert.strictEqual(d.billingIntervalMinutes, 30);
+    assert.strictEqual(d.arrivalGraceMinutes, 10);
+    assert.strictEqual(d.overrunThresholdMinutes, 30);
+    assert.ok(d.cancellationFees.workStarted > d.cancellationFees.beforeAcceptance);
+});
+check('cancellation escalates: warn, then restrict, then disable', () => {
+    const p = C.DEFAULT_CONFIG.cancellationPolicy;
+    assert.ok(p.warnAfter < p.restrictAfter);
+    assert.ok(p.restrictAfter < p.disableAfter);
+});
+
+console.log('\nUnapproved overrun is not billable');
+check('time past booked + tolerance is capped away', () => {
+    // 1 hr booked, 30 min tolerance, nothing approved, worker ran 5 hours.
+    const r = P.billableMinutes({ workedMinutes: 300, bookedMinutes: 60, overrunThresholdMinutes: 30 });
+    assert.strictEqual(r.authorisedMinutes, 90);
+    assert.strictEqual(r.billableMinutes, 90);
+    assert.strictEqual(r.unbilledOverrunMinutes, 210);
+});
+check('an approved extension raises the ceiling', () => {
+    const r = P.billableMinutes({
+        workedMinutes: 300, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes: 30
+    });
+    assert.strictEqual(r.authorisedMinutes, 120);
+    assert.strictEqual(r.billableMinutes, 120);
+});
+check('work inside the tolerance bills in full', () => {
+    const r = P.billableMinutes({ workedMinutes: 80, bookedMinutes: 60, overrunThresholdMinutes: 30 });
+    assert.strictEqual(r.billableMinutes, 80);
+    assert.strictEqual(r.unbilledOverrunMinutes, 0);
+});
+check('declining an extension genuinely costs the worker the overrun', () => {
+    // Declining leaves approvedExtraMinutes at 0, so the ceiling does not move.
+    const declined = P.billableMinutes({ workedMinutes: 200, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes: 0 });
+    const approved = P.billableMinutes({ workedMinutes: 200, bookedMinutes: 60, overrunThresholdMinutes: 30, approvedExtraMinutes: 60 });
+    assert.ok(
+        approved.billableMinutes > declined.billableMinutes,
+        'approval must change what is billable, or the prompt is decorative'
+    );
+});
+check('stopWork actually applies the cap', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaProviderController.js'), 'utf8');
+    assert.ok(src.includes('Pricing.billableMinutes'), 'stopWork must compute the cap');
+    assert.ok(src.includes('cap.billableMinutes'), 'the bill must use the capped minutes');
+});
+
+console.log('\nOnline payment is bound to the job');
+check('verification checks the order, the signature and replay', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaCustomerController.js'), 'utf8');
+    // Each is a distinct failure the audit found elsewhere in this platform:
+    // an unbound amount, a signature-only check, and payment replay.
+    assert.ok(src.includes('razorpay_order_id !== job.razorpayOrderId'), 'the paid order must match the job');
+    assert.ok(src.includes('createHmac'), 'the signature must be verified');
+    assert.ok(src.includes('razorpayPaymentId: razorpay_payment_id'), 'a used payment id must be rejected');
+    assert.ok(src.includes('Math.round(Number(job.finalAmount) * 100)'), 'the amount must come from the job');
+});
+
+console.log('\nExtension requests expire');
+check('both ends expire a request the customer never answered', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const prov = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaProviderController.js'), 'utf8');
+    const cust = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaCustomerController.js'), 'utf8');
+    // Only one request may be pending at a time, so without expiry a single
+    // unanswered one blocks every future request for the life of the job.
+    assert.ok(prov.includes('expireStaleExtensions'), 'provider side must expire stale requests');
+    assert.ok(cust.includes('expireStaleExtensions'), 'customer side must expire stale requests');
+});
+
+console.log('\nThe start OTP never reaches the worker');
+check('every provider job response is sanitised', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(
+        path.join(__dirname, '..', 'controllers', 'instaProviderController.js'),
+        'utf8'
+    );
+    // The OTP is the customer's proof that the worker is standing in front of
+    // them. A worker who can read it from their own API can start the timer
+    // alone, which defeats the entire check.
+    assert.ok(src.includes('delete plain.startOTP'), 'forWorker must strip startOTP');
+    assert.ok(!src.includes('res.json({ job })'), 'a raw job must never be returned to a worker');
+    assert.ok(!src.includes('res.json({ jobs })'), 'a raw job list must never be returned to a worker');
+});
+
+
+console.log('\nEarnings surfaces include Insta Work');
+const Adapter = require('../services/InstaEarningsAdapter');
+check('a finished job is presented in the shape the analytics read', () => {
+    const row = Adapter.toBookingShape({
+        _id: 'j1', createdAt: new Date('2026-09-14T07:10:45.982Z'), status: 'CLOSED',
+        paymentStatus: 'paid', paymentMode: 'cash', finalAmount: 225,
+        adminCommission: 22.5, providerPayout: 202.5, serviceName: 'Bathroom Cleaning'
+    });
+    assert.strictEqual(row.status, 'completed');
+    assert.strictEqual(row.totalAmount, 225);
+    assert.strictEqual(row.adminCommission, 22.5);
+    // Cash on site is the equivalent of a booking paid 'after'; the reports
+    // speak Booking's vocabulary, so the adapter has to translate.
+    assert.strictEqual(row.paymentMode, 'after');
+});
+check('a cancelled job maps to cancelled, not completed', () => {
+    const row = Adapter.toBookingShape({ status: 'CANCELLED', createdAt: new Date() });
+    assert.strictEqual(row.status, 'cancelled');
+});
+check('dates are display strings, because the settlement table renders them raw', () => {
+    const row = Adapter.toBookingShape({ createdAt: new Date('2026-09-14T07:10:45.982Z'), status: 'CLOSED' });
+    assert.strictEqual(typeof row.bookingDate, 'string');
+    assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(row.bookingDate), 'bookingDate must not be a raw ISO timestamp');
+});
+check('a booking-vocabulary status filter is translated, not passed through', () => {
+    // The admin dashboard asks for 'completed'; Insta calls that PAYMENT_COMPLETED
+    // or CLOSED. Passing the filter through unchanged would silently return nothing.
+    assert.ok(Adapter.DONE_STATUSES.includes('CLOSED'));
+    assert.ok(Adapter.DONE_STATUSES.includes('PAYMENT_COMPLETED'));
+});
+check('both earnings surfaces actually consult the adapter', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+    // Insta revenue was invisible on both screens: each read only Booking, so
+    // every rupee of Insta commission and payout was missing from reporting.
+    assert.ok(read('controllers', 'commissionController.js').includes('InstaEarningsAdapter'),
+        'admin earnings must include Insta jobs');
+    assert.ok(read('controllers', 'providerController.js').includes('InstaEarningsAdapter'),
+        "a worker's own earnings must include Insta jobs");
+});
+check('the admin dashboard sums a field that actually holds money', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'adminController.js'), 'utf8');
+    // It summed `$amount`, which is not a top-level Booking field, so the
+    // headline revenue was always zero however much had been earned.
+    assert.ok(!src.includes('$sum: "$amount"'), 'revenue must not sum a non-existent field');
+    // What it must sum is now the shared gross definition, so the headline
+    // agrees with the earnings dashboard; that is pinned in codAndAnalyticsCheck.
+    assert.ok(src.includes('grossAggregationExpr()'), 'revenue must use the shared gross definition');
+});
+
+console.log('\nSettlement consumes the allowances it spends');
+check('a free-trial Insta job uses up a trial slot', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'InstaSettlementService.js'), 'utf8');
+    // Taking the 0% rate without spending the allowance would leave the worker
+    // on free commission indefinitely — the trial would never end.
+    assert.ok(src.includes('freeTrial.usedServices'), 'settlement must increment the trial counter');
+    assert.ok(src.includes('trialCompletedAt'), 'settlement must close the trial when it runs out');
+});
+
+console.log('\nA job cannot be created without a location');
+check('createJob rejects a job with no usable coordinates', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaCustomerController.js'), 'utf8');
+    // Without coordinates the matcher cannot apply its radius and falls back to
+    // "anyone who is live", which books a worker who may be far away.
+    assert.ok(src.includes('validCoords'), 'createJob must validate coordinates');
+});
+check('the worker is told when their location cannot be shared', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(
+        path.join(__dirname, '..', '..', 'frontend', 'src', 'modules', 'provider', 'pages', 'ProviderInstaWork.jsx'),
+        'utf8'
+    );
+    // A blocked location silently removes them from matching. Showing "you are
+    // live" while nobody can find them is the worst thing this screen can say.
+    assert.ok(src.includes('setLocationError'), 'a failed position report must be surfaced');
+});
+
+
+console.log('\nNearby means nearby');
+const Distance = require('../services/DistanceChargeService');
+const INDORE = { lat: 22.7196, lng: 75.8577 };
+const KM_PER_DEG_LAT = 110.574;
+const northOf = (km) => INDORE.lat + km / KM_PER_DEG_LAT;
+
+check('the distance used for matching is the real one', () => {
+    // Matching, ETA and per-km billing all read this number, so an error here
+    // is an error in three places at once.
+    [2, 9, 14.5, 40].forEach(km => {
+        const got = Distance.calculateDistance(INDORE.lat, INDORE.lng, northOf(km), INDORE.lng);
+        // 1%: the placement uses an average degree-length, so the check
+        // allows for that rather than for sloppiness in the calculation.
+        assert.ok(Math.abs(got - km) / km < 0.01, `${km}km computed as ${got}`);
+    });
+});
+
+check('a worker outside the radius is not offered the job', () => {
+    const config = { matchRadiusKm: 15, pingFreshnessMinutes: 5, maxConcurrentJobs: 1, etaSpeedKmph: 20 };
+    const inside = Distance.calculateDistance(INDORE.lat, INDORE.lng, northOf(14.5), INDORE.lng);
+    const outside = Distance.calculateDistance(INDORE.lat, INDORE.lng, northOf(16), INDORE.lng);
+    assert.ok(inside <= config.matchRadiusKm, 'a worker just inside the radius must qualify');
+    assert.ok(outside > config.matchRadiusKm, 'a worker just outside it must not');
+});
+
+check('proximity decides the auto-assignment', () => {
+    // Rating and workload break ties, but they must not let a distant worker
+    // beat a near one for an on-demand job.
+    const near = { distanceKm: 2, rating: 4.0, activeJobs: 0 };
+    const far = { distanceKm: 12, rating: 5.0, activeJobs: 0 };
+    assert.ok(A.sewakScore(near) < A.sewakScore(far));
+});
+
+check('a busy worker yields to a free one a little further away', () => {
+    const busyAndNear = { distanceKm: 2, rating: 5, activeJobs: 1 };
+    const freeAndFurther = { distanceKm: 4, rating: 5, activeJobs: 0 };
+    assert.ok(A.sewakScore(freeAndFurther) < A.sewakScore(busyAndNear));
+});
+
+check('an unknown distance ranks mid-table, never first', () => {
+    // A worker whose position could not be read must not win by default.
+    const unknown = { distanceKm: null, rating: 5, activeJobs: 0 };
+    const known = { distanceKm: 2, rating: 5, activeJobs: 0 };
+    assert.ok(A.sewakScore(known) < A.sewakScore(unknown));
+});
+
+console.log(`\n${passed} Insta Work checks passed.\n`);

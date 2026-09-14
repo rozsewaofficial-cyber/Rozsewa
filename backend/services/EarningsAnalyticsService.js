@@ -2,6 +2,51 @@ const Booking = require('../models/Booking');
 const Withdrawal = require('../models/Withdrawal');
 
 class EarningsAnalyticsService {
+
+    /**
+     * What a platform-funded discount took off this booking.
+     *
+     * Coins and Offers are paid for by RozSewa, not conceded by the partner, so
+     * they are a marketing cost rather than a smaller job.
+     */
+    static platformSubsidy(b) {
+        const coin = b.commissionSnapshot?.coinSubsidy ?? (b.coinDiscount || 0);
+        const offer = b.commissionSnapshot?.offerSubsidy ?? (b.offerSubsidy || 0);
+        return coin + offer;
+    }
+
+    /**
+     * The value of the work done, which is what every "revenue" and "sales"
+     * figure on the dashboard means.
+     *
+     * Not the cash the customer handed over: commission is charged on this and
+     * the partner is paid from it, so using the discounted price instead left
+     * the category table and the trend line disagreeing with the GMV headline
+     * above them. Matches grossOrderAmount in the settlement engine.
+     */
+    static grossValue(b) {
+        return (b.totalAmount || 0) + this.platformSubsidy(b);
+    }
+
+    /**
+     * grossValue as a MongoDB expression, for callers that total revenue in
+     * an aggregation rather than in memory.
+     *
+     * It exists so the database and the in-memory path cannot drift into two
+     * different answers to "what did we sell".
+     */
+    static grossAggregationExpr() {
+        const subsidy = (snapshotField, legacyField) => ({
+            $ifNull: [`$commissionSnapshot.${snapshotField}`, { $ifNull: ['$' + legacyField, 0] }]
+        });
+        return {
+            $add: [
+                { $ifNull: ["$totalAmount", 0] },
+                subsidy('coinSubsidy', 'coinDiscount'),
+                subsidy('offerSubsidy', 'offerSubsidy')
+            ]
+        };
+    }
     /**
      * Parses dates and returns start/end dates for current and previous periods
      */
@@ -111,7 +156,6 @@ class EarningsAnalyticsService {
      * Executive KPI Overview
      */
     static getOverviewStats(currentBookings, prevBookings, currentWithdrawals, prevWithdrawals, currentStart, currentEnd, prevStart, prevEnd, interval) {
-        const getGMV = b => b.totalAmount || 0;
         const getComm = b => b.adminCommission || 0;
         // RozSewa Coins spent by the customer are funded by the platform, so
         // they are a marketing COST sitting against commission — not a discount
@@ -120,7 +164,14 @@ class EarningsAnalyticsService {
         const getCoinSubsidy = b => b.commissionSnapshot?.coinSubsidy ?? (b.coinDiscount || 0);
         // RozSewa Offers are platform-funded on the same basis as coins.
         const getOfferSubsidy = b => b.commissionSnapshot?.offerSubsidy ?? (b.offerSubsidy || 0);
-        const getPlatformSubsidy = b => getCoinSubsidy(b) + getOfferSubsidy(b);
+        const getPlatformSubsidy = b => EarningsAnalyticsService.platformSubsidy(b);
+        // Gross is the value of the work done, not the cash the customer
+        // happened to hand over. A platform-funded discount does not shrink the
+        // job: commission is charged on the full value and the partner is paid
+        // on it, so counting only totalAmount left gross smaller than the
+        // commission and payout it had to cover. This is the same definition
+        // the settlement engine uses for grossOrderAmount.
+        const getGMV = b => EarningsAnalyticsService.grossValue(b);
         // What the platform actually kept once the subsidy is paid for. Goes
         // negative on a booking whose discount exceeded its commission.
         const getNetRevenue = b => getComm(b) - getPlatformSubsidy(b);
@@ -128,7 +179,7 @@ class EarningsAnalyticsService {
         // the customer paid and the partner is paid on the pre-discount value.
         const getPayout = b => b.providerPayout > 0
             ? b.providerPayout
-            : ((b.totalAmount || 0) + getPlatformSubsidy(b) - (b.adminCommission || 0));
+            : (EarningsAnalyticsService.grossValue(b) - (b.adminCommission || 0));
         const getTravel = b => b.travelCharge?.amount || 0;
         const getRefund = b => (b.paymentStatus === 'refunded' || b.status === 'cancelled') ? (b.totalAmount || 0) : 0;
 
@@ -239,7 +290,7 @@ class EarningsAnalyticsService {
      */
     static getRevenueTrend(currentBookings, currentStart, currentEnd, interval) {
         // binData returns [{date, value}] — rename value to revenue for Recharts
-        return this.binData(currentBookings, currentStart, currentEnd, interval, b => b.totalAmount || 0)
+        return this.binData(currentBookings, currentStart, currentEnd, interval, b => this.grossValue(b))
             .map(({ date, value }) => ({ date, revenue: value }));
     }
 
@@ -282,7 +333,7 @@ class EarningsAnalyticsService {
             }
 
             const totalExtras = bTravel + bVisit + bNight + bHoliday + bUrgent + bOther;
-            let bService = (b.totalAmount || 0) - totalExtras;
+            let bService = EarningsAnalyticsService.grossValue(b) - totalExtras;
 
             if (bService < 0) {
                 bOther += bService; // Adjust service charges if negative
@@ -323,7 +374,7 @@ class EarningsAnalyticsService {
         currentBookings.forEach(b => {
             const categoryName = b.commissionSnapshot?.bookingCategorySnapshot?.name || b.serviceName || 'Unknown';
             const commission = b.adminCommission || 0;
-            const revenue = b.totalAmount || 0;
+            const revenue = EarningsAnalyticsService.grossValue(b);
 
             if (!groups[categoryName]) {
                 groups[categoryName] = { category: categoryName, revenue: 0, bookings: 0, commission: 0 };
@@ -514,7 +565,7 @@ class EarningsAnalyticsService {
                     ratingCount: 0
                 };
             }
-            partners[pid].revenue += b.totalAmount || 0;
+            partners[pid].revenue += EarningsAnalyticsService.grossValue(b);
             partners[pid].bookings += 1;
             if (b.rating > 0) {
                 partners[pid].ratingSum += b.rating;
@@ -543,7 +594,7 @@ class EarningsAnalyticsService {
             if (!currCats[cat]) {
                 currCats[cat] = { category: cat, revenue: 0, bookings: 0 };
             }
-            currCats[cat].revenue += b.totalAmount || 0;
+            currCats[cat].revenue += EarningsAnalyticsService.grossValue(b);
             currCats[cat].bookings += 1;
         });
 
@@ -552,7 +603,7 @@ class EarningsAnalyticsService {
             if (!prevCats[cat]) {
                 prevCats[cat] = { category: cat, revenue: 0, bookings: 0 };
             }
-            prevCats[cat].revenue += b.totalAmount || 0;
+            prevCats[cat].revenue += EarningsAnalyticsService.grossValue(b);
             prevCats[cat].bookings += 1;
         });
 

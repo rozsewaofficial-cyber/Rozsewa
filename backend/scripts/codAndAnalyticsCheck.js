@@ -131,4 +131,79 @@ check('falls back to booking.coinDiscount when no snapshot exists', () => {
     assert.strictEqual(s.partnerPayout.value, 900);
 });
 
+
+console.log('\nOne definition of what we sold');
+const subsidised = {
+    totalAmount: 160,                 // what the customer paid
+    adminCommission: 20,              // charged on the full 200
+    providerPayout: 180,              // paid on the full 200
+    coinDiscount: 40,                 // funded by the platform
+    status: 'completed',
+    paymentStatus: 'paid',
+    paymentMode: 'after',
+    serviceName: 'Coin Funded Clean',
+    createdAt: new Date()
+};
+
+check('gross is the value of the work, not the cash collected', () => {
+    // A platform-funded discount does not make the job smaller: commission is
+    // charged on the full value and the partner is paid from it.
+    assert.strictEqual(EarningsAnalyticsService.grossValue(subsidised), 200);
+    assert.strictEqual(EarningsAnalyticsService.platformSubsidy(subsidised), 40);
+});
+
+check('an undiscounted booking is unaffected', () => {
+    assert.strictEqual(EarningsAnalyticsService.grossValue({ totalAmount: 225 }), 225);
+    assert.strictEqual(EarningsAnalyticsService.platformSubsidy({ totalAmount: 225 }), 0);
+});
+
+check('the snapshot wins over the legacy field', () => {
+    // The snapshot is written at completion and is the authority; the loose
+    // field is only there for rows that predate it.
+    const b = { totalAmount: 160, coinDiscount: 999, commissionSnapshot: { coinSubsidy: 40, offerSubsidy: 0 } };
+    assert.strictEqual(EarningsAnalyticsService.grossValue(b), 200);
+});
+
+check('gross, revenue and payout reconcile on a subsidised booking', () => {
+    // The invariant a reader applies without thinking: every rupee of gross is
+    // either the platform's commission or the partner's payout. Defining gross
+    // as the discounted price broke it — gross came out smaller than the sum it
+    // had to cover.
+    const now = new Date();
+    const s = EarningsAnalyticsService.getOverviewStats(
+        [subsidised], [], [], [], new Date(now - 86400000), now, new Date(now - 172800000), new Date(now - 86400000), 'day'
+    );
+    assert.strictEqual(s.grossSales.value, 200);
+    assert.strictEqual(s.companyRevenue.value + s.partnerPayout.value, s.grossSales.value);
+    assert.strictEqual(s.netRevenue.value, s.companyRevenue.value - s.coinSubsidy.value);
+});
+
+check('the category table adds up to the gross headline', () => {
+    // Two screens disagreeing about the same period is how finance stops
+    // trusting the dashboard.
+    const rows = EarningsAnalyticsService.getCategoryBreakdown([subsidised, { totalAmount: 225, adminCommission: 22.5, serviceName: 'Plain' }]);
+    const total = rows.reduce((sum, r) => sum + r.revenue, 0);
+    assert.strictEqual(total, 200 + 225);
+});
+
+check('the aggregation expression matches the in-memory helper', () => {
+    // The database path and the in-memory path must not drift into two
+    // different answers.
+    const expr = EarningsAnalyticsService.grossAggregationExpr();
+    const fields = JSON.stringify(expr);
+    assert.ok(fields.includes('$totalAmount'), 'must start from totalAmount');
+    assert.ok(fields.includes('$commissionSnapshot.coinSubsidy'), 'must prefer the snapshot');
+    assert.ok(fields.includes('$coinDiscount'), 'must fall back to the legacy field');
+    assert.ok(fields.includes('$commissionSnapshot.offerSubsidy'), 'offers are funded the same way');
+});
+
+check('both admin dashboards use that expression', () => {
+    // The headline on /admin and the GMV on /admin/earnings describe the same
+    // period; they must not print different numbers.
+    const admin = read('controllers/adminController.js');
+    assert.ok(!/\$sum: "\$totalAmount"/.test(admin), 'a dashboard still totals the discounted price');
+    const uses = (admin.match(/grossAggregationExpr\(\)/g) || []).length;
+    assert.strictEqual(uses, 2, 'both the platform and supervisor dashboards must use it');
+});
+
 console.log(`\n${passed} checks passed.\n`);

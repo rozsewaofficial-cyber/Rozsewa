@@ -1,3 +1,4 @@
+const EarningsAnalyticsService = require('../services/EarningsAnalyticsService');
 const mongoose = require('mongoose');
 const Provider = require('../models/Provider');
 const User = require('../models/User');
@@ -211,11 +212,19 @@ const getAdminStats = async (req, res) => {
                 status: { $in: ['pending', 'active'] }
             });
 
+            // Same correction as the platform dashboard: `$amount` is not a
+            // top-level Booking field, so this always read zero. Insta jobs
+            // count too — a Sewak team may earn most of its money there.
             const revenueData = await Booking.aggregate([
                 { $match: { providerId: { $in: sewakIds }, status: 'completed' } },
-                { $group: { _id: null, total: { $sum: "$amount" } } }
+                { $group: { _id: null, total: { $sum: EarningsAnalyticsService.grossAggregationExpr() } } }
             ]);
-            const revenue = revenueData.length > 0 ? revenueData[0].total : 0;
+            const TeamInstaJob = require('../models/InstaJob');
+            const instaRevenueData = await TeamInstaJob.aggregate([
+                { $match: { providerId: { $in: sewakIds }, status: { $in: ['PAYMENT_COMPLETED', 'CLOSED'] } } },
+                { $group: { _id: null, total: { $sum: "$finalAmount" } } }
+            ]);
+            const revenue = (revenueData[0]?.total || 0) + (instaRevenueData[0]?.total || 0);
 
             const recentBookingsRaw = await Booking.find({ providerId: { $in: sewakIds } })
                 .populate('userId', 'name')
@@ -253,12 +262,21 @@ const getAdminStats = async (req, res) => {
         const totalBookings = await Booking.countDocuments();
         const activeBookings = await Booking.countDocuments({ status: { $in: ['pending', 'active'] } });
 
-        // Calculate Revenue (Sum of all completed booking amounts)
+        // Revenue from completed work, bookings and Insta jobs alike.
+        //
+        // This summed `$amount`, which is not a top-level Booking field — only
+        // a nested one — so the figure was always zero no matter how much had
+        // been earned. The money lives in `totalAmount`.
         const revenueData = await Booking.aggregate([
             { $match: { status: 'completed' } },
-            { $group: { _id: null, total: { $sum: "$amount" } } }
+            { $group: { _id: null, total: { $sum: EarningsAnalyticsService.grossAggregationExpr() } } }
         ]);
-        const revenue = revenueData.length > 0 ? revenueData[0].total : 0;
+        const InstaJob = require('../models/InstaJob');
+        const instaRevenueData = await InstaJob.aggregate([
+            { $match: { status: { $in: ['PAYMENT_COMPLETED', 'CLOSED'] } } },
+            { $group: { _id: null, total: { $sum: "$finalAmount" } } }
+        ]);
+        const revenue = (revenueData[0]?.total || 0) + (instaRevenueData[0]?.total || 0);
 
         // Fetch Recent Bookings
         const recentBookingsRaw = await Booking.find()
