@@ -399,7 +399,7 @@ const AllAdsTab = () => {
 
 // ─── Transactions Tab ─────────────────────────────────────────────────────────
 const TransactionsTab = () => {
-  const [data, setData] = useState({ transactions: [], totalRevenue: 0, globalFee: 20 });
+  const [data, setData] = useState({ transactions: [], totalUnlocks: 0, totalRevenue: 0, globalFee: 20 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -409,6 +409,8 @@ const TransactionsTab = () => {
         if (res.data.success) {
           setData({
             transactions: res.data.data,
+            // Both of these describe every unlock, not the page above.
+            totalUnlocks: res.data.totalUnlocks,
             totalRevenue: res.data.totalRevenue,
             globalFee: res.data.globalFee
           });
@@ -431,7 +433,9 @@ const TransactionsTab = () => {
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center">
           <TrendingUp className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-          <p className="text-2xl font-black text-blue-600">{data.totalUnlocks ?? data.transactions.length}</p>
+          {/* No fallback to the page length: a page count looks plausible,
+              so it would hide a broken figure rather than show one. */}
+          <p className="text-2xl font-black text-blue-600">{data.totalUnlocks}</p>
           <p className="text-xs text-slate-500 mt-0.5">Total Unlocks</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center">

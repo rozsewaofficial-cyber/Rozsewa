@@ -59,9 +59,12 @@ const SCREENS = [
         what: 'total unlocks and the moderation queue',
         banned: [
             [/>\{data\.transactions\.length\}</, 'counted the page of unlocks'],
-            [/\{ads\.length\} ads waiting/, 'counted the page of the moderation queue']
+            [/\{ads\.length\} ads waiting/, 'counted the page of the moderation queue'],
+            // Falling back to the page length hides a broken figure behind a
+            // plausible one. A zero is visibly wrong; a page count is not.
+            [/data\.totalUnlocks \?\? data\.transactions\.length/, 'falls back to the page count']
         ],
-        needs: [/data\.totalUnlocks/, /pendingTotal/]
+        needs: [/data\.totalUnlocks/, /totalUnlocks: res\.data\.totalUnlocks/, /pendingTotal/]
     },
     {
         file: 'context/SocketContext.jsx',
@@ -91,8 +94,14 @@ const SCREENS = [
     {
         file: 'modules/user/pages/Notifications.jsx',
         what: 'the unread-notifications count',
-        banned: [[/notifications\.filter\(n => !n\.isRead\)\.length/, 'counted the twenty it was sent']],
-        needs: [/notifications\/unread-count/]
+        banned: [
+            [/notifications\.filter\(n => !n\.isRead\)\.length/, 'counted the twenty it was sent'],
+            // Calling the right endpoint and reading the wrong field off it
+            // gives a badge of zero, which looks like "nothing unread" rather
+            // than like a bug.
+            [/unread\.count\b/, 'read a field the endpoint does not return']
+        ],
+        needs: [/notifications\/unread-count/, /unread\.unreadCount/]
     },
     {
         file: 'modules/admin/pages/AdminLeads.jsx',
@@ -215,6 +224,34 @@ check('the finance screen asks the server its question', () => {
     assert.ok(/ledgerTotal/.test(src), 'the ledger reports how many matched');
     assert.ok(/\.select\('adminCommission createdAt'\)[\s\S]{0,40}\.lean\(\)/.test(src),
         'the chart needs two fields per booking, not whole documents');
+});
+
+check('the figures a screen reads are the ones the route sends', () => {
+    // Two of these were wrong and neither failed anything: the notifications
+    // badge read `count` off a response that sends `unreadCount`, and the
+    // unlocks count was added to the wrong function entirely. Both rendered as
+    // a plausible number rather than as a break, so this pins field names
+    // rather than just the presence of a call.
+    const pairs = [
+        ['controllers/notificationController.js', /unreadCount: count/, 'modules/user/pages/Notifications.jsx', /unread\.unreadCount/],
+        ['controllers/bazaarController.js', /totalUnlocks: totals\?\.count/, 'modules/admin/pages/AdminBazaar.jsx', /res\.data\.totalUnlocks/],
+        ['controllers/walletController.js', /totalEarned:/, 'modules/user/pages/Wallet.jsx', /data\.totalEarned/],
+        ['controllers/commissionController.js', /settlementsTotals:/, 'modules/admin/pages/AdminCommission.jsx', /data\.settlementsTotals/]
+    ];
+
+    pairs.forEach(([server, sends, screen, reads]) => {
+        assert.ok(sends.test(beRead(server)), `${server} must send ${sends}`);
+        assert.ok(reads.test(read(screen)), `${screen} must read ${reads}`);
+    });
+});
+
+check('the unlock cards describe every unlock, not the page', () => {
+    const src = beRead('controllers/bazaarController.js');
+    const fn = src.slice(src.indexOf('exports.getBazaarTransactions'));
+    assert.ok(!/transactions\.reduce\(/.test(fn.slice(0, 1200)),
+        'total revenue must not be summed over the page');
+    assert.ok(/BazaarUnlockTransaction\.aggregate\(/.test(fn.slice(0, 1200)),
+        'both figures come from one aggregation');
 });
 
 check('the settlement ledger is narrowed by the database', () => {

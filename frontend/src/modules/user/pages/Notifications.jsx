@@ -23,7 +23,7 @@ const Notifications = () => {
           API.get("/notifications/unread-count")
         ]);
         setNotifications(data);
-        setUnreadCount(unread.count ?? 0);
+        setUnreadCount(unread.unreadCount ?? 0);
       } catch (err) {
         console.error("Failed to fetch notifications", err);
       }

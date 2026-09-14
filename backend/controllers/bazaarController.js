@@ -904,11 +904,7 @@ exports.checkUnlockStatus = async (req, res) => {
     // Resolve the applicable fee: per-product override OR global setting
     let fee = ad.unlockFee;
     if (fee === null || fee === undefined) {
-      // Counted rather than measured off the page above, which shows the most
-    // recent unlocks rather than all of them.
-    const totalUnlocks = await BazaarUnlockTransaction.countDocuments({ status: 'success' });
-
-    const setting = await Setting.findOne({ key: 'bazaar_rules' });
+      const setting = await Setting.findOne({ key: 'bazaar_rules' });
       fee = setting?.value?.bazaarCommissionFee ?? 20;
     }
 
@@ -1313,13 +1309,19 @@ exports.getBazaarTransactions = async (req, res) => {
     const setting = await Setting.findOne({ key: 'bazaar_rules' });
     const globalFee = setting?.value?.bazaarCommissionFee || 20;
 
-    const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+    // Both cards above this table describe every unlock ever made, so neither
+    // is measured off the page of them returned here.
+    const [totals] = await BazaarUnlockTransaction.aggregate([
+      { $match: { status: 'success' } },
+      { $group: { _id: null, count: { $sum: 1 }, revenue: { $sum: { $ifNull: ['$amount', 0] } } } }
+    ]);
 
     res.json({
       success: true,
       data: transactions,
       globalFee,
-      totalRevenue
+      totalUnlocks: totals?.count || 0,
+      totalRevenue: Math.round((totals?.revenue || 0) * 100) / 100
     });
   } catch (error) {
     console.error('Get Bazaar Transactions Error:', error);
