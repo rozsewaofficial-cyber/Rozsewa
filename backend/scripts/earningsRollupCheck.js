@@ -145,6 +145,70 @@ check('a bin with nothing in it still appears, at zero', () => {
     assert.deepStrictEqual(series.map(p => p.value), [0, 1000, 0]);
 });
 
+check('a single day is drawn by the hour, not as one column', () => {
+    // Binning today by day gives one bar showing the total already printed on
+    // the card above it. The question "today" asks is when the work happened.
+    const { interval } = S.getPeriodDates('today', null, null);
+    assert.strictEqual(interval, 'hour');
+
+    const start = new Date('2026-03-15T00:00:00');
+    const end = new Date('2026-03-15T23:59:59');
+    assert.strictEqual(S.binSeries(start, end, 'hour').length, 24);
+});
+
+check('hourly bins land where the chart looks for them', () => {
+    const rows = [
+        booking({ createdAt: new Date('2026-03-15T09:30:00') }),
+        booking({ createdAt: new Date('2026-03-15T09:45:00') }),
+        booking({ createdAt: new Date('2026-03-15T14:05:00') })
+    ];
+    const start = new Date('2026-03-15T00:00:00');
+    const end = new Date('2026-03-15T23:59:59');
+
+    const series = S.binFromRollup(
+        R.foldRows(rows, { interval: 'hour' }).byBin, start, end, 'hour', 'gross'
+    );
+    assert.strictEqual(series.length, 24);
+    // Two jobs in the 9am hour, one at 2pm, nothing anywhere else.
+    assert.strictEqual(series[9].value, 2000);
+    assert.strictEqual(series[14].value, 1000);
+    assert.strictEqual(series.reduce((s, p) => s + p.value, 0), 3000);
+});
+
+check('the chart accounts for every rupee the headline does', () => {
+    // The real invariant: a bin exists for every bucket the data can produce,
+    // so the series adds up to the total printed above it. A year ending
+    // mid-month used to walk its bins from mid-month too, run out before the
+    // final month, and quietly leave that month's revenue off the chart.
+    const periods = ['today', '7d', '30d', '90d', 'year'];
+
+    periods.forEach(range => {
+        const { currentStart, currentEnd, interval } = S.getPeriodDates(range, null, null);
+
+        // One booking in the first bin, one in the last, one in between.
+        const mid = new Date((currentStart.getTime() + currentEnd.getTime()) / 2);
+        const rows = [currentStart, mid, currentEnd].map(d => booking({ createdAt: new Date(d) }));
+
+        const rollup = R.foldRows(rows, { interval });
+        const series = S.revenueTrendFromRollup(rollup, currentStart, currentEnd, interval);
+        const drawn = series.reduce((sum, p) => sum + p.revenue, 0);
+
+        assert.strictEqual(drawn, Math.round(rollup.totals.gross * 100) / 100,
+            `${range}: the chart drew ${drawn} of ${rollup.totals.gross}`);
+    });
+});
+
+check('every interval keys its bins one way', () => {
+    // The chart's bins, the in-memory fold and the aggregation all have to
+    // agree on what a bin is called, so they share one function.
+    const when = new Date('2026-03-15T09:30:00');
+    ['hour', 'day', 'month'].forEach(interval => {
+        const fromSeries = S.binSeries(when, when, interval)[0].key;
+        assert.strictEqual(fromSeries, S.binKeyFor(when, interval));
+        assert.strictEqual(fromSeries, R.binKey(when, interval));
+    });
+});
+
 check('binData and the rollup bin to the same buckets', () => {
     const rows = [
         booking({ createdAt: new Date('2026-03-15T23:30:00') }),

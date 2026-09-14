@@ -65,7 +65,11 @@ class EarningsAnalyticsService {
             switch (range) {
                 case 'today':
                     currentStart.setHours(0, 0, 0, 0);
-                    interval = 'day';
+                    // By the hour. A single day binned by day is one column,
+                    // which tells you the total you can already read off the
+                    // card above it; the point of looking at today is seeing
+                    // when in it the work happened.
+                    interval = 'hour';
                     break;
                 case '7d':
                     currentStart.setDate(currentStart.getDate() - 6);
@@ -117,22 +121,56 @@ class EarningsAnalyticsService {
         const current = new Date(startDate);
         const end = new Date(endDate);
 
+        // Start the cursor at the beginning of its own bin.
+        //
+        // Stepping a month at a time from mid-month walked past the last one:
+        // a year ending 14 September started on the 15th, so the cursor went
+        // Sep 15, Oct 15 … Aug 15, and the next step overshot the end. There
+        // was no September bin, while September's bookings still keyed
+        // themselves to one — so that month's revenue was dropped from the
+        // chart without appearing anywhere as missing.
+        if (interval === 'month') current.setDate(1);
+        if (interval === 'month' || interval === 'day') current.setHours(0, 0, 0, 0);
+        else if (interval === 'hour') current.setMinutes(0, 0, 0);
+
+        const LABEL = {
+            hour: (d) => d.toLocaleTimeString('en-IN', { hour: 'numeric', hour12: true }),
+            day: (d) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+            month: (d) => d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' })
+        };
+        const label = LABEL[interval] || LABEL.month;
+
         while (current <= end) {
             bins.push({
                 // What the chart shows.
-                date: interval === 'day'
-                    ? current.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
-                    : current.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }),
-                // What the rollup keys it by.
-                key: interval === 'day'
-                    ? `${current.getFullYear()}-${current.getMonth() + 1}-${current.getDate()}`
-                    : `${current.getFullYear()}-${current.getMonth() + 1}`
+                date: label(current),
+                // What the rollup keys it by — the same key binKey builds.
+                key: this.binKeyFor(current, interval)
             });
-            if (interval === 'day') current.setDate(current.getDate() + 1);
+
+            if (interval === 'hour') current.setHours(current.getHours() + 1);
+            else if (interval === 'day') current.setDate(current.getDate() + 1);
             else current.setMonth(current.getMonth() + 1);
         }
 
         return bins;
+    }
+
+    /**
+     * The bin key for a moment, by local calendar.
+     *
+     * One definition, used by the bins a chart draws and by both paths that
+     * fill them — otherwise a row can land in a bin nothing looks for.
+     */
+    static binKeyFor(date, interval) {
+        const d = new Date(date);
+        if (interval === 'hour') {
+            return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}-${d.getHours()}`;
+        }
+        if (interval === 'day') {
+            return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+        }
+        return `${d.getFullYear()}-${d.getMonth() + 1}`;
     }
 
     /**
@@ -154,10 +192,7 @@ class EarningsAnalyticsService {
         // Bin the rows once into a map, then read each bin off it.
         const byKey = {};
         bookings.forEach(b => {
-            const d = new Date(b.createdAt);
-            const key = interval === 'day'
-                ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
-                : `${d.getFullYear()}-${d.getMonth() + 1}`;
+            const key = this.binKeyFor(b.createdAt, interval);
             byKey[key] = (byKey[key] || 0) + sumFieldGetter(b);
         });
 

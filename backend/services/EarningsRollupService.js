@@ -57,12 +57,7 @@ const classifyExtra = (item) => {
  * months, so a booking at 11pm on the 5th belongs to the 5th here the same way
  * it does there.
  */
-const binKey = (date, interval) => {
-    const d = new Date(date);
-    return interval === 'day'
-        ? `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
-        : `${d.getFullYear()}-${d.getMonth() + 1}`;
-};
+const binKey = (date, interval) => EarningsAnalyticsService.binKeyFor(date, interval);
 
 const add = (map, key, fields) => {
     if (!map[key]) map[key] = {};
@@ -295,7 +290,10 @@ const fromDatabase = async (match, { interval = 'month', last7DaysStart, model =
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const binFormat = interval === 'day' ? '%Y-%m-%d' : '%Y-%m';
+    // The same granularity binKeyFor uses. normaliseBin strips the zero
+    // padding afterwards so the two spellings of a bin meet.
+    const BIN_FORMAT = { hour: '%Y-%m-%d-%H', day: '%Y-%m-%d', month: '%Y-%m' };
+    const binFormat = BIN_FORMAT[interval] || BIN_FORMAT.month;
 
     // Everything each branch below needs, worked out once per booking.
     const base = [

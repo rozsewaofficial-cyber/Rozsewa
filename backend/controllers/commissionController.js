@@ -656,21 +656,30 @@ const getEarningsData = async (req, res) => {
             interval
         );
 
-        const trends = {
-            // Only the range that was asked for is drawn; the bins already
-            // match its interval, so the others stay empty as before.
-            '7d': range === '7d' ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'day') : [],
-            '30d': range === '30d' || !range ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'day') : [],
-            '90d': range === '90d' ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'day') : [],
-            'year': (range === 'year' || range === '12m') ? EarningsAnalyticsService.revenueTrendFromRollup(rollup, currentStart, currentEnd, 'month') : []
-        };
+        // The two series the screen draws, at whatever interval the period
+        // resolved to.
+        //
+        // These used to be picked out of a map keyed by the range's name, which
+        // meant any range not spelled '7d', '30d', '90d' or 'year' looked up
+        // nothing and drew an empty chart — "Today" and a custom date range
+        // both did. getPeriodDates already decided the interval; asking it
+        // rather than the spelling of the range cannot miss.
+        const activeTrendRevenue = EarningsAnalyticsService.revenueTrendFromRollup(
+            rollup, currentStart, currentEnd, interval
+        );
+        const activeTrendCommission = EarningsAnalyticsService.commissionTrendFromRollup(
+            rollup, currentStart, currentEnd, interval
+        );
 
-        // Load trends on demand if not matching current selection to save overhead, or pre-populate current selection
-        const activeTrendLabel = (range === 'year' || range === '12m') ? 'year' : (range || '30d');
-        const activeTrendRevenue = trends[activeTrendLabel];
-        const activeTrendCommission = (range === 'year' || range === '12m')
-            ? EarningsAnalyticsService.commissionTrendFromRollup(rollup, currentStart, currentEnd, 'month')
-            : EarningsAnalyticsService.commissionTrendFromRollup(rollup, currentStart, currentEnd, 'day');
+        // Kept for anything still reading a trend by range name. Nothing in the
+        // app does — both charts read the active pair above — so only the
+        // selected one is built.
+        const trends = {
+            '7d': range === '7d' ? activeTrendRevenue : [],
+            '30d': range === '30d' || !range ? activeTrendRevenue : [],
+            '90d': range === '90d' ? activeTrendRevenue : [],
+            'year': (range === 'year' || range === '12m') ? activeTrendRevenue : []
+        };
 
         const categories = EarningsAnalyticsService.categoryBreakdownFromRollup(rollup);
         const revenueSources = EarningsAnalyticsService.revenueSourcesFromRollup(rollup);
