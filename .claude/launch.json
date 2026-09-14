@@ -38,6 +38,14 @@
         "backend/scripts/devLocalDb.js"
       ],
       "port": 5050
+    },
+    {
+      "name": "backend-insta-test",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "backend/scripts/devLocalDb.js"
+      ],
+      "port": 5050
     }
   ]
 }

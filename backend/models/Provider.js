@@ -232,6 +232,42 @@ const providerSchema = mongoose.Schema({
     performanceDiscount: { type: Number, default: 0 },
     lastOrderDate: { type: Date, default: null },
     completedBookingsCount: { type: Number, default: 0 },
+
+    // ── Insta Work ───────────────────────────────────────────────────────
+    // Lives on Provider rather than in its own collection because the matching
+    // engine needs location, isOnline and these settings together, and Provider
+    // already carries the 2dsphere index the proximity search runs on.
+    instaWork: {
+        // The worker's own Insta Work switch. Separate from `isOnline`, which
+        // governs ordinary bookings — a worker may take scheduled jobs while
+        // refusing instant ones.
+        enabled: { type: Boolean, default: false },
+        // Services this worker will accept, with the rate for each. A Sewak's
+        // rate is admin-fixed; a Partner's is their own, inside the guardrail.
+        services: [{
+            serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'InstaService' },
+            serviceName: { type: String },
+            rate: { type: Number, default: 0 }
+        }],
+        // Partners may restrict the hours they take instant work. Empty means
+        // available whenever the toggle is on.
+        workingHours: {
+            start: { type: String, default: '' },   // "09:00"
+            end: { type: String, default: '' }      // "21:00"
+        },
+        // Last real-time GPS ping. Matching treats a stale ping as offline, so
+        // a worker who closed the app is never assigned a job.
+        lastPingAt: { type: Date, default: null },
+        lastPing: {
+            type: { type: String, default: 'Point' },
+            coordinates: { type: [Number], default: [0, 0] }
+        },
+        // Repeated cancellations escalate: warning, then temporary restriction,
+        // then Insta Work switched off entirely.
+        cancelCount: { type: Number, default: 0 },
+        restrictedUntil: { type: Date, default: null },
+        disabledByAdmin: { type: Boolean, default: false }
+    },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

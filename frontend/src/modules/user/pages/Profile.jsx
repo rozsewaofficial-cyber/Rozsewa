@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown, MessageCircle, ShoppingBag, Loader2, Trash2, Coins } from "lucide-react";
+import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown, MessageCircle, ShoppingBag, Loader2, Trash2, Coins, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -16,6 +16,7 @@ import { useConfirm } from "@/hooks/useConfirm";
 const menuItems = [
   { icon: Wallet, label: "My Wallet", desc: "Balance & transactions", path: "/wallet" },
   { icon: Coins, label: "RozSewa Coins", desc: "Rewards & referrals", path: "/coins" },
+  { icon: Zap, label: "Insta Work", desc: "Book a worker instantly", path: "/insta-work" },
   { icon: Clock, label: "My Bookings", desc: "View booking history", path: "/my-bookings" },
   { icon: Heart, label: "Favorites", desc: "Saved providers", path: "/favorites" },
   { icon: ShoppingBag, label: "My Bazaar Ads", desc: "Ads you have posted", path: "/my-bazaar-ads" },

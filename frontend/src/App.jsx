@@ -27,6 +27,7 @@ import Favorites from "./modules/user/pages/Favorites";
 import Addresses from "./modules/user/pages/Addresses";
 import ReferEarn from "./modules/user/pages/ReferEarn";
 import RozSewaCoins from "./modules/user/pages/RozSewaCoins";
+import InstaWork from "./modules/user/pages/InstaWork";
 import Notifications from "./modules/user/pages/Notifications";
 import Scrap from "./modules/user/pages/Scrap";
 import AddScrap from "./modules/user/pages/Scrap/AddScrap";
@@ -76,6 +77,7 @@ import ProviderSupport from "./modules/provider/pages/ProviderSupport";
 import ProviderNotifications from "./modules/provider/pages/ProviderNotifications";
 import ProviderWallet from "./modules/provider/pages/ProviderWallet";
 import ProviderCoins from "./modules/provider/pages/ProviderCoins";
+import ProviderInstaWork from "./modules/provider/pages/ProviderInstaWork";
 import ProviderSubscriptions from "./modules/provider/pages/ProviderSubscriptions";
 import ProviderBannerPromotion from "./modules/provider/pages/ProviderBannerPromotion";
 
@@ -97,6 +99,7 @@ import AdminSettings from "./modules/admin/pages/AdminSettings";
 import AdminCashLimits from "./modules/admin/pages/AdminCashLimits";
 import AdminCoins from "./modules/admin/pages/AdminCoins";
 import AdminOfferManagement from "./modules/admin/pages/AdminOfferManagement";
+import AdminInstaWork from "./modules/admin/pages/AdminInstaWork";
 import PartnerProgramConfig from "./modules/admin/pages/PartnerProgramConfig";
 import AdminCommissionAnalytics from "./modules/admin/pages/AdminCommissionAnalytics";
 import AdminDisputes from "./modules/admin/pages/AdminDisputes";
@@ -207,6 +210,7 @@ const App = () => (
                         <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Notifications /></ProtectedRoute>} />
                         <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Wallet /></ProtectedRoute>} />
                         <Route path="/coins" element={<ProtectedRoute allowedRoles={["customer"]}><RozSewaCoins /></ProtectedRoute>} />
+                        <Route path="/insta-work" element={<ProtectedRoute allowedRoles={["customer"]}><InstaWork /></ProtectedRoute>} />
                         <Route path="/refer-earn" element={<ProtectedRoute allowedRoles={["customer"]}><ReferEarn /></ProtectedRoute>} />
                         <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><LeadRequirementForm /></ProtectedRoute>} />
                         <Route path="/my-leads" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><MyLeads /></ProtectedRoute>} />
@@ -266,6 +270,7 @@ const App = () => (
                       <Route path="/provider/notifications" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderNotifications /></ProtectedRoute>} />
                       <Route path="/provider/wallet" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderWallet /></ProtectedRoute>} />
                       <Route path="/provider/coins" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderCoins /></ProtectedRoute>} />
+                      <Route path="/provider/insta-work" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderInstaWork /></ProtectedRoute>} />
                       <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
                       <Route path="/provider/leads" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderLeads /></ProtectedRoute>} />
                       <Route path="/provider/banner-promotions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBannerPromotion /></ProtectedRoute>} />
@@ -298,6 +303,7 @@ const App = () => (
                         <Route path="settings/cash-limits" element={<AdminCashLimits />} />
                         <Route path="coins" element={<AdminCoins />} />
                         <Route path="offer-management" element={<AdminOfferManagement />} />
+                        <Route path="insta-work" element={<AdminInstaWork />} />
                         <Route path="partner-program" element={<PartnerProgramConfig />} />
                         <Route path="commission-analytics" element={<AdminCommissionAnalytics />} />
                         <Route path="benefit-policies" element={<AdminBenefitPolicies />} />

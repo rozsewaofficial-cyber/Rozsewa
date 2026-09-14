@@ -364,6 +364,19 @@ router.put('/kit-orders/:id/cancel', protect, admin, kitOrderController.cancelOr
 
 router.get('/kit-dues', protect, admin, kitOrderController.getAdminDues);
 
+// Insta Work Management — service master, pricing config and live job monitoring.
+const instaAdminController = require('../controllers/instaAdminController');
+router.get('/insta/config', protect, admin, instaAdminController.getConfig);
+router.put('/insta/config', protect, admin, instaAdminController.updateConfig);
+router.get('/insta/stats', protect, admin, instaAdminController.getStats);
+router.get('/insta/jobs', protect, admin, instaAdminController.getJobs);
+router.get('/insta/services', protect, admin, instaAdminController.getServices);
+router.post('/insta/services', protect, admin, instaAdminController.createService);
+router.put('/insta/services/:id', protect, admin, instaAdminController.updateService);
+router.patch('/insta/services/:id/status', protect, admin, instaAdminController.toggleServiceStatus);
+router.delete('/insta/services/:id', protect, admin, instaAdminController.deleteService);
+router.patch('/insta/providers/:id/restriction', protect, admin, instaAdminController.setProviderRestriction);
+
 // RozSewa Offer Management — admin-created discounted pricing on catalog items.
 // Distinct from the provider-submitted promo approval queue.
 const offerManagementController = require('../controllers/offerManagementController');

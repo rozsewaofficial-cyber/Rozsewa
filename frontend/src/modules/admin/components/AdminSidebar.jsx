@@ -41,6 +41,7 @@ export const adminSidebarLinks = [
   { path: "/admin/coupons", label: "Coupons", icon: Tag },
   { path: "/admin/coins", label: "RozSewa Coins", icon: Coins },
   { path: "/admin/offer-management", label: "Offer Management", icon: Gift },
+  { path: "/admin/insta-work", label: "Insta Work", icon: Zap },
   { path: "/admin/provider-reports", label: "Provider Reports", icon: ShieldAlert },
   { path: "/admin/reports", label: "User Reports", icon: MessageSquare },
   { path: "/admin/zones", label: "Zones & Cities", icon: Map },

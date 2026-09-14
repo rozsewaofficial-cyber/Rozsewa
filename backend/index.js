@@ -34,6 +34,7 @@ const welfareFundRoutes = require('./routes/welfareFundRoutes');
 const tipRoutes = require('./routes/tipRoutes');
 const trainingPanelRoutes = require('./routes/trainingPanelRoutes');
 const coinRoutes = require('./routes/coinRoutes');
+const instaRoutes = require('./routes/instaRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -107,6 +108,7 @@ app.use('/api/welfare-fund', welfareFundRoutes);
 app.use('/api/tips', tipRoutes);
 app.use('/api/training-panel', trainingPanelRoutes);
 app.use('/api/coins', coinRoutes);
+app.use('/api/insta', instaRoutes);
 
 // V2 Versioned Commission APIs
 const { adminV2Router, providerV2Router } = require('./routes/v2Routes');
@@ -123,6 +125,7 @@ const { startSkillSessionCron } = require('./cron/skillSessionJobs');
 const { startKitDuesCron } = require('./cron/kitDuesJobs');
 const { startCoinCron } = require('./cron/coinJobs');
 const { startOfferCron } = require('./cron/offerJobs');
+const { startInstaCron } = require('./cron/instaJobs');
 startCronJobs();
 startBookingReminderCron();
 startSubscriptionCheckCron();
@@ -132,6 +135,7 @@ startSkillSessionCron();
 startKitDuesCron();
 startCoinCron();
 startOfferCron();
+startInstaCron();
 app.get('/', (req, res) => {
     res.send('rozsewa API is running...');
 });
