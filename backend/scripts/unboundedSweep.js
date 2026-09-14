@@ -61,9 +61,15 @@ walk(path.join(BE, 'controllers')).concat(walk(path.join(BE, 'services'))).forEa
             // usually the page of rows that produced it. This is the shape a
             // fixed N+1 takes, so flagging it would flag the cure.
             /\w*[iI]d: \{ \$in:/.test(stmt) ||
-            // An aggregation that only groups down to totals is bounded by its
-            // own shape, however many documents it reads on the way.
-            (/\.aggregate\(/.test(line) && /_id: null/.test(stmt) && !/\$push/.test(stmt));
+            // An aggregation that groups down to a fixed set of rows is bounded
+            // by its own shape, however many documents it reads on the way: one
+            // row per status, per month, per rating. What is not bounded is a
+            // $group keyed on something that grows — a provider, a customer —
+            // or one that collects the documents with $push.
+            (/\.aggregate\(/.test(line) &&
+                /\$group/.test(stmt) &&
+                !/\$push/.test(stmt) &&
+                /_id: (null|\{ \$dateToString|'\$status'|'\$rating'|"\$status"|'\$mode'|'\$ownerType'|'\$serviceName'|\{ (status|role):)/.test(stmt));
         if (bounded) return;
 
         unbounded.push({
@@ -75,13 +81,79 @@ walk(path.join(BE, 'controllers')).concat(walk(path.join(BE, 'services'))).forEa
     });
 });
 
-console.log(`\n=== ${unbounded.length} reads that can return a whole collection ===\n`);
+/**
+ * Reads that are deliberately left unbounded, and why. Matched on a fragment of
+ * the line rather than a line number, so they survive edits above them.
+ *
+ * These are judgement calls, not oversights — putting a ceiling on any of them
+ * would trade a performance problem for a correctness one.
+ */
+const ACCEPTED = [
+    {
+        file: 'controllers/adminCoinController.js',
+        match: 'CoinLot.find(',
+        why: 'FIFO coin deduction: consumes lots until the amount is covered, and stops early. A ceiling here could silently under-deduct, which is a money bug.'
+    },
+    {
+        file: 'services/CoinRewardService.js',
+        match: 'CoinLot.find(',
+        why: 'The same deduction loop, in reverse order, for clawing a reward back.'
+    },
+    {
+        file: 'controllers/commissionController.js',
+        match: 'Booking.find(',
+        why: 'Earnings analytics: bounded by the date range the admin picked. Already projected and lean — the fix that mattered. Converting all ten analytics functions to aggregations is the work that remains.'
+    },
+    {
+        file: 'controllers/commissionController.js',
+        match: 'Withdrawal.find(',
+        why: 'Same date range, now projected rather than populating whole providers.'
+    },
+    {
+        file: 'controllers/v2CommissionController.js',
+        match: 'Booking.find(',
+        why: 'The v2 commission KPIs, bounded by the same chosen range.'
+    },
+    {
+        file: 'services/InstaEarningsAdapter.js',
+        match: 'InstaJob.find(',
+        why: 'The Insta half of the same analytics, so it has to match whatever the booking half does.'
+    },
+    {
+        file: 'controllers/trainingController.js',
+        match: 'Trainer.aggregate(',
+        why: 'Grouped per training centre, matched to the page of centres just fetched — bounded by that page.'
+    }
+];
+
+const acceptedFor = (r) =>
+    ACCEPTED.find(a => a.file === r.file && r.code.includes(a.match));
+
+const open = unbounded.filter(r => !acceptedFor(r));
+const known = unbounded.filter(r => acceptedFor(r));
+
+console.log(`\n=== ${open.length} reads that can return a whole collection ===\n`);
+if (!open.length) console.log('  (none)\n');
 const byFile = {};
-unbounded.forEach(r => { (byFile[r.file] ||= []).push(r); });
+open.forEach(r => { (byFile[r.file] ||= []).push(r); });
 Object.entries(byFile).forEach(([f, rs]) => {
     console.log(`  ${f}`);
     rs.forEach(r => console.log(`      :${r.line}  ${r.projected ? '(projected)' : '(whole documents)'}  ${r.code}`));
 });
+
+if (known.length) {
+    console.log(`\n=== ${known.length} left unbounded on purpose ===\n`);
+    const seen = new Set();
+    known.forEach(r => {
+        const a = acceptedFor(r);
+        const key = a.file + a.match;
+        console.log(`  ${r.file}:${r.line}  ${r.code.slice(0, 70)}`);
+        if (!seen.has(key)) {
+            console.log(`      ${a.why}`);
+            seen.add(key);
+        }
+    });
+}
 
 /* --------------------- figures derived from a page ------------------------ */
 // Every list the paging work touched.

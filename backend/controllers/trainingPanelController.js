@@ -332,10 +332,16 @@ const getRecord = async (req, res) => {
         const record = await ensureRecord(providerDoc);
 
         // Order context per item — helps the trainer, but never auto-ticks (D4).
+        // One sewak's open kit orders, for per-item context on the training
+        // checklist. Capped: order history accumulates.
         const orders = await KitOrder.find({
             sewakId: provider._id,
             status: { $in: ['pending', 'confirmed', 'dispatched', 'delivered'] }
-        }).select('lines status expectedDeliveryDate').lean();
+        })
+            .select('lines status expectedDeliveryDate')
+            .sort({ createdAt: -1 })
+            .limit(200)
+            .lean();
 
         const orderByItem = new Map();
         for (const o of orders) {

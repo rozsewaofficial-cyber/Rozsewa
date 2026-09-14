@@ -733,11 +733,16 @@ const getProviderStats = async (req, res) => {
         // A Sewak may earn entirely through Insta Work, so counting only
         // bookings would show them a dashboard of zeroes after a full day.
         const bookings = [
+            // One month, and only the date and the amount, which is all the
+            // running totals and the chart below read off each row.
             ...(await Booking.find({
                 providerId: req.user._id,
                 status: 'completed',
                 createdAt: { $gte: monthStart }
-            }).lean()),
+            })
+                .select('createdAt totalAmount')
+                .limit(5000)
+                .lean()),
             ...(await InstaEarningsAdapter.getProviderJobs(req.user._id, { since: monthStart }))
         ];
 

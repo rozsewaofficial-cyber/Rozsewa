@@ -56,9 +56,12 @@ const SCREENS = [
     },
     {
         file: 'modules/admin/pages/AdminBazaar.jsx',
-        what: 'total unlocks',
-        banned: [[/>\{data\.transactions\.length\}</, 'counted the page of unlocks']],
-        needs: [/data\.totalUnlocks/]
+        what: 'total unlocks and the moderation queue',
+        banned: [
+            [/>\{data\.transactions\.length\}</, 'counted the page of unlocks'],
+            [/\{ads\.length\} ads waiting/, 'counted the page of the moderation queue']
+        ],
+        needs: [/data\.totalUnlocks/, /pendingTotal/]
     },
     {
         file: 'context/SocketContext.jsx',

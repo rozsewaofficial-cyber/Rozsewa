@@ -4,6 +4,9 @@ const Broadcast = require('../models/Broadcast');
 const { notifyUser } = require('../config/notificationService');
 const { sendWhatsAppMessage } = require('../services/whatsappService');
 
+// The most recipients one broadcast may resolve to in a single request.
+const BROADCAST_CAP = 50000;
+
 // @desc    Search customers/partners/sewaks by name or mobile, for "specific" targeting
 // @route   GET /api/admin/broadcast/recipients?q=
 const searchRecipients = async (req, res) => {
@@ -79,10 +82,15 @@ const resolveAudience = async (targetType, recipients) => {
     const wantPartners = targetType === 'all' || targetType === 'all_partners';
     const wantSewaks = targetType === 'all' || targetType === 'all_sewaks';
 
+    // A broadcast really does mean everyone, so this is the one place a
+    // whole-collection read is the point rather than an oversight. The cap
+    // is a safety rail: past it, a broadcast is an operation to schedule
+    // rather than a request to serve, and loading a million recipients into
+    // one response would take the API down instead of sending anything.
     const [customers, partners, sewaks] = await Promise.all([
-        wantCustomers ? User.find({ role: 'customer' }).select('name mobile').lean() : [],
-        wantPartners ? Provider.find({ providerCategory: { $ne: 'sewak' } }).select('ownerName mobile').lean() : [],
-        wantSewaks ? Provider.find({ providerCategory: 'sewak' }).select('ownerName mobile').lean() : []
+        wantCustomers ? User.find({ role: 'customer' }).select('name mobile').limit(BROADCAST_CAP).lean() : [],
+        wantPartners ? Provider.find({ providerCategory: { $ne: 'sewak' } }).select('ownerName mobile').limit(BROADCAST_CAP).lean() : [],
+        wantSewaks ? Provider.find({ providerCategory: 'sewak' }).select('ownerName mobile').limit(BROADCAST_CAP).lean() : []
     ]);
 
     return [

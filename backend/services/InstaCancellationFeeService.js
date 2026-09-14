@@ -23,7 +23,13 @@ const outstandingFor = async (customerId) => {
         cancelledBy: 'customer',
         cancellationFee: { $gt: 0 },
         cancellationFeeStatus: 'pending'
-    }).select('jobCode cancellationFee cancellationStage createdAt').sort({ createdAt: 1 }).lean();
+    })
+        .select('jobCode cancellationFee cancellationStage createdAt')
+        .sort({ createdAt: 1 })
+        // Few by design — a customer who racks up hundreds of unpaid fees is a
+        // problem to investigate, not a list to load.
+        .limit(200)
+        .lean();
 
     return rows.map(r => ({
         jobId: r._id,

@@ -152,6 +152,8 @@ const ReviewModal = ({ ad, onClose, onSubmit, loading }) => {
 // ─── Pending Ads Tab ─────────────────────────────────────────────────────────
 const PendingTab = () => {
   const [ads, setAds] = useState([]);
+  // The queue arrives a page at a time, so how many are waiting comes with it.
+  const [pendingTotal, setPendingTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [reviewingAd, setReviewingAd] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -161,7 +163,10 @@ const PendingTab = () => {
     setLoading(true);
     try {
       const res = await api.get('/bazaar/admin/pending');
-      if (res.data.success) setAds(res.data.data);
+      if (res.data.success) {
+        setAds(res.data.data);
+        setPendingTotal(res.data.total ?? res.data.data.length);
+      }
     } catch (e) { toast.error('Failed to load pending ads'); }
     finally { setLoading(false); }
   };
@@ -201,7 +206,7 @@ const PendingTab = () => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-slate-600">{ads.length} ads waiting for review</p>
+        <p className="text-sm font-bold text-slate-600">{pendingTotal} ads waiting for review</p>
         <button onClick={fetchPending} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
           <RefreshCw className="w-4 h-4 text-slate-500" />
         </button>
