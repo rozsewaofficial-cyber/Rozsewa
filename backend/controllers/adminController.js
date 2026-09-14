@@ -323,9 +323,39 @@ const getAdminStats = async (req, res) => {
  *
  * Returns null when the user is scoped to nothing at all.
  */
-const adminBookingScope = async (req) => {
-    const { status } = req.query;
-    const query = status ? { status } : {};
+const adminBookingScope = async (req, { includeSearch = false } = {}) => {
+    const { status, search } = req.query;
+    const query = {};
+
+    // The table's "flagged" tab is a field, not a status.
+    if (status === 'unauthorized') query.unauthorizedPaymentFlag = true;
+    else if (status) query.status = status;
+
+    // Searching used to happen in the browser over whatever rows it held, which
+    // meant a search only ever found what had already been sent. It reaches the
+    // customer and the provider as well as the booking, so those are resolved to
+    // ids first — both are far smaller collections than bookings.
+    if (includeSearch && search && String(search).trim()) {
+        const term = String(search).trim();
+        const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+        const [users, providers] = await Promise.all([
+            User.find({ $or: [{ name: rx }, { mobile: rx }] }).select('_id').limit(500).lean(),
+            Provider.find({ $or: [{ shopName: rx }, { ownerName: rx }] }).select('_id').limit(500).lean()
+        ]);
+
+        const or = [
+            { serviceName: rx },
+            { userId: { $in: users.map(u => u._id) } },
+            { providerId: { $in: providers.map(p => p._id) } }
+        ];
+
+        // A booking is searched by the short code the table shows, which is the
+        // tail of its id — so only a full id can be matched exactly.
+        if (mongoose.Types.ObjectId.isValid(term)) or.push({ _id: new mongoose.Types.ObjectId(term) });
+
+        query.$or = or;
+    }
 
     if (req.user.role === 'supervisor') {
         const supervisorEmp = await Employee.findOne({ userId: req.user._id });
@@ -417,7 +447,10 @@ const getBookingStats = async (req, res) => {
 
 const getBookings = async (req, res) => {
     try {
-        const query = await adminBookingScope(req);
+        // The list narrows to what was searched for; the figures above it do not,
+        // so the cards keep describing the whole scope while the table answers
+        // the question that was typed.
+        const query = await adminBookingScope(req, { includeSearch: true });
         if (!query) return res.json([]);
 
         // Every booking ever made, populated and returned whole, was the

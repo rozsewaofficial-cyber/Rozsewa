@@ -485,7 +485,7 @@ check('the list and its totals are scoped identically', () => {
     // Two separately-built scopes would let a supervisor see a headline covering
     // bookings their own list does not contain.
     const api = read('controllers/adminController.js');
-    assert.ok(/const adminBookingScope = async \(req\)/.test(api), 'the scope must be shared');
+    assert.ok(/const adminBookingScope = async \(req/.test(api), 'the scope must be shared');
     const stats = api.slice(api.indexOf('const getBookingStats'), api.indexOf('const getBookings ='));
     assert.ok(/await adminBookingScope\(req\)/.test(stats), 'the totals must use it');
 });
@@ -525,12 +525,82 @@ check('a wallet statement can be paged past the rows it was handed', () => {
     assert.ok(/\}, \[currentPage\]\)/.test(ui), 'turning a page must fetch that page');
 });
 
-check('a table that holds only part of a collection admits it', () => {
-    // The count above the table is now correct, which would otherwise imply the
-    // rows below it are all there.
+check('the table pages the whole collection, so it needs no caveat', () => {
+    // It briefly held the most recent rows and said so. Now that searching and
+    // paging both happen server-side it reaches every row, and the apology that
+    // stood in for that would be untrue.
     const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
-    assert.ok(/most recent \{\(bookings \|\| \[\]\)\.length\} of \{serverStats\.total\} loaded/.test(ui),
-        'the pager must say what it is actually showing');
+    assert.ok(!/most recent \{\(bookings \|\| \[\]\)\.length\} of/.test(ui),
+        'the caveat should be gone now that it no longer applies');
+    assert.ok(/of \{matchingTotal\} bookings/.test(ui),
+        'the pager counts every row that matched');
+});
+
+
+console.log('\nSearching reaches the collection, not the rows already sent');
+check('the search runs in the query, not in the browser', () => {
+    // Filtering in the browser could only ever find what had already been sent,
+    // which on a paged list is the most recent page.
+    const api = read('controllers/adminController.js');
+    assert.ok(/adminBookingScope\(req, \{ includeSearch: true \}\)/.test(api),
+        'the list must search server-side');
+
+    const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
+    assert.ok(/search: searchTerm/.test(ui), 'the screen must send the term');
+    assert.ok(!/matchesSearch/.test(ui), 'no in-browser search may remain');
+    assert.ok(!/filteredBookings\.slice\(startIndex/.test(ui), 'nor in-browser slicing');
+});
+
+check('it reaches the customer and the provider, not just the booking', () => {
+    // Those live on other collections, so they are resolved to ids first.
+    const api = read('controllers/adminController.js');
+    assert.ok(/User\.find\(\{ \$or: \[\{ name: rx \}, \{ mobile: rx \}\] \}\)/.test(api),
+        'a customer name or mobile must match');
+    assert.ok(/Provider\.find\(\{ \$or: \[\{ shopName: rx \}, \{ ownerName: rx \}\] \}\)/.test(api),
+        'as must a provider name');
+});
+
+check('a search term cannot be a regular expression', () => {
+    // A term goes straight into a RegExp, so anything meaningful in one is
+    // escaped first — otherwise a stray bracket is a 500 and a crafted term is
+    // a way to make the database work very hard.
+    const api = read('controllers/adminController.js');
+    // Matched as plain text: writing this expectation as a regular expression
+    // means escaping an escaping expression, which is how the check itself ends
+    // up wrong rather than the code.
+    assert.ok(api.includes('new RegExp(term.replace('),
+        'the term must be escaped before becoming a pattern');
+});
+
+check('the figures above the table ignore the search', () => {
+    // The cards describe the platform; the table answers what was typed. The
+    // stats call deliberately carries neither the search nor the status.
+    const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
+    const statsCall = ui.slice(ui.indexOf('API.get("/admin/bookings/stats")') - 10,
+        ui.indexOf('API.get("/admin/bookings/stats")') + 60);
+    assert.ok(!/search|status/.test(statsCall), 'the totals must not be narrowed by the search');
+});
+
+check('the pager counts what matched, not what is on screen', () => {
+    const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
+    assert.ok(/Math\.ceil\(matchingTotal \/ itemsPerPage\)/.test(ui),
+        'the page count must come from the match');
+    assert.ok(/x-total-count/.test(ui), 'which the server reports');
+});
+
+check('typing does not fire a query per keystroke', () => {
+    const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
+    assert.ok(/setTimeout\(\(\) => fetchBookings\(\), searchTerm \? \d+ : 0\)/.test(ui),
+        'the search must settle before it is sent');
+});
+
+check('exporting covers the match rather than the page on screen', () => {
+    // The table holds ten rows now, so exporting it would quietly produce a file
+    // of ten.
+    const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
+    assert.ok(/let exportRows = filteredBookings;/.test(ui), 'the export must fetch its own rows');
+    assert.ok(/limit: 1000/.test(ui), 'across the whole match');
+    assert.ok(/exportRows\.map\(b => \[/.test(ui), 'and build the file from those');
 });
 
 console.log(`\n${passed} checks passed.\n`);

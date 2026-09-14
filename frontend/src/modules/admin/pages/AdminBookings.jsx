@@ -34,6 +34,9 @@ const AdminBookings = () => {
   const itemsPerPage = 10;
   // Totals for the whole collection, computed by the server.
   const [serverStats, setServerStats] = useState(null);
+  // How many rows match the current search and filter. The table shows one
+  // page of them, so it cannot work this out for itself.
+  const [matchingTotal, setMatchingTotal] = useState(0);
 
   // Reset pagination when search or filters change
   useEffect(() => {
@@ -42,24 +45,44 @@ const AdminBookings = () => {
 
   useEffect(() => {
     setTitle("All Bookings");
-    fetchBookings();
     if (location.state?.searchId) {
       setSearchTerm(location.state.searchId.toString().slice(-6).toUpperCase());
     }
   }, [setTitle, location.state]);
 
+  // The server does the searching, so every keystroke would otherwise be a
+  // query. Settle first, then ask.
+  useEffect(() => {
+    const t = setTimeout(() => fetchBookings(), searchTerm ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filter, currentPage]);
+
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      // The table shows a page; the figures above it describe everything.
-      // Deriving them from the page would report the last 200 bookings as
-      // though they were the whole platform.
+      // The search and the filter are the server's job now: searching in the
+      // browser could only ever find what had already been sent, which on a
+      // paged list is the most recent page.
+      //
+      // The stats call deliberately carries neither, so the cards and the tab
+      // counts keep describing the whole scope while the table answers the
+      // question that was typed.
       const [list, totals] = await Promise.all([
-        API.get("/admin/bookings"),
+        API.get("/admin/bookings", {
+          params: {
+            page: currentPage,
+            limit: itemsPerPage,
+            ...(filter !== "all" ? { status: filter } : {}),
+            ...(searchTerm ? { search: searchTerm } : {})
+          }
+        }),
         API.get("/admin/bookings/stats")
       ]);
       setBookings(list.data);
       setServerStats(totals.data);
+      const reported = Number(list.headers?.["x-total-count"]);
+      setMatchingTotal(Number.isFinite(reported) ? reported : list.data.length);
     } catch (err) {
       toast({ title: "Fetch Failed", description: "Could not load bookings history.", variant: "destructive" });
     } finally {
@@ -110,9 +133,25 @@ const AdminBookings = () => {
     return counts;
   }, [bookings, serverStats]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    // The table holds one page, so exporting it would quietly produce a file
+    // of ten rows. This asks for everything that matches instead.
+    let exportRows = filteredBookings;
+    try {
+      const { data } = await API.get("/admin/bookings", {
+        params: {
+          limit: 1000,
+          ...(filter !== "all" ? { status: filter } : {}),
+          ...(searchTerm ? { search: searchTerm } : {})
+        }
+      });
+      exportRows = data;
+    } catch {
+      toast({ title: "Exporting this page only", description: "Could not load the full list.", variant: "destructive" });
+    }
+
     const headers = ["Booking ID", "Date", "Time", "Customer", "Mobile", "Provider", "Service", "Amount", "Payment", "Status"];
-    const rows = filteredBookings.map(b => [
+    const rows = exportRows.map(b => [
       b._id?.toString().slice(-8).toUpperCase(),
       b.bookingDate,
       b.bookingTime,
@@ -136,30 +175,14 @@ const AdminBookings = () => {
     document.body.appendChild(link);
     link.click();
     link.remove();
-    toast({ title: "Export Started", description: "CSV file is downloading." });
+    toast({ title: "Export Started", description: `${rows.length} bookings downloading.` });
   };
 
-  const filteredBookings = (bookings || []).filter(b => {
-    const searchLow = (searchTerm || "").toLowerCase();
-    const userName = (b.userId?.name || "").toLowerCase();
-    const userMobile = (b.userId?.mobile || "").toLowerCase();
-    const shopName = (b.providerId?.shopName || "").toLowerCase();
-    const serviceName = (b.serviceName || "").toLowerCase();
-    const bId = (b._id || "").toString().toLowerCase();
-
-    const matchesSearch = userName.includes(searchLow) ||
-      userMobile.includes(searchLow) ||
-      shopName.includes(searchLow) ||
-      serviceName.includes(searchLow) ||
-      bId.includes(searchLow);
-    const matchesFilter = filter === "all" || b.status === filter ||
-      (filter === "unauthorized" && b.unauthorizedPaymentFlag);
-    return matchesSearch && matchesFilter;
-  });
-
-  const totalPages = Math.ceil(filteredBookings.length / itemsPerPage);
+  // Already searched, filtered and paged by the server.
+  const filteredBookings = bookings || [];
+  const totalPages = Math.max(1, Math.ceil(matchingTotal / itemsPerPage));
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedBookings = filteredBookings.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedBookings = filteredBookings;
 
   if (loading) return (
     <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -417,15 +440,7 @@ const AdminBookings = () => {
         {filteredBookings.length > 0 && (
           <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredBookings.length)} of {filteredBookings.length} bookings
-              {/* Searching and filtering happen over the rows in hand, so say so
-                  rather than let the count above imply the table holds all of
-                  them. */}
-              {serverStats?.total > (bookings || []).length && (
-                <span className="ml-1 text-gray-400">
-                  (most recent {(bookings || []).length} of {serverStats.total} loaded — filter to narrow)
-                </span>
-              )}
+              Showing {matchingTotal === 0 ? 0 : startIndex + 1} to {Math.min(startIndex + itemsPerPage, matchingTotal)} of {matchingTotal} bookings
             </p>
             <div className="flex items-center gap-2">
               <button
