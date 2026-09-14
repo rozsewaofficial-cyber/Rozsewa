@@ -9,6 +9,8 @@ import { useToast } from "@/components/ui/use-toast";
 
 const AdminWFH = () => {
     const [vendors, setVendors] = useState([]);
+    // How many are waiting, across the whole queue rather than the page.
+    const [pendingTotal, setPendingTotal] = useState(0);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [selectedVendor, setSelectedVendor] = useState(null);
@@ -21,8 +23,9 @@ const AdminWFH = () => {
 
     const fetchPendingVendors = async () => {
         try {
-            const { data } = await API.get("/wfh/pending-vendors");
-            setVendors(data);
+            const res = await API.get("/wfh/pending-vendors");
+            setVendors(res.data);
+            setPendingTotal(Number(res.headers?.["x-total-count"]) || res.data.length);
         } catch (err) {
             toast({ title: "Failed to fetch vendors", variant: "destructive" });
         } finally {
@@ -59,7 +62,7 @@ const AdminWFH = () => {
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-2xl text-xs font-black uppercase">
-                        Pending: {vendors.length}
+                        Pending: {pendingTotal}
                     </div>
                 </div>
             </div>

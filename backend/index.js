@@ -80,7 +80,7 @@ app.use(cors({
     // reporting the size of the page as the size of the collection.
     // A custom response header the browser cannot see is the same as one that
     // was never sent, so every header a screen reads is listed here.
-    exposedHeaders: ['X-Total-Count', 'X-Total-Value', 'X-Pending-Count']
+    exposedHeaders: ['X-Total-Count', 'X-Total-Value', 'X-Pending-Count', 'X-Active-Count', 'X-OnHold-Count']
 }));
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds

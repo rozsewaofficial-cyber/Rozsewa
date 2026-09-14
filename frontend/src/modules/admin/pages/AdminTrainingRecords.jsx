@@ -30,6 +30,8 @@ const AdminTrainingRecords = () => {
 
   const [tab, setTab] = useState("queue");
   const [records, setRecords] = useState([]);
+  // Records held up waiting for a kit item, across all of them.
+  const [onHoldTotal, setOnHoldTotal] = useState(0);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -51,6 +53,7 @@ const AdminTrainingRecords = () => {
         API.get("/admin/training-records/stats"),
       ]);
       setRecords(recRes.data || []);
+      setOnHoldTotal(Number(recRes.headers?.["x-onhold-count"]) || 0);
       setStats(statRes.data);
     } catch {
       toast({ title: "Could not load training records", variant: "destructive" });
@@ -79,7 +82,7 @@ const AdminTrainingRecords = () => {
     }
   };
 
-  const onHoldCount = records.filter((r) => r.status === "on_hold_item_missing").length;
+  const onHoldCount = onHoldTotal;
 
   return (
     <div className="space-y-5">

@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Provider = require('../models/Provider');
 
 // @desc    Get all pending vendors for WFH verification
@@ -5,10 +6,13 @@ const Provider = require('../models/Provider');
 // @access  Private/WFH
 const getPendingVendors = async (req, res) => {
     try {
-        const vendors = await Provider.find({ 
-            status: 'pending',
-            isWFHVerified: false 
-        }).sort({ createdAt: -1 });
+        // A verification queue is worked through, not read in one go.
+        const scope = { status: 'pending', isWFHVerified: false };
+        const vendors = await paginate(
+            Provider.find(scope).sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await Provider.countDocuments(scope)));
         res.json(vendors);
     } catch (error) {
         res.status(500).json({ message: error.message });

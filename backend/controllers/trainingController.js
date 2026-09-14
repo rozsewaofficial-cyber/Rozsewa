@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const mongoose = require('mongoose');
 const TrainingCenter = require('../models/TrainingCenter');
 const Trainer = require('../models/Trainer');
@@ -14,10 +15,15 @@ const getTrainingCenters = async (req, res) => {
         if (req.query.isActive !== undefined) query.isActive = req.query.isActive === 'true';
         if (req.query.city) query.citiesNormalized = req.query.city.trim().toLowerCase();
 
-        const centers = await TrainingCenter.find(query)
-            .populate('categories', 'name icon')
-            .sort({ name: 1 })
-            .lean();
+        // A network of centres grows city by city.
+        const centers = await paginate(
+            TrainingCenter.find(query)
+                .populate('categories', 'name icon')
+                .sort({ name: 1 })
+                .lean(),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await TrainingCenter.countDocuments(query)));
 
         // Trainer counts make the list actionable without a second request.
         const counts = await Trainer.aggregate([
@@ -139,12 +145,16 @@ const getTrainers = async (req, res) => {
         }
         if (req.query.isActive !== undefined) query.isActive = req.query.isActive === 'true';
 
-        const trainers = await Trainer.find(query)
-            .select('-password')
-            .populate('trainingCenter', 'name cities')
-            .populate('categories', 'name icon')
-            .sort({ name: 1 })
-            .lean();
+        const trainers = await paginate(
+            Trainer.find(query)
+                .select('-password')
+                .populate('trainingCenter', 'name cities')
+                .populate('categories', 'name icon')
+                .sort({ name: 1 })
+                .lean(),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await Trainer.countDocuments(query)));
 
         res.json(trainers);
     } catch (error) {

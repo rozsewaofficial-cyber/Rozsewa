@@ -182,14 +182,16 @@ check('every count header a screen reads is exposed to it', () => {
     const cors = beRead('index.js');
     const exposed = (cors.match(/exposedHeaders:\s*\[([^\]]*)\]/) || [])[1] || '';
 
+    // Every controller, not a list of the ones that had headers when this was
+    // written — the next one to add a header is the one that would be missed.
+    const dir = path.join(BE, 'controllers');
     const sent = new Set();
-    ['controllers/adminController.js', 'controllers/withdrawalController.js']
-        .forEach(f => {
-            const src = beRead(f);
-            (src.match(/res\.set\('(X-[\w-]+)'/g) || []).forEach(m => {
-                sent.add(m.replace(/res\.set\('/, '').replace(/'$/, ''));
-            });
+    fs.readdirSync(dir).filter(f => f.endsWith('.js')).forEach(f => {
+        const src = fs.readFileSync(path.join(dir, f), 'utf8');
+        (src.match(/res\.set\(\s*'(X-[\w-]+)'/g) || []).forEach(m => {
+            sent.add(m.replace(/res\.set\(\s*'/, '').replace(/'$/, ''));
         });
+    });
 
     assert.ok(sent.size > 0, 'the scan must find the headers being set');
     sent.forEach(h => {

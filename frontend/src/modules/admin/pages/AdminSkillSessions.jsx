@@ -38,6 +38,8 @@ const AdminSkillSessions = () => {
 
   const [tab, setTab] = useState("sessions"); // "sessions" | "reports"
   const [sessions, setSessions] = useState([]);
+  // Sessions still needing a human, across all of them rather than the page.
+  const [pendingCountTotal, setPendingCountTotal] = useState(0);
   const [reports, setReports] = useState(null);
   const [centers, setCenters] = useState([]);
   const [trainers, setTrainers] = useState([]);
@@ -64,8 +66,9 @@ const AdminSkillSessions = () => {
     setLoading(true);
     try {
       const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
-      const { data } = await API.get("/admin/skill-sessions", { params });
-      setSessions(data || []);
+      const res = await API.get("/admin/skill-sessions", { params });
+      setSessions(res.data || []);
+      setPendingCountTotal(Number(res.headers?.["x-pending-count"]) || 0);
     } catch {
       toast({ title: "Could not load sessions", variant: "destructive" });
     } finally {
@@ -192,7 +195,7 @@ const AdminSkillSessions = () => {
     }
   };
 
-  const pendingCount = sessions.filter((s) => s.status === "pending").length;
+  const pendingCount = pendingCountTotal;
   const centerTrainers = trainers.filter(
     (t) => (t.trainingCenter?._id || t.trainingCenter) === assignForm.centerId
   );

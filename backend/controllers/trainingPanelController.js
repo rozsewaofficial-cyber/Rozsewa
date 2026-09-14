@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const mongoose = require('mongoose');
 const TrainingRecord = require('../models/TrainingRecord');
 const Provider = require('../models/Provider');
@@ -597,16 +598,42 @@ const getTrainingRecords = async (req, res) => {
         if (status) query.status = status;
         if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) query.categoryId = categoryId;
 
-        const records = await TrainingRecord.find(query)
-            .populate('sewakId', 'ownerName vendorCode mobile city status kycVerified profileImage')
-            .populate('categoryId', 'name')
-            .sort({ status: 1, updatedAt: -1 })
-            .lean();
-
-        // Pending / on-hold first — those are the rows needing a human.
+        // Pending / on-hold first — those are the rows needing a human. That
+        // order used to be applied after loading every record, which once the
+        // list is paged would scatter them across whichever pages they landed
+        // on. The database sorts it instead.
         const rank = { on_hold_item_missing: 0, pending: 1, in_progress: 2, training_done: 3 };
-        records.sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9));
+        const { page, limit } = pageParams(req);
 
+        const records = await TrainingRecord.aggregate([
+            { $match: query },
+            {
+                $addFields: {
+                    statusRank: {
+                        $switch: {
+                            branches: Object.entries(rank).map(([status, r]) => ({
+                                case: { $eq: ['$status', status] },
+                                then: r
+                            })),
+                            default: 9
+                        }
+                    }
+                }
+            },
+            { $sort: { statusRank: 1, updatedAt: -1 } },
+            { $skip: (page - 1) * limit },
+            { $limit: limit }
+        ]);
+
+        // Populated after the page is chosen, so only these rows are joined.
+        await TrainingRecord.populate(records, [
+            { path: 'sewakId', select: 'ownerName vendorCode mobile city status kycVerified profileImage' },
+            { path: 'categoryId', select: 'name' }
+        ]);
+
+        res.set('X-Total-Count', String(await TrainingRecord.countDocuments(query)));
+        // Records held up waiting for a missing kit item, across all of them.
+        res.set('X-OnHold-Count', String(await TrainingRecord.countDocuments({ ...query, status: 'on_hold_item_missing' })));
         res.json(records);
     } catch (error) {
         res.status(500).json({ message: error.message });

@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const mongoose = require('mongoose');
 const SkillSession = require('../models/SkillSession');
 const TrainingCenter = require('../models/TrainingCenter');
@@ -94,8 +95,12 @@ const getEligibility = async (req, res) => {
         const category = await Category.findById(categoryId).lean();
         const catalog = (category?.services || []);
 
+        // Only what the skill matrix reads off each session, and capped: this
+        // builds a row per service, not a list of every session ever held.
         const sessions = await SkillSession.find({ sewakId: provider._id })
+            .select('serviceKey serviceName status mode scheduledDate isReSession createdAt')
             .sort({ createdAt: -1 })
+            .limit(1000)
             .lean();
 
         const rows = (provider.subServices || []).map(name => {
@@ -276,9 +281,14 @@ const bookSession = async (req, res) => {
 // @access  Private (Sewak/Provider)
 const getMySessions = async (req, res) => {
     try {
-        const sessions = await populateSession(
-            SkillSession.find({ sewakId: req.user._id })
-        ).sort({ createdAt: -1 });
+        // A sewak's training history grows with every re-session.
+        const scope = { sewakId: req.user._id };
+        const { page, limit } = pageParams(req);
+        const sessions = await populateSession(SkillSession.find(scope))
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+        res.set('X-Total-Count', String(await SkillSession.countDocuments(scope)));
         res.json(sessions);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -347,15 +357,48 @@ const getAdminSessions = async (req, res) => {
             if (dateTo) query.scheduledDate.$lte = dateTo;
         }
 
-        const sessions = await populateSession(SkillSession.find(query))
+        // Pending first — they are the only rows that need a human. That order
+        // used to be applied in JavaScript after loading every session, which
+        // would put the pending ones on whichever page they happened to fall on
+        // once this list is handed over a page at a time. So the database sorts
+        // it: one pass for the ids in order, then the documents for that page.
+        const rank = { pending: 0, scheduled: 1, completed: 2, no_show: 3, cancelled: 4 };
+        const { page, limit } = pageParams(req);
+
+        const ordered = await SkillSession.aggregate([
+            { $match: query },
+            {
+                $addFields: {
+                    statusRank: {
+                        $switch: {
+                            branches: Object.entries(rank).map(([status, r]) => ({
+                                case: { $eq: ['$status', status] },
+                                then: r
+                            })),
+                            default: 9
+                        }
+                    }
+                }
+            },
+            { $sort: { statusRank: 1, scheduledDate: 1, scheduledTime: 1, createdAt: -1 } },
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            { $project: { _id: 1 } }
+        ]);
+
+        const ids = ordered.map(r => r._id);
+        const rows = await populateSession(SkillSession.find({ _id: { $in: ids } }))
             .populate('sewakId', 'ownerName mobile city vendorCode')
-            .sort({ status: 1, scheduledDate: 1, scheduledTime: 1, createdAt: -1 })
             .lean();
 
-        // Pending first — they are the only rows that need a human.
-        const rank = { pending: 0, scheduled: 1, completed: 2, no_show: 3, cancelled: 4 };
-        sessions.sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9));
+        // `$in` gives no order, so the page is put back into the order it was
+        // chosen in.
+        const byId = new Map(rows.map(r => [String(r._id), r]));
+        const sessions = ids.map(id => byId.get(String(id))).filter(Boolean);
 
+        res.set('X-Total-Count', String(await SkillSession.countDocuments(query)));
+        // The banner above the table counts the sessions still needing a human.
+        res.set('X-Pending-Count', String(await SkillSession.countDocuments({ ...query, status: 'pending' })));
         res.json(sessions);
     } catch (error) {
         res.status(500).json({ message: error.message });

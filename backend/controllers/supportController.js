@@ -84,10 +84,20 @@ const getProviderTickets = async (req, res) => {
 // @access  Private (Admin)
 const getAllTickets = async (req, res) => {
     try {
-        const tickets = await SupportTicket.find({})
-            .populate('userId', 'name email role')
-            .populate('providerId', 'name ownerName email role')
-            .sort({ createdAt: -1 });
+        // Every ticket ever raised, filtered by the status tab if one is set.
+        const scope = req.query.status ? { status: req.query.status } : {};
+        const tickets = await paginate(
+            SupportTicket.find(scope)
+                .populate('userId', 'name email role')
+                .populate('providerId', 'name ownerName email role')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+
+        res.set('X-Total-Count', String(await SupportTicket.countDocuments(scope)));
+        res.set('X-Active-Count', String(await SupportTicket.countDocuments({
+            status: { $in: ['pending', 'open'] }
+        })));
         res.json(tickets);
     } catch (error) {
         res.status(500).json({ message: error.message });

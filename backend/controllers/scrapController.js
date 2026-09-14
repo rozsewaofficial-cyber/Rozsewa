@@ -162,12 +162,19 @@ exports.completeScrap = async (req, res) => {
 // Admin: Get all scrap items
 exports.getAllScrapAdmin = async (req, res) => {
   try {
-    const scraps = await Scrap.find({})
-      .populate('userId', 'name email phone')
-      .populate('providerId', 'name phone')
-      .sort({ createdAt: -1 });
+    const scope = req.query.status ? { status: req.query.status } : {};
+    const [count, scraps] = await Promise.all([
+      Scrap.countDocuments(scope),
+      paginate(
+        Scrap.find(scope)
+          .populate('userId', 'name email phone')
+          .populate('providerId', 'name phone')
+          .sort({ createdAt: -1 }),
+        pageParams(req)
+      )
+    ]);
 
-    res.json({ success: true, data: scraps });
+    res.json({ success: true, count, data: scraps });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -260,24 +267,28 @@ exports.getBazaarItems = async (req, res) => {
   try {
     const { search, city } = req.query;
 
+    // Escaped: what was typed is text to look for, not a pattern to run.
+    const escape = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+
     const query = { listedInBazaar: true, status: 'accepted' };
-    if (city) query['address.city'] = { $regex: city, $options: 'i' };
+    if (city) query['address.city'] = { $regex: escape(city), $options: 'i' };
 
-    const scraps = await Scrap.find(query)
-      .populate('userId', 'name phone')
-      .sort({ createdAt: -1 });
-
-    // Filter by search term on title/description
-    let results = scraps;
+    // The search used to load every listing and then narrow it here, which
+    // meant the whole collection travelled just to be thrown away.
     if (search) {
-      const lower = search.toLowerCase();
-      results = scraps.filter(s =>
-        s.title.toLowerCase().includes(lower) ||
-        (s.description && s.description.toLowerCase().includes(lower))
-      );
+      const rx = new RegExp(escape(search), 'i');
+      query.$or = [{ title: rx }, { description: rx }];
     }
 
-    res.json({ success: true, data: results });
+    const [count, results] = await Promise.all([
+      Scrap.countDocuments(query),
+      paginate(
+        Scrap.find(query).populate('userId', 'name phone').sort({ createdAt: -1 }),
+        pageParams(req)
+      )
+    ]);
+
+    res.json({ success: true, count, data: results });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Server Error' });
