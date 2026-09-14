@@ -143,11 +143,16 @@ exports.getCommissionAnalytics = async (req, res) => {
         // Build completed bookings query matcher
         const matchQuery = { status: 'completed' };
 
-        if (startDate || endDate) {
-            matchQuery.completedAt = {};
-            if (startDate) matchQuery.completedAt.$gte = new Date(startDate);
-            if (endDate) matchQuery.completedAt.$lte = new Date(endDate);
-        }
+        // An analytics window that defaults to "all time" grows into a read of
+        // every completed booking ever, and does it on page load. A year is far
+        // more than any of these figures is looked at over, and the caller can
+        // still ask for more by saying so.
+        const DEFAULT_WINDOW_DAYS = 365;
+        matchQuery.completedAt = {};
+        matchQuery.completedAt.$gte = startDate
+            ? new Date(startDate)
+            : new Date(Date.now() - DEFAULT_WINDOW_DAYS * 86400000);
+        if (endDate) matchQuery.completedAt.$lte = new Date(endDate);
 
         if (categoryId) {
             matchQuery['commissionSnapshot.bookingCategorySnapshot.id'] = new mongoose.Types.ObjectId(categoryId);
@@ -159,10 +164,9 @@ exports.getCommissionAnalytics = async (req, res) => {
             matchQuery['commissionSnapshot.subscriptionSnapshot.planId'] = new mongoose.Types.ObjectId(subscriptionId);
         }
 
-        // The date range here is optional, so with no filter this reads every
-        // completed booking ever. Hydrated documents were most of that cost:
-        // lean rows carrying only the five fields the reduction below reads are
-        // the same numbers for a fraction of the memory.
+        // Lean rows carrying only the five fields the reduction below reads.
+        // Hydrated documents with nothing projected away were most of the cost of
+        // this endpoint.
         const bookings = await Booking.find(matchQuery)
             .select('totalAmount adminCommission providerPayout commissionSnapshot commissionStatus')
             .lean();
@@ -215,6 +219,10 @@ exports.getCommissionAnalytics = async (req, res) => {
             ledgerQuery.createdAt = {};
             if (startDate) ledgerQuery.createdAt.$gte = new Date(startDate);
             if (endDate) ledgerQuery.createdAt.$lte = new Date(endDate);
+        } else {
+            // The same window as the bookings above, so the two halves of one
+            // figure cover the same period.
+            ledgerQuery.createdAt = { $gte: matchQuery.completedAt.$gte };
         }
         if (providerId) {
             ledgerQuery.provider = new mongoose.Types.ObjectId(providerId);

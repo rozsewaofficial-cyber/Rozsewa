@@ -506,37 +506,26 @@ class EarningsAnalyticsService {
     /**
      * Payment Methods Analytics
      */
+    /**
+     * How customers paid.
+     *
+     * Only two things are actually known: whether the money came in up front or
+     * was collected on completion. This used to report a UPI / Card / Wallet /
+     * Net Banking split as well — assigned by hashing the booking id. It looked
+     * like analytics and was invented, so a decision made on it would have been
+     * made on nothing. The instrument is not captured anywhere, so until it is,
+     * this reports what is true.
+     */
     static getPaymentAnalytics(currentBookings) {
         const distribution = {
-            'UPI': { value: 0, count: 0 },
-            'Cash': { value: 0, count: 0 },
-            'Wallet': { value: 0, count: 0 },
-            'Card': { value: 0, count: 0 },
-            'Net Banking': { value: 0, count: 0 }
+            'Paid Online': { value: 0, count: 0 },
+            'Cash on Completion': { value: 0, count: 0 }
         };
 
         currentBookings.forEach(b => {
-            const amount = b.totalAmount || 0;
-            if (b.paymentMode === 'after') {
-                distribution['Cash'].value += amount;
-                distribution['Cash'].count += 1;
-            } else {
-                // Deterministic map based on booking ID
-                const hashNum = b._id.toString().split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 100;
-                if (hashNum < 55) {
-                    distribution['UPI'].value += amount;
-                    distribution['UPI'].count += 1;
-                } else if (hashNum < 75) {
-                    distribution['Card'].value += amount;
-                    distribution['Card'].count += 1;
-                } else if (hashNum < 90) {
-                    distribution['Wallet'].value += amount;
-                    distribution['Wallet'].count += 1;
-                } else {
-                    distribution['Net Banking'].value += amount;
-                    distribution['Net Banking'].count += 1;
-                }
-            }
+            const bucket = b.paymentMode === 'after' ? 'Cash on Completion' : 'Paid Online';
+            distribution[bucket].value += EarningsAnalyticsService.grossValue(b);
+            distribution[bucket].count += 1;
         });
 
         return Object.entries(distribution).map(([name, data]) => ({
@@ -662,11 +651,12 @@ class EarningsAnalyticsService {
             const partnerAvatar = b.providerId?.profileImage || '';
             const category = b.serviceName || 'Service';
             
-            let method = 'Cash';
-            if (b.paymentMode === 'now') {
-                const hashNum = b._id.toString().split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 100;
-                method = hashNum < 55 ? 'UPI' : hashNum < 75 ? 'Card' : hashNum < 90 ? 'Wallet' : 'Net Banking';
-            }
+            // The same invention as the payment split had: a UPI / Card / Wallet
+            // / Net Banking label picked by hashing the booking id. On a ledger
+            // row it is worse than on a chart, because it reads as a record of
+            // how that particular customer paid. The instrument is not stored,
+            // so the row says only what is known.
+            const method = b.paymentMode === 'after' ? 'Cash on Completion' : 'Paid Online';
 
             const dateStr = new Date(b.createdAt).toLocaleString('en-IN', {
                 day: '2-digit',

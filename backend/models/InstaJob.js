@@ -33,6 +33,14 @@ const JOB_STATUSES = [
 /** States in which no worker has committed yet. */
 const PRE_ACCEPTANCE = ['REQUESTED', 'MATCHING', 'ASSIGNED', 'PARTNER_SELECTED'];
 
+/**
+ * States in which a job occupies one of a worker's concurrent slots.
+ *
+ * Named once because matching, the capacity check and any future reporting
+ * must agree on what "currently working" means.
+ */
+const OCCUPIES_WORKER = ['ASSIGNED', 'PARTNER_SELECTED', 'ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'WORK_STARTED'];
+
 const instaJobSchema = new mongoose.Schema({
     jobCode: { type: String, unique: true, index: true },
 
@@ -252,3 +260,4 @@ instaJobSchema.methods.pushStatus = function (status, by = 'system', note = '') 
 module.exports = mongoose.model('InstaJob', instaJobSchema);
 module.exports.JOB_STATUSES = JOB_STATUSES;
 module.exports.PRE_ACCEPTANCE = PRE_ACCEPTANCE;
+module.exports.OCCUPIES_WORKER = OCCUPIES_WORKER;

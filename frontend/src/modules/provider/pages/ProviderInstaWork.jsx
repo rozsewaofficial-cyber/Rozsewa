@@ -7,6 +7,7 @@ import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useSocket } from "@/context/SocketContext";
 
 /**
  * Provider / Sewak Insta Work screen.
@@ -46,6 +47,7 @@ const ProviderInstaWork = () => {
   // a blocked location silently removes them from matching, and "you are
   // live" while nobody can find you is the worst thing this screen can say.
   const [locationError, setLocationError] = useState(null);
+  const { socket } = useSocket();
   const pingRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -78,6 +80,19 @@ const ProviderInstaWork = () => {
     const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // The server announces every step of a job. Nothing was listening, so a
+  // customer watching their worker arrive found out on the next poll —
+  // up to five seconds after it happened. The poll stays as the fallback
+  // for a dropped connection; this is what makes the screen feel live.
+  useEffect(() => {
+    if (!socket) return;
+    const events = ["INSTA_JOB_CREATED","INSTA_JOB_ACCEPTED","INSTA_JOB_REASSIGNED","INSTA_PARTNER_DECLINED","INSTA_ON_THE_WAY","INSTA_ARRIVED","INSTA_WORK_STARTED","INSTA_EXTENSION_REQUESTED","INSTA_EXTENSION_RESPONSE","INSTA_WORK_COMPLETED","INSTA_JOB_PAID","INSTA_JOB_CANCELLED"];
+    const refresh = () => { load(); };
+    events.forEach((e) => socket.on(e, refresh));
+    return () => events.forEach((e) => socket.off(e, refresh));
+  }, [socket]);
+
 
   /**
    * While Insta Work is on, the app reports position periodically. Matching

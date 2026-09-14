@@ -103,7 +103,7 @@ const findCandidates = async ({ service, supplyModel, location, config, excludeI
             {
                 $match: {
                     providerId: { $in: ids },
-                    status: { $in: ['ASSIGNED', 'PARTNER_SELECTED', 'ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'WORK_STARTED'] }
+                    status: { $in: InstaJob.OCCUPIES_WORKER }
                 }
             },
             { $group: { _id: '$providerId', n: { $sum: 1 } } }

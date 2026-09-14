@@ -363,21 +363,19 @@ const getEarningsData = async (req, res) => {
             currentBookings = currentBookings.filter(b => b.providerId && b.providerId.city && b.providerId.city.toLowerCase() === city.toLowerCase());
         }
 
-        // In-memory filter for payment method
+        // Filter by how the customer paid.
+        //
+        // This used to offer UPI, Card, Wallet and Net Banking, deciding which
+        // was which by hashing the booking id — so filtering to "Card" returned
+        // an arbitrary slice of prepaid bookings that had nothing to do with
+        // cards. The instrument is not recorded anywhere, so the filter now
+        // offers the distinction that exists. The old labels are still accepted
+        // and treated as prepaid, rather than a saved dashboard returning
+        // nothing.
         if (paymentMethod) {
-            currentBookings = currentBookings.filter(b => {
-                if (b.paymentMode === 'after') {
-                    return paymentMethod === 'Cash';
-                } else {
-                    const hashNum = b._id.toString().split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 100;
-                    let method = 'UPI';
-                    if (hashNum < 55) method = 'UPI';
-                    else if (hashNum < 75) method = 'Card';
-                    else if (hashNum < 90) method = 'Wallet';
-                    else method = 'Net Banking';
-                    return paymentMethod === method;
-                }
-            });
+            const wantsCash = /^cash/i.test(paymentMethod);
+            currentBookings = currentBookings.filter(b =>
+                wantsCash ? b.paymentMode === 'after' : b.paymentMode !== 'after');
         }
 
         // Fetch bookings for previous period (matching same criteria)

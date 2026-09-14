@@ -681,7 +681,9 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                           req.status === 'completed' ? 'bg-emerald-500 text-white' :
                             'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
                     }`}>
-                    {req.status === 'pending' ? 'NEW' : req.status.replace("_", " ").toUpperCase()}
+                    {/* Every underscore, not just the first — on_the_way was
+                        rendering as "ON THE_WAY". */}
+                    {req.status === 'pending' ? 'NEW' : req.status.replace(/_/g, " ").toUpperCase()}
                   </div>
                 </div>
 

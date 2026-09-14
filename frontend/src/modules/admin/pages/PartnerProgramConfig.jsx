@@ -613,7 +613,8 @@ export default function PartnerProgramConfig() {
                   <div className="flex flex-wrap gap-1.5 pt-2">
                     {plan.benefits.map(b => (
                       <span key={b.key} className="text-[9px] font-bold px-2 py-0.5 bg-purple-50 text-purple-600 border border-purple-100 rounded-full">
-                        {b.key.replace("_", " ")}
+                        {/* Every underscore: a two-word key would otherwise keep one. */}
+                        {b.key.replace(/_/g, " ")}
                       </span>
                     ))}
                   </div>

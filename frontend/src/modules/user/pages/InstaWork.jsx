@@ -9,6 +9,7 @@ import BottomNav from "@/modules/user/components/BottomNav";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useSocket } from "@/context/SocketContext";
 
 /**
  * Customer Insta Work screen.
@@ -55,6 +56,7 @@ const InstaWork = () => {
   const [partnersMsg, setPartnersMsg] = useState("");
   const [chosenPartner, setChosenPartner] = useState(null);
   const [address, setAddress] = useState("");
+  const { socket } = useSocket();
   const [quote, setQuote] = useState(null);
 
   const [activeJob, setActiveJob] = useState(null);
@@ -104,6 +106,18 @@ const InstaWork = () => {
     const t = setInterval(loadActiveJob, 5000);
     return () => clearInterval(t);
   }, [activeJob, loadActiveJob]);
+
+  // The server announces every step of a job. Nothing was listening, so a
+  // customer watching their worker arrive found out on the next poll —
+  // up to five seconds after it happened. The poll stays as the fallback
+  // for a dropped connection; this is what makes the screen feel live.
+  useEffect(() => {
+    if (!socket) return;
+    const events = ["INSTA_JOB_CREATED","INSTA_JOB_ACCEPTED","INSTA_JOB_REASSIGNED","INSTA_PARTNER_DECLINED","INSTA_ON_THE_WAY","INSTA_ARRIVED","INSTA_WORK_STARTED","INSTA_EXTENSION_REQUESTED","INSTA_EXTENSION_RESPONSE","INSTA_WORK_COMPLETED","INSTA_JOB_PAID","INSTA_JOB_CANCELLED"];
+    const refresh = () => { loadActiveJob(); };
+    events.forEach((e) => socket.on(e, refresh));
+    return () => events.forEach((e) => socket.off(e, refresh));
+  }, [socket]);
 
   useEffect(() => {
     if (userLocation && !address) {

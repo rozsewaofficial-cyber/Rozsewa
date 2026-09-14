@@ -291,6 +291,38 @@ const createJob = async (req, res) => {
             paymentMode: paymentMode === 'online' ? 'online' : 'cash'
         });
 
+        // Claiming the worker.
+        //
+        // Matching counted this worker's active jobs and then assigned them, with
+        // nothing between the two — so two customers booking at the same instant
+        // could both be told they had the same person. There is no conditional
+        // insert to lean on, so the race is settled after the fact and by age:
+        // each job asks how many active jobs that worker already had before it,
+        // and only the ones inside the limit keep them. That is deterministic —
+        // the earlier job always wins, so two racers never both stand down.
+        if (assignedProviderId) {
+            const aheadOfThis = await InstaJob.countDocuments({
+                providerId: assignedProviderId,
+                status: { $in: InstaJob.OCCUPIES_WORKER },
+                _id: { $ne: job._id },
+                createdAt: { $lte: job.createdAt }
+            });
+
+            if (aheadOfThis >= Math.max(1, Number(config.maxConcurrentJobs) || 1)) {
+                job.providerId = null;
+                job.pushStatus('CANCELLED', 'system',
+                    'Another customer reached this worker first');
+                job.cancelledBy = 'system';
+                job.cancellationReason = 'Worker was taken at the same moment';
+                await job.save();
+
+                return res.status(409).json({
+                    message: `That worker was booked a moment before you. Please try again.`,
+                    code: 'WORKER_JUST_TAKEN'
+                });
+            }
+        }
+
         notify(
             assignedProviderId, 'provider',
             '⚡ New Insta Work job',

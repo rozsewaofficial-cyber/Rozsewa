@@ -11,6 +11,8 @@ const C = require('../services/InstaConfigService');
 // Only for its schema methods — requiring a model registers it, it does not
 // open a connection.
 const InstaJob = require('../models/InstaJob');
+const read = (rel) => require('fs').readFileSync(require('path').join(__dirname, '..', rel), 'utf8');
+const frontend = (...p) => require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'frontend', 'src', ...p), 'utf8');
 
 let passed = 0;
 const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
@@ -756,6 +758,100 @@ check('the customer is actually given a way to answer', () => {
     assert.ok(/live\?\.pendingExtension/.test(ui), 'the customer screen must read it');
     assert.ok(/approve: true/.test(ui) && /approve: false/.test(ui),
         'both answers must be offered');
+});
+
+
+console.log('\nA worker cannot be handed to two customers at once');
+check('the assignment is settled after the write, not trusted before it', () => {
+    // Matching counted a worker's active jobs and then assigned them with
+    // nothing in between, so two customers booking at the same instant could
+    // both be told they had the same person.
+    const src = read('controllers/instaCustomerController.js');
+    assert.ok(/const aheadOfThis = await InstaJob\.countDocuments\(/.test(src),
+        'the claim must be checked against what already existed');
+    assert.ok(/createdAt: \{ \$lte: job\.createdAt \}/.test(src),
+        'settled by age, so the earlier job always wins');
+    assert.ok(/WORKER_JUST_TAKEN/.test(src), 'and the loser is told why');
+});
+
+check('the loser releases the worker rather than holding them', () => {
+    const src = read('controllers/instaCustomerController.js');
+    const guard = src.slice(src.indexOf('const aheadOfThis'), src.indexOf('WORKER_JUST_TAKEN'));
+    assert.ok(/job\.providerId = null;/.test(guard), 'it must let the worker go');
+    assert.ok(/pushStatus\('CANCELLED', 'system'/.test(guard), 'and be recorded, not left dangling');
+});
+
+check('one definition of "currently working"', () => {
+    // Matching and the capacity check disagreeing about which states count is
+    // how a limit stops meaning anything.
+    const InstaJob = require('../models/InstaJob');
+    assert.deepStrictEqual(InstaJob.OCCUPIES_WORKER,
+        ['ASSIGNED', 'PARTNER_SELECTED', 'ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'WORK_STARTED']);
+    const matching = read('services/InstaAssignmentService.js');
+    assert.ok(/InstaJob\.OCCUPIES_WORKER/.test(matching), 'matching must use it');
+});
+
+console.log('\nThe payment split reports what is known');
+check('no payment instrument is invented', () => {
+    // UPI / Card / Wallet / Net Banking were assigned by hashing the booking id.
+    // It looked like analytics and was fiction, so a decision made on it would
+    // have been made on nothing.
+    const src = read('services/EarningsAnalyticsService.js');
+    // Matched as a quoted label, so the comment explaining its removal does
+    // not count as its return.
+    assert.ok(!/= 'Net Banking'|: 'Net Banking'/.test(src), 'no invented instrument may remain');
+    assert.ok(!/charCodeAt\(0\)\), 0\) % 100/.test(src), 'nor the hash that produced them');
+
+    const S = require('../services/EarningsAnalyticsService');
+    const out = S.getPaymentAnalytics([
+        { paymentMode: 'after', totalAmount: 100 },
+        { paymentMode: 'now', totalAmount: 200 }
+    ]);
+    assert.deepStrictEqual(out.map(o => o.name).sort(), ['Cash on Completion', 'Paid Online']);
+    assert.strictEqual(out.find(o => o.name === 'Paid Online').value, 200);
+});
+
+check('the filter offers the distinction that exists', () => {
+    const src = read('controllers/commissionController.js');
+    assert.ok(!/method = 'UPI'/.test(src), 'the hashed filter must be gone');
+    assert.ok(/wantsCash/.test(src), 'and replaced by the real one');
+});
+
+console.log('\nAn analytics window has an end');
+check('commission analytics does not default to all of time', () => {
+    // With no filter this read every completed booking ever, on page load.
+    const src = read('controllers/v2CommissionController.js');
+    assert.ok(/DEFAULT_WINDOW_DAYS/.test(src), 'there must be a default window');
+    assert.ok(/matchQuery\.completedAt\.\$gte = startDate/.test(src),
+        'which an explicit start date still overrides');
+});
+
+console.log('\nThe screens listen to what the server announces');
+check('the Insta screens subscribe to job events', () => {
+    // Nine events were being emitted and nothing was listening: a customer
+    // watching their worker arrive found out on the next five-second poll.
+    ['modules/user/pages/InstaWork.jsx', 'modules/provider/pages/ProviderInstaWork.jsx'].forEach(p => {
+        const ui = frontend(...p.split('/'));
+        assert.ok(/useSocket\(\)/.test(ui), `${p} must take the socket`);
+        assert.ok(/INSTA_WORK_COMPLETED/.test(ui), `${p} must listen for job events`);
+        assert.ok(/socket\.off\(e, refresh\)/.test(ui), `${p} must unsubscribe`);
+    });
+});
+
+check('polling is kept as the fallback, not replaced', () => {
+    // A dropped connection should slow the screen down, not freeze it.
+    const ui = frontend('modules', 'user', 'pages', 'InstaWork.jsx');
+    assert.ok(/setInterval\(loadActiveJob, 5000\)/.test(ui), 'the poll must remain');
+});
+
+console.log('\nA status reads as words');
+check('every underscore is replaced, not just the first', () => {
+    // on_the_way rendered as "ON THE_WAY".
+    ['modules/provider/components/RecentBookingsList.jsx',
+     'modules/admin/pages/PartnerProgramConfig.jsx'].forEach(p => {
+        const ui = frontend(...p.split('/'));
+        assert.ok(!/replace\("_", " "\)/.test(ui), `${p} still replaces only the first underscore`);
+    });
 });
 
 console.log(`\n${passed} Insta Work checks passed.\n`);
