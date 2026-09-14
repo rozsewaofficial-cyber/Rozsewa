@@ -264,4 +264,63 @@ check('the settlement ledger is narrowed by the database', () => {
         'sums do not need the documents');
 });
 
+console.log('\nAnd a breakdown covers what it breaks down');
+
+/**
+ * A stats endpoint is a claim about a whole collection, split into buckets.
+ * If the buckets miss a state the cards under-report it, and if two buckets
+ * overlap they double-count — neither fails, both lie.
+ *
+ * Checked by reading the grouping back: every state a row can be in has to
+ * land in exactly one bucket.
+ */
+check('the provider buckets leave no status unaccounted for', () => {
+    const src = beRead('controllers/adminController.js');
+    const fn = src.slice(src.indexOf('const getProviderStats'), src.indexOf('const updateProviderStatus'));
+
+    // Status is grouped rather than enumerated, so a new status appears on its
+    // own instead of vanishing.
+    assert.ok(/\$group: \{\s*_id: '\$status'/.test(fn),
+        'statuses must be grouped, not listed one by one');
+    assert.ok(/total \+= count/.test(fn), 'and the total must come from that grouping');
+
+    // Subscription is three exclusive states, so they must sum to everyone.
+    ['subscribed', 'expired', 'free'].forEach(k => {
+        assert.ok(new RegExp(`${k}:`).test(fn), `the ${k} bucket must exist`);
+    });
+    assert.ok(/\$ne: \['\$isSubscribed', true\]/.test(fn),
+        'free is everyone not subscribed, so nobody falls between the buckets');
+});
+
+check('the booking tab counts put every booking in exactly one tab', () => {
+    const src = beRead('controllers/bookingController.js');
+    const fn = src.slice(src.indexOf('const getProviderBookingStats'));
+
+    // The screen's rule: finished but unpaid is still active. If the server
+    // counted it as completed the tabs would disagree with the list under them.
+    assert.ok(/else counts\.active \+= count/.test(fn),
+        'completed-but-unpaid belongs to active, as the list has it');
+    // if/else if — a booking cannot be counted twice.
+    assert.ok(/if \(status === 'pending'\)[\s\S]{0,400}else if/.test(fn),
+        'the branches must be exclusive');
+});
+
+check('the complaint buckets are grouped, not guessed', () => {
+    const src = beRead('controllers/complaintController.js');
+    const fn = src.slice(src.indexOf('const getComplaintStats'));
+    assert.ok(/\$group: \{ _id: '\$status'/.test(fn), 'grouped by status');
+    assert.ok(/total \+= count/.test(fn), 'with the total summed from the same grouping');
+});
+
+check('the staff split covers everyone once', () => {
+    const src = beRead('controllers/adminController.js');
+    const fn = src.slice(src.indexOf('async function getEmployeeStats'), src.indexOf('async function getEmployees('));
+    // Supervisors and everyone-else, by one test — so nobody lands in both or
+    // neither.
+    assert.ok(/const isSupervisor = _id\.role === 'supervisor'/.test(fn),
+        'one test decides which side a person is on');
+    assert.ok(/const bucket = isSupervisor \? supervisor : staff/.test(fn),
+        'and they are counted into exactly one');
+});
+
 console.log(`\n${passed} paged-figure checks passed.\n`);

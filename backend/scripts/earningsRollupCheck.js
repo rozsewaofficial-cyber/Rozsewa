@@ -175,6 +175,67 @@ check('hourly bins land where the chart looks for them', () => {
     assert.strictEqual(series.reduce((s, p) => s + p.value, 0), 3000);
 });
 
+check('every breakdown accounts for the same money as the headline', () => {
+    // The dashboard shows gross four different ways: split by category, by
+    // where the charge came from, by how it was paid, and over time. They are
+    // the same money. A bucket that drops a booking — or counts one twice —
+    // makes one of them disagree, and nothing on the screen says so.
+    const withPartner = (over) => booking({ providerId: { _id: 'p1', shopName: 'Shop' }, ...over });
+    const rows = [
+        withPartner({ serviceName: 'Plumbing', paymentMode: 'now' }),
+        withPartner({ serviceName: 'Wiring', paymentMode: 'after', travelCharge: { amount: 40, distanceKm: 4 } }),
+        withPartner({
+            serviceName: 'Plumbing',
+            totalAmount: 460,
+            commissionSnapshot: { coinSubsidy: 40, bookingCategorySnapshot: { name: 'Plumbing' } },
+            extraCharges: [{ item: 'Night Charge', amount: 60 }]
+        }),
+        withPartner({ serviceName: 'Painting', status: 'cancelled' })
+    ];
+    const r = R.foldRows(rows, { interval: 'day' });
+    const gross = r.totals.gross;
+
+    const add = (o, f) => Object.values(o).reduce((s, x) => s + f(x), 0);
+    assert.strictEqual(add(r.byCategory, c => c.revenue), gross, 'categories');
+    assert.strictEqual(add(r.byPayment, p => p.value), gross, 'payment split');
+    assert.strictEqual(add(r.byBin, b => b.gross), gross, 'time bins');
+    assert.strictEqual(add(r.byPartner, p => p.revenue), gross, 'partners');
+    assert.strictEqual(
+        Object.values(r.sources).reduce((s, v) => s + v, 0), gross, 'revenue sources'
+    );
+
+    // And the commission side.
+    assert.strictEqual(add(r.byCategory, c => c.commission), r.totals.commission, 'category commission');
+    assert.strictEqual(
+        r.totals.netRevenue,
+        r.totals.commission - r.totals.coinSubsidy - r.totals.offerSubsidy,
+        'net revenue is commission less what the discounts cost'
+    );
+
+    // Counts too, not just amounts.
+    assert.strictEqual(add(r.byCategory, c => c.bookings), rows.length, 'category counts');
+    assert.strictEqual(add(r.byPayment, p => p.count), rows.length, 'payment counts');
+});
+
+check('a booking with no partner still counts toward the money', () => {
+    // The partner breakdown is the one that legitimately does not cover
+    // everything: a booking nobody has accepted yet has no partner to file it
+    // under, but it is still revenue. Worth stating, so a future reader does
+    // not "fix" the gap by inventing a partner for it.
+    const r = R.foldRows([
+        booking({ providerId: { _id: 'p1', shopName: 'Shop' } }),
+        booking({ providerId: null })
+    ]);
+
+    assert.strictEqual(r.totals.gross, 2000);
+    assert.strictEqual(r.totals.count, 2);
+    // Both in the category and payment splits...
+    assert.strictEqual(Object.values(r.byCategory).reduce((s, c) => s + c.bookings, 0), 2);
+    // ...but only the assigned one has a partner.
+    assert.strictEqual(Object.keys(r.byPartner).length, 1);
+    assert.strictEqual(r.byPartner.p1.revenue, 1000);
+});
+
 check('the chart accounts for every rupee the headline does', () => {
     // The real invariant: a bin exists for every bucket the data can produce,
     // so the series adds up to the total printed above it. A year ending
