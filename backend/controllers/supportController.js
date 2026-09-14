@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const SupportTicket = require('../models/SupportTicket');
 
 // @desc    Raise a support ticket
@@ -61,7 +62,17 @@ const getProviderTickets = async (req, res) => {
             ? { providerId: req.user._id } 
             : { userId: req.user._id };
             
-        const tickets = await SupportTicket.find(query).sort({ createdAt: -1 });
+        const tickets = await paginate(
+            SupportTicket.find(query).sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+
+        // The screen shows how many are still open, which one page cannot say.
+        res.set('X-Total-Count', String(await SupportTicket.countDocuments(query)));
+        res.set('X-Active-Count', String(await SupportTicket.countDocuments({
+            ...query,
+            status: { $in: ['pending', 'open'] }
+        })));
         res.json(tickets);
     } catch (error) {
         res.status(500).json({ message: error.message });

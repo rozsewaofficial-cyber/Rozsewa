@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Scrap = require('../models/Scrap');
 const User = require('../models/User');
 const Provider = require('../models/Provider');
@@ -58,8 +59,12 @@ exports.createScrap = async (req, res) => {
 // Get list of scrap items for the logged-in user
 exports.getMyScrap = async (req, res) => {
   try {
-    const scraps = await Scrap.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    res.json({ success: true, data: scraps });
+    const scope = { userId: req.user._id };
+    const [count, scraps] = await Promise.all([
+      Scrap.countDocuments(scope),
+      paginate(Scrap.find(scope).sort({ createdAt: -1 }), pageParams(req))
+    ]);
+    res.json({ success: true, count, data: scraps });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Server Error' });
@@ -69,10 +74,16 @@ exports.getMyScrap = async (req, res) => {
 // Get all pending scrap items (Provider view/Admin View)
 exports.getAvailableScrap = async (req, res) => {
   try {
-    const scraps = await Scrap.find({ status: 'pending' })
-      .populate('userId', 'name phone')
-      .sort({ createdAt: -1 });
-    res.json({ success: true, data: scraps });
+    // A pickup queue is worked through, not read in one go.
+    const scope = { status: 'pending' };
+    const [count, scraps] = await Promise.all([
+      Scrap.countDocuments(scope),
+      paginate(
+        Scrap.find(scope).populate('userId', 'name phone').sort({ createdAt: -1 }),
+        pageParams(req)
+      )
+    ]);
+    res.json({ success: true, count, data: scraps });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, message: 'Server Error' });

@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const SewakEnquiry = require('../models/SewakEnquiry');
 
 // @desc    Create a new Sewak Enquiry (Public)
@@ -33,7 +34,12 @@ const createEnquiry = async (req, res) => {
 // @access  Private/Admin
 const getEnquiries = async (req, res) => {
     try {
-        const enquiries = await SewakEnquiry.find().sort({ createdAt: -1 });
+        // An enquiry inbox only grows.
+        const enquiries = await paginate(
+            SewakEnquiry.find().sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await SewakEnquiry.countDocuments()));
         res.json(enquiries);
     } catch (error) {
         console.error('Get Sewak Enquiries Error:', error);

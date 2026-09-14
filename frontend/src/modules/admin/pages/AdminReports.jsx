@@ -31,6 +31,9 @@ const AdminReports = () => {
   const { toast } = useToast();
 
   const [complaints, setComplaints]     = useState([]);
+  // What matched, and the counts behind the status tabs.
+  const [matchingTotal, setMatchingTotal] = useState(0);
+  const [serverCounts, setServerCounts] = useState(null);
   const [loading, setLoading]           = useState(true);
   const [activeComplaint, setActive]    = useState(null);
   const [saving, setSaving]             = useState(false);
@@ -43,17 +46,36 @@ const AdminReports = () => {
 
   useEffect(() => {
     setTitle('User Reports');
-    fetchComplaints();
   }, []);
 
   // Reset to page 1 when filter changes
   useEffect(() => { setPage(1); }, [filterStatus]);
 
+  // The tab and the page are the server's question now.
+  useEffect(() => {
+    fetchComplaints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterStatus, page]);
+
   const fetchComplaints = async () => {
     try {
       setLoading(true);
-      const { data } = await API.get('/complaints/admin');
-      setComplaints(data);
+      // The status tabs count every report; the table answers the tab that
+      // is selected, one page at a time.
+      const [list, totals] = await Promise.all([
+        API.get('/complaints/admin', {
+          params: {
+            ...(filterStatus !== 'all' ? { status: filterStatus } : {}),
+            page,
+            limit: PAGE_SIZE
+          }
+        }),
+        API.get('/complaints/admin/stats')
+      ]);
+      setComplaints(list.data);
+      const reported = Number(list.headers?.['x-total-count']);
+      setMatchingTotal(Number.isFinite(reported) ? reported : list.data.length);
+      setServerCounts(totals.data);
     } catch {
       toast({ title: 'Failed to load complaints', variant: 'destructive' });
     } finally {
@@ -82,11 +104,14 @@ const AdminReports = () => {
     }
   };
 
-  const filtered   = filterStatus === 'all' ? complaints : complaints.filter(c => c.status === filterStatus);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // The server answered the tab and handed back the page, so there is
+  // nothing left to filter or slice here.
+  const filtered   = complaints;
+  const paginated  = complaints;
+  const totalPages = Math.max(1, Math.ceil(matchingTotal / PAGE_SIZE));
 
-  const counts = {
+  // Counts of every report, not of the page on screen.
+  const counts = serverCounts || {
     open:        complaints.filter(c => c.status === 'open').length,
     'in-review': complaints.filter(c => c.status === 'in-review').length,
     resolved:    complaints.filter(c => c.status === 'resolved').length,
@@ -103,7 +128,7 @@ const AdminReports = () => {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {[
-            { key: 'all',       label: `All (${complaints.length})` },
+            { key: 'all',       label: `All (${serverCounts?.total ?? complaints.length})` },
             { key: 'open',      label: `Open (${counts.open})` },
             { key: 'in-review', label: `In Review (${counts['in-review']})` },
             { key: 'resolved',  label: `Resolved (${counts.resolved})` },
@@ -196,7 +221,7 @@ const AdminReports = () => {
           {totalPages > 1 && (
             <div className="flex items-center justify-between pt-2">
               <p className="text-xs text-muted-foreground">
-                Showing <span className="font-bold text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)}</span> of <span className="font-bold text-foreground">{filtered.length}</span> reports
+                Showing <span className="font-bold text-foreground">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, matchingTotal)}</span> of <span className="font-bold text-foreground">{matchingTotal}</span> reports
               </p>
               <div className="flex items-center gap-1">
                 <button

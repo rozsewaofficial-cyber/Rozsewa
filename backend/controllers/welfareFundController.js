@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Provider = require('../models/Provider');
 const WelfareFundContribution = require('../models/WelfareFundContribution');
 const { Wallet, Transaction } = require('../models/Wallet');
@@ -63,8 +64,11 @@ const contributeToWelfareFund = async (req, res) => {
 // @access  Private (Provider/Sewak)
 const getMyWelfareFundContributions = async (req, res) => {
     try {
-        const contributions = await WelfareFundContribution.find({ providerId: req.user._id })
-            .sort({ createdAt: -1 });
+                // A contribution history grows with every job a partner completes.
+        const contributions = await paginate(
+            WelfareFundContribution.find({ providerId: req.user._id }) .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
 
         const totalContributed = contributions.reduce((sum, c) => sum + c.amount, 0);
 

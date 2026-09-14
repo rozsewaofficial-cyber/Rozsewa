@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Staff = require('../models/Staff');
 
 // @desc    Get all staff for logged in provider
@@ -5,7 +6,13 @@ const Staff = require('../models/Staff');
 // @access  Private (Provider)
 const getStaff = async (req, res) => {
     try {
-        const staff = await Staff.find({ providerId: req.user._id }).sort({ createdAt: -1 });
+        // A partner's roster is small, but nothing here guarantees that.
+        const scope = { providerId: req.user._id };
+        const staff = await paginate(
+            Staff.find(scope).sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await Staff.countDocuments(scope)));
         res.json(staff);
     } catch (error) {
         res.status(500).json({ message: error.message });

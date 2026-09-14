@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Booking = require('../models/Booking');
@@ -161,8 +162,20 @@ const getTipsForBooking = async (req, res) => {
             return res.status(403).json({ message: 'Not authorized for this booking' });
         }
 
-        const tips = await Tip.find({ bookingId: req.params.bookingId, status: 'credited' }).sort({ createdAt: -1 });
-        const totalTipped = tips.reduce((sum, t) => sum + t.amount, 0);
+        // Tips on one booking: few in practice, capped all the same.
+        const tipScope = { bookingId: req.params.bookingId, status: 'credited' };
+        const tips = await paginate(
+            Tip.find(tipScope).sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+
+        // Totalled over every tip on the booking, not over the page of them:
+        // this figure is what the worker was actually given.
+        const [totals] = await Tip.aggregate([
+            { $match: tipScope },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        const totalTipped = totals?.total || 0;
 
         res.json({ tips, totalTipped });
     } catch (error) {

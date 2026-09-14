@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Offer = require('../models/Offer');
 
 // @desc    Get all offers for logged in provider
@@ -5,7 +6,13 @@ const Offer = require('../models/Offer');
 // @access  Private (Provider)
 const getProviderOffers = async (req, res) => {
     try {
-        const offers = await Offer.find({ providerId: req.user._id }).sort({ createdAt: -1 });
+        // A partner's offers accumulate campaign after campaign.
+        const scope = { providerId: req.user._id };
+        const offers = await paginate(
+            Offer.find(scope).sort({ createdAt: -1 }),
+            pageParams(req)
+        );
+        res.set('X-Total-Count', String(await Offer.countDocuments(scope)));
         res.json(offers);
     } catch (error) {
         res.status(500).json({ message: error.message });

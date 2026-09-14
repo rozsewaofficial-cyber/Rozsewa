@@ -12,6 +12,8 @@ const ProviderSupport = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState([]);
+  // How many are still open, across every ticket rather than the page.
+  const [activeCount, setActiveCount] = useState(0);
   const [guides, setGuides] = useState([]);
   const [selectedGuide, setSelectedGuide] = useState(null);
   const [isRaisingTicket, setIsRaisingTicket] = useState(false);
@@ -62,7 +64,11 @@ const ProviderSupport = () => {
 
   const fetchTickets = async () => {
     try {
-      const { data } = await API.get("/support/tickets");
+      const res = await API.get("/support/tickets");
+      const { data } = res;
+      // How many of this partner's tickets are still open, across all of
+      // them rather than across the page on screen.
+      setActiveCount(Number(res.headers?.["x-active-count"]) || 0);
       setTickets(data);
     } catch (err) {
       toast({ title: "Sync Error", description: "Failed to load ticket history.", variant: "destructive" });
@@ -155,7 +161,7 @@ const ProviderSupport = () => {
           <div className="bg-muted/30 px-6 py-4 border-b border-border flex items-center justify-between">
             <h3 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2"><LifeBuoy className="h-4 w-4 text-emerald-600" /> Ticket History</h3>
             <span className="text-[9px] font-black uppercase tracking-tighter bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-              {getAuthProviderToken() ? `${tickets.filter(t => t.status === 'pending' || t.status === 'open').length} Active` : 'Login Required'}
+              {getAuthProviderToken() ? `${activeCount} Active` : 'Login Required'}
             </span>
           </div>
           <div className="divide-y divide-border">

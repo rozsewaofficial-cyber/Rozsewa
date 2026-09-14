@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Message = require('../models/Message');
 const Booking = require('../models/Booking');
 const { getIO } = require('../config/socket');
@@ -8,7 +9,21 @@ const { getIO } = require('../config/socket');
 const getMessages = async (req, res) => {
     try {
         const { bookingId } = req.params;
-        const messages = await Message.find({ bookingId }).sort({ createdAt: 1 }).populate('senderId', 'name shopName ownerName profileImage avatar');
+        // A conversation only grows, so the most recent stretch of it is what
+        // loads. Newest first to take the last page, then flipped back into
+        // reading order.
+        const params = pageParams(req);
+        const [total, recent] = await Promise.all([
+            Message.countDocuments({ bookingId }),
+            paginate(
+                Message.find({ bookingId })
+                    .sort({ createdAt: -1 })
+                    .populate('senderId', 'name shopName ownerName profileImage avatar'),
+                params
+            )
+        ]);
+        const messages = recent.reverse();
+        res.set('X-Total-Count', String(total));
         
         // Enhance messages with a generic "senderName" property
         const enhancedMessages = messages.map(msg => {

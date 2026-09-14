@@ -9,19 +9,38 @@ const AdminDisputes = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
   const [complaints, setComplaints] = useState([]);
+  // Counts across every complaint, which one page of them cannot report.
+  const [serverCounts, setServerCounts] = useState(null);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [activeNote, setActiveNote] = useState({ id: null, text: "" });
 
   useEffect(() => {
     setTitle("Disputes & Complaints");
-    fetchComplaints();
   }, [setTitle]);
+
+  // The status tab is the server's question now.
+  useEffect(() => {
+    const t = setTimeout(() => fetchComplaints(), search ? 350 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, search]);
 
   const fetchComplaints = async () => {
     try {
-      const res = await API.get('/complaints/admin');
+      // The tab counts describe every complaint, which one page cannot.
+      const [res, totals] = await Promise.all([
+        API.get('/complaints/admin', {
+          params: {
+            ...(filter !== "all" ? { status: filter } : {}),
+            ...(search ? { search } : {}),
+            limit: 200
+          }
+        }),
+        API.get('/complaints/admin/stats')
+      ]);
       setComplaints(res.data);
+      setServerCounts(totals.data);
     } catch (err) {
       console.error("Failed to fetch complaints", err);
     }
@@ -56,11 +75,18 @@ const AdminDisputes = () => {
     }
   };
 
-  const filtered = complaints
-    .filter(c => filter === "all" || c.status === filter)
-    .filter(c => !search || c._id.toLowerCase().includes(search.toLowerCase()) || c.issueType?.toLowerCase().includes(search.toLowerCase()));
+  // The server answered the status tab and the search, so these rows are
+  // already the answer.
+  const filtered = complaints;
 
-  const counts = {
+  // Counts of every complaint, not of the page on screen. The local
+  // fallback only covers the moment before the first response arrives.
+  const counts = serverCounts ? {
+    all: serverCounts.total,
+    open: serverCounts.open,
+    "in-review": serverCounts["in-review"],
+    resolved: serverCounts.resolved,
+  } : {
     all: complaints.length,
     open: complaints.filter(c => c.status === "open").length,
     "in-review": complaints.filter(c => c.status === "in-review").length,
