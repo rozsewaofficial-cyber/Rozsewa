@@ -101,13 +101,13 @@ const ACCEPTED = [
     },
     {
         file: 'controllers/commissionController.js',
-        match: 'Booking.find(',
-        why: 'Earnings analytics: bounded by the date range the admin picked. Already projected and lean — the fix that mattered. Converting all ten analytics functions to aggregations is the work that remains.'
+        match: 'const bookings = await Booking.find({',
+        why: "The sewak incentive report: one day of completed work, projected to the three fields the grouping reads. Bounded by the day, not by how long the platform has been running."
     },
     {
         file: 'controllers/commissionController.js',
-        match: 'Withdrawal.find(',
-        why: 'Same date range, now projected rather than populating whole providers.'
+        match: 'Withdrawal.find(withdrawalMatch)',
+        why: 'The settlement analytics total these and the pending-settlement card draws a sparkline over them, so this one genuinely needs the rows. Bounded by the chosen range, and there are orders of magnitude fewer withdrawals than bookings.'
     },
     {
         file: 'controllers/v2CommissionController.js',
