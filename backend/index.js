@@ -73,7 +73,12 @@ app.use(cors({
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    // A cross-origin response's custom headers are invisible to the browser
+    // unless they are named here. Lists that return a page put the real row
+    // count in X-Total-Count, and a screen that cannot read it would go back to
+    // reporting the size of the page as the size of the collection.
+    exposedHeaders: ['X-Total-Count']
 }));
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds

@@ -173,36 +173,36 @@ const updateProviderCategory = async (req, res) => {
 const getAdminStats = async (req, res) => {
     try {
         if (req.user.role === 'supervisor') {
-            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
-            if (!supervisorEmp) {
-                return res.json({
-                    totalProviders: 0,
-                    pendingProviders: 0,
-                    totalUsers: 0,
-                    totalBookings: 0,
-                    activeBookings: 0,
-                    revenue: 0,
-                    recentBookings: []
-                });
-            }
+    const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+    if (!supervisorEmp) {
+        return res.json({
+            totalProviders: 0,
+            pendingProviders: 0,
+            totalUsers: 0,
+            totalBookings: 0,
+            activeBookings: 0,
+            revenue: 0,
+            recentBookings: []
+        });
+    }
 
-            const employees = await Employee.find({
-                $or: [
-                    { managedBy: supervisorEmp._id },
-                    { supervisorCode: supervisorEmp.ownCode },
-                    { createdBy: req.user._id }
-                ]
-            });
-            const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
-            const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
+    const employees = await Employee.find({
+        $or: [
+            { managedBy: supervisorEmp._id },
+            { supervisorCode: supervisorEmp.ownCode },
+            { createdBy: req.user._id }
+        ]
+    });
+    const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
+    const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
 
-            const teamSewaks = await Provider.find({
-                providerCategory: 'sewak',
-                $or: [
-                    { referredBy: { $in: teamCodes } },
-                    { onboardedByStaff: { $in: teamCodes } }
-                ]
-            });
+    const teamSewaks = await Provider.find({
+        providerCategory: 'sewak',
+        $or: [
+            { referredBy: { $in: teamCodes } },
+            { onboardedByStaff: { $in: teamCodes } }
+        ]
+    });
             const sewakIds = teamSewaks.map(s => s._id);
 
             const pendingSewaksCount = teamSewaks.filter(s => s.status === 'pending').length;
@@ -314,40 +314,111 @@ const getAdminStats = async (req, res) => {
     }
 };
 
+/**
+ * Which bookings this admin may see.
+ *
+ * Shared by the list and by its totals: if the two built their own scope,
+ * a supervisor could be shown a headline covering bookings their list does
+ * not contain.
+ *
+ * Returns null when the user is scoped to nothing at all.
+ */
+const adminBookingScope = async (req) => {
+    const { status } = req.query;
+    const query = status ? { status } : {};
+
+    if (req.user.role === 'supervisor') {
+        const supervisorEmp = await Employee.findOne({ userId: req.user._id });
+        if (!supervisorEmp) return null;
+
+        const employees = await Employee.find({
+            $or: [
+                { managedBy: supervisorEmp._id },
+                { supervisorCode: supervisorEmp.ownCode },
+                { createdBy: req.user._id }
+            ]
+        });
+        const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
+        const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
+
+        const teamSewaks = await Provider.find({
+            providerCategory: 'sewak',
+            $or: [
+                { referredBy: { $in: teamCodes } },
+                { onboardedByStaff: { $in: teamCodes } }
+            ]
+        });
+        query.providerId = { $in: teamSewaks.map(s => s._id) };
+    }
+
+    return query;
+};
+
 // @desc    Get all bookings for admin
 // @route   GET /api/admin/bookings
 // @access  Private/Admin
+/**
+ * The figures above the bookings table: totals, revenue, and the count on each
+ * filter tab.
+ *
+ * These used to be derived in the browser from the array it had been sent. That
+ * was only ever right because the array was every booking ever made — so the
+ * moment that list was paged, the headline silently became "the last 200", and
+ * the revenue figure with it. They belong here, over the whole scope, where
+ * they are both correct and cheap.
+ */
+const getBookingStats = async (req, res) => {
+    try {
+        const query = await adminBookingScope(req);
+        if (!query) return res.json({ total: 0, revenue: 0, statusCounts: {} });
+
+        // Revenue is the completed bookings *within* the current scope. Spreading
+        // `status: 'completed'` over the scope would overwrite a status filter
+        // instead of narrowing it — so filtering the table to cancelled still
+        // reported the revenue of every completed booking on the platform.
+        const scopedToOtherStatus = query.status && query.status !== 'completed';
+        const revenueMatch = { ...query, status: 'completed' };
+
+        const [byStatus, revenueRow, unauthorized] = await Promise.all([
+            Booking.aggregate([
+                { $match: query },
+                { $group: { _id: '$status', count: { $sum: 1 } } }
+            ]),
+            scopedToOtherStatus ? [] : Booking.aggregate([
+                { $match: revenueMatch },
+                { $group: { _id: null, revenue: { $sum: '$totalAmount' } } }
+            ]),
+            Booking.countDocuments({ ...query, unauthorizedPaymentFlag: true })
+        ]);
+
+        const statusCounts = {};
+        let total = 0;
+        byStatus.forEach(r => {
+            statusCounts[r._id] = r.count;
+            total += r.count;
+        });
+        statusCounts.all = total;
+
+        const inFlight = ['pending', 'confirmed', 'on_the_way', 'started'];
+
+        res.json({
+            total,
+            completed: statusCounts.completed || 0,
+            active: inFlight.reduce((sum, s) => sum + (statusCounts[s] || 0), 0),
+            cancelled: statusCounts.cancelled || 0,
+            unauthorized,
+            revenue: Math.round((revenueRow[0]?.revenue || 0) * 100) / 100,
+            statusCounts
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const getBookings = async (req, res) => {
     try {
-        const { status } = req.query;
-        let query = status ? { status } : {};
-
-        if (req.user.role === 'supervisor') {
-            const supervisorEmp = await Employee.findOne({ userId: req.user._id });
-            if (supervisorEmp) {
-                const employees = await Employee.find({
-                    $or: [
-                        { managedBy: supervisorEmp._id },
-                        { supervisorCode: supervisorEmp.ownCode },
-                        { createdBy: req.user._id }
-                    ]
-                });
-                const employeeCodes = employees.map(emp => emp.ownCode).filter(Boolean);
-                const teamCodes = [supervisorEmp.ownCode, ...employeeCodes].filter(Boolean);
-
-                const teamSewaks = await Provider.find({
-                    providerCategory: 'sewak',
-                    $or: [
-                        { referredBy: { $in: teamCodes } },
-                        { onboardedByStaff: { $in: teamCodes } }
-                    ]
-                });
-                const sewakIds = teamSewaks.map(s => s._id);
-                query.providerId = { $in: sewakIds };
-            } else {
-                return res.json([]);
-            }
-        }
+        const query = await adminBookingScope(req);
+        if (!query) return res.json([]);
 
         // Every booking ever made, populated and returned whole, was the
         // heaviest read in the admin panel. Newest first and bounded; a
@@ -359,6 +430,10 @@ const getBookings = async (req, res) => {
                 .sort({ createdAt: -1 }),
             pageParams(req)
         );
+
+        // How many there really are, so a screen showing a page can still say
+        // so. Sent as a header because several callers expect a bare array.
+        res.set('X-Total-Count', String(await Booking.countDocuments(query)));
         res.json(bookings);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -3249,6 +3324,7 @@ module.exports = {
     updateProviderPlan,
     getAdminStats,
     getBookings,
+    getBookingStats,
     getCategories,
     addCategory,
     updateCategory,

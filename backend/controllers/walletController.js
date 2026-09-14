@@ -20,6 +20,9 @@ const getWallet = async (req, res) => {
             balance: wallet ? wallet.balance : 0,
             availableBalance: wallet ? wallet.availableBalance : 0,
             transactions: transactions,
+            // How many there are in total, so a statement showing one page can
+            // page through the rest instead of stopping at what it was handed.
+            transactionsTotal: await Transaction.countDocuments(query),
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

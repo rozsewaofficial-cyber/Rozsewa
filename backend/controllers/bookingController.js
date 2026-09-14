@@ -881,7 +881,9 @@ const createBooking = async (req, res) => {
 const getUserBookings = async (req, res) => {
     try {
         // A customer's whole booking history, with the provider attached to
-        // every row. Recent first and bounded.
+        // every row. Recent first and bounded; the true count goes in a header
+        // because several screens call this and expect a bare array.
+        res.set('X-Total-Count', String(await Booking.countDocuments({ userId: req.user._id })));
         const bookings = await paginate(
             Booking.find({ userId: req.user._id })
                 .populate('providerId', 'shopName ownerName rating reviewCount completedBookingsCount mobile profileImage status planType address city state location')

@@ -32,6 +32,8 @@ const AdminBookings = () => {
   const [filter, setFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  // Totals for the whole collection, computed by the server.
+  const [serverStats, setServerStats] = useState(null);
 
   // Reset pagination when search or filters change
   useEffect(() => {
@@ -49,8 +51,15 @@ const AdminBookings = () => {
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const { data } = await API.get("/admin/bookings");
-      setBookings(data);
+      // The table shows a page; the figures above it describe everything.
+      // Deriving them from the page would report the last 200 bookings as
+      // though they were the whole platform.
+      const [list, totals] = await Promise.all([
+        API.get("/admin/bookings"),
+        API.get("/admin/bookings/stats")
+      ]);
+      setBookings(list.data);
+      setServerStats(totals.data);
     } catch (err) {
       toast({ title: "Fetch Failed", description: "Could not load bookings history.", variant: "destructive" });
     } finally {
@@ -76,24 +85,30 @@ const AdminBookings = () => {
     }
   };
 
-  // Stats
+  // Stats describe every booking in scope, not the page on screen. They
+  // come from the server; the local fallback only covers the moment before
+  // the first response arrives.
   const stats = useMemo(() => {
+    if (serverStats) return serverStats;
     const all = bookings || [];
-    const total = all.length;
-    const completed = all.filter(b => b.status === 'completed').length;
-    const active = all.filter(b => ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status)).length;
-    const cancelled = all.filter(b => b.status === 'cancelled').length;
-    const revenue = all.filter(b => b.status === 'completed').reduce((s, b) => s + (b.totalAmount || 0), 0);
-    const unauthorized = all.filter(b => b.unauthorizedPaymentFlag).length;
-    return { total, completed, active, cancelled, revenue, unauthorized };
-  }, [bookings]);
+    return {
+      total: all.length,
+      completed: all.filter(b => b.status === 'completed').length,
+      active: all.filter(b => ['pending', 'confirmed', 'on_the_way', 'started'].includes(b.status)).length,
+      cancelled: all.filter(b => b.status === 'cancelled').length,
+      revenue: all.filter(b => b.status === 'completed').reduce((s, b) => s + (b.totalAmount || 0), 0),
+      unauthorized: all.filter(b => b.unauthorizedPaymentFlag).length
+    };
+  }, [bookings, serverStats]);
 
-  // Status counts for filter tabs
+  // The number on each filter tab is how many exist, not how many of them
+  // happen to be on this page.
   const statusCounts = useMemo(() => {
+    if (serverStats?.statusCounts) return serverStats.statusCounts;
     const counts = { all: (bookings || []).length };
     (bookings || []).forEach(b => { counts[b.status] = (counts[b.status] || 0) + 1; });
     return counts;
-  }, [bookings]);
+  }, [bookings, serverStats]);
 
   const handleExport = () => {
     const headers = ["Booking ID", "Date", "Time", "Customer", "Mobile", "Provider", "Service", "Amount", "Payment", "Status"];
@@ -403,6 +418,14 @@ const AdminBookings = () => {
           <div className="border-t border-gray-100 bg-gray-50/50 px-5 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
               Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredBookings.length)} of {filteredBookings.length} bookings
+              {/* Searching and filtering happen over the rows in hand, so say so
+                  rather than let the count above imply the table holds all of
+                  them. */}
+              {serverStats?.total > (bookings || []).length && (
+                <span className="ml-1 text-gray-400">
+                  (most recent {(bookings || []).length} of {serverStats.total} loaded — filter to narrow)
+                </span>
+              )}
             </p>
             <div className="flex items-center gap-2">
               <button

@@ -28,6 +28,11 @@ const ProviderWallet = () => {
   const [provider, setProvider] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  // A statement grows for the life of the account, so the server sends one
+  // page and says how many rows there are. Without the count the list would
+  // page only through what it happened to be handed.
+  const [transactionsTotal, setTransactionsTotal] = useState(0);
+  const TRANSACTIONS_PER_PAGE = 10;
   const [withdrawalsPage, setWithdrawalsPage] = useState(1);
 
   const fetchWithdrawals = async () => {
@@ -40,10 +45,15 @@ const ProviderWallet = () => {
   };
 
   useEffect(() => {
-    fetchWallet();
     fetchProfile();
     fetchWithdrawals();
   }, []);
+
+  // The statement is paged by the server, so turning a page is a request.
+  useEffect(() => {
+    fetchWallet(currentPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
   const fetchProfile = async () => {
     try {
@@ -54,12 +64,15 @@ const ProviderWallet = () => {
     }
   };
 
-  const fetchWallet = async () => {
+  const fetchWallet = async (page = currentPage) => {
     try {
-      const { data } = await API.get("/wallet");
+      const { data } = await API.get("/wallet", {
+        params: { page, limit: TRANSACTIONS_PER_PAGE }
+      });
       setBalance(data.balance);
       setAvailableBalance(data.availableBalance || 0);
       setTransactions(data.transactions);
+      setTransactionsTotal(data.transactionsTotal ?? data.transactions.length);
     } catch (err) {
       toast({ title: "Failed to load wallet", variant: "destructive" });
     } finally {
@@ -740,17 +753,15 @@ const ProviderWallet = () => {
             </div>
             <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border">
               {(() => {
-                const itemsPerPage = 10;
-                const totalPages = Math.ceil(
-                  transactions.length / itemsPerPage,
-                );
-                const startIndex = (currentPage - 1) * itemsPerPage;
-                const paginated = transactions.slice(
-                  startIndex,
-                  startIndex + itemsPerPage,
-                );
+                const itemsPerPage = TRANSACTIONS_PER_PAGE;
+                // Over every row there is, not over the ones in hand.
+                const totalPages = Math.max(1, Math.ceil(
+                  transactionsTotal / itemsPerPage,
+                ));
+                // Already this page; nothing left to slice.
+                const paginated = transactions;
 
-                if (transactions.length === 0) {
+                if (transactionsTotal === 0) {
                   return (
                     <div className="p-8 text-center text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-40 italic">
                       No Activity Yet

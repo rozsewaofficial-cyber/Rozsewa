@@ -463,4 +463,74 @@ check('the reminder cron looks at the days it reminds about', () => {
     assert.ok(/bookingDate: \{ \$in: \[dayStamp/.test(src), 'it must be pinned to today and tomorrow');
 });
 
+
+console.log('\nA figure describes the collection, not the page it came from');
+check('the admin headline is computed server-side over the whole scope', () => {
+    // Paging the list without this turned "revenue" into "revenue of the last
+    // 200 bookings" — a wrong money figure with nothing on screen to say so.
+    const api = read('controllers/adminController.js');
+    assert.ok(/const getBookingStats = async/.test(api), 'there must be a totals endpoint');
+    assert.ok(/\$group: \{ _id: '\$status', count: \{ \$sum: 1 \} \}/.test(api),
+        'the per-status counts must be grouped in the database');
+
+    const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
+    assert.ok(/API\.get\("\/admin\/bookings\/stats"\)/.test(ui), 'the screen must fetch them');
+    assert.ok(/if \(serverStats\) return serverStats;/.test(ui),
+        'and prefer them over anything derived from the page');
+    assert.ok(/if \(serverStats\?\.statusCounts\) return serverStats\.statusCounts;/.test(ui),
+        'including the count on each filter tab');
+});
+
+check('the list and its totals are scoped identically', () => {
+    // Two separately-built scopes would let a supervisor see a headline covering
+    // bookings their own list does not contain.
+    const api = read('controllers/adminController.js');
+    assert.ok(/const adminBookingScope = async \(req\)/.test(api), 'the scope must be shared');
+    const stats = api.slice(api.indexOf('const getBookingStats'), api.indexOf('const getBookings ='));
+    assert.ok(/await adminBookingScope\(req\)/.test(stats), 'the totals must use it');
+});
+
+check('a status filter narrows the revenue instead of being overwritten', () => {
+    // Spreading { status: 'completed' } over the scope replaced the caller's
+    // filter, so filtering the table to cancelled still reported every completed
+    // booking's revenue.
+    const api = read('controllers/adminController.js');
+    assert.ok(/scopedToOtherStatus/.test(api),
+        'a scope already pinned to another status must yield no revenue');
+});
+
+check('a screen showing a page says how many rows there really are', () => {
+    const api = read('controllers/adminController.js');
+    assert.ok(/res\.set\('X-Total-Count'/.test(api), 'the list must report the true count');
+    const bookings = read('controllers/bookingController.js');
+    assert.ok(/res\.set\('X-Total-Count'/.test(bookings), "as must a customer's history");
+});
+
+check('that header is readable from the browser', () => {
+    // A custom header on a cross-origin response is invisible to JavaScript
+    // unless it is named, so the screen would silently fall back to the page
+    // size and report it as the total.
+    const server = read('index.js');
+    assert.ok(/exposedHeaders: \['X-Total-Count'\]/.test(server),
+        'X-Total-Count must be exposed to the browser');
+});
+
+check('a wallet statement can be paged past the rows it was handed', () => {
+    const api = read('controllers/walletController.js');
+    assert.ok(/transactionsTotal: await Transaction\.countDocuments\(query\)/.test(api),
+        'the true count must be sent');
+    const ui = frontend('modules', 'provider', 'pages', 'ProviderWallet.jsx');
+    assert.ok(/transactionsTotal \/ itemsPerPage/.test(ui),
+        'the page count must come from it, not from the rows in hand');
+    assert.ok(/\}, \[currentPage\]\)/.test(ui), 'turning a page must fetch that page');
+});
+
+check('a table that holds only part of a collection admits it', () => {
+    // The count above the table is now correct, which would otherwise imply the
+    // rows below it are all there.
+    const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
+    assert.ok(/most recent \{\(bookings \|\| \[\]\)\.length\} of \{serverStats\.total\} loaded/.test(ui),
+        'the pager must say what it is actually showing');
+});
+
 console.log(`\n${passed} checks passed.\n`);

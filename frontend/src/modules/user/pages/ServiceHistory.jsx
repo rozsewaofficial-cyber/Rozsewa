@@ -31,6 +31,9 @@ const ServiceHistory = () => {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState([]);
+  // The list is a page; this is how many there are. Sent as a header because
+  // several screens call this endpoint and expect a bare array back.
+  const [totalBookings, setTotalBookings] = useState(null);
   const [filter, setFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -46,7 +49,10 @@ const ServiceHistory = () => {
 
   const fetchBookings = async () => {
     try {
-      const { data } = await API.get("/bookings");
+      const res = await API.get("/bookings");
+      const data = res.data;
+      const reported = Number(res.headers?.['x-total-count']);
+      if (Number.isFinite(reported)) setTotalBookings(reported);
       // Format backend data to match UI needs
       const formatted = data.map(b => ({
         ...b,
@@ -297,7 +303,7 @@ const ServiceHistory = () => {
             </motion.button>
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Bookings</h1>
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{bookings.length} total bookings</p>
+              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{totalBookings ?? bookings.length} total bookings</p>
             </div>
           </div>
 

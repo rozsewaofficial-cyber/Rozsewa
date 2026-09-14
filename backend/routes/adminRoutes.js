@@ -12,6 +12,7 @@ const {
     updateProviderPlan,
     getAdminStats,
     getBookings,
+    getBookingStats,
     getCategories,
     addCategory,
     updateCategory,
@@ -196,6 +197,9 @@ router.post('/profile', protect, employee, updateAdminProfile);
 
 // Booking management
 router.get('/bookings', protect, employee, getBookings);
+// Totals for the table above it, computed over the whole scope rather than
+// derived in the browser from whichever page it happens to be holding.
+router.get('/bookings/stats', protect, employee, getBookingStats);
 router.delete('/bookings/:id', protect, admin, deleteBooking);
 // Unauthorized payment monitoring (must be before /:id routes)
 router.get('/bookings/unauthorized-payments', protect, admin, getUnauthorizedPayments);
