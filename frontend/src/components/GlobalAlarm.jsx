@@ -71,7 +71,14 @@ const GlobalAlarm = () => {
     return (
         <IncomingRequestModal
             request={incomingRequest}
-            onAction={() => setIncomingRequest(null)}
+            onAction={() => {
+                setIncomingRequest(null);
+                // Closing the popup is not enough: the dashboard list is a
+                // separate component that only refetches on a socket event,
+                // so a booking accepted here kept showing Accept/Reject —
+                // one stray tap away from cancelling a job just taken.
+                window.dispatchEvent(new CustomEvent('BOOKING_ACTION_TAKEN'));
+            }}
         />
     );
 };

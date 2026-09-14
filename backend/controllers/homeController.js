@@ -86,7 +86,7 @@ const getPublicCategories = async (req, res) => {
 const getPublicProviderById = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id)
-            .select('name shopName ownerName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability')
+            .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability')
             .populate('vendorType', 'name icon hasNightCharge nightChargePercent');
 
         if (!provider) {
@@ -144,7 +144,7 @@ const getFeaturedProviders = async (req, res) => {
         }
 
         let providersQuery = Provider.find(query)
-            .select('name shopName mobile profileImage vendorType vendorCode rating joinedDate reviewCount location')
+            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joinedDate reviewCount location')
             .populate('vendorType', 'name icon')
             .limit(8);
 
@@ -223,7 +223,7 @@ const getPublicProviders = async (req, res) => {
         }
 
         let providersQuery = Provider.find(query)
-            .select('name shopName mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled')
+            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled')
             .populate('vendorType', 'name icon services');
 
         if (!(lat && lng)) {

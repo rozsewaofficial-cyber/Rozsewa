@@ -148,6 +148,15 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
     fetchBookings();
   }, []);
 
+  // The incoming-request popup lives outside this component and resolves a
+  // booking without going through it. Without this the list keeps offering
+  // Accept/Reject on a booking that has already been answered.
+  useEffect(() => {
+    const refresh = () => fetchBookings();
+    window.addEventListener('BOOKING_ACTION_TAKEN', refresh);
+    return () => window.removeEventListener('BOOKING_ACTION_TAKEN', refresh);
+  }, []);
+
   useEffect(() => {
     if (user && user._id) {
       API.get(`/public/services/${user._id}`)
@@ -199,8 +208,17 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false }) => {
     }
 
     try {
-      await API.patch(`/bookings/${id}/status`, { status: newStatus, ...extraData });
-      toast({ title: `Booking ${action === 'complete' ? 'Completed' : action === 'reject' ? 'Rejected' : action + 'ed'}` });
+      const res = await API.patch(`/bookings/${id}/status`, { status: newStatus, ...extraData });
+      // The server does not always grant the transition it was asked for: a
+      // started booking answers a completion request by issuing an OTP and
+      // staying started. Announcing "Booking Completed" there tells the worker
+      // the job is done and paid when it is neither.
+      const granted = res.data?.status;
+      if (granted && granted !== newStatus) {
+        toast({ title: res.data?.message || 'Another step is needed to finish this booking.' });
+      } else {
+        toast({ title: `Booking ${action === 'complete' ? 'Completed' : action === 'reject' ? 'Rejected' : action + 'ed'}` });
+      }
       fetchBookings();
     } catch (err) {
       toast({
