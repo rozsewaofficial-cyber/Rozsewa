@@ -150,6 +150,30 @@ const instaJobSchema = new mongoose.Schema({
     // Charged according to how far the job had progressed when it was killed.
     cancellationFee: { type: Number, default: 0 },
     cancellationStage: { type: String, default: null },
+    /**
+     * Whether that fee has been recovered yet.
+     *
+     * Insta Work is post-paid, so there is no payment method to charge at the
+     * moment of cancellation. The fee waits here and is added to the next job
+     * this customer completes. 'none' means there was nothing to collect.
+     */
+    cancellationFeeStatus: {
+        type: String,
+        enum: ['none', 'pending', 'collected', 'waived'],
+        default: 'none'
+    },
+    // The later job whose bill carried this fee.
+    cancellationFeeCollectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'InstaJob', default: null },
+
+    // Fees from this customer's earlier cancellations that THIS job's bill
+    // collected. Kept per-fee so the customer's bill can name what they are
+    // paying for, and so they can be released if this job is itself cancelled.
+    recoveredFees: [{
+        jobId: { type: mongoose.Schema.Types.ObjectId, ref: 'InstaJob' },
+        jobCode: { type: String },
+        amount: { type: Number }
+    }],
+    recoveredFeeTotal: { type: Number, default: 0 },
 
     /* ------------------------------- payment ------------------------------- */
 
@@ -182,6 +206,8 @@ const instaJobSchema = new mongoose.Schema({
 instaJobSchema.index({ customerId: 1, createdAt: -1 });
 instaJobSchema.index({ providerId: 1, status: 1, createdAt: -1 });
 instaJobSchema.index({ status: 1, createdAt: -1 });
+// Finding what a customer still owes, on every bill they are shown.
+instaJobSchema.index({ customerId: 1, cancellationFeeStatus: 1 });
 instaJobSchema.index({ location: '2dsphere' });
 
 /**
@@ -205,10 +231,16 @@ instaJobSchema.methods.isPreAcceptance = function () {
  * all read the same stage.
  */
 instaJobSchema.methods.cancellationStageNow = function () {
-    if (this.status === 'WORK_STARTED') return 'workStarted';
+    // Listed explicitly rather than by fallthrough. WORK_COMPLETED and
+    // CUSTOMER_CONFIRMED used to land in the default, which is the FREE band —
+    // so a customer could let the worker finish the entire job and then cancel
+    // out of paying for it. A new status must not be able to inherit that by
+    // accident, so anything at or past completion bills the highest band.
+    if (['WORK_STARTED', 'WORK_COMPLETED', 'CUSTOMER_CONFIRMED'].includes(this.status)) return 'workStarted';
     if (this.status === 'ARRIVED') return 'afterArrival';
     if (['ACCEPTED', 'ON_THE_WAY'].includes(this.status)) return 'afterAcceptance';
-    return 'beforeAcceptance';
+    if (PRE_ACCEPTANCE.includes(this.status)) return 'beforeAcceptance';
+    return 'workStarted';
 };
 
 /** Appends to the audit trail. Callers still save the document. */

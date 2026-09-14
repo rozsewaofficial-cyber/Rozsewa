@@ -596,6 +596,35 @@ const InstaWork = () => {
                   ))}
                 </div>
                 <p className="mt-2 text-[11px] font-medium text-muted-foreground">{quote.note}</p>
+
+                {/* An unpaid cancellation fee joins this booking. Shown here,
+                    before they commit, rather than appearing on the final bill —
+                    a charge that turns up only after the work is done is the
+                    kind people dispute. */}
+                {quote.pendingCancellationFeeTotal > 0 && (
+                  <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                    <p className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                      Unpaid cancellation {quote.pendingCancellationFees.length > 1 ? "fees" : "fee"}
+                    </p>
+                    <div className="mt-1.5 space-y-1">
+                      {quote.pendingCancellationFees.map((fee) => (
+                        <div key={fee.jobId} className="flex justify-between text-xs font-semibold text-amber-800 dark:text-amber-300">
+                          <span>{fee.jobCode}</span>
+                          <span>₹{fee.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-baseline justify-between border-t border-amber-300/60 pt-2 dark:border-amber-900/50">
+                      <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                        You will pay
+                      </span>
+                      <span className="text-lg font-black text-amber-900 dark:text-amber-200">₹{quote.estimatedTotal}</span>
+                    </div>
+                    <p className="mt-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                      Added to this booking from a job you cancelled earlier.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

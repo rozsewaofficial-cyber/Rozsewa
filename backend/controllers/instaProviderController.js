@@ -1,3 +1,4 @@
+const CancellationFees = require('../services/InstaCancellationFeeService');
 const InstaService = require('../models/InstaService');
 const InstaJob = require('../models/InstaJob');
 const Provider = require('../models/Provider');
@@ -572,9 +573,20 @@ const stopWork = async (req, res) => {
             extraCharges: job.extraCharges
         });
 
-        job.finalAmount = bill.subtotal;
+        // Anything this customer still owes from an earlier cancellation is
+        // added here, where they can see it before confirming and paying.
+        // Claimed at bill time rather than at payment, so two bills raised
+        // close together cannot both charge the same fee.
+        const carried = await CancellationFees.claimFor(job);
+        job.recoveredFees = carried.recovered;
+        job.recoveredFeeTotal = carried.total;
+
+        job.finalAmount = bill.subtotal + carried.total;
         job.billedMinutes = bill.billedMinutes || 0;
-        job.billBreakdown = bill.breakdown;
+        job.billBreakdown = [
+            ...bill.breakdown,
+            ...carried.recovered.map(CancellationFees.breakdownLine)
+        ];
         if (job.isTimed) job.actualQuantity = bill.quantity;
 
         job.pushStatus('WORK_COMPLETED', 'provider',
@@ -608,6 +620,12 @@ const providerCancelJob = async (req, res) => {
 
         const config = await InstaConfig.getConfig();
         const provider = await Provider.findById(req.user._id);
+
+        // The worker walking away must not clear the customer's carried
+        // fees; they go back to pending for the next bill.
+        await CancellationFees.release(job);
+        job.recoveredFees = [];
+        job.recoveredFeeTotal = 0;
 
         job.cancelledBy = 'provider';
         job.cancellationReason = req.body.reason || '';

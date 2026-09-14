@@ -1,3 +1,4 @@
+const CancellationFees = require('../services/InstaCancellationFeeService');
 const mongoose = require('mongoose');
 const InstaService = require('../models/InstaService');
 const InstaJob = require('../models/InstaJob');
@@ -110,8 +111,17 @@ const getQuote = async (req, res) => {
             idleChargePerMinute: config.idleChargePerMinute
         });
 
+        // Anything owed from an earlier cancellation joins this job's bill, so
+        // the customer is told before booking rather than at the end. A charge
+        // that appears only once the work is done is the kind people dispute.
+        const owed = await CancellationFees.outstandingFor(req.user._id);
+        const owedTotal = Math.round(owed.reduce((s, f) => s + f.amount, 0) * 100) / 100;
+
         res.json({
             ...quote,
+            pendingCancellationFees: owed,
+            pendingCancellationFeeTotal: owedTotal,
+            estimatedTotal: Math.round((quote.subtotal + owedTotal) * 100) / 100,
             note: quote.timed
                 ? 'This is an estimate. The final bill is based on the actual time worked.'
                 : 'Final bill may change if the measured quantity differs on site.'
@@ -602,13 +612,33 @@ const cancelJob = async (req, res) => {
         if (['PAYMENT_COMPLETED', 'CLOSED', 'CANCELLED'].includes(job.status)) {
             return res.status(400).json({ message: 'This job can no longer be cancelled.' });
         }
+        // Once the work is done there is nothing left to cancel — only a bill to
+        // settle. Allowing it here let a customer watch the job finish and then
+        // walk away from paying, leaving the worker with nothing for work they
+        // genuinely did. A disputed bill is a support matter, not a cancellation.
+        if (['WORK_COMPLETED', 'CUSTOMER_CONFIRMED'].includes(job.status)) {
+            return res.status(400).json({
+                message: 'This job is already complete. Please pay the bill, or contact support if something is wrong.',
+                code: 'WORK_ALREADY_DONE'
+            });
+        }
 
         const config = await InstaConfig.getConfig();
         const stage = job.cancellationStageNow();
         const fee = Number(config.cancellationFees[stage]) || 0;
 
+        // A job being cancelled may itself have been carrying someone
+        // else's fee. Hand those back to pending, or a customer could
+        // clear a debt by cancelling the job that was collecting it.
+        const releasedCount = await CancellationFees.release(job);
+
         job.cancellationStage = stage;
         job.cancellationFee = fee;
+        // Post-paid work has no payment method to charge at this moment, so
+        // the fee waits here and joins this customer's next bill.
+        job.cancellationFeeStatus = fee > 0 ? 'pending' : 'none';
+        job.recoveredFees = [];
+        job.recoveredFeeTotal = 0;
         job.cancelledBy = 'customer';
         job.cancellationReason = req.body.reason || '';
         job.pushStatus('CANCELLED', 'customer', `Cancelled at stage "${stage}", fee ₹${fee}`);
@@ -623,8 +653,9 @@ const cancelJob = async (req, res) => {
         res.json({
             job,
             cancellationFee: fee,
+            releasedFees: releasedCount,
             message: fee > 0
-                ? `Job cancelled. A cancellation fee of ₹${fee} applies.`
+                ? `Job cancelled. A cancellation fee of ₹${fee} will be added to your next booking.`
                 : 'Job cancelled. No cancellation fee applies.'
         });
     } catch (error) {

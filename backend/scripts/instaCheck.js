@@ -600,4 +600,86 @@ check('a worker cancelling is what escalates, not a customer cancelling', () => 
     assert.ok(!/cancelCount/.test(customerSrc), 'a customer cancelling must not count against the worker');
 });
 
+
+console.log('\nAn unpaid cancellation fee is carried, not forgotten');
+const Fees = require('../services/InstaCancellationFeeService');
+const readSrc = (...p) => require('fs').readFileSync(require('path').join(__dirname, '..', ...p), 'utf8');
+
+check('work already done cannot be cancelled away', () => {
+    // WORK_COMPLETED and CUSTOMER_CONFIRMED used to fall through to the FREE
+    // band, so a customer could let the worker finish the whole job and then
+    // cancel out of paying for it.
+    const stage = (status) => InstaJob.schema.methods.cancellationStageNow.call({ status });
+    assert.strictEqual(stage('WORK_COMPLETED'), 'workStarted');
+    assert.strictEqual(stage('CUSTOMER_CONFIRMED'), 'workStarted');
+    const src = readSrc('controllers', 'instaCustomerController.js');
+    assert.ok(/WORK_ALREADY_DONE/.test(src), 'cancelling completed work must be refused outright');
+});
+
+check('an unknown status never lands in the free band by accident', () => {
+    // The default is the highest band, so a status added later cannot silently
+    // become free to cancel.
+    const stage = InstaJob.schema.methods.cancellationStageNow.call({ status: 'SOMETHING_NEW' });
+    assert.strictEqual(stage, 'workStarted');
+});
+
+check('the fee is marked owed rather than charged at cancellation', () => {
+    // Insta Work is post-paid, so there is no payment method to charge at that
+    // moment; it waits for the next bill.
+    const src = readSrc('controllers', 'instaCustomerController.js');
+    assert.ok(/cancellationFeeStatus = fee > 0 \? 'pending' : 'none'/.test(src));
+    assert.ok(/next booking/.test(src), 'the customer must be told when it will be charged');
+});
+
+check('the bill names the job each carried fee came from', () => {
+    // "Cancellation fee" with no reference is a charge a customer cannot check.
+    const line = Fees.breakdownLine({ jobCode: 'IW0ABC123', amount: 60 });
+    assert.ok(line.label.includes('IW0ABC123'));
+    assert.strictEqual(line.amount, 60);
+});
+
+check('the fee is claimed at bill time so two bills cannot both take it', () => {
+    const src = readSrc('services', 'InstaCancellationFeeService.js');
+    // The claim is conditional on the row still being pending, which is what
+    // makes concurrent bills safe.
+    assert.ok(/cancellationFeeStatus: 'pending'/.test(src), 'the claim must be conditional');
+    assert.ok(/modifiedCount === 1/.test(src), 'only a winning claim may count');
+});
+
+check('a job that never gets paid hands its fees back', () => {
+    // Otherwise a customer clears the debt by cancelling the job carrying it,
+    // and a worker walking away would clear it too.
+    const customer = readSrc('controllers', 'instaCustomerController.js');
+    const provider = readSrc('controllers', 'instaProviderController.js');
+    assert.ok(/CancellationFees\.release\(job\)/.test(customer), 'customer cancel must release');
+    assert.ok(/CancellationFees\.release\(job\)/.test(provider), 'worker cancel must release');
+});
+
+check('the worker is neither paid nor taxed for it', () => {
+    // The worker on the next job is almost never the one who was cancelled on,
+    // so the fee is the platform's; commission is charged on the work alone.
+    const src = readSrc('services', 'InstaSettlementService.js');
+    assert.ok(/const workValue = Math\.max\(0, gross - carriedFees\)/.test(src),
+        'commission must be computed on the work, not the fee');
+    assert.ok(/CommissionService\.calculate\(workValue, matchedRule\)/.test(src));
+    assert.ok(/calculation\.platformAmount \+ carriedFees/.test(src),
+        'the fee must go to the platform whole');
+});
+
+check('commission plus payout still equals the bill', () => {
+    // The invariant the earnings dashboard relies on must survive the fee.
+    const gross = 255, carriedFees = 30;
+    const workValue = gross - carriedFees;
+    const commissionOnWork = workValue * 0.10;
+    const adminCommission = commissionOnWork + carriedFees;
+    const providerPayout = workValue - commissionOnWork;
+    assert.strictEqual(adminCommission + providerPayout, gross);
+});
+
+check('the customer is warned before booking, not at the end', () => {
+    const src = readSrc('controllers', 'instaCustomerController.js');
+    assert.ok(/pendingCancellationFeeTotal/.test(src), 'the quote must disclose what is owed');
+    assert.ok(/estimatedTotal/.test(src), 'and what they will actually pay');
+});
+
 console.log(`\n${passed} Insta Work checks passed.\n`);

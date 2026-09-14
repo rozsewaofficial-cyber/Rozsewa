@@ -41,10 +41,18 @@ const settle = async (job) => {
         const gross = Number(job.finalAmount) || 0;
         if (gross <= 0) return { ok: false, reason: 'nothing to settle' };
 
-        const matchedRule = await CommissionRuleEngine.selectRule(gross, provider, provider.vendorType);
-        const calculation = CommissionService.calculate(gross, matchedRule);
+        // A cancellation fee carried onto this bill is not work this worker
+        // did — it is owed for a job someone else was sent to. Commission is
+        // charged on the work alone, and the fee goes to the platform whole,
+        // so the worker is neither paid nor taxed for someone else's
+        // cancellation. The two still sum to the bill.
+        const carriedFees = Number(job.recoveredFeeTotal) || 0;
+        const workValue = Math.max(0, gross - carriedFees);
 
-        const adminCommission = calculation.platformAmount;
+        const matchedRule = await CommissionRuleEngine.selectRule(workValue, provider, provider.vendorType);
+        const calculation = CommissionService.calculate(workValue, matchedRule);
+
+        const adminCommission = Math.round((calculation.platformAmount + carriedFees) * 100) / 100;
         const providerPayout = calculation.providerAmount;
         const txnId = `INSTA-${new mongoose.Types.ObjectId().toString().toUpperCase()}`;
 
@@ -150,6 +158,8 @@ const settle = async (job) => {
         job.settlementSnapshot = {
             transactionId: txnId,
             gross,
+            workValue,
+            carriedCancellationFees: carriedFees,
             commissionRate: calculation.commissionRate,
             commissionAmount: calculation.commissionAmount,
             providerEarnings: calculation.providerAmount,
