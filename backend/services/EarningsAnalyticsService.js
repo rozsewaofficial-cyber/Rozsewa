@@ -622,6 +622,36 @@ class EarningsAnalyticsService {
     /**
      * Formats transactional ledger including bookings, refunds, payouts, travel charges
      */
+    /**
+     * The options the earnings filters offer, taken from the whole ledger.
+     *
+     * Derived here, before the ledger is cut down to the rows the table shows,
+     * so narrowing the response does not quietly narrow the dropdowns with it.
+     */
+    static getFilterOptions(transactions, categories = []) {
+        const categorySet = new Set();
+        const partners = new Map();
+        const citySet = new Set();
+
+        transactions.forEach(t => {
+            if (t.category && t.category !== 'Settlement') categorySet.add(t.category);
+            if (t.partner && t.partner.name !== 'Partner' && t.partner.name !== 'N/A') {
+                const id = t.partner.id && t.partner.id !== 'N/A' ? t.partner.id : t.partner.name;
+                partners.set(id, { id, name: t.partner.name });
+            }
+            if (t.city) citySet.add(t.city);
+        });
+
+        // A period of nothing but settlements has no categories in the ledger.
+        if (categorySet.size === 0) categories.forEach(c => categorySet.add(c.category));
+
+        return {
+            categories: Array.from(categorySet),
+            partners: Array.from(partners.values()),
+            cities: Array.from(citySet)
+        };
+    }
+
     static getRecentTransactions(currentBookings, currentWithdrawals) {
         const txns = [];
 

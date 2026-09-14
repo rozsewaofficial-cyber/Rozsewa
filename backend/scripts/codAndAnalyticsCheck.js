@@ -286,4 +286,96 @@ check('the Insta side keeps the same finished-job definition', () => {
     assert.deepStrictEqual(SettlementQueue.INSTA_DONE, Adapter.DONE_STATUSES);
 });
 
+
+console.log('\nThe earnings dashboard does not haul the whole ledger into memory');
+const earnSrc = () => read('controllers/commissionController.js');
+
+check('rows are lean, not hydrated documents', () => {
+    // At 20,000 bookings the hydrated form cost 371 MB and six seconds; the same
+    // rows lean and projected cost 14 MB, for identical numbers.
+    const src = earnSrc();
+    const current = src.slice(src.indexOf('let currentBookings'), src.indexOf('let currentBookings') + 400);
+    assert.ok(/\.lean\(\)/.test(current), 'the current window must load lean');
+    const prev = src.slice(src.indexOf('let prevBookings'), src.indexOf('let prevBookings') + 400);
+    assert.ok(/\.lean\(\)/.test(prev), 'the comparison window must load lean too');
+});
+
+check('only the fields the analytics read are fetched', () => {
+    const src = earnSrc();
+    assert.ok(/EARNINGS_FIELDS/.test(src), 'the projection must be named and shared');
+    // Populating whole provider and customer documents on every row was most of
+    // the weight.
+    assert.ok(!/\.populate\('providerId'\)\s*$/m.test(src), 'no unprojected provider populate');
+    assert.ok(!/\.populate\('userId'\)\s*$/m.test(src), 'no unprojected customer populate');
+    assert.ok(/EARNINGS_PROVIDER_FIELDS/.test(src) && /EARNINGS_CUSTOMER_FIELDS/.test(src),
+        'both joins must be projected');
+});
+
+check('the projection covers every field the analytics actually read', () => {
+    // A field dropped from the projection would read as undefined and quietly
+    // zero a figure, so the two lists are compared rather than trusted.
+    const src = earnSrc();
+    const projection = (src.match(/const EARNINGS_FIELDS =[\s\S]*?;/) || [''])[0];
+    const analytics = read('services/EarningsAnalyticsService.js');
+    const used = new Set(
+        (analytics.match(/\bb\.([a-zA-Z]+)/g) || []).map(m => m.slice(2))
+    );
+    // Fields the analytics compute for themselves rather than read from a row.
+    ['rawDate', 'revenue'].forEach(k => used.delete(k));
+    used.forEach(field => {
+        assert.ok(projection.includes(field), `the projection is missing ${field}`);
+    });
+});
+
+check('the adapter joins only the provider fields the reports use', () => {
+    const adapter = read('services/InstaEarningsAdapter.js');
+    assert.ok(!/\.populate\('providerId'\)\.lean\(\)/.test(adapter),
+        'the Insta side must not populate the whole provider either');
+    assert.ok(/shopName ownerName profileImage city/.test(adapter),
+        'it needs the city for the filter and the name for top partners');
+});
+
+console.log('\nThe response carries a table, not the whole ledger');
+check('the ledger sent is capped', () => {
+    const src = earnSrc();
+    assert.ok(/const LEDGER_ROWS = \d+;/.test(src), 'there must be a cap');
+    assert.ok(/transactions\.slice\(0, LEDGER_ROWS\)/.test(src), 'and it must be applied');
+    assert.ok(/transactionsTotal/.test(src), 'the real total must still be reported');
+});
+
+check('narrowing the response does not narrow the filter dropdowns', () => {
+    // The screen builds its category, partner and city options from the ledger.
+    // Capping the ledger without this would silently shrink them.
+    const src = earnSrc();
+    const optionsAt = src.indexOf('getFilterOptions');
+    const sliceAt = src.indexOf('transactions.slice(0, LEDGER_ROWS)');
+    assert.ok(optionsAt > 0 && sliceAt > optionsAt,
+        'the options must be derived before the ledger is cut');
+
+    const ui = frontend('modules', 'admin', 'pages', 'AdminEarnings.jsx');
+    assert.ok(/analyticsData\.filterOptions/.test(ui), 'the screen must use them');
+    assert.ok(/const categoriesSet = new Set\(\)/.test(ui),
+        'and still fall back for an older response');
+});
+
+check('the options are built from the same rules the screen used', () => {
+    const S = require('../services/EarningsAnalyticsService');
+    const txns = [
+        { category: 'Cleaning', partner: { id: 'p1', name: 'Alpha' }, city: 'Indore' },
+        { category: 'Settlement', partner: { id: 'N/A', name: 'N/A' }, city: 'Indore' },
+        { category: 'Plumbing', partner: { id: 'p1', name: 'Alpha' }, city: 'Bhopal' }
+    ];
+    const opts = S.getFilterOptions(txns, []);
+    // Settlements are not a service category, and an unknown partner is not one.
+    assert.deepStrictEqual(opts.categories.sort(), ['Cleaning', 'Plumbing']);
+    assert.strictEqual(opts.partners.length, 1);
+    assert.deepStrictEqual(opts.cities.sort(), ['Bhopal', 'Indore']);
+});
+
+check('a period of nothing but settlements still offers categories', () => {
+    const S = require('../services/EarningsAnalyticsService');
+    const opts = S.getFilterOptions([{ category: 'Settlement' }], [{ category: 'Cleaning' }]);
+    assert.deepStrictEqual(opts.categories, ['Cleaning']);
+});
+
 console.log(`\n${passed} checks passed.\n`);

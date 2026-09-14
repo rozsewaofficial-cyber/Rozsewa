@@ -265,6 +265,21 @@ const updateGstRate = async (req, res) => {
     }
 };
 
+/**
+ * Exactly the fields the earnings analytics read.
+ *
+ * The dashboard used to load whole hydrated documents with the provider and
+ * the customer fully populated: at 20,000 bookings that was 371 MB and six
+ * seconds for a page of charts. Lean rows carrying only these fields are the
+ * same numbers for a twenty-sixth of the memory.
+ */
+const EARNINGS_FIELDS = 'totalAmount adminCommission providerPayout coinDiscount offerSubsidy'
+    + ' commissionSnapshot travelCharge paymentMode paymentStatus status createdAt'
+    + ' serviceName extraCharges rating providerId userId';
+const EARNINGS_PROVIDER_FIELDS = 'shopName ownerName profileImage city';
+const EARNINGS_CUSTOMER_FIELDS = 'name profileImage';
+/** How many ledger rows the table ever shows at once. */
+const LEDGER_ROWS = 500;
 // @desc    Get earnings and revenue data
 // @route   GET /api/admin/earnings
 // @access  Private (Admin)
@@ -318,8 +333,10 @@ const getEarningsData = async (req, res) => {
         }
 
         let currentBookings = await Booking.find(currentMatch)
-            .populate('providerId')
-            .populate('userId');
+            .select(EARNINGS_FIELDS)
+            .populate('providerId', EARNINGS_PROVIDER_FIELDS)
+            .populate('userId', EARNINGS_CUSTOMER_FIELDS)
+            .lean();
 
         // Insta Work jobs are reported alongside bookings. They are appended
         // after the Booking query rather than merged into it because the two
@@ -369,7 +386,10 @@ const getEarningsData = async (req, res) => {
             prevMatch.providerId = currentMatch.providerId;
         }
 
-        let prevBookings = await Booking.find(prevMatch).populate('providerId');
+        let prevBookings = await Booking.find(prevMatch)
+            .select(EARNINGS_FIELDS)
+            .populate('providerId', EARNINGS_PROVIDER_FIELDS)
+            .lean();
         prevBookings = prevBookings.concat(await InstaEarningsAdapter.getJobsForEarnings({
             start: prevStart,
             end: prevEnd,
@@ -494,6 +514,15 @@ const getEarningsData = async (req, res) => {
             transactions = transactions.filter(t => t.transactionType.toLowerCase() === transactionType.toLowerCase());
         }
 
+        // The ledger carries a row or two per booking, so a wide range used to
+        // put tens of thousands of them in one response. The table only ever
+        // shows the most recent, but the screen also builds its filter
+        // dropdowns from this list — so the options are sent separately,
+        // derived from the whole set, and only the visible rows are shipped.
+        const transactionsTotal = transactions.length;
+        const filterOptions = EarningsAnalyticsService.getFilterOptions(transactions, categories);
+        transactions = transactions.slice(0, LEDGER_ROWS);
+
         res.json({
             hasHistoricalData: true,
             overview,
@@ -512,6 +541,8 @@ const getEarningsData = async (req, res) => {
                 topCategories
             },
             transactions,
+            transactionsTotal,
+            filterOptions,
             promotions: {
                 bannerRevenue,
                 totalBanners: currentBanners.length

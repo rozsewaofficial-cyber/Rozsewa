@@ -226,6 +226,11 @@ const AdminEarnings = () => {
             return { categories: [], partners: [], cities: [] };
         }
 
+        // The server derives these from the whole ledger; the transactions
+        // array here is only the rows the table shows. Falling back to the
+        // old derivation keeps this working against an older response.
+        if (analyticsData.filterOptions) return analyticsData.filterOptions;
+
         const categoriesSet = new Set();
         const partnersMap = new Map();
         const citiesSet = new Set();

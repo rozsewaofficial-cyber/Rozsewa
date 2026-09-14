@@ -98,7 +98,11 @@ const getJobsForEarnings = async ({ start, end, providerId = null, status = null
     // service names.
     if (category && category !== 'Insta Work') query.serviceName = category;
 
-    const jobs = await InstaJob.find(query).populate('providerId').lean();
+    // Only the provider fields the reports read — the city filter and the top
+    // partners list — rather than the whole provider on every row.
+    const jobs = await InstaJob.find(query)
+        .populate('providerId', 'shopName ownerName profileImage city')
+        .lean();
     return jobs.map(toBookingShape);
 };
 
