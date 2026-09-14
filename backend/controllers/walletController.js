@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const { Wallet, Transaction } = require('../models/Wallet');
 
 // @desc    Get wallet and transactions (Customer or Provider)
@@ -8,7 +9,12 @@ const getWallet = async (req, res) => {
         const query = req.user.role === 'provider' ? { providerId: req.user._id } : { userId: req.user._id };
 
         let wallet = await Wallet.findOne(query);
-        const transactions = await Transaction.find(query).sort({ createdAt: -1 });
+        // A wallet statement grows for the life of the account, so the
+        // screen gets the recent page rather than the whole ledger.
+        const transactions = await paginate(
+            Transaction.find(query).sort({ createdAt: -1 }),
+            pageParams(req)
+        );
 
         res.json({
             balance: wallet ? wallet.balance : 0,

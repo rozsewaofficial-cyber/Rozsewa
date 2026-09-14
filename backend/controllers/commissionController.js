@@ -38,12 +38,19 @@ const getCommissionData = async (req, res) => {
 
         // Settlements Logic
         const wallets = await Wallet.find({ providerId: { $exists: true } }).populate('providerId', 'shopName ownerName vendorCode');
-        const transactions = await Transaction.find({ title: 'Debt Settlement', status: 'completed' });
+        // Every settlement transaction ever was loaded and then filtered in
+        // JavaScript once per wallet. Grouped by provider instead, so the work
+        // happens once and only the totals come back.
+        const settlementTotals = new Map(
+            (await Transaction.aggregate([
+                { $match: { title: 'Debt Settlement', status: 'completed' } },
+                { $group: { _id: '$providerId', amount: { $sum: '$amount' } } }
+            ])).map(r => [String(r._id), r])
+        );
 
         const settlements = wallets.map(w => {
            if (!w.providerId) return null;
-           const providerTxns = transactions.filter(t => t.providerId && t.providerId.toString() === w.providerId._id.toString());
-           const totalSettled = providerTxns.reduce((sum, t) => sum + t.amount, 0);
+           const totalSettled = settlementTotals.get(String(w.providerId._id))?.amount || 0;
            
            if (w.balance < 0 || totalSettled > 0) {
               return {

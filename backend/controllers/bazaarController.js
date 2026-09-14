@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const BazaarAd = require('../models/BazaarAd');
 const BazaarCategory = require('../models/BazaarCategory');
 const BazaarOffer = require('../models/BazaarOffer');
@@ -1209,10 +1210,14 @@ exports.updateBazaarSettings = async (req, res) => {
 
 exports.getBazaarTransactions = async (req, res) => {
   try {
-    const transactions = await BazaarUnlockTransaction.find({ status: 'success' })
-      .populate('buyerId', 'name mobile')
-      .populate('adId', 'title price category')
-      .sort({ createdAt: -1 });
+    // Every successful unlock, with buyer and ad attached to each.
+    const transactions = await paginate(
+      BazaarUnlockTransaction.find({ status: 'success' })
+        .populate('buyerId', 'name mobile')
+        .populate('adId', 'title price category')
+        .sort({ createdAt: -1 }),
+      pageParams(req)
+    );
 
     const setting = await Setting.findOne({ key: 'bazaar_rules' });
     const globalFee = setting?.value?.bazaarCommissionFee || 20;

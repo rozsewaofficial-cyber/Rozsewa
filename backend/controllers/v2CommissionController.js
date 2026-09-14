@@ -159,7 +159,13 @@ exports.getCommissionAnalytics = async (req, res) => {
             matchQuery['commissionSnapshot.subscriptionSnapshot.planId'] = new mongoose.Types.ObjectId(subscriptionId);
         }
 
-        const bookings = await Booking.find(matchQuery);
+        // The date range here is optional, so with no filter this reads every
+        // completed booking ever. Hydrated documents were most of that cost:
+        // lean rows carrying only the five fields the reduction below reads are
+        // the same numbers for a fraction of the memory.
+        const bookings = await Booking.find(matchQuery)
+            .select('totalAmount adminCommission providerPayout commissionSnapshot commissionStatus')
+            .lean();
 
         // Compute KPIs
         let gmv = 0;
@@ -213,7 +219,8 @@ exports.getCommissionAnalytics = async (req, res) => {
         if (providerId) {
             ledgerQuery.provider = new mongoose.Types.ObjectId(providerId);
         }
-        const subscriptionPayments = await FinancialLedger.find(ledgerQuery);
+        // Only the amounts are summed, so only the amounts are fetched.
+        const subscriptionPayments = await FinancialLedger.find(ledgerQuery).select('amount').lean();
         subscriptionRevenue = subscriptionPayments.reduce((sum, item) => sum + Math.abs(item.amount), 0);
 
         const netRevenue = platformRevenue + subscriptionRevenue;

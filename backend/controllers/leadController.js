@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const mongoose = require('mongoose');
 const Lead = require('../models/Lead');
 const LeadForm = require('../models/LeadForm');
@@ -1110,9 +1111,13 @@ const getAdminLeads = async (req, res) => {
 
 const getAdminDisputes = async (req, res) => {
     try {
-        const disputes = await LeadDispute.find()
-            .populate('provider', 'ownerName shopName')
-            .sort({ createdAt: -1 });
+        // Every dispute ever raised, unfiltered.
+        const disputes = await paginate(
+            LeadDispute.find()
+                .populate('provider', 'ownerName shopName')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
         res.json(disputes);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -1238,13 +1243,20 @@ const getAdminStats = async (req, res) => {
             Lead.countDocuments({ status: 'expired' }),
             Lead.countDocuments({ status: { $in: ['partially_unlocked', 'fully_unlocked'] } }),
             Lead.countDocuments({ status: 'refunded' }),
-            LeadUnlockTransaction.find({ status: 'success' }).lean(),
+            // Only a revenue total is taken from these, so they are summed in the
+            // database rather than every unlock ever being read back to add up.
+            LeadUnlockTransaction.aggregate([
+                { $match: { status: 'success', walletUsed: true } },
+                { $group: { _id: null, revenue: { $sum: '$unlockAmount' } } }
+            ]),
             LeadDispute.countDocuments(),
             LeadDispute.countDocuments({ adminDecision: 'pending' })
         ]);
 
-        const revenue = allTransactions.reduce((s, t) => s + (t.walletUsed ? t.unlockAmount : 0), 0);
-        const refundAmount = allTransactions.reduce((s, t) => s + (t.creditUsed ? 0 : t.unlockAmount * (t.status === 'success' && t.walletUsed ? 0 : 0)), 0);
+        const revenue = allTransactions[0]?.revenue || 0;
+        // This expression multiplied by zero in every branch, so it was always
+        // zero. Kept as zero rather than "fixed" into a number nobody chose.
+        const refundAmount = 0;
 
         const conversionRate = totalLeads > 0 ? +((unlockedLeadsCount / totalLeads) * 100).toFixed(1) : 0;
         const disputeRate    = totalLeads > 0 ? +((allDisputes / totalLeads) * 100).toFixed(1) : 0;

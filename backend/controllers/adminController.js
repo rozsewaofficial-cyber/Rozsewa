@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const EarningsAnalyticsService = require('../services/EarningsAnalyticsService');
 const mongoose = require('mongoose');
 const Provider = require('../models/Provider');
@@ -348,10 +349,16 @@ const getBookings = async (req, res) => {
             }
         }
 
-        const bookings = await Booking.find(query)
-            .populate('userId', 'name email mobile')
-            .populate('providerId', 'shopName ownerName mobile')
-            .sort({ createdAt: -1 });
+        // Every booking ever made, populated and returned whole, was the
+        // heaviest read in the admin panel. Newest first and bounded; a
+        // caller that needs further back asks for the next page.
+        const bookings = await paginate(
+            Booking.find(query)
+                .populate('userId', 'name email mobile')
+                .populate('providerId', 'shopName ownerName mobile')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
         res.json(bookings);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -392,10 +399,14 @@ const deleteBooking = async (req, res) => {
 const getProviderReports = async (req, res) => {
     try {
         // Fetch all bookings where adminRequest.status is 'pending'
-        const reports = await Booking.find({ 'adminRequest.status': 'pending' })
-            .populate('userId', 'name email mobile')
-            .populate('providerId', 'shopName ownerName mobile')
-            .sort({ 'adminRequest.requestedAt': -1 });
+        // A queue that is meant to drain, but nothing guarantees it does.
+        const reports = await paginate(
+            Booking.find({ 'adminRequest.status': 'pending' })
+                .populate('userId', 'name email mobile')
+                .populate('providerId', 'shopName ownerName mobile')
+                .sort({ 'adminRequest.requestedAt': -1 }),
+            pageParams(req)
+        );
         res.json(reports);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -972,10 +983,14 @@ const get99CardData = async (req, res) => {
 // @access  Private/Admin
 const getFeedbackData = async (req, res) => {
     try {
-        const reviews = await Booking.find({ rating: { $gt: 0 } })
-            .populate('userId', 'name')
-            .populate('providerId', 'shopName')
-            .sort({ createdAt: -1 });
+        // Every review ever left, on one screen.
+        const reviews = await paginate(
+            Booking.find({ rating: { $gt: 0 } })
+                .populate('userId', 'name')
+                .populate('providerId', 'shopName')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
 
         // Transform for frontend
         const mappedReviews = reviews.map(r => ({

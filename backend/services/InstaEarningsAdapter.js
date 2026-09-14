@@ -109,15 +109,27 @@ const getJobsForEarnings = async ({ start, end, providerId = null, status = null
 /**
  * Completed Insta jobs, shaped for earnings. With no providerId this is every
  * worker's — which is what the admin totals need.
+ *
+ * `since` exists because a caller reporting on a window should read that window
+ * rather than a worker's whole history: a dashboard showing this month has no
+ * use for jobs from two years ago.
  */
-const getProviderJobs = async (providerId = null, { populate = false } = {}) => {
+const getProviderJobs = async (providerId = null, { populate = false, since = null, limit = null } = {}) => {
     const query = { status: { $in: DONE_STATUSES } };
     if (providerId) query.providerId = providerId;
+    if (since) query.createdAt = { $gte: since };
 
     let q = InstaJob.find(query);
     if (populate) q = q.populate('providerId', 'shopName ownerName bankDetails planType providerCategory');
+    if (limit) q = q.sort({ createdAt: -1 }).limit(limit);
     const jobs = await q.lean();
     return jobs.map(toBookingShape);
 };
 
-module.exports = { DONE_STATUSES, toBookingShape, getJobsForEarnings, getProviderJobs };
+/** How many finished jobs a worker has, without reading any of them. */
+const countProviderJobs = (providerId) =>
+    InstaJob.countDocuments({ providerId, status: { $in: DONE_STATUSES } });
+
+module.exports = {
+    DONE_STATUSES, toBookingShape, getJobsForEarnings, getProviderJobs, countProviderJobs
+};

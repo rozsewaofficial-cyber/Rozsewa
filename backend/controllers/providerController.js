@@ -720,12 +720,31 @@ const getProviderStats = async (req, res) => {
     try {
         const Booking = require('../models/Booking');
         const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
+
+        // This screen reports today, this week and this month, plus a seven-day
+        // chart — so the month is as far back as it ever needs to look. It used
+        // to load every job the worker had ever completed, which grows for the
+        // life of the account and is read on every dashboard open.
+        const monthStart = new Date();
+        monthStart.setDate(1);
+        monthStart.setHours(0, 0, 0, 0);
+
         // A Sewak may earn entirely through Insta Work, so counting only
         // bookings would show them a dashboard of zeroes after a full day.
         const bookings = [
-            ...(await Booking.find({ providerId: req.user._id, status: 'completed' })),
-            ...(await InstaEarningsAdapter.getProviderJobs(req.user._id))
+            ...(await Booking.find({
+                providerId: req.user._id,
+                status: 'completed',
+                createdAt: { $gte: monthStart }
+            }).lean()),
+            ...(await InstaEarningsAdapter.getProviderJobs(req.user._id, { since: monthStart }))
         ];
+
+        // The lifetime figure is a count, so it does not need the rows.
+        const lifetimeCompleted = await Booking.countDocuments({
+            providerId: req.user._id,
+            status: 'completed'
+        }) + await InstaEarningsAdapter.countProviderJobs(req.user._id);
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -772,7 +791,7 @@ const getProviderStats = async (req, res) => {
             today: todayEarnings,
             week: weekEarnings,
             month: monthEarnings,
-            totalBookings: bookings.length,
+            totalBookings: lifetimeCompleted,
             chartData: performance.map(({ day, amount }) => ({ day, amount }))
         });
     } catch (error) {

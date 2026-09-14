@@ -378,4 +378,89 @@ check('a period of nothing but settlements still offers categories', () => {
     assert.deepStrictEqual(opts.categories, ['Cleaning']);
 });
 
+
+console.log('\nNo list endpoint can return an unbounded number of rows');
+const { pageParams, DEFAULT_LIMIT, MAX_LIMIT } = require('../utils/pagination');
+
+check('a caller who says nothing gets a page, not everything', () => {
+    const p = pageParams({ query: {} });
+    assert.strictEqual(p.limit, DEFAULT_LIMIT);
+    assert.strictEqual(p.page, 1);
+    assert.strictEqual(p.skip, 0);
+});
+
+check('a caller cannot ask for everything by another name', () => {
+    assert.strictEqual(pageParams({ query: { limit: '999999' } }).limit, MAX_LIMIT);
+    assert.strictEqual(pageParams({ query: { limit: '-5' } }).limit, DEFAULT_LIMIT);
+    // A typo in a query string must not become a full table scan.
+    assert.strictEqual(pageParams({ query: { limit: 'all' } }).limit, DEFAULT_LIMIT);
+    assert.strictEqual(pageParams({ query: { page: 'first' } }).page, 1);
+});
+
+check('pages do not overlap', () => {
+    const a = pageParams({ query: { page: '1', limit: '10' } });
+    const b = pageParams({ query: { page: '2', limit: '10' } });
+    assert.strictEqual(a.skip, 0);
+    assert.strictEqual(b.skip, 10);
+});
+
+check('every list that used to return a whole collection is paged', () => {
+    // Each of these read a collection that grows for the life of the platform
+    // and returned all of it.
+    const paged = [
+        ['controllers/adminController.js', 3],       // bookings, reported bookings, feedback
+        ['controllers/withdrawalController.js', 2],  // all withdrawals, a partner's own
+        ['controllers/walletController.js', 1],      // wallet statement
+        ['controllers/bookingController.js', 4],     // customer history, assigned, two review lists
+        ['controllers/leadController.js', 1],        // disputes
+        ['controllers/bazaarController.js', 1]       // unlock transactions
+    ];
+    paged.forEach(([file, count]) => {
+        const src = read(file);
+        const uses = (src.match(/paginate\(/g) || []).length;
+        assert.ok(uses >= count, `${file} pages ${uses} lists, expected at least ${count}`);
+    });
+});
+
+console.log('\nTotals are counted, not collected');
+check('a rating average does not read every review', () => {
+    // It recalculated by loading the provider's entire review history, on every
+    // single review submitted.
+    const src = read('controllers/bookingController.js');
+    assert.ok(!/const allReviews = await Booking\.find/.test(src), 'no full review load may remain');
+    assert.ok(/\$group: \{ _id: null, total: \{ \$sum: 1 \}, sum: \{ \$sum: '\$rating' \} \}/.test(src),
+        'the count and sum must come from the database');
+});
+
+check('settlement totals are grouped once, not filtered per wallet', () => {
+    const src = read('controllers/commissionController.js');
+    assert.ok(!/Transaction\.find\(\{ title: 'Debt Settlement'/.test(src),
+        'every settlement transaction must no longer be loaded');
+    assert.ok(/settlementTotals/.test(src), 'they must be grouped by provider');
+});
+
+check('lead revenue is summed in the database', () => {
+    const src = read('controllers/leadController.js');
+    assert.ok(!/LeadUnlockTransaction\.find\(\{ status: 'success' \}\)\.lean\(\)/.test(src),
+        'every unlock must no longer be read back to add up');
+    assert.ok(/LeadUnlockTransaction\.aggregate/.test(src), 'it must be aggregated');
+});
+
+check("a worker's dashboard reads the month it reports on", () => {
+    // It reported today, this week and this month, and loaded the whole career
+    // to do it. The lifetime figure is a count, so it needs no rows at all.
+    const src = read('controllers/providerController.js');
+    assert.ok(/createdAt: \{ \$gte: monthStart \}/.test(src), 'the window must be applied');
+    assert.ok(/countDocuments/.test(src), 'the lifetime figure must be counted');
+    assert.ok(/countProviderJobs/.test(src), 'including the Insta side');
+});
+
+check('the reminder cron looks at the days it reminds about', () => {
+    // It read every confirmed booking on the platform each run, and a confirmed
+    // booking that never completes stays in that set forever.
+    const src = read('cron/bookingReminders.js');
+    assert.ok(!/Booking\.find\(\{ status: 'confirmed' \}\)/.test(src), 'no unfiltered read may remain');
+    assert.ok(/bookingDate: \{ \$in: \[dayStamp/.test(src), 'it must be pinned to today and tomorrow');
+});
+
 console.log(`\n${passed} checks passed.\n`);

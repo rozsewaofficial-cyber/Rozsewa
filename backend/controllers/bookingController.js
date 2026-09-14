@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const Provider = require('../models/Provider');
@@ -879,9 +880,14 @@ const createBooking = async (req, res) => {
 // @access  Private
 const getUserBookings = async (req, res) => {
     try {
-        const bookings = await Booking.find({ userId: req.user._id })
-            .populate('providerId', 'shopName ownerName rating reviewCount completedBookingsCount mobile profileImage status planType address city state location')
-            .sort({ createdAt: -1 });
+        // A customer's whole booking history, with the provider attached to
+        // every row. Recent first and bounded.
+        const bookings = await paginate(
+            Booking.find({ userId: req.user._id })
+                .populate('providerId', 'shopName ownerName rating reviewCount completedBookingsCount mobile profileImage status planType address city state location')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
         res.json(bookings);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1110,7 +1116,12 @@ const getProviderBookings = async (req, res) => {
             requiredProviderCategory: provider.providerCategory || 'partner',
             rejectedProviders: { $ne: provider._id },
             serviceLocation: { $in: provider.serviceModes && provider.serviceModes.length ? provider.serviceModes : ['home'] }
-        }).populate('userId', 'ownerName name mobile address');
+        })
+            .populate('userId', 'ownerName name mobile address')
+            // A live feed of unclaimed jobs: newest first, and bounded so a
+            // backlog of never-accepted bookings cannot grow into the response.
+            .sort({ createdAt: -1 })
+            .limit(200);
 
         // Fetch Wallet and Cash Limits
         const { Wallet } = require('../models/Wallet');
@@ -1157,9 +1168,13 @@ const getProviderBookings = async (req, res) => {
         });
 
         // Fetch bookings assigned to this provider
-        const assignedBookings = await Booking.find({ providerId: req.user._id })
-            .populate('userId', 'ownerName name mobile address')
-            .sort({ createdAt: -1 });
+        // Everything ever assigned to this worker; the same applies.
+        const assignedBookings = await paginate(
+            Booking.find({ providerId: req.user._id })
+                .populate('userId', 'ownerName name mobile address')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
 
         // Combine and sort by createdAt descending
         const combined = [...eligiblePending, ...assignedBookings];
@@ -2447,10 +2462,16 @@ const verifyEndOTP = async (req, res) => {
 // @desc    Get provider reviews
 const getProviderReviews = async (req, res) => {
     try {
-        const bookings = await Booking.find({
-            providerId: req.user._id,
-            rating: { $gt: 0 }
-        }).populate('userId', 'name profileImage');
+        // Reviews only ever grow, and a worker reads their own reviews a page at a time.
+        const bookings = await paginate(
+            Booking.find({
+                providerId: req.user._id,
+                rating: { $gt: 0 }
+            })
+                .populate('userId', 'name profileImage')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
 
         const reviews = bookings.map(b => ({
             _id: b._id,
@@ -2473,10 +2494,16 @@ const getProviderReviews = async (req, res) => {
 // @desc    Get public provider reviews
 const getPublicProviderReviews = async (req, res) => {
     try {
-        const bookings = await Booking.find({
-            providerId: req.params.id,
-            rating: { $gt: 0 }
-        }).populate('userId', 'name profileImage');
+        // Reviews only ever grow, and a customer reads a profile a page at a time.
+        const bookings = await paginate(
+            Booking.find({
+                providerId: req.params.id,
+                rating: { $gt: 0 }
+            })
+                .populate('userId', 'name profileImage')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
 
         const reviews = bookings.map(b => ({
             _id: b._id,
@@ -2515,10 +2542,16 @@ const submitReview = async (req, res) => {
         // Dynamically update Provider's average rating and review count
         if (booking.providerId) {
             const Provider = require('../models/Provider');
-            const allReviews = await Booking.find({ providerId: booking.providerId, rating: { $gt: 0 } });
-            
-            const totalReviews = allReviews.length;
-            const sumRatings = allReviews.reduce((sum, b) => sum + b.rating, 0);
+            // A count and an average need no rows. This loaded every review the
+            // provider had ever received just to add two numbers, and did it on
+            // every single review submitted.
+            const [ratingStats] = await Booking.aggregate([
+                { $match: { providerId: booking.providerId, rating: { $gt: 0 } } },
+                { $group: { _id: null, total: { $sum: 1 }, sum: { $sum: '$rating' } } }
+            ]);
+
+            const totalReviews = ratingStats?.total || 0;
+            const sumRatings = ratingStats?.sum || 0;
             const averageRating = totalReviews > 0 ? (sumRatings / totalReviews).toFixed(1) : 0;
 
             await Provider.findByIdAndUpdate(booking.providerId, {

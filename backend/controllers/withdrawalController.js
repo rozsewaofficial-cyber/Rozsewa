@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Withdrawal = require('../models/Withdrawal');
 const Provider = require('../models/Provider');
 const { Wallet, Transaction } = require('../models/Wallet');
@@ -127,9 +128,13 @@ const requestWithdrawal = async (req, res) => {
 // @access  Private (Admin)
 const getWithdrawals = async (req, res) => {
     try {
-        const withdrawals = await Withdrawal.find()
-            .populate('providerId', 'shopName ownerName mobile')
-            .sort({ createdAt: -1 });
+        // No filter at all: every withdrawal request in the platform.
+        const withdrawals = await paginate(
+            Withdrawal.find()
+                .populate('providerId', 'shopName ownerName mobile')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
         res.json(withdrawals);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -237,8 +242,12 @@ const updateWithdrawalStatus = async (req, res) => {
 // @access  Private (Provider)
 const getProviderWithdrawals = async (req, res) => {
     try {
-        const withdrawals = await Withdrawal.find({ providerId: req.user._id })
-            .sort({ createdAt: -1 });
+        // One partner's whole withdrawal history, which only ever grows.
+        const withdrawals = await paginate(
+            Withdrawal.find({ providerId: req.user._id })
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
         res.json(withdrawals);
     } catch (error) {
         res.status(500).json({ message: error.message });

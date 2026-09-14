@@ -57,8 +57,21 @@ const startBookingReminderCron = () => {
                 io.to(`user_${b.userId}`).emit('COUNTER_OFFER_EXPIRED', { bookingId: b._id.toString() });
             }
 
-            // Find all confirmed bookings
-            const bookings = await Booking.find({ status: 'confirmed' });
+            // Only bookings whose slot is near enough to remind about. This
+            // read every confirmed booking on the platform every time it ran,
+            // then threw away all but the next few hours' worth — and a
+            // confirmed booking that never completes stays in that set forever.
+            const dayStamp = (d) => {
+                const p = (n) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+            };
+            const today = new Date();
+            const tomorrow = new Date(Date.now() + 86400000);
+
+            const bookings = await Booking.find({
+                status: 'confirmed',
+                bookingDate: { $in: [dayStamp(today), dayStamp(tomorrow)] }
+            });
 
             for (const booking of bookings) {
                 if (!booking.bookingDate || !booking.bookingTime || !booking.providerId) continue;
