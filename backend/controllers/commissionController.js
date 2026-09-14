@@ -193,15 +193,16 @@ const getFinanceData = async (req, res) => {
         ]);
         const escrowBalance = escrow?.balance || 0;
 
-        // The chart bins these by date, so the rows are still needed — but only
-        // two fields of each, and without hydrating them into documents.
-        const completedBookings = await Booking.find({
+        // One total and one line on a chart, both of which the database can
+        // produce. This used to load every completed booking in the range to
+        // add up one field and bin it by date — the same thing the earnings
+        // dashboard used to do, on a different screen.
+        const financeMatch = {
             status: 'completed',
             createdAt: { $gte: currentStart, $lte: currentEnd }
-        })
-            .select('adminCommission createdAt')
-            .lean();
-        const platformRevenue = completedBookings.reduce((sum, b) => sum + (b.adminCommission || 0), 0);
+        };
+        const financeRollup = await Rollup.fromDatabase(financeMatch, { interval });
+        const platformRevenue = financeRollup.totals.commission;
 
         // Dynamic GST rate from settings
         const gstRateSetting = await Setting.findOne({ key: 'gstRate' });
@@ -269,12 +270,12 @@ const getFinanceData = async (req, res) => {
         }));
 
         // Binned timeline data for charts
-        const binnedRevenue = EarningsAnalyticsService.binData(
-            completedBookings,
+        const binnedRevenue = EarningsAnalyticsService.binFromRollup(
+            financeRollup.byBin,
             currentStart,
             currentEnd,
             interval,
-            b => b.adminCommission || 0
+            'commission'
         );
 
         const timeline = binnedRevenue.map(bin => {
@@ -282,7 +283,10 @@ const getFinanceData = async (req, res) => {
             const gst = rev * (gstRate / 100);
             const profit = rev - gst;
             return {
-                date: bin.key,
+                // `bin.date`, not `bin.key` — binData has always returned
+                // {date, value}, so this read undefined and every point on the
+                // chart came back with no date on it.
+                date: bin.date,
                 platformRevenue: Math.round(rev * 100) / 100,
                 gstPayable: Math.round(gst * 100) / 100,
                 platformProfit: Math.round(profit * 100) / 100
@@ -580,10 +584,13 @@ const getEarningsData = async (req, res) => {
         if (targetProviderId) {
             prevWithdrawalMatch.providerId = targetProviderId;
         }
-        // The previous period is only ever totalled, so it comes back as amounts.
-        let prevWithdrawals = await Withdrawal.find(prevWithdrawalMatch)
-            .select('amount status createdAt')
-            .lean();
+        // The previous period is only ever compared against as one number, so
+        // it is summed in the database and the rows never travel.
+        const [prevPendingRow] = await Withdrawal.aggregate([
+            { $match: { ...prevWithdrawalMatch, status: 'pending' } },
+            { $group: { _id: null, amount: { $sum: '$amount' } } }
+        ]);
+        const prevPendingTotal = prevPendingRow?.amount || 0;
 
         // Fetch Banner Promotions Revenue
         // One number and one count, so neither needs the banners themselves.
@@ -650,7 +657,7 @@ const getEarningsData = async (req, res) => {
             rollup,
             prevRollup,
             currentWithdrawals,
-            prevWithdrawals,
+            prevPendingTotal,
             currentStart,
             currentEnd,
             interval

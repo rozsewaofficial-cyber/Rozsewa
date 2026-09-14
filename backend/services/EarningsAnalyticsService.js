@@ -506,10 +506,20 @@ class EarningsAnalyticsService {
         return require('./EarningsRollupService');
     }
 
-    static overviewFromRollup(curr, prev, currentWithdrawals, prevWithdrawals, currentStart, currentEnd, interval) {
+    /**
+     * @param currentWithdrawals rows — the pending-settlement card draws a
+     *        sparkline over them, so this one needs the withdrawals themselves.
+     * @param prevPending a number. The previous period is only ever compared
+     *        against as a total, so it is summed in the database rather than
+     *        fetched. A list is still accepted, for the array entry point.
+     */
+    static overviewFromRollup(curr, prev, currentWithdrawals, prevPending, currentStart, currentEnd, interval) {
         const pct = (c, p) => (p === 0 ? 0 : Math.round(((c - p) / p) * 1000) / 10);
         const round = (v) => Math.round(v * 100) / 100;
         const pending = (list) => list.reduce((sum, w) => (w.status === 'pending' ? sum + w.amount : sum), 0);
+        // A number when the caller summed it in the database, a list when it
+        // had the rows anyway.
+        const prevPendingTotal = Array.isArray(prevPending) ? pending(prevPending) : (prevPending || 0);
 
         const card = (field, currValue, prevValue) => ({
             value: round(currValue),
@@ -533,8 +543,8 @@ class EarningsAnalyticsService {
             partnerPayout: card('payout', curr.totals.payout, prev.totals.payout),
             pendingSettlement: {
                 value: round(pendingNow),
-                prevValue: round(pending(prevWithdrawals)),
-                percentageChange: pct(pendingNow, pending(prevWithdrawals)),
+                prevValue: round(prevPendingTotal),
+                percentageChange: pct(pendingNow, prevPendingTotal),
                 sparkline: this.binData(currentWithdrawals, currentStart, currentEnd, interval,
                     w => (w.status === 'pending' ? w.amount : 0)).map(p => p.value)
             },

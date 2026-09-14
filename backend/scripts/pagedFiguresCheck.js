@@ -222,8 +222,20 @@ check('the finance screen asks the server its question', () => {
     assert.ok(!/const wallets = await Wallet\.find\(\)/.test(src),
         'the escrow total does not need every wallet');
     assert.ok(/ledgerTotal/.test(src), 'the ledger reports how many matched');
-    assert.ok(/\.select\('adminCommission createdAt'\)[\s\S]{0,40}\.lean\(\)/.test(src),
-        'the chart needs two fields per booking, not whole documents');
+
+    // The GST timeline is a total and a line on a chart, and the database can
+    // produce both. It used to load every completed booking in the range —
+    // projected to two fields, but still one object each — which is what the
+    // earnings dashboard had already stopped doing on the screen next door.
+    assert.ok(/Rollup\.fromDatabase\(financeMatch/.test(src),
+        'the finance figures must be rolled up, not reduced over rows');
+    assert.ok(!/const completedBookings = await Booking\.find/.test(src),
+        'and the rows must not be loaded to add them up');
+
+    // A bin is {date, value}; reading `bin.key` off one gives undefined, and
+    // every point on the chart came back with no date on it.
+    assert.ok(!/date: bin\.key/.test(src), 'timeline points must carry their date');
+    assert.ok(/date: bin\.date/.test(src), 'which is the field a bin actually has');
 });
 
 check('the figures a screen reads are the ones the route sends', () => {
