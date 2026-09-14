@@ -330,16 +330,24 @@ const rejectJob = async (req, res) => {
                 excludeIds: job.rejectedProviders
             });
 
+            // Matching filtered on capacity a moment ago, but two workers
+            // declining at the same instant could still both be handed on to the
+            // same next person. The claim is what settles it.
             if (next) {
-                job.providerId = next.providerId;
                 job.matchedDistanceKm = next.distanceKm;
                 job.matchedEtaMinutes = next.etaMinutes;
-                job.pushStatus('ASSIGNED', 'system', 'Re-assigned after decline');
-                await job.save();
-                notify(next.providerId, 'provider', '⚡ New Insta Work job',
-                    `${job.serviceName} at ${job.address}. Accept now.`);
-                emitJob(job, 'INSTA_JOB_REASSIGNED');
-                return res.json({ job: forWorker(job), reassigned: true });
+
+                const claim = await Assignment.claimWorker({ job, providerId: next.providerId, config });
+                if (claim.ok) {
+                    job.pushStatus('ASSIGNED', 'system', 'Re-assigned after decline');
+                    await job.save();
+                    notify(next.providerId, 'provider', '⚡ New Insta Work job',
+                        `${job.serviceName} at ${job.address}. Accept now.`);
+                    emitJob(job, 'INSTA_JOB_REASSIGNED');
+                    return res.json({ job: forWorker(job), reassigned: true });
+                }
+                // Lost the claim — fall through to waiting rather than pretending
+                // this job has someone.
             }
 
             job.providerId = null;

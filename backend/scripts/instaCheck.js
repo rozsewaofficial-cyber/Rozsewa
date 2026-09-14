@@ -766,18 +766,24 @@ check('the assignment is settled after the write, not trusted before it', () => 
     // Matching counted a worker's active jobs and then assigned them with
     // nothing in between, so two customers booking at the same instant could
     // both be told they had the same person.
-    const src = read('controllers/instaCustomerController.js');
-    assert.ok(/const aheadOfThis = await InstaJob\.countDocuments\(/.test(src),
+    // The guard lives in the assignment service now, because three routes need
+    // it and only one of them had it.
+    const guard = read('services/InstaAssignmentService.js');
+    assert.ok(/const aheadOfThis = await InstaJob\.countDocuments\(/.test(guard),
         'the claim must be checked against what already existed');
-    assert.ok(/createdAt: \{ \$lte: job\.createdAt \}/.test(src),
-        'settled by age, so the earlier job always wins');
-    assert.ok(/WORKER_JUST_TAKEN/.test(src), 'and the loser is told why');
+    assert.ok(/aheadOfThis < max/.test(guard),
+        'settled by age, so the earlier claim always wins');
+    assert.ok(/WORKER_JUST_TAKEN/.test(read('controllers/instaCustomerController.js')),
+        'and the loser is told why');
 });
 
 check('the loser releases the worker rather than holding them', () => {
+    const service = read('services/InstaAssignmentService.js');
+    const claim = service.slice(service.indexOf('const claimWorker'), service.indexOf('module.exports'));
+    assert.ok(/job\.providerId = null;/.test(claim), 'it must let the worker go');
+
     const src = read('controllers/instaCustomerController.js');
-    const guard = src.slice(src.indexOf('const aheadOfThis'), src.indexOf('WORKER_JUST_TAKEN'));
-    assert.ok(/job\.providerId = null;/.test(guard), 'it must let the worker go');
+    const guard = src.slice(src.indexOf('Assignment.claimWorker'), src.indexOf('WORKER_JUST_TAKEN'));
     assert.ok(/pushStatus\('CANCELLED', 'system'/.test(guard), 'and be recorded, not left dangling');
 });
 
@@ -852,6 +858,57 @@ check('every underscore is replaced, not just the first', () => {
         const ui = frontend(...p.split('/'));
         assert.ok(!/replace\("_", " "\)/.test(ui), `${p} still replaces only the first underscore`);
     });
+});
+
+
+console.log('\nOne guard, and every route goes through it');
+check('no route assigns a worker on its own', () => {
+    // Three routes hand out a worker and each did it its own way: booking
+    // checked capacity, reassigning checked it a moment too early, and picking a
+    // replacement Partner never checked at all. A fourth written the same way
+    // would be just as easy to miss, so the assignment itself is what is pinned.
+    ['controllers/instaCustomerController.js', 'controllers/instaProviderController.js'].forEach(f => {
+        const src = read(f);
+        const raw = src.split(/\r?\n/).filter(l =>
+            /job\.providerId\s*=\s*/.test(l) && !/=\s*null/.test(l));
+        assert.strictEqual(raw.length, 0,
+            `${f} assigns a worker directly: ${raw.map(l => l.trim()).join(' | ')}`);
+    });
+});
+
+check('all three routes call the guard', () => {
+    const customer = read('controllers/instaCustomerController.js');
+    const provider = read('controllers/instaProviderController.js');
+    // Booking, and picking a replacement Partner.
+    assert.strictEqual((customer.match(/Assignment\.claimWorker\(/g) || []).length, 2,
+        'booking and select-partner must both claim');
+    // Reassigning after a decline.
+    assert.strictEqual((provider.match(/Assignment\.claimWorker\(/g) || []).length, 1,
+        'reassignment must claim');
+});
+
+check('the claim is judged by when it was made, not when the job was booked', () => {
+    // A job being reassigned after a decline is older than the work its new
+    // worker may already have taken on, so booking time would let it displace
+    // them.
+    const src = read('services/InstaAssignmentService.js');
+    assert.ok(/job\.assignedAt = new Date\(\);/.test(src), 'the claim must be stamped');
+    assert.ok(/assignedAt: \{ \$lte: job\.assignedAt \}/.test(src), 'and compared on that stamp');
+    assert.ok(/\{ assignedAt: null \}/.test(src),
+        'a job from before the field existed must count as already holding the worker');
+});
+
+check('a refused claim gives the worker back', () => {
+    const src = read('services/InstaAssignmentService.js');
+    const guard = src.slice(src.indexOf('const claimWorker'), src.indexOf('module.exports'));
+    assert.ok(/job\.providerId = null;/.test(guard), 'it must release on failure');
+    assert.ok(/return \{ ok: false/.test(guard), 'and say so');
+});
+
+check('the claim counts the states that actually occupy someone', () => {
+    const src = read('services/InstaAssignmentService.js');
+    assert.ok(/status: \{ \$in: InstaJob\.OCCUPIES_WORKER \}/.test(src),
+        'the guard and matching must agree on what "busy" means');
 });
 
 console.log(`\n${passed} Insta Work checks passed.\n`);

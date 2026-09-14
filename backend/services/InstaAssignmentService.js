@@ -198,6 +198,43 @@ const listPartners = async ({ service, location, config }) => {
     return candidates.slice(0, Math.max(1, Number(config.maxPartnerResults) || 20));
 };
 
+/**
+ * Gives a worker to a job, and says whether they were still free to give.
+ *
+ * Capacity is counted and then acted on, with nothing in between — so two
+ * requests arriving together could both be told they had the same person.
+ * There is no conditional insert to lean on, so the claim is written first and
+ * judged afterwards, by age: a job asks how many others already held this
+ * worker before it did. That is deterministic, so two racers never both stand
+ * down — the earlier claim keeps them and the later one is refused.
+ *
+ * Every path that hands out a worker goes through here. Three did it their own
+ * way and only one checked.
+ */
+const claimWorker = async ({ job, providerId, config }) => {
+    const InstaJob = require('../models/InstaJob');
+    const max = Math.max(1, Number(config?.maxConcurrentJobs) || 1);
+
+    job.providerId = providerId;
+    job.assignedAt = new Date();
+    await job.save();
+
+    const aheadOfThis = await InstaJob.countDocuments({
+        providerId,
+        status: { $in: InstaJob.OCCUPIES_WORKER },
+        _id: { $ne: job._id },
+        // Jobs from before this field existed are treated as already holding
+        // the worker, so an unknown claim time never wins by default.
+        $or: [{ assignedAt: null }, { assignedAt: { $lte: job.assignedAt } }]
+    });
+
+    if (aheadOfThis < max) return { ok: true };
+
+    job.providerId = null;
+    job.assignedAt = null;
+    return { ok: false, heldBy: aheadOfThis };
+};
+
 module.exports = {
     etaFromDistance,
     hasFreshPing,
@@ -207,5 +244,6 @@ module.exports = {
     findCandidates,
     sewakScore,
     autoAssignSewak,
+    claimWorker,
     listPartners
 };

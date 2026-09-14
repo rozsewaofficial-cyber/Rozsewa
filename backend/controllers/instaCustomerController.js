@@ -291,25 +291,11 @@ const createJob = async (req, res) => {
             paymentMode: paymentMode === 'online' ? 'online' : 'cash'
         });
 
-        // Claiming the worker.
-        //
-        // Matching counted this worker's active jobs and then assigned them, with
-        // nothing between the two — so two customers booking at the same instant
-        // could both be told they had the same person. There is no conditional
-        // insert to lean on, so the race is settled after the fact and by age:
-        // each job asks how many active jobs that worker already had before it,
-        // and only the ones inside the limit keep them. That is deterministic —
-        // the earlier job always wins, so two racers never both stand down.
+        // Claiming the worker, through the one guard every assignment path uses.
         if (assignedProviderId) {
-            const aheadOfThis = await InstaJob.countDocuments({
-                providerId: assignedProviderId,
-                status: { $in: InstaJob.OCCUPIES_WORKER },
-                _id: { $ne: job._id },
-                createdAt: { $lte: job.createdAt }
-            });
+            const claim = await Assignment.claimWorker({ job, providerId: assignedProviderId, config });
 
-            if (aheadOfThis >= Math.max(1, Number(config.maxConcurrentJobs) || 1)) {
-                job.providerId = null;
+            if (!claim.ok) {
                 job.pushStatus('CANCELLED', 'system',
                     'Another customer reached this worker first');
                 job.cancelledBy = 'system';
@@ -317,7 +303,7 @@ const createJob = async (req, res) => {
                 await job.save();
 
                 return res.status(409).json({
-                    message: `That worker was booked a moment before you. Please try again.`,
+                    message: 'That worker was booked a moment before you. Please try again.',
                     code: 'WORKER_JUST_TAKEN'
                 });
             }
@@ -734,7 +720,17 @@ const selectPartner = async (req, res) => {
         job.rate = Pricing.resolveProviderRate({
             service, providerCategory: 'partner', requestedRate: entry.rate
         });
-        job.providerId = partner._id;
+
+        // This path checked that the Partner was live and offered the service,
+        // and never that they were free — so a Partner already mid-job could be
+        // picked as the replacement for one who had just declined.
+        const claim = await Assignment.claimWorker({ job, providerId: partner._id, config });
+        if (!claim.ok) {
+            return res.status(409).json({
+                message: 'That Partner has just taken another job. Please choose another.',
+                code: 'PARTNER_JUST_TAKEN'
+            });
+        }
 
         // The estimate moves with the rate, so it is recomputed rather than
         // left showing the declined Partner's price.

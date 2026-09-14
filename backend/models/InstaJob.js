@@ -128,6 +128,16 @@ const instaJobSchema = new mongoose.Schema({
     },
     city: { type: String, default: '' },
     // Straight-line distance and rough ETA captured when the worker was matched.
+    /**
+     * When this job laid claim to its worker.
+     *
+     * The tiebreak when two jobs reach for the same person at once. It is the
+     * moment of the claim rather than of the booking, because a job being
+     * reassigned after a decline is older than the work its new worker may
+     * already have taken on — judging by booking time would let it displace
+     * them.
+     */
+    assignedAt: { type: Date, default: null },
     matchedDistanceKm: { type: Number, default: null },
     matchedEtaMinutes: { type: Number, default: null },
 
