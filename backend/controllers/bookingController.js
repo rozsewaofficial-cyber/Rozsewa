@@ -17,6 +17,11 @@ const CashSettlementService = require('../services/CashSettlementService');
 const { sendEmail } = require('../utils/emailService');
 const { adminRecipients } = require('../utils/adminRecipients');
 
+// How many workers one booking may be offered to at once. A dispatch is a
+// race to accept, not a broadcast to the whole platform, and the candidates
+// are ordered nearest-first so this keeps the ones most likely to take it.
+const DISPATCH_FANOUT_CAP = 500;
+
 // Helper to check if time is within night window
 const isNightTime = (timeStr, startStr, endStr) => {
     const toMinutes = (s) => {
@@ -66,11 +71,16 @@ const hasOverlap = async (providerId, bookingDate, bookingTime) => {
         const overlapStart = newTimeInMins - 30;
         const overlapEnd = newTimeInMins + 30;
 
+        // One worker, one day, and only the time is read off each — this is
+        // checking whether a slot clashes, not listing anything.
         const bookingsOnDate = await Booking.find({
             providerId,
             bookingDate,
             status: { $in: ['confirmed', 'on_the_way', 'started'] }
-        });
+        })
+            .select('bookingTime serviceDuration')
+            .limit(500)
+            .lean();
 
         for (let b of bookingsOnDate) {
             if (b.bookingTime) {
@@ -677,7 +687,19 @@ const createBooking = async (req, res) => {
 
                 if (!booking.location || !booking.location.coordinates || booking.location.coordinates.length < 2) {
                     console.log(`FAILED: Booking has no valid coordinates. Dispatching to ALL online ${targetCategory}s as fallback...`);
-                    providersToNotify = await Provider.find({ _id: { $ne: req.user._id }, status: 'verified', isOnline: true, providerCategory: targetCategory });
+                    // A fallback fan-out with no location to narrow it. Capped, and
+                    // only the fields the dispatch loop reads: without a ceiling this
+                    // is "every online worker on the platform", which is not a
+                    // notification, it is an outage.
+                    providersToNotify = await Provider.find({
+                        _id: { $ne: req.user._id },
+                        status: 'verified',
+                        isOnline: true,
+                        providerCategory: targetCategory
+                    })
+                        .select('location serviceRadius serviceModes vendorType fcmTokens ownerName shopName mobile email')
+                        .limit(DISPATCH_FANOUT_CAP)
+                        .lean();
                 } else {
                     // --- Load admin-configured radius limits (Stage 1 net width) ---
                     const radiusLimitSetting = await Setting.findOne({ key: 'provider_service_radius_limits' });
@@ -709,7 +731,21 @@ const createBooking = async (req, res) => {
                     } else {
                         providerQuery.serviceModes = 'shop';
                     }
-                    const candidateProviders = await Provider.find(providerQuery);
+                    // Nearest first, so the ceiling below keeps the closest workers
+                    // rather than an arbitrary slice of everyone in range.
+                    delete providerQuery.location;
+                    const candidateProviders = await Provider.find({
+                        ...providerQuery,
+                        location: {
+                            $nearSphere: {
+                                $geometry: { type: 'Point', coordinates: booking.location.coordinates },
+                                $maxDistance: broadRadiusKm * 1000
+                            }
+                        }
+                    })
+                        .select('location serviceRadius serviceModes vendorType fcmTokens ownerName shopName mobile email')
+                        .limit(DISPATCH_FANOUT_CAP)
+                        .lean();
 
                     console.log(`Stage 1: ${candidateProviders.length} candidates found within ${broadRadiusKm} km broad net`);
 
@@ -763,7 +799,8 @@ const createBooking = async (req, res) => {
 
             // Bulk query all wallets at once for performance (resolves slow Send Request times)
             const providerIds = providersToNotify.map(p => p._id);
-            const wallets = await Wallet.find({ providerId: { $in: providerIds } });
+            // One query for the candidates in hand, and only their balances.
+            const wallets = await Wallet.find({ providerId: { $in: providerIds } }).select('providerId balance').lean();
             const walletMap = new Map(wallets.map(w => [w.providerId.toString(), w.balance]));
 
             const validProviders = [];

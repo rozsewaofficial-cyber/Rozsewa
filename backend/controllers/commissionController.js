@@ -543,7 +543,12 @@ const getEarningsData = async (req, res) => {
         if (targetProviderId) {
             withdrawalMatch.providerId = targetProviderId;
         }
-        let currentWithdrawals = await Withdrawal.find(withdrawalMatch).populate('providerId');
+        // Populating the whole provider document per withdrawal pulled KYC
+        // documents and push tokens into an analytics query. Only the partner's
+        // name and city are ever read off it.
+        let currentWithdrawals = await Withdrawal.find(withdrawalMatch)
+            .populate('providerId', 'ownerName shopName city vendorCode')
+            .lean();
 
         const prevWithdrawalMatch = {
             createdAt: { $gte: prevStart, $lte: prevEnd }
@@ -551,17 +556,26 @@ const getEarningsData = async (req, res) => {
         if (targetProviderId) {
             prevWithdrawalMatch.providerId = targetProviderId;
         }
-        let prevWithdrawals = await Withdrawal.find(prevWithdrawalMatch);
+        // The previous period is only ever totalled, so it comes back as amounts.
+        let prevWithdrawals = await Withdrawal.find(prevWithdrawalMatch)
+            .select('amount status createdAt')
+            .lean();
 
         // Fetch Banner Promotions Revenue
-        const currentBanners = await ProviderBanner.find({
+        // One number and one count, so neither needs the banners themselves.
+        // pricePaid stores the base price, so we multiply by 1.18 to get exact Total Payload collected
+        const bannerMatch = {
             createdAt: { $gte: currentStart, $lte: currentEnd },
             paymentId: { $ne: null }
-        });
-        // pricePaid stores the base price, so we multiply by 1.18 to get exact Total Payload collected
-        const bannerRevenue = Math.round(currentBanners.reduce((sum, b) => sum + (b.pricePaid || 0) * 1.18, 0));
+        };
+        const [bannerTotals] = await ProviderBanner.aggregate([
+            { $match: bannerMatch },
+            { $group: { _id: null, count: { $sum: 1 }, paid: { $sum: { $ifNull: ['$pricePaid', 0] } } } }
+        ]);
+        const bannerCount = bannerTotals?.count || 0;
+        const bannerRevenue = Math.round((bannerTotals?.paid || 0) * 1.18);
 
-        const hasHistoricalData = currentBookings.length > 0 || currentWithdrawals.length > 0 || currentBanners.length > 0;
+        const hasHistoricalData = currentBookings.length > 0 || currentWithdrawals.length > 0 || bannerCount > 0;
 
         if (!hasHistoricalData) {
             return res.json({
@@ -679,7 +693,7 @@ const getEarningsData = async (req, res) => {
             filterOptions,
             promotions: {
                 bannerRevenue,
-                totalBanners: currentBanners.length
+                totalBanners: bannerCount
             }
         });
     } catch (error) {
@@ -700,10 +714,15 @@ const getIncentives = async (req, res) => {
         const configSetting = await Setting.findOne({ key: 'sewak_incentive_config' });
         const config = configSetting ? configSetting.value : { threshold: 5, bonusAmount: 50 };
 
-        const bookings = await Booking.find({ 
+        // One day of completed work, grouped by worker below. Only the fields
+        // that grouping reads.
+        const bookings = await Booking.find({
             status: 'completed',
             bookingDate: targetDate
-        }).populate('providerId', 'ownerName shopName');
+        })
+            .select('providerId totalAmount bookingDate')
+            .populate('providerId', 'ownerName shopName')
+            .lean();
 
         // Group by provider
         const providerMap = {};

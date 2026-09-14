@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const Booking = require('../models/Booking');
 const Provider = require('../models/Provider');
 const PartnerProgram = require('../models/PartnerProgram');
@@ -227,9 +228,12 @@ exports.getCommissionAnalytics = async (req, res) => {
         if (providerId) {
             ledgerQuery.provider = new mongoose.Types.ObjectId(providerId);
         }
-        // Only the amounts are summed, so only the amounts are fetched.
-        const subscriptionPayments = await FinancialLedger.find(ledgerQuery).select('amount').lean();
-        subscriptionRevenue = subscriptionPayments.reduce((sum, item) => sum + Math.abs(item.amount), 0);
+        // A sum, so it is summed in the database — the amounts never travel.
+        const [ledgerTotals] = await FinancialLedger.aggregate([
+            { $match: ledgerQuery },
+            { $group: { _id: null, amount: { $sum: { $abs: '$amount' } } } }
+        ]);
+        subscriptionRevenue = ledgerTotals?.amount || 0;
 
         const netRevenue = platformRevenue + subscriptionRevenue;
         const avgCommissionPercent = gmv > 0 ? ((platformRevenue / gmv) * 100).toFixed(1) : 0;
@@ -611,10 +615,16 @@ exports.renewSubscription = async (req, res) => {
 // @access  Private (Provider)
 exports.getProviderSubscriptionHistory = async (req, res) => {
     try {
-        const history = await ProviderSubscription.find({ provider: req.user._id })
-            .populate('subscription')
-            .sort({ createdAt: -1 });
+        // A renewal history grows for as long as a partner stays subscribed.
+        const scope = { provider: req.user._id };
+        const history = await paginate(
+            ProviderSubscription.find(scope)
+                .populate('subscription')
+                .sort({ createdAt: -1 }),
+            pageParams(req)
+        );
 
+        res.set('X-Total-Count', String(await ProviderSubscription.countDocuments(scope)));
         res.json(history);
     } catch (error) {
         res.status(500).json({ message: error.message });

@@ -1,3 +1,4 @@
+const { pageParams, paginate } = require('../utils/pagination');
 const CoinService = require('../services/CoinService');
 const CoinRewardService = require('../services/CoinRewardService');
 const CoinLedger = require('../models/CoinLedger');
@@ -33,14 +34,20 @@ const getMyWallet = async (req, res) => {
 
         // What lapses in the next 14 days, so the UI can nudge before it's lost.
         const soon = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-        const expiringLots = await CoinLot.find({
-            walletId: wallet._id,
-            status: 'active',
-            remaining: { $gt: 0 },
-            expiryDate: { $lte: soon }
-        }).sort({ expiryDate: 1 }).lean();
+        // One number, so the lots themselves never need to travel.
+        const [expiring] = await CoinLot.aggregate([
+            {
+                $match: {
+                    walletId: wallet._id,
+                    status: 'active',
+                    remaining: { $gt: 0 },
+                    expiryDate: { $lte: soon }
+                }
+            },
+            { $group: { _id: null, remaining: { $sum: '$remaining' } } }
+        ]);
 
-        const expiringSoon = expiringLots.reduce((sum, lot) => sum + lot.remaining, 0);
+        const expiringSoon = expiring?.remaining || 0;
 
         res.json({
             enabled: config.enabled,
@@ -222,17 +229,38 @@ const getMyReferral = async (req, res) => {
         }
 
         const config = await CoinService.getConfig();
-        const referred = await User.find({ referredBy: user.referralCode })
-            .select('name createdAt referralRewarded')
-            .sort({ createdAt: -1 })
-            .lean();
+        // A good referrer keeps referring, so the list they are shown is a page
+        // of it — and the three numbers beside it describe all of it.
+        const referredScope = { referredBy: user.referralCode };
+        const referred = await paginate(
+            User.find(referredScope)
+                .select('name createdAt referralRewarded')
+                .sort({ createdAt: -1 })
+                .lean(),
+            pageParams(req)
+        );
 
-        const earnedRows = await CoinLedger.find({
-            ownerId: user._id,
-            source: 'REFERRAL_REWARD',
-            type: 'CREDIT'
-        }).lean();
-        const coinsEarned = earnedRows.reduce((sum, r) => sum + r.coins, 0);
+        const [referralTotals, earned] = await Promise.all([
+            User.aggregate([
+                { $match: referredScope },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        rewarded: { $sum: { $cond: [{ $eq: ['$referralRewarded', true] }, 1, 0] } }
+                    }
+                }
+            ]),
+            // Coins earned from referrals: a sum, so it is summed in the database.
+            CoinLedger.aggregate([
+                { $match: { ownerId: user._id, source: 'REFERRAL_REWARD', type: 'CREDIT' } },
+                { $group: { _id: null, coins: { $sum: '$coins' } } }
+            ])
+        ]);
+
+        const totalReferred = referralTotals[0]?.total || 0;
+        const totalRewarded = referralTotals[0]?.rewarded || 0;
+        const coinsEarned = earned[0]?.coins || 0;
 
         res.json({
             referralCode: user.referralCode,
@@ -243,9 +271,9 @@ const getMyReferral = async (req, res) => {
             rewardValue: CoinService.toRupees(config.customer.referralReward, config),
             // Spelled out because the reward is not paid at signup.
             condition: 'Your reward is credited once your friend completes their first order.',
-            totalReferred: referred.length,
-            totalRewarded: referred.filter(r => r.referralRewarded).length,
-            pending: referred.filter(r => !r.referralRewarded).length,
+            totalReferred,
+            totalRewarded,
+            pending: totalReferred - totalRewarded,
             coinsEarned,
             referrals: referred.map(r => ({
                 name: r.name,
