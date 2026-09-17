@@ -17,6 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
+import WelfareFundCard from "@/modules/user/components/WelfareFundCard";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
@@ -293,6 +294,14 @@ const WalletPage = () => {
             </div>
           </div>
         </div>
+
+        {/* The same fund partners contribute to, offered here from the
+            customer side. Placed under the balance because that is what it
+            spends from. */}
+        <WelfareFundCard
+          walletBalance={balance}
+          onContributed={() => fetchWalletData(currentPage)}
+        />
 
         {/* Recent Transactions */}
         <div className="space-y-4 pt-2">

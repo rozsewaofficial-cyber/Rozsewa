@@ -115,6 +115,11 @@ const ACCEPTED = [
         why: 'The v2 commission KPIs, bounded by the same chosen range.'
     },
     {
+        file: 'controllers/welfareFundController.js',
+        match: 'WelfareFundContribution.aggregate',
+        why: 'How many people are behind the fund, and how much it holds. Both group the whole ledger on purpose — that is what the figures mean — and both hand back a single row. Counting a page instead is the bug this sweep exists to catch.'
+    },
+    {
         file: 'services/InstaEarningsAdapter.js',
         match: 'InstaJob.find(',
         why: 'The Insta half of the same analytics, so it has to match whatever the booking half does.'
