@@ -16,6 +16,15 @@ const demoBookings = [
   { id: "ROJ-G7H8I9", service: "Plumbing - Tap Fix", provider: "Quick Fix Plumbers", date: "2026-03-01", time: "11:00 AM", total: 250, status: "cancelled", rating: 0, address: "Other - Station Road" },
 ];
 
+/**
+ * The short reference a booking is known by everywhere else — the provider's
+ * dashboard, live tracking, the admin screens and the confirmation toast all
+ * show the last six characters. This screen used to print the whole database
+ * id, so a customer reading their reference out to support was quoting
+ * something nobody else could see.
+ */
+const bookingRef = (id) => (id || "").toString().slice(-6).toUpperCase();
+
 const statusColors = {
   completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
   cancelled: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
@@ -127,7 +136,7 @@ const ServiceHistory = () => {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Invoice #${selectedBooking.id?.toUpperCase()}</title>
+    <title>Invoice #${bookingRef(selectedBooking.id)}</title>
     <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 40px; max-width: 600px; margin: 0 auto; background: #f8fafc; }
         .invoice-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; padding: 40px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
@@ -158,7 +167,7 @@ const ServiceHistory = () => {
             <span class="logo">RozSewa</span>
             <div class="invoice-title">
                 Invoice<br>
-                <span style="font-size: 11px; font-family: monospace; font-weight: 700;">#${selectedBooking.id?.toUpperCase()}</span>
+                <span style="font-size: 11px; font-family: monospace; font-weight: 700;">#${bookingRef(selectedBooking.id)}</span>
             </div>
         </div>
         <div class="details-grid">
@@ -239,7 +248,7 @@ const ServiceHistory = () => {
 
       const link = document.createElement("a");
       link.href = "data:text/html;charset=utf-8," + encodeURIComponent(htmlContent);
-      link.download = `Invoice_${selectedBooking.id?.toUpperCase()}.html`;
+      link.download = `Invoice_${bookingRef(selectedBooking.id)}.html`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -348,7 +357,7 @@ const ServiceHistory = () => {
                           ? 'COUNTER-OFFER RECEIVED' 
                           : booking.status}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">{booking.id}</span>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">#{bookingRef(booking.id)}</span>
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{booking.service}</h3>
                   <div className="mt-1">
@@ -440,7 +449,7 @@ const ServiceHistory = () => {
                     </div>
                     <div>
                       <h3 className="text-base font-black text-foreground">Booking Details</h3>
-                      <p className="text-[10px] font-mono text-muted-foreground">{selectedBooking.id}</p>
+                      <p className="text-[10px] font-mono text-muted-foreground">#{bookingRef(selectedBooking.id)}</p>
                     </div>
                   </div>
                   <button onClick={() => setSelectedBooking(null)} className="rounded-full p-2 hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></button>
