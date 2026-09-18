@@ -85,7 +85,7 @@ const AdminServices = () => {
     const [savingEmbedded, setSavingEmbedded] = useState(false);
     const [showEmbeddedModal, setShowEmbeddedModal] = useState(false);
     const [editingEmbedded, setEditingEmbedded] = useState(null); // null = new
-    const [embeddedForm, setEmbeddedForm] = useState({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
+    const [embeddedForm, setEmbeddedForm] = useState({ name: "", description: "", basePrice: 0, image: "", skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
 
     useScrollLock(showModal || showSubModal || showServiceModal || showEmbeddedModal);
 
@@ -311,7 +311,7 @@ const AdminServices = () => {
         await saveEmbeddedToServer(updated);
         setShowEmbeddedModal(false);
         setEditingEmbedded(null);
-        setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
+        setEmbeddedForm({ name: "", description: "", basePrice: 0, image: "", skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
     };
 
     const deleteEmbeddedService = async (svc) => {
@@ -359,7 +359,7 @@ const AdminServices = () => {
                         <button
                             onClick={() => {
                                 setEditingEmbedded(null);
-                                setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
+                                setEmbeddedForm({ name: "", description: "", basePrice: 0, image: "", skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" });
                                 setShowEmbeddedModal(true);
                             }}
                             className="flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-violet-700 transition-all active:scale-95"
@@ -724,7 +724,7 @@ const AdminServices = () => {
                             <Sparkles className="h-8 w-8 text-gray-300 mx-auto mb-3" />
                             <p className="text-xs font-bold text-gray-400">No base services in this category.</p>
                             <button
-                                onClick={() => { setEditingEmbedded(null); setEmbeddedForm({ name: "", description: "", basePrice: 0, skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" }); setShowEmbeddedModal(true); }}
+                                onClick={() => { setEditingEmbedded(null); setEmbeddedForm({ name: "", description: "", basePrice: 0, image: "", skillSessionRequired: false, sessionDurationMinutes: 60, sessionMode: "offline", skillSessionActive: true, visibleTo: "both" }); setShowEmbeddedModal(true); }}
                                 className="mt-3 text-xs font-bold text-violet-600 hover:underline"
                             >+ Add First Base Service</button>
                         </div>
@@ -761,6 +761,7 @@ const AdminServices = () => {
                                                     name: svc.name,
                                                     description: svc.description || "",
                                                     basePrice: svc.basePrice || 0,
+                                                    image: svc.image || "",
                                                     skillSessionRequired: !!svc.skillSessionRequired,
                                                     sessionDurationMinutes: svc.sessionDurationMinutes ?? 60,
                                                     sessionMode: svc.sessionMode || "offline",
@@ -1037,6 +1038,19 @@ const AdminServices = () => {
                                     </InputField>
                                     <InputField label="Base Price (₹)">
                                         <input type="number" min="0" value={embeddedForm.basePrice} onChange={e => setEmbeddedForm({ ...embeddedForm, basePrice: Number(e.target.value) })} className={inputCls} required />
+                                    </InputField>
+                                    {/* These are the services a customer browses in Sewak mode, and
+                                        that screen has always rendered an image for them — there was
+                                        simply no way to give them one here, so every card fell back
+                                        to a placeholder. */}
+                                    <InputField label="Service Image">
+                                        <div className="flex items-center gap-4">
+                                            {embeddedForm.image && (
+                                                <img src={embeddedForm.image} alt="Preview" className="h-12 w-12 rounded-xl object-cover border" />
+                                            )}
+                                            <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, setEmbeddedForm)} disabled={isUploading} className="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                            {isUploading && <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
+                                        </div>
                                     </InputField>
 
                                     {/* Skill Session gate — a Sewak must train before this service goes live */}
