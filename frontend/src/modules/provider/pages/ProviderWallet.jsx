@@ -189,6 +189,7 @@ const ProviderWallet = () => {
       const { data: order } = await API.post("/payment/order", {
         amount: debtAmount,
         currency: "INR",
+        purpose: "wallet",
       });
 
       const options = {
@@ -200,10 +201,8 @@ const ProviderWallet = () => {
         order_id: order.id,
         handler: async function (response) {
           try {
-            await API.post("/payment/verify-wallet", {
-              ...response,
-              amount: debtAmount,
-            });
+            // No amount: the server credits what the order was paid for.
+            await API.post("/payment/verify-wallet", response);
             toast({ title: "Debt cleared successfully!", variant: "default" });
             fetchWallet();
             window.dispatchEvent(new CustomEvent("WALLET_UPDATED"));
@@ -269,6 +268,7 @@ const ProviderWallet = () => {
       const { data: order } = await API.post("/payment/order", {
         amount: amount,
         currency: "INR",
+        purpose: "wallet",
       });
 
       const options = {
@@ -280,10 +280,7 @@ const ProviderWallet = () => {
         order_id: order.id,
         handler: async function (response) {
           try {
-            await API.post("/payment/verify-wallet", {
-              ...response,
-              amount: amount,
-            });
+            await API.post("/payment/verify-wallet", response);
             toast({ title: "Wallet recharged successfully!", variant: "default" });
             fetchWallet();
             closeRechargeModal();

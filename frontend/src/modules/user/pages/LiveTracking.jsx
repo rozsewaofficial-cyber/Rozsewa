@@ -136,8 +136,9 @@ const LiveTracking = () => {
           )
           .reduce((sum, c) => sum + (c.amount || 0), 0) || 0);
       const { data: order } = await API.post("/payment/order", {
-        amount: finalAmount,
         currency: "INR",
+        purpose: "booking",
+        bookingId: bookingDetails._id,
       });
 
       const options = {

@@ -133,6 +133,7 @@ const WalletPage = () => {
       const { data: order } = await API.post("/payment/order", {
         amount: amount,
         currency: "INR",
+        purpose: "wallet",
       });
 
       // 2. Open Razorpay Checkout
@@ -146,12 +147,12 @@ const WalletPage = () => {
         handler: async (response) => {
           try {
             // 3. Verify Payment and Add Money Securely
+            // The amount is not sent: the server credits what the order it
+            // raised was actually paid for. Anything named here would be a
+            // balance chosen by the browser.
             const { data: verification } = await API.post(
               "/payment/verify-user-wallet",
-              {
-                ...response,
-                amount: amount,
-              },
+              response,
             );
 
             if (verification.success) {

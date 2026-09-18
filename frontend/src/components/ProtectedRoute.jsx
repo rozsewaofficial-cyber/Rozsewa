@@ -102,7 +102,7 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     }
 
     try {
-      const { data: order } = await API.post("/payment/order", { amount: user.currentDebt, currency: "INR" });
+      const { data: order } = await API.post("/payment/order", { amount: user.currentDebt, currency: "INR", purpose: "wallet" });
 
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
@@ -113,10 +113,7 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
         order_id: order.id,
         handler: async function (response) {
           try {
-            await API.post("/payment/verify-wallet", {
-              ...response,
-              amount: user.currentDebt
-            });
+            await API.post("/payment/verify-wallet", response);
             toast({ title: "Debt cleared successfully! Reloading...", variant: "default" });
             window.location.reload();
           } catch (error) {

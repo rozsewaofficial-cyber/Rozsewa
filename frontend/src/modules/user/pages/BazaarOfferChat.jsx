@@ -354,6 +354,7 @@ const BazaarOfferChat = () => {
       const orderRes = await api.post("/payment/order", {
         amount: unlockStatus.fee,
         currency: "INR",
+        purpose: "bazaar",
       });
 
       const options = {

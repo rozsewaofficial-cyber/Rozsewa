@@ -7,13 +7,113 @@ const razorpay = new Razorpay({
     key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
+const PaymentOrder = require('../models/PaymentOrder');
+
+const PURPOSES = ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'other'];
+
+/**
+ * Accepting a payment without a gateway.
+ *
+ * Only ever true when the environment says so, which no production
+ * environment should. It used to be switched on by the request itself, which
+ * meant anyone could ask for a subscription or a kit and be given it.
+ */
+const SIMULATED_PAYMENTS_ALLOWED = process.env.ALLOW_SIMULATED_PAYMENTS === 'true';
+
+/**
+ * Is this signature genuinely Razorpay's?
+ *
+ * There is no fallback key. Signing with a default when the secret is missing
+ * would mean checking every signature against a string that is published in
+ * this file, so an absent secret fails every payment rather than passing them
+ * all.
+ */
+const signatureIsValid = (orderId, paymentId, signature) => {
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) {
+        console.error('RAZORPAY_KEY_SECRET is not set — refusing to verify any payment.');
+        return false;
+    }
+    const expected = crypto
+        .createHmac('sha256', secret)
+        .update(`${orderId}|${paymentId}`)
+        .digest('hex');
+    // Both are hex digests of the same length; compared without leaking where
+    // they first differ.
+    const a = Buffer.from(String(signature || ''), 'utf8');
+    const b = Buffer.from(expected, 'utf8');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
+/**
+ * Turn a claimed payment into the order it actually paid for.
+ *
+ * Checks the signature, then claims the recorded order in one atomic update so
+ * the same payment cannot be presented twice. Everything the caller is then
+ * trusted with — how much, what for, whose — comes off that record and not off
+ * the request.
+ *
+ * Returns { error, status } on refusal, or { order } on success.
+ */
+const claimPayment = async (req, { purpose, principal } = {}) => {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        return { status: 400, error: 'Payment details are incomplete' };
+    }
+    if (!signatureIsValid(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+        return { status: 400, error: 'Invalid payment signature' };
+    }
+
+    const order = await PaymentOrder.consume(razorpay_order_id, razorpay_payment_id);
+    if (!order) {
+        // Either this order was never recorded, or its payment was already
+        // spent. Both mean the same thing here: it buys nothing now.
+        return { status: 409, error: 'This payment has already been used, or the order is unknown.' };
+    }
+
+    if (purpose && order.purpose !== purpose) {
+        return { status: 400, error: 'This payment was made for something else.' };
+    }
+
+    // An order created while signed in belongs to that account and nobody else.
+    if (principal && (order.userId || order.providerId)) {
+        const owner = (order.userId || order.providerId).toString();
+        if (owner !== principal.toString()) {
+            return { status: 403, error: 'This payment belongs to another account.' };
+        }
+    }
+
+    return { order };
+};
+
 // @desc    Create Razorpay Order
 // @route   POST /api/payment/order
 // @access  Public (for registration) / Private (for bookings)
 const createOrder = async (req, res) => {
-    const { amount, currency } = req.body;
+    const { currency, purpose, bookingId } = req.body;
 
     try {
+        // What the payment is worth is settled here and written down, because
+        // the signature Razorpay returns later says nothing about the amount.
+        // For a booking the figure comes off the booking itself, so the caller
+        // cannot name their own price for work already quoted.
+        let amount = Number(req.body.amount);
+        let booking = null;
+
+        if (bookingId) {
+            const Booking = require('../models/Booking');
+            booking = await Booking.findById(bookingId).select('totalAmount userId');
+            if (!booking) {
+                return res.status(404).json({ message: 'Booking not found' });
+            }
+            amount = Number(booking.totalAmount);
+        }
+
+        if (!amount || isNaN(amount) || amount <= 0) {
+            return res.status(400).json({ message: 'A valid amount is required' });
+        }
+
         const options = {
             amount: Math.round(amount * 100), // amount in smallest currency unit (paise)
             currency: currency || "INR",
@@ -21,6 +121,19 @@ const createOrder = async (req, res) => {
         };
 
         const order = await razorpay.orders.create(options);
+
+        await PaymentOrder.create({
+            orderId: order.id,
+            amount,
+            currency: options.currency,
+            purpose: PURPOSES.includes(purpose) ? purpose : (bookingId ? 'booking' : 'other'),
+            bookingId: booking?._id,
+            // `protect` does not run on this route — registration pays before
+            // there is an account — so this is recorded only when known.
+            userId: req.user?.role === 'customer' ? req.user._id : undefined,
+            providerId: (req.user?.role === 'provider' || req.user?.role === 'sewak') ? req.user._id : undefined
+        });
+
         res.json(order);
     } catch (error) {
         console.error("Razorpay Error:", error);
@@ -32,19 +145,25 @@ const createOrder = async (req, res) => {
 // @route   POST /api/payment/verify
 // @access  Public / Private
 const verifyPayment = async (req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId } = req.body;
+    const { razorpay_payment_id, bookingId } = req.body;
 
-    const sign = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSign = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-        .update(sign.toString())
-        .digest("hex");
+    const claim = await claimPayment(req);
+    if (claim.error) {
+        return res.status(claim.status).json({ message: claim.error, success: false });
+    }
 
-    if (razorpay_signature === expectedSign) {
-        // If bookingId is provided, update the booking status
+    {
+        // A booking is marked paid only by the payment raised for that booking.
+        // Without this, one captured signature settled any booking in the
+        // system, as many times as it was sent.
         if (bookingId) {
             const Booking = require('../models/Booking');
             const PaymentAudit = require('../models/PaymentAudit');
+            if (!claim.order.bookingId || claim.order.bookingId.toString() !== bookingId.toString()) {
+                return res.status(400).json({
+                    message: 'This payment was not raised for that booking.', success: false
+                });
+            }
             const booking = await Booking.findById(bookingId);
             if (booking) {
                 const prevPaymentStatus = booking.paymentStatus;
@@ -100,9 +219,6 @@ const verifyPayment = async (req, res) => {
             }
         }
         res.json({ message: "Payment verified successfully", success: true });
-
-    } else {
-        res.status(400).json({ message: "Invalid signature", success: false });
     }
 };
 
@@ -111,18 +227,22 @@ const verifyPayment = async (req, res) => {
 // @access  Private (Provider)
 const verifySubscriptionPayment = async (req, res) => {
     try {
-        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId, isSimulated } = req.body;
+        const { planId, isSimulated } = req.body;
 
         let isVerified = false;
-        if (isSimulated || razorpay_signature === 'simulated') {
+        if (isSimulated || req.body.razorpay_signature === 'simulated') {
+            // This used to be enough on its own, so any partner could ask for a
+            // paid plan and be given it.
+            if (!SIMULATED_PAYMENTS_ALLOWED) {
+                return res.status(400).json({ message: 'Payment could not be verified', success: false });
+            }
             isVerified = true;
-        } else if (razorpay_order_id && razorpay_payment_id && razorpay_signature) {
-            const sign = razorpay_order_id + "|" + razorpay_payment_id;
-            const expectedSign = crypto
-                .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "secret")
-                .update(sign.toString())
-                .digest("hex");
-            if (razorpay_signature === expectedSign) isVerified = true;
+        } else {
+            const claim = await claimPayment(req, { purpose: 'subscription', principal: req.user._id });
+            if (claim.error) {
+                return res.status(claim.status).json({ message: claim.error, success: false });
+            }
+            isVerified = true;
         }
 
         if (isVerified) {
@@ -256,15 +376,14 @@ const verifySubscriptionPayment = async (req, res) => {
 // @route   POST /api/payment/verify-wallet
 // @access  Private (Provider)
 const verifyWalletRecharge = async (req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount } = req.body;
+    const { razorpay_payment_id } = req.body;
 
-    const sign = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSign = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-        .update(sign.toString())
-        .digest("hex");
+    const claim = await claimPayment(req, { purpose: 'wallet', principal: req.user._id });
+    if (claim.error) {
+        return res.status(claim.status).json({ message: claim.error, success: false });
+    }
 
-    if (razorpay_signature === expectedSign) {
+    {
         const { Wallet, Transaction } = require('../models/Wallet');
         const Provider = require('../models/Provider');
 
@@ -274,7 +393,10 @@ const verifyWalletRecharge = async (req, res) => {
         }
 
         const isDebtSettlement = wallet.balance < 0;
-        const rechargeAmount = Number(amount);
+        // What was actually paid, off the order raised for it. Taking this from
+        // the request meant a rupee could be paid and any sum credited, because
+        // the amount is no part of what Razorpay signs.
+        const rechargeAmount = claim.order.amount;
         wallet.balance += rechargeAmount;
         wallet.cashCommissionDues = Math.max(0, (wallet.cashCommissionDues || 0) - rechargeAmount);
         await wallet.save();
@@ -296,8 +418,6 @@ const verifyWalletRecharge = async (req, res) => {
         }
 
         res.json({ message: "Debt settled successfully!", success: true });
-    } else {
-        res.status(400).json({ message: "Invalid payment signature", success: false });
     }
 };
 
@@ -305,25 +425,25 @@ const verifyWalletRecharge = async (req, res) => {
 // @route   POST /api/payment/verify-user-wallet
 // @access  Private (User)
 const verifyUserWalletRecharge = async (req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount } = req.body;
+    const { razorpay_payment_id } = req.body;
 
-    const sign = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSign = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-        .update(sign.toString())
-        .digest("hex");
+    const claim = await claimPayment(req, { purpose: 'wallet', principal: req.user._id });
+    if (claim.error) {
+        return res.status(claim.status).json({ message: claim.error, success: false });
+    }
 
-    if (razorpay_signature === expectedSign) {
+    {
         const { Wallet, Transaction } = require('../models/Wallet');
 
-        let wallet = await Wallet.findOne({ userId: req.user._id });
-        if (!wallet) {
-            wallet = await Wallet.create({ userId: req.user._id, balance: 0 });
-        }
-
-        const rechargeAmount = Number(amount);
-        wallet.balance += rechargeAmount;
-        await wallet.save();
+        // Credited from the order that was actually paid, never from the
+        // request. The signature covers the order and payment ids only, so a
+        // caller-supplied amount was a caller-supplied balance.
+        const rechargeAmount = claim.order.amount;
+        const wallet = await Wallet.findOneAndUpdate(
+            { userId: req.user._id },
+            { $inc: { balance: rechargeAmount }, $setOnInsert: { userId: req.user._id } },
+            { new: true, upsert: true }
+        );
 
         await Transaction.create({
             userId: req.user._id,
@@ -334,9 +454,7 @@ const verifyUserWalletRecharge = async (req, res) => {
             description: `Recharge via Razorpay (ID: ${razorpay_payment_id})`
         });
 
-        res.json({ message: "Money added successfully!", success: true });
-    } else {
-        res.status(400).json({ message: "Invalid payment signature", success: false });
+        res.json({ message: "Money added successfully!", success: true, walletBalance: wallet.balance });
     }
 };
 
@@ -387,15 +505,14 @@ const checkExpiringSubscriptions = async () => {
 // @route   POST /api/payment/verify-lead-payment
 // @access  Private (Provider)
 const verifyLeadPayment = async (req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, leadId } = req.body;
+    const { leadId } = req.body;
 
-    const sign = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSign = crypto
-        .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-        .update(sign.toString())
-        .digest("hex");
+    const claim = await claimPayment(req, { purpose: 'lead', principal: req.user._id });
+    if (claim.error) {
+        return res.status(claim.status).json({ message: claim.error, success: false });
+    }
 
-    if (razorpay_signature === expectedSign) {
+    {
         const session = await mongoose.startSession();
         try {
             session.startTransaction();
@@ -437,8 +554,6 @@ const verifyLeadPayment = async (req, res) => {
             session.endSession();
             res.status(500).json({ message: err.message });
         }
-    } else {
-        res.status(400).json({ message: "Invalid signature", success: false });
     }
 };
 
@@ -456,15 +571,14 @@ module.exports = {
 // @route   POST /api/payment/verify-bazaar
 // @access  Private (User)
 const verifyBazaarPayment = async (req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, offerId } = req.body;
+    const { offerId } = req.body;
 
-    const sign = razorpay_order_id + '|' + razorpay_payment_id;
-    const expectedSign = crypto
-        .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-        .update(sign.toString())
-        .digest('hex');
+    const claim = await claimPayment(req, { purpose: 'bazaar', principal: req.user._id });
+    if (claim.error) {
+        return res.status(claim.status).json({ success: false, message: claim.error });
+    }
 
-    if (razorpay_signature === expectedSign) {
+    {
         const BazaarOffer = require('../models/BazaarOffer');
         const offer = await BazaarOffer.findById(offerId);
 
@@ -477,8 +591,6 @@ const verifyBazaarPayment = async (req, res) => {
         await offer.save();
 
         res.json({ success: true, message: 'Payment verified! Contact details unlocked.' });
-    } else {
-        res.status(400).json({ success: false, message: 'Invalid payment signature' });
     }
 };
 
@@ -494,14 +606,22 @@ const verifyKitOrderPayment = async (req, res) => {
 
         let isVerified = false;
         if (isSimulated || razorpay_signature === 'simulated') {
+            // The kit checkout was never wired to a gateway, so this branch was
+            // handing out kits for nothing. It now needs the environment's
+            // consent, which production must not give.
+            if (!SIMULATED_PAYMENTS_ALLOWED) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Kit payments are not available yet. Please try again later.'
+                });
+            }
             isVerified = true;
-        } else if (razorpay_order_id && razorpay_payment_id && razorpay_signature) {
-            const sign = razorpay_order_id + "|" + razorpay_payment_id;
-            const expectedSign = crypto
-                .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || "secret")
-                .update(sign.toString())
-                .digest("hex");
-            if (razorpay_signature === expectedSign) isVerified = true;
+        } else {
+            const claim = await claimPayment(req, { purpose: 'kit', principal: req.user._id });
+            if (claim.error) {
+                return res.status(claim.status).json({ success: false, message: claim.error });
+            }
+            isVerified = true;
         }
 
         if (!isVerified) {

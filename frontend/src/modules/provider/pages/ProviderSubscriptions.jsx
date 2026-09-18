@@ -161,6 +161,7 @@ const ProviderSubscriptions = () => {
       const { data: order } = await API.post("/payment/order", {
         amount: payableNow,
         currency: "INR",
+        purpose: "subscription",
       });
 
       const options = {

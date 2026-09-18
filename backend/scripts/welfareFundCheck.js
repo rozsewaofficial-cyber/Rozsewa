@@ -59,11 +59,18 @@ check('the gift, the debit and the wallet all use the same key', () => {
 check('a gift is refused when the wallet cannot cover it', () => {
     const fn = controller.slice(controller.indexOf('const contributeToWelfareFund'),
         controller.indexOf('// @desc    The caller'));
-    assert.ok(/wallet\.balance < amount/.test(fn), 'the server checks the balance itself');
-    assert.ok(/amount < 1|isNaN\(amount\)/.test(fn), 'and that the amount is a real one');
-    // The client guard is a courtesy; it can be walked straight past.
-    assert.ok(fn.indexOf('wallet.balance < amount') < fn.indexOf('wallet.balance -= amount'),
-        'and it checks before it debits');
+    assert.ok(/amount < 1|isNaN\(amount\)/.test(fn), 'the amount has to be a real one');
+
+    // The client guard is a courtesy; it can be walked straight past. The
+    // server's own check has to be part of the debit rather than a step before
+    // it — checked separately, five requests sent together each passed the
+    // same check and 500 left a wallet holding 100.
+    assert.ok(/balance: \{ \$gte: amount \}/.test(fn),
+        'the balance is required by the update that debits it');
+    assert.ok(/\$inc: \{ balance: -amount \}/.test(fn), 'which decrements it');
+    assert.ok(/Insufficient wallet balance/.test(fn), 'and says so when it cannot');
+    assert.ok(!/wallet\.balance -= amount/.test(fn),
+        'the balance is never read, decided on, and written back');
 });
 
 check("a partner's dashboard copy of the balance keeps up", () => {

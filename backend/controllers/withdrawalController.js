@@ -25,7 +25,7 @@ const requestWithdrawal = async (req, res) => {
             return res.status(400).json({ message: 'Please link your bank account first.' });
         }
 
-        const wallet = await Wallet.findOne({ providerId: req.user._id });
+        let wallet = await Wallet.findOne({ providerId: req.user._id });
 
         if (!wallet || wallet.availableBalance < amount) {
             return res.status(400).json({ message: 'Insufficient Available Balance.' });
@@ -86,11 +86,26 @@ const requestWithdrawal = async (req, res) => {
             }
         })();
 
-        // Deduct from availableBalance and balance immediately
-        wallet.availableBalance -= amount;
-        wallet.balance -= amount;
-        wallet.updatedAt = Date.now();
-        await wallet.save();
+        // Held in one update, matched on the money still being there. Reading
+        // the balance, checking it, and writing it back afterwards let several
+        // requests sent together each clear the same check and each be paid.
+        const held = await Wallet.findOneAndUpdate(
+            { providerId: req.user._id, availableBalance: { $gte: amount } },
+            {
+                $inc: { availableBalance: -amount, balance: -amount },
+                $set: { updatedAt: Date.now() }
+            },
+            { new: true }
+        );
+
+        if (!held) {
+            // Somebody got there first. The request was already written, so it
+            // is withdrawn again rather than left pending against money that
+            // is no longer available.
+            await Withdrawal.deleteOne({ _id: withdrawal._id });
+            return res.status(400).json({ message: 'Insufficient Available Balance.' });
+        }
+        wallet = held;
 
         // Create a pending ledger Transaction
         await Transaction.create({

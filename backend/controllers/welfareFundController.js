@@ -59,13 +59,23 @@ const contributeToWelfareFund = async (req, res) => {
             wallet = await Wallet.create({ ...contributor.walletQuery, balance: 0 });
         }
 
-        if (wallet.balance < amount) {
-            return res.status(400).json({ message: `Insufficient wallet balance. Available: ₹${wallet.balance}` });
-        }
+        // The balance is checked and debited in a single update, matched on the
+        // balance still being large enough. Reading it, deciding, and then
+        // writing it back let several requests each pass the same check: five
+        // sent together against a wallet of 100 all succeeded, and 500 reached
+        // the fund from a wallet that never held it.
+        wallet = await Wallet.findOneAndUpdate(
+            { ...contributor.walletQuery, balance: { $gte: amount } },
+            { $inc: { balance: -amount }, $set: { updatedAt: Date.now() } },
+            { new: true }
+        );
 
-        wallet.balance -= amount;
-        wallet.updatedAt = Date.now();
-        await wallet.save();
+        if (!wallet) {
+            const current = await Wallet.findOne(contributor.walletQuery).select('balance').lean();
+            return res.status(400).json({
+                message: `Insufficient wallet balance. Available: ₹${current?.balance ?? 0}`
+            });
+        }
 
         // A partner's profile carries a copy of the balance for their dashboard.
         if (contributor.provider) {

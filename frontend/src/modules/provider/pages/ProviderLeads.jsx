@@ -501,6 +501,7 @@ const ProviderLeads = () => {
       const { data: orderData } = await API.post("/payment/order", {
         amount,
         type: "lead_unlock",
+        purpose: "lead",
         leadId,
       });
       const options = {
