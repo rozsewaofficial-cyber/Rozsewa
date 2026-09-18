@@ -12,7 +12,7 @@ import ServiceCard from "@/modules/user/components/ServiceCard";
 import RecentBookingTracker from "@/modules/user/components/RecentBookingTracker";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
-import { UserCircle, ShieldCheck, Tag, Clock, Siren, Truck, Wrench } from "lucide-react";
+import { UserCircle, ShieldCheck, Tag, Clock, Siren, Truck, Wrench, Zap } from "lucide-react";
 
 const defaultBanners = [
   { id: 1, title: "Summer Mega Sale", subtitle: "Flat 30% OFF on AC Repair", image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=1200&q=80", link: "/shops?search=AC" },
@@ -33,6 +33,10 @@ const Index = () => {
   const [bazaarChats, setBazaarChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [direction, setDirection] = useState(0);
+  // Insta Work can be switched off, and is off in places it has not launched
+  // in yet. Sending someone to a screen that only says "not available" is
+  // worse than not offering it, so the card waits to hear that it is on.
+  const [instaEnabled, setInstaEnabled] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -158,6 +162,24 @@ const Index = () => {
   };
 
   const bannerScrollRef = useRef(null);
+
+  // Whether to offer Insta Work here at all. Asked for the city, because it
+  // launches city by city. Kept apart from the main home fetch so it runs when
+  // the session is ready — folded into that fetch, it only ran if the user had
+  // already loaded by the time a location change triggered it, which on a cold
+  // load it had not.
+  useEffect(() => {
+    if (!user) { setInstaEnabled(false); return; }
+    let cancelled = false;
+    API.get(`/insta/services${userCity ? `?city=${encodeURIComponent(userCity)}` : ""}`)
+      .then(({ data }) => {
+        if (!cancelled) {
+          setInstaEnabled(data.enabled !== false && (data.services || []).length > 0);
+        }
+      })
+      .catch(() => { if (!cancelled) setInstaEnabled(false); });
+    return () => { cancelled = true; };
+  }, [user, userCity]);
 
   useEffect(() => {
     let cancelled = false;
@@ -586,6 +608,30 @@ const Index = () => {
               </div>
             </section>
           </div>
+        )}
+
+        {/* Insta Work CTA — outside the mode branches, so it is offered
+            whether the customer is browsing Local Experts or Sewaks. */}
+        {instaEnabled && (
+          <section className="space-y-4 pt-2 pb-4">
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-5 rounded-[24px] border border-amber-100 dark:border-amber-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
+              <div className="relative z-10 w-[70%]">
+                <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Need someone right now?</h3>
+                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">
+                  Book a worker by the hour for short or urgent jobs. Pay for the time you use.
+                </p>
+                <Link
+                  to="/insta-work"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-amber-200 dark:shadow-none"
+                >
+                  <Zap className="w-3.5 h-3.5" /> Book Insta Work
+                </Link>
+              </div>
+              <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
+                <Zap className="w-28 h-28 text-amber-500" />
+              </div>
+            </div>
+          </section>
         )}
 
         {/* 24/7 Emergency Banner */}
