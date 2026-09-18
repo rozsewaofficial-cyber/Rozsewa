@@ -655,4 +655,28 @@ check('exporting covers the match rather than the page on screen', () => {
     assert.ok(/exportRows\.map\(b => \[/.test(ui), 'and build the file from those');
 });
 
+check('the price quoted at checkout is the price the booking is made at', () => {
+    // The travel charge is applied when the booking is created, from the
+    // straight-line distance between the two pins. Checkout used to quote
+    // Google's driving distance instead, which is never shorter — so the
+    // customer was shown a total no booking was ever written at.
+    const ui = frontend('modules', 'user', 'pages', 'Checkout.jsx');
+    assert.ok(!/DistanceMatrixService/.test(ui),
+        'checkout must not price off a second, different distance');
+    assert.ok(/6371 \* 2 \* Math\.atan2/.test(ui),
+        'it prices off haversine, as the server does');
+
+    // And the fee built on that distance has to be built the same way.
+    const svc = read('services/DistanceChargeService.js');
+    for (const [what, re] of [
+        ['the base distance', /distanceKm <= (config|cfg)\.baseDistance/],
+        ['the per-km rate', /baseFee \+ .*extraFeePerKm/],
+        ['the charge ceiling', /maximumCharge && charge > (config|cfg)\.maximumCharge/],
+        ['the distance ceiling', /maximumDistance && distanceKm > (config|cfg)\.maximumDistance/]
+    ]) {
+        assert.ok(re.test(ui), `checkout applies ${what}`);
+        assert.ok(re.test(svc), `and so does the server`);
+    }
+});
+
 console.log(`\n${passed} checks passed.\n`);

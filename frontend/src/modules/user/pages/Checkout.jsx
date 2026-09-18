@@ -53,6 +53,11 @@ const dates = Array.from({ length: 7 }, (_, i) => {
 
 const libraries = ["places"];
 
+// The short reference a booking is known by on every other screen, and the one
+// the admin booking search matches on. Showing the whole database id here gave
+// the customer a reference nobody they quoted it to would recognise.
+const bookingRef = (id) => (id || "").toString().slice(-6).toUpperCase();
+
 const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -83,7 +88,7 @@ const Checkout = () => {
   });
   const [providerDetails, setProviderDetails] = useState(null);
   const [userProposedAmount, setUserProposedAmount] = useState("");
-  const [drivingDistanceKm, setDrivingDistanceKm] = useState(null);
+  const [travelDistanceKm, setTravelDistanceKm] = useState(null);
   const [serviceLocation, setServiceLocation] = useState("home");
   const [gstPercent, setGstPercent] = useState(0);
   const [platformFee, setPlatformFee] = useState(0);
@@ -353,14 +358,21 @@ const Checkout = () => {
     fetchConfig();
   }, []);
 
-  // Calculate true driving distance via Google Maps API
+  // The travel distance the booking will actually be charged on.
+  //
+  // This has to be the same straight-line figure the server works out when
+  // the booking is created, because that is the one that ends up on the
+  // booking and on the bill. Asking Google for the driving distance gave a
+  // longer, truer-looking number, and the customer was then quoted a price
+  // that no booking was ever made at — road distance is never shorter than
+  // straight-line, so the two disagreed on every booking where Maps loaded.
   useEffect(() => {
     if (
       !distanceChargeConfig?.enabled ||
       !providerDetails?.location?.coordinates ||
       !selectedAddress?.location?.coordinates
     ) {
-      setDrivingDistanceKm(null);
+      setTravelDistanceKm(null);
       return;
     }
 
@@ -370,11 +382,11 @@ const Checkout = () => {
     const pLat = Number(providerDetails.location.coordinates[1]);
 
     if (isNaN(bLon) || isNaN(pLon) || isNaN(bLat) || isNaN(pLat)) {
-      setDrivingDistanceKm(null);
+      setTravelDistanceKm(null);
       return;
     }
 
-    // Fallback: Straight-line (Haversine)
+    // Haversine, matching DistanceChargeService.calculateDistance on the server.
     const toRad = (value) => (value * Math.PI) / 180;
     const dLat = toRad(pLat - bLat);
     const dLon = toRad(pLon - bLon);
@@ -387,39 +399,8 @@ const Checkout = () => {
     const straightDistanceKm =
       6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-    if (
-      isLoaded &&
-      window.google &&
-      window.google.maps &&
-      window.google.maps.DistanceMatrixService
-    ) {
-      const service = new window.google.maps.DistanceMatrixService();
-      service.getDistanceMatrix(
-        {
-          origins: [{ lat: pLat, lng: pLon }],
-          destinations: [{ lat: bLat, lng: bLon }],
-          travelMode: window.google.maps.TravelMode.DRIVING,
-        },
-        (response, status) => {
-          if (
-            status === "OK" &&
-            response?.rows?.[0]?.elements?.[0]?.status === "OK"
-          ) {
-            const distMeters = response.rows[0].elements[0].distance.value;
-            setDrivingDistanceKm(distMeters / 1000);
-          } else {
-            console.warn(
-              "DistanceMatrixService failed, using straight-line distance:",
-              status,
-            );
-            setDrivingDistanceKm(straightDistanceKm);
-          }
-        },
-      );
-    } else {
-      setDrivingDistanceKm(straightDistanceKm);
-    }
-  }, [selectedAddress, providerDetails, distanceChargeConfig, isLoaded]);
+    setTravelDistanceKm(straightDistanceKm);
+  }, [selectedAddress, providerDetails, distanceChargeConfig]);
 
   useEffect(() => {
     let interval;
@@ -605,7 +586,7 @@ const Checkout = () => {
   let estimatedTravelCharge = distanceChargeConfig?.enabled
     ? Number(distanceChargeConfig.fallbackCharge || 40)
     : 0;
-  let calculatedDistanceKm = drivingDistanceKm;
+  let calculatedDistanceKm = travelDistanceKm;
   let appliedDistanceConfig = distanceChargeConfig;
 
   if (
@@ -1296,12 +1277,12 @@ const Checkout = () => {
               </span>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(bookingId);
-                  toast({ title: "Copied!", description: bookingId });
+                  navigator.clipboard.writeText(bookingRef(bookingId));
+                  toast({ title: "Copied!", description: bookingRef(bookingId) });
                 }}
                 className="flex items-center gap-1.5 text-sm font-black text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:text-blue-400/80 transition-colors"
               >
-                {bookingId} <Copy className="h-3.5 w-3.5" />
+                #{bookingRef(bookingId)} <Copy className="h-3.5 w-3.5" />
               </button>
             </div>
 
