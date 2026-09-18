@@ -22,6 +22,13 @@ const mongoose = require('mongoose');
  */
 const settle = async (job) => {
     const Provider = require('../models/Provider');
+    // Populated below to choose the commission rule. Required here because a
+    // populate needs the model registered, and this service is reached from
+    // the cron as well as from a request — where the web app happens to have
+    // loaded Category already, the sweep does not. Settlement never throws, so
+    // the miss showed up only as a job quietly closing with the commission
+    // never charged.
+    require('../models/Category');
     const { Wallet, Transaction } = require('../models/Wallet');
     const CommissionRuleEngine = require('./CommissionRuleEngine');
     const CommissionService = require('./CommissionService');

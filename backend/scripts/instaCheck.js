@@ -934,4 +934,60 @@ check('finished work cannot be cancelled away by either side', () => {
     }
 });
 
+console.log('\nFinished work does not wait on the customer forever');
+
+check('a job the customer never confirms is confirmed for them', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'cron', 'instaJobs.js'), 'utf8');
+    const fn = src.slice(src.indexOf('const autoConfirmAbandonedJobs'));
+
+    assert.ok(/status: 'WORK_COMPLETED'/.test(fn), 'it looks at finished work');
+    assert.ok(/workCompletedAt: \{ \$lte: cutoff \}/.test(fn), 'that has waited past the window');
+    assert.ok(/pushStatus\('CUSTOMER_CONFIRMED', 'system'/.test(fn),
+        'and confirms it as the system, never as the customer');
+    assert.ok(/autoConfirmedAt = new Date\(\)/.test(fn),
+        'recording that it was automatic, for the dispute that follows');
+});
+
+check('cash is settled, online is left genuinely unpaid', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'cron', 'instaJobs.js'), 'utf8');
+    const fn = src.slice(src.indexOf('const autoConfirmAbandonedJobs'));
+
+    // Cash changed hands at the door, so the books catch up and the worker's
+    // commission is charged. Online money never moved, and a timer cannot
+    // charge a card nobody authorised — claiming otherwise would be fiction.
+    assert.ok(/job\.paymentMode === 'cash' \|\| nothingToPay/.test(fn),
+        'only cash (or a nil bill) is treated as paid');
+    assert.ok(/Settlement\.settle\(job\)/.test(fn), 'and settled');
+    assert.ok(/'Payment due'/.test(fn), 'while online work is chased for payment');
+});
+
+check('the window is configurable and can be switched off', () => {
+    assert.ok(Object.prototype.hasOwnProperty.call(C.DEFAULT_CONFIG, 'autoConfirmHours'),
+        'there is a setting for it');
+    assert.ok(C.DEFAULT_CONFIG.autoConfirmHours >= 1,
+        'whose default gives the customer a real chance to dispute');
+    const fs = require('fs');
+    const path = require('path');
+    const cfg = fs.readFileSync(path.join(__dirname, '..', 'services', 'InstaConfigService.js'), 'utf8');
+    assert.ok(/autoConfirm > 0 && autoConfirm < 1/.test(cfg),
+        'a window shorter than an hour is refused');
+    assert.ok(/autoConfirmHours\) \|\| 0;[\s\S]{0,80}hours <= 0\) return 0/.test(
+        fs.readFileSync(path.join(__dirname, '..', 'cron', 'instaJobs.js'), 'utf8')),
+        'and zero switches it off entirely');
+});
+
+check('settlement can find the model it populates', () => {
+    // settle() never throws, so a missing model registration showed up only as
+    // jobs closing with the commission silently never charged.
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'InstaSettlementService.js'), 'utf8');
+    assert.ok(/require\('\.\.\/models\/Category'\)/.test(src),
+        'Category is required where it is populated');
+});
+
 console.log(`\n${passed} Insta Work checks passed.\n`);

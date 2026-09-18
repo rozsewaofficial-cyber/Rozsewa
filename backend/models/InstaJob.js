@@ -210,6 +210,12 @@ const instaJobSchema = new mongoose.Schema({
     // is captured, and uniqueness is enforced by the partial index below.
     razorpayPaymentId: { type: String },
 
+    // Set when the platform confirmed the work because the customer never did.
+    // Recorded rather than left implicit: a bill nobody pressed a button on is
+    // exactly the bill that gets disputed later, and support needs to see that
+    // it was confirmed on a timer and when.
+    autoConfirmedAt: { type: Date, default: null },
+
     /* ------------------------------ settlement ----------------------------- */
 
     adminCommission: { type: Number, default: 0 },

@@ -25,6 +25,12 @@ const DEFAULT_CONFIG = {
     // How long the customer has to answer before the request lapses.
     extensionResponseMinutes: 10,
 
+    // How long a finished job waits for the customer to confirm it before the
+    // platform confirms it for them. Until this existed, a customer who simply
+    // closed the app left the job — and the worker's money — stranded with no
+    // way out for either side. Zero switches it off.
+    autoConfirmHours: 24,
+
     // A GPS ping older than this means the worker is treated as offline and is
     // not offered jobs, however their toggle is set.
     pingFreshnessMinutes: 5,
@@ -99,6 +105,18 @@ const saveConfig = async (partial) => {
     if (Number(next.arrivalGraceMinutes) < 0) throw new Error('Arrival grace period cannot be negative.');
     if (Number(next.idleChargePerMinute) < 0) throw new Error('Waiting charge cannot be negative.');
     if (Number(next.matchRadiusKm) <= 0) throw new Error('Match radius must be greater than zero.');
+
+    // Confirming on the customer's behalf the moment the timer stops would give
+    // them no chance to dispute the bill at all, so this is either off or a
+    // real window.
+    const autoConfirm = Number(next.autoConfirmHours);
+    if (isNaN(autoConfirm) || autoConfirm < 0) {
+        throw new Error('Auto-confirm hours cannot be negative.');
+    }
+    if (autoConfirm > 0 && autoConfirm < 1) {
+        throw new Error('Auto-confirm must give the customer at least an hour, or be 0 to switch it off.');
+    }
+    next.autoConfirmHours = autoConfirm;
 
     await Setting.findOneAndUpdate(
         { key: CONFIG_KEY },
