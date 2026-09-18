@@ -56,6 +56,10 @@ const InstaWork = () => {
   const [partnersMsg, setPartnersMsg] = useState("");
   const [chosenPartner, setChosenPartner] = useState(null);
   const [address, setAddress] = useState("");
+  // Insta Work is post-paid either way: the bill is only known when the timer
+  // stops. This chooses how it gets settled then — cash in the worker's hand,
+  // or through the gateway.
+  const [paymentMode, setPaymentMode] = useState("cash");
   const { socket } = useSocket();
   const [quote, setQuote] = useState(null);
 
@@ -184,7 +188,7 @@ const InstaWork = () => {
         address,
         location,
         city: userCity,
-        paymentMode: "cash",
+        paymentMode,
       });
       toast({ title: "Insta Work booked", description: `Job ${data.job.jobCode} created.` });
       setStep("browse");
@@ -210,6 +214,82 @@ const InstaWork = () => {
     } catch (err) {
       toast({
         title: "Action failed",
+        description: err.response?.data?.message,
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Settle an online job through the gateway.
+   *
+   * The order is raised by the server for this job's own final amount — the
+   * browser never names a figure — and the job is only marked paid once
+   * Razorpay hands back a signature the server can check against that order.
+   * If the customer closes the checkout, nothing happens: the job stays
+   * awaiting payment and they can try again.
+   */
+  const payOnline = async () => {
+    setBusy(true);
+    try {
+      const { data: order } = await API.post(`/insta/jobs/${activeJob._id}/payment-order`);
+
+      if (!window.Razorpay) {
+        toast({
+          title: "Payment unavailable",
+          description: "Could not reach the payment gateway. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const rzp = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa",
+        description: `Insta Work ${order.jobCode}`,
+        order_id: order.orderId,
+        handler: async (response) => {
+          try {
+            // Straight through to the server, which checks the signature and
+            // that this payment belongs to this job before it settles.
+            await API.patch(`/insta/jobs/${activeJob._id}/pay`, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            toast({ title: "Payment received" });
+            await loadActiveJob();
+          } catch (err) {
+            toast({
+              title: "Payment could not be confirmed",
+              description: err.response?.data?.message,
+              variant: "destructive",
+            });
+            await loadActiveJob();
+          }
+        },
+        modal: {
+          // Abandoning checkout is not a failure — the bill is still there.
+          ondismiss: () => toast({ title: "Payment cancelled" }),
+        },
+        theme: { color: "#f59e0b" },
+      });
+
+      rzp.on("payment.failed", (e) =>
+        toast({
+          title: "Payment failed",
+          description: e?.error?.description,
+          variant: "destructive",
+        })
+      );
+      rzp.open();
+    } catch (err) {
+      toast({
+        title: "Could not start the payment",
         description: err.response?.data?.message,
         variant: "destructive",
       });
@@ -387,11 +467,17 @@ const InstaWork = () => {
               )}
               {activeJob.status === "CUSTOMER_CONFIRMED" && (
                 <button
-                  onClick={() => jobAction("pay", null, "Payment recorded")}
+                  onClick={
+                    activeJob.paymentMode === "online"
+                      ? payOnline
+                      : () => jobAction("pay", null, "Payment recorded")
+                  }
                   disabled={busy}
                   className="h-11 flex-1 rounded-xl bg-blue-600 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50"
                 >
-                  Pay ₹{activeJob.finalAmount}
+                  {activeJob.paymentMode === "online"
+                    ? `Pay ₹${activeJob.finalAmount} online`
+                    : `Pay ₹${activeJob.finalAmount} in cash`}
                 </button>
               )}
               {!["WORK_COMPLETED", "CUSTOMER_CONFIRMED"].includes(activeJob.status) && (
@@ -641,6 +727,35 @@ const InstaWork = () => {
                 )}
               </div>
             )}
+
+            {/* Chosen now, settled later: the bill is not known until the
+                timer stops, so this only decides how it gets paid then. */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+                How would you like to pay?
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "cash", label: "Cash", hint: "Pay the worker when the job ends" },
+                  { id: "online", label: "Online", hint: "Pay in the app once it is done" },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setPaymentMode(m.id)}
+                    className={`rounded-2xl border p-3 text-left transition-colors ${
+                      paymentMode === m.id
+                        ? "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
+                        : "border-border bg-card"
+                    }`}
+                  >
+                    <span className="block text-sm font-black text-foreground">{m.label}</span>
+                    <span className="mt-0.5 block text-[11px] font-medium leading-snug text-muted-foreground">
+                      {m.hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <button
               onClick={book}
