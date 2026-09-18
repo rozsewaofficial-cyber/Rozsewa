@@ -221,8 +221,31 @@ const getJobs = async (req, res) => {
 // @route   GET /api/admin/insta/stats
 const getStats = async (req, res) => {
     try {
-        const [byStatus, live, totals] = await Promise.all([
+        // "Online" has to mean what matching means by it, or the number is
+        // worse than none: it counted everyone with the toggle on, including
+        // workers whose app had been shut for days, workers an admin had
+        // disabled, and workers serving a cancellation restriction. An admin
+        // reading "20 online" while customers were told nobody was available
+        // had no way to reconcile the two.
+        const config = await InstaConfig.getConfig();
+        const now = new Date();
+        const freshSince = new Date(now.getTime() - Math.max(1, Number(config.pingFreshnessMinutes) || 5) * 60000);
+        const availableNow = {
+            'instaWork.enabled': true,
+            'instaWork.disabledByAdmin': { $ne: true },
+            'instaWork.lastPingAt': { $gte: freshSince },
+            $or: [
+                { 'instaWork.restrictedUntil': null },
+                { 'instaWork.restrictedUntil': { $exists: false } },
+                { 'instaWork.restrictedUntil': { $lte: now } }
+            ]
+        };
+
+        const [byStatus, live, toggledOn, totals] = await Promise.all([
             InstaJob.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
+            Provider.countDocuments(availableNow),
+            // Kept alongside, because "12 of 40 have it switched on" is a
+            // different and also useful thing to know.
             Provider.countDocuments({ 'instaWork.enabled': true }),
             InstaJob.aggregate([
                 { $match: { status: 'CLOSED' } },
@@ -240,6 +263,7 @@ const getStats = async (req, res) => {
         res.json({
             byStatus: byStatus.reduce((acc, r) => ({ ...acc, [r._id]: r.n }), {}),
             workersOnline: live,
+            workersEnabled: toggledOn,
             completedJobs: totals[0]?.jobs || 0,
             revenue: totals[0]?.revenue || 0,
             commission: totals[0]?.commission || 0

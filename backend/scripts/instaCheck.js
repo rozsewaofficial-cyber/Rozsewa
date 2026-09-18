@@ -980,6 +980,48 @@ check('the window is configurable and can be switched off', () => {
         'and zero switches it off entirely');
 });
 
+check('"workers online" means what matching means by it', () => {
+    // It counted everyone with the toggle on — including workers whose app had
+    // been shut for days, workers an admin had disabled, and workers serving a
+    // cancellation restriction. An admin reading "20 online" while customers
+    // were told nobody was available had no way to reconcile the two.
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'controllers', 'instaAdminController.js'), 'utf8');
+    const fn = src.slice(src.indexOf('const getStats'), src.indexOf('const setProviderRestriction'));
+
+    assert.ok(/pingFreshnessMinutes/.test(fn), 'a stale ping does not count as online');
+    assert.ok(/disabledByAdmin': \{ \$ne: true \}/.test(fn), 'nor does a disabled worker');
+    assert.ok(/restrictedUntil/.test(fn), 'nor one serving a restriction');
+    assert.ok(/workersEnabled/.test(fn),
+        'and the toggle count is reported separately rather than instead');
+
+    // The same three conditions the assignment service filters on.
+    const svc = fs.readFileSync(path.join(__dirname, '..', 'services', 'InstaAssignmentService.js'), 'utf8');
+    assert.ok(/hasFreshPing/.test(svc) && /disabledByAdmin/.test(svc) && /restrictedUntil/.test(svc),
+        'which is what matching actually requires');
+});
+
+check('the admin can set the auto-confirm window', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const ui = fs.readFileSync(
+        path.join(__dirname, '..', '..', 'frontend', 'src', 'modules', 'admin', 'pages', 'AdminInstaWork.jsx'), 'utf8');
+    // A setting with no control is a setting only whoever wrote it can change.
+    assert.ok(/autoConfirmHours/.test(ui), 'the config form exposes it');
+});
+
+check('the jobs tab says how many jobs there are', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const ui = fs.readFileSync(
+        path.join(__dirname, '..', '..', 'frontend', 'src', 'modules', 'admin', 'pages', 'AdminInstaWork.jsx'), 'utf8');
+    // It fetched a page and discarded the total, so thirty jobs and the first
+    // thirty of three thousand looked identical.
+    assert.ok(/setJobsTotal\(Number\(data\.total\)/.test(ui), 'the reported total is kept');
+    assert.ok(/<TablePager/.test(ui), 'and shown with a pager');
+});
+
 check('settlement can find the model it populates', () => {
     // settle() never throws, so a missing model registration showed up only as
     // jobs closing with the commission silently never charged.

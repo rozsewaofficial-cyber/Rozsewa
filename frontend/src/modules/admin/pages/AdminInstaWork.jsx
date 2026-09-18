@@ -7,6 +7,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
+import TablePager from "@/modules/admin/components/TablePager";
 
 /**
  * Admin "⚡ Insta Work Management" — the service master, the platform pricing
@@ -60,6 +61,8 @@ const Field = ({ label, hint, children }) => (
 const inputCls =
   "mt-1.5 h-11 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm font-bold text-gray-900 outline-none focus:border-blue-500";
 
+const JOBS_PER_PAGE = 30;
+
 const AdminInstaWork = () => {
   const { setTitle } = useOutletContext();
   const { toast } = useToast();
@@ -70,6 +73,8 @@ const AdminInstaWork = () => {
   const [config, setConfig] = useState(null);
   const [stats, setStats] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const [jobsTotal, setJobsTotal] = useState(0);
+  const [jobsPage, setJobsPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -101,10 +106,17 @@ const AdminInstaWork = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadJobs = useCallback(async () => {
+  // The server already reports how many jobs matched; the tab used to fetch a
+  // page of 30 and throw that away, so an admin could not tell thirty jobs
+  // from the first thirty of three thousand.
+  const loadJobs = useCallback(async (toPage = 1) => {
     try {
-      const { data } = await API.get("/admin/insta/jobs?limit=30");
+      const { data } = await API.get(
+        `/admin/insta/jobs?limit=${JOBS_PER_PAGE}&page=${toPage}`
+      );
       setJobs(data.jobs || []);
+      setJobsTotal(Number(data.total) || 0);
+      setJobsPage(toPage);
     } catch (err) {
       /* the tab simply shows nothing */
     }
@@ -288,7 +300,19 @@ const AdminInstaWork = () => {
       {stats && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            { label: "Workers online", value: stats.workersOnline, icon: Users, color: "text-emerald-600" },
+            // "Online" means matchable right now — pinging, not disabled, not
+            // restricted. The count with the toggle on is shown beside it,
+            // because the gap between the two is the useful thing: workers who
+            // mean to be available but whose app is shut.
+            {
+              label: "Workers online",
+              value: stats.workersOnline,
+              sub: stats.workersEnabled !== undefined
+                ? `of ${stats.workersEnabled} switched on`
+                : null,
+              icon: Users,
+              color: "text-emerald-600"
+            },
             { label: "Jobs completed", value: stats.completedJobs, icon: Activity, color: "text-blue-600" },
             { label: "Revenue", value: `₹${Math.round(stats.revenue).toLocaleString("en-IN")}`, icon: Zap, color: "text-amber-600" },
             { label: "Commission", value: `₹${Math.round(stats.commission).toLocaleString("en-IN")}`, icon: Clock, color: "text-purple-600" },
@@ -301,6 +325,9 @@ const AdminInstaWork = () => {
                 </span>
               </div>
               <p className="mt-1 text-2xl font-black tabular-nums text-gray-900">{k.value}</p>
+              {k.sub && (
+                <p className="text-[10px] font-bold text-gray-400">{k.sub}</p>
+              )}
             </div>
           ))}
         </div>
@@ -486,6 +513,18 @@ const AdminInstaWork = () => {
                 className={inputCls}
               />
             </Field>
+            <Field
+              label="Auto-confirm after (hours)"
+              hint="Finished work the customer never confirms is confirmed for them. Cash jobs then settle; online jobs move to awaiting payment. 0 switches it off."
+            >
+              <input
+                type="number"
+                min={0}
+                value={config.autoConfirmHours ?? 0}
+                onChange={(e) => setCfg("autoConfirmHours", Number(e.target.value))}
+                className={inputCls}
+              />
+            </Field>
           </div>
 
           <h3 className="pt-2 text-xs font-black uppercase tracking-wider text-gray-700">
@@ -590,6 +629,13 @@ const AdminInstaWork = () => {
                 )}
               </tbody>
             </table>
+            <TablePager
+              page={jobsPage}
+              total={jobsTotal}
+              perPage={JOBS_PER_PAGE}
+              onPage={loadJobs}
+              noun="jobs"
+            />
           </div>
         </div>
       )}
