@@ -625,6 +625,19 @@ const providerCancelJob = async (req, res) => {
         if (['PAYMENT_COMPLETED', 'CLOSED', 'CANCELLED'].includes(job.status)) {
             return res.status(400).json({ message: 'This job can no longer be cancelled.' });
         }
+        // The customer is stopped from cancelling once the work is done, so
+        // that nobody can watch a job finish and then walk away from the bill.
+        // The same has to hold on this side: cancelling here voided a bill for
+        // work genuinely performed, losing the worker their money and the
+        // platform its commission, and it was reachable by a mis-tap or by a
+        // customer who offered to settle off the books. A finished job that
+        // has gone wrong is a support matter, not a cancellation.
+        if (['WORK_COMPLETED', 'CUSTOMER_CONFIRMED'].includes(job.status)) {
+            return res.status(400).json({
+                message: 'The work on this job is already finished. Contact support if something is wrong.',
+                code: 'WORK_ALREADY_DONE'
+            });
+        }
 
         const config = await InstaConfig.getConfig();
         const provider = await Provider.findById(req.user._id);

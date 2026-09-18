@@ -911,4 +911,27 @@ check('the claim counts the states that actually occupy someone', () => {
         'the guard and matching must agree on what "busy" means');
 });
 
+check('finished work cannot be cancelled away by either side', () => {
+    // Whoever cancels after the work is done, the same thing happens: a real
+    // bill for work genuinely performed disappears, the worker loses their
+    // money and the platform its commission. The customer was stopped from
+    // doing this; the worker was not, so a mis-tap — or a customer offering to
+    // settle off the books — voided the job.
+    const fs = require('fs');
+    const path = require('path');
+    const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel.split('/').join(path.sep)), 'utf8');
+
+    for (const [who, file, fn] of [
+        ['the customer', 'controllers/instaCustomerController.js', 'const cancelJob'],
+        ['the worker', 'controllers/instaProviderController.js', 'const providerCancelJob']
+    ]) {
+        const src = read(file);
+        const start = src.indexOf(fn);
+        assert.ok(start > -1, `${fn} exists`);
+        const body = src.slice(start, start + 1600);
+        assert.ok(/\['WORK_COMPLETED', 'CUSTOMER_CONFIRMED'\]\.includes\(job\.status\)/.test(body),
+            `${who} is refused once the work is finished`);
+    }
+});
+
 console.log(`\n${passed} Insta Work checks passed.\n`);
