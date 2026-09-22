@@ -32,4 +32,7 @@ router.post('/provider-banners/:id/click', providerBannerController.trackClick);
 const { getPublicOffers } = require('../controllers/offerManagementController');
 router.get('/offers', getPublicOffers);
 
+// "Want to become a Sewak?" enquiry, submitted from the Provider Login screen.
+router.post('/sewak-enquiry', require('../controllers/sewakEnquiryController').createEnquiry);
+
 module.exports = router;
