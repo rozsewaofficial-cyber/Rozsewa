@@ -29,6 +29,17 @@ const feRead = (rel) => fs.readFileSync(
 let passed = 0;
 const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
 
+// A fixed-length slice after a function's `const name` breaks the moment
+// anything earlier in that function grows past the window — as happened here
+// once already. Slicing to the next top-level `const` declaration instead
+// tracks the function's real end regardless of how long its body gets.
+const sliceFn = (src, startMarker) => {
+    const start = src.indexOf(startMarker);
+    if (start === -1) return '';
+    const next = src.indexOf('\nconst ', start + startMarker.length);
+    return next === -1 ? src.slice(start) : src.slice(start, next);
+};
+
 const controller = read('controllers/adminController.js');
 const routes = read('routes/adminRoutes.js');
 const ui = feRead('modules/admin/pages/AdminProviders.jsx');
@@ -54,7 +65,7 @@ check('it is mounted after /stats and /picker, not before', () => {
 });
 
 check('opening Details fetches the full record instead of reusing the table row', () => {
-    const fn = ui.slice(ui.indexOf('const openProviderDetails'), ui.indexOf('const openProviderDetails') + 700);
+    const fn = sliceFn(ui, 'const openProviderDetails');
     assert.ok(/API\.get\(`\/admin\/providers\/\$\{provider\._id\}`\)/.test(fn),
         'the row from the table is not treated as the whole record');
 });
@@ -75,13 +86,13 @@ check('there is a per-document verify endpoint, reachable for any provider categ
 });
 
 check('rejecting a document requires a reason', () => {
-    const fn = controller.slice(controller.indexOf('const verifyProviderDocument'), controller.indexOf('const verifyProviderDocument') + 800);
+    const fn = sliceFn(controller, 'const verifyProviderDocument');
     assert.ok(/status === 'rejected' && !String\(rejectionReason \|\| ''\)\.trim\(\)/.test(fn),
         'checked before anything is written');
 });
 
 check("the response carries documents, so the grid doesn't go blank after a review", () => {
-    const fn = controller.slice(controller.indexOf('const verifyProviderDocument'), controller.indexOf('const verifyProviderDocument') + 6000);
+    const fn = sliceFn(controller, 'const verifyProviderDocument');
     const respIdx = fn.lastIndexOf('Provider.findById(id).select(');
     assert.ok(respIdx > -1, 'the response is built from a fresh read');
     assert.ok(!/PROVIDER_LIST_FIELDS/.test(fn.slice(respIdx, respIdx + 120)),
@@ -90,7 +101,7 @@ check("the response carries documents, so the grid doesn't go blank after a revi
 });
 
 check('a Sewak stays gated behind training even when fully document-verified', () => {
-    const fn = controller.slice(controller.indexOf('const verifyProviderDocument'), controller.indexOf('const verifyProviderDocument') + 6000);
+    const fn = sliceFn(controller, 'const verifyProviderDocument');
     assert.ok(/requiresTrainingBeforeGoLive\(provider\)/.test(fn),
         'the same gate the rest of the Sewak flow already depends on, reused rather than reimplemented');
 });
@@ -98,13 +109,13 @@ check('a Sewak stays gated behind training even when fully document-verified', (
 console.log('\nA rejection always carries a reason');
 
 check('the whole-application reject opens a reason dialog instead of window.prompt', () => {
-    const fn = ui.slice(ui.indexOf('const handleUpdateStatus'), ui.indexOf('const handleUpdateStatus') + 700);
+    const fn = sliceFn(ui, 'const handleUpdateStatus');
     assert.ok(/newStatus === "rejected"/.test(fn) && /setRejectionTarget/.test(fn),
         'reject routes through the same dialog as suspend already did');
 });
 
 check('an empty reason is refused before anything is sent', () => {
-    const fn = ui.slice(ui.indexOf('const submitRejection'), ui.indexOf('const submitRejection') + 500);
+    const fn = sliceFn(ui, 'const submitRejection');
     assert.ok(/!rejectionReason\.trim\(\)/.test(fn), 'checked client-side before the call');
 });
 
