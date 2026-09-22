@@ -83,10 +83,12 @@ const BazaarOfferChat = () => {
         setOfferThread(selectedOffer);
       }
 
-      // Load buyer and seller templates separately
+      // Load buyer and seller templates separately, scoped to this ad so the
+      // suggestions suit what is being sold rather than being one list for
+      // every listing on the platform.
       const [buyerRes, sellerRes] = await Promise.all([
-        api.get("/bazaar/chat-templates?role=buyer"),
-        api.get("/bazaar/chat-templates?role=seller"),
+        api.get(`/bazaar/chat-templates?role=buyer&adId=${id}`),
+        api.get(`/bazaar/chat-templates?role=seller&adId=${id}`),
       ]);
       if (buyerRes.data.success)
         setBuyerTemplates(buyerRes.data.data.map((t) => t.text));

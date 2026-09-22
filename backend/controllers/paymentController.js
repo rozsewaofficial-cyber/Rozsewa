@@ -580,15 +580,34 @@ const verifyBazaarPayment = async (req, res) => {
 
     {
         const BazaarOffer = require('../models/BazaarOffer');
-        const offer = await BazaarOffer.findById(offerId);
+        const BazaarAd = require('../models/BazaarAd');
+        const { finaliseUnlock } = require('./bazaarController');
 
+        const offer = await BazaarOffer.findById(offerId);
         if (!offer) {
             return res.status(404).json({ success: false, message: 'Offer not found' });
         }
 
-        // We assume the buyer paid this. Set isLeadUnlockedByBuyer to true.
-        offer.isLeadUnlockedByBuyer = true;
-        await offer.save();
+        const ad = await BazaarAd.findById(offer.adId);
+        if (!ad) {
+            return res.status(404).json({ success: false, message: 'Ad not found' });
+        }
+
+        // This used only to flip a flag on the offer, and the flag is not what
+        // decides anything: the contact endpoint looks for a successful
+        // BazaarUnlockTransaction and refuses without one. So a buyer who paid
+        // by card was charged and still told "Contact details locked", while
+        // paying from the wallet worked. Both now go through the same recorder.
+        //
+        // The amount comes off the claimed order, so what is recorded is what
+        // was actually paid.
+        await finaliseUnlock({
+            buyerId: req.user._id,
+            ad,
+            offerId: offer._id,
+            amount: claim.order.amount,
+            paymentMode: 'razorpay'
+        });
 
         res.json({ success: true, message: 'Payment verified! Contact details unlocked.' });
     }

@@ -495,7 +495,7 @@ const CategoriesTab = () => {
   // Category Modal State
   const [showCatModal, setShowCatModal] = useState(false);
   const [editingCat, setEditingCat] = useState(null);
-  const [catForm, setCatForm] = useState({ name: '', icon: 'Package', description: '', subCategories: [] });
+  const [catForm, setCatForm] = useState({ name: '', icon: 'Package', description: '', subCategories: [], subCategoryUnlockFees: [] });
   const [subTagInput, setSubTagInput] = useState('');
   const [savingCat, setSavingCat] = useState(false);
 
@@ -531,11 +531,12 @@ const CategoriesTab = () => {
         name: cat.name || '',
         icon: cat.icon || 'Package',
         description: cat.description || '',
-        subCategories: cat.subCategories || []
+        subCategories: cat.subCategories || [],
+        subCategoryUnlockFees: cat.subCategoryUnlockFees || []
       });
     } else {
       setEditingCat(null);
-      setCatForm({ name: '', icon: 'Package', description: '', subCategories: [] });
+      setCatForm({ name: '', icon: 'Package', description: '', subCategories: [], subCategoryUnlockFees: [] });
     }
     setSubTagInput('');
     setShowCatModal(true);
@@ -550,7 +551,27 @@ const CategoriesTab = () => {
   };
 
   const handleRemoveSubTag = (tag) => {
-    setCatForm(p => ({ ...p, subCategories: p.subCategories.filter(t => t !== tag) }));
+    setCatForm(p => ({
+      ...p,
+      subCategories: p.subCategories.filter(t => t !== tag),
+      // A fee for a subcategory that no longer exists would be dead weight the
+      // server would strip anyway.
+      subCategoryUnlockFees: (p.subCategoryUnlockFees || []).filter(f => f.subCategory !== tag)
+    }));
+  };
+
+  /** Blank means "no override" — the global fee applies — not "free". */
+  const setSubFee = (subCategory, raw) => {
+    setCatForm(p => {
+      const rest = (p.subCategoryUnlockFees || []).filter(f => f.subCategory !== subCategory);
+      if (raw === '' || raw === null) return { ...p, subCategoryUnlockFees: rest };
+      return { ...p, subCategoryUnlockFees: [...rest, { subCategory, unlockFee: Math.max(0, Number(raw) || 0) }] };
+    });
+  };
+
+  const subFeeOf = (subCategory) => {
+    const hit = (catForm.subCategoryUnlockFees || []).find(f => f.subCategory === subCategory);
+    return hit ? hit.unlockFee : '';
   };
 
   const handleSaveCategory = async (e) => {
@@ -1001,6 +1022,38 @@ const CategoriesTab = () => {
                 )}
               </div>
 
+              {/* What a buyer pays to unlock a contact, per subcategory. A bike
+                  lead is not worth the same as a sofa lead. Left blank, the
+                  global Bazaar fee applies. */}
+              {catForm.subCategories.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    Unlock fee per subcategory
+                  </label>
+                  <p className="text-[11px] text-slate-400 font-medium mt-0.5 mb-2">
+                    Leave blank to use the global Bazaar unlock fee.
+                  </p>
+                  <div className="space-y-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    {catForm.subCategories.map(sub => (
+                      <div key={sub} className="flex items-center gap-2">
+                        <span className="flex-1 text-xs font-bold text-slate-700 truncate">{sub}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-bold text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={subFeeOf(sub)}
+                            onChange={e => setSubFee(sub, e.target.value)}
+                            placeholder="global"
+                            className="w-24 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:border-blue-400"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Description</label>
                 <textarea
@@ -1129,7 +1182,10 @@ const CategoriesTab = () => {
 const TemplatesTab = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newTpl, setNewTpl] = useState({ text: '', forRole: 'buyer', order: 0 });
+  const [newTpl, setNewTpl] = useState({ text: '', forRole: 'buyer', order: 0, category: '', subCategory: '' });
+  // Categories, so a template can be pinned to one — and, within it, to a
+  // single subcategory.
+  const [tplCategories, setTplCategories] = useState([]);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
@@ -1144,7 +1200,12 @@ const TemplatesTab = () => {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchTemplates(); }, []);
+  useEffect(() => {
+    fetchTemplates();
+    api.get('/bazaar/categories')
+      .then(res => setTplCategories(res.data?.data || res.data || []))
+      .catch(() => { /* the scope pickers simply stay empty */ });
+  }, []);
 
   const handleCreate = async () => {
     if (!newTpl.text.trim()) return toast.error('Template text is required');
@@ -1152,7 +1213,7 @@ const TemplatesTab = () => {
     try {
       await api.post('/bazaar/admin/chat-templates', newTpl);
       toast.success('Template created');
-      setNewTpl({ text: '', forRole: 'buyer', order: 0 });
+      setNewTpl({ text: '', forRole: 'buyer', order: 0, category: '', subCategory: '' });
       fetchTemplates();
     } catch (e) { toast.error('Create failed'); }
     finally { setCreating(false); }
@@ -1222,6 +1283,31 @@ const TemplatesTab = () => {
             onChange={e => setNewTpl(p => ({ ...p, order: parseInt(e.target.value) || 0 }))}
             className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
           />
+        </div>
+        {/* Where the template applies. Left on "All categories" it behaves
+            exactly as every template did before this existed. */}
+        <div className="flex gap-2">
+          <select
+            value={newTpl.category}
+            onChange={e => setNewTpl(p => ({ ...p, category: e.target.value, subCategory: '' }))}
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none"
+          >
+            <option value="">All categories</option>
+            {tplCategories.map(c => (
+              <option key={c._id || c.name} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+          <select
+            value={newTpl.subCategory}
+            onChange={e => setNewTpl(p => ({ ...p, subCategory: e.target.value }))}
+            disabled={!newTpl.category}
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none disabled:opacity-50"
+          >
+            <option value="">All subcategories</option>
+            {(tplCategories.find(c => c.name === newTpl.category)?.subCategories || []).map(sc => (
+              <option key={sc} value={sc}>{sc}</option>
+            ))}
+          </select>
         </div>
         <button
           onClick={handleCreate}

@@ -15,6 +15,19 @@ const bazaarCategorySchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+
+  // What it costs a buyer to unlock a seller's contact, per subcategory.
+  //
+  // Kept beside the subcategory names rather than folded into them, because
+  // `subCategories` is a plain string array that ads, filters and the admin
+  // picker all read — turning it into objects would break every one of them.
+  // A subcategory with no entry here falls back to the global fee, so this is
+  // an override list and not a required table.
+  subCategoryUnlockFees: [{
+    _id: false,
+    subCategory: { type: String, required: true, trim: true },
+    unlockFee: { type: Number, required: true, min: 0 }
+  }],
   icon: {
     type: String, // Can store lucide icon name or image URL
     default: 'Package'

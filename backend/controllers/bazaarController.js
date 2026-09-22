@@ -15,6 +15,108 @@ const { getIO } = require('../config/socket');
 const { detectPII } = require('../utils/piiFilter');
 
 // ========================
+// SHARED RULES
+// ========================
+
+/**
+ * What this ad costs a buyer to unlock, most specific answer first.
+ *
+ *   the ad's own override  ->  its subcategory's fee  ->  the global fee  ->  20
+ *
+ * This lived inline in every place that needed it, which is how the answers
+ * drifted apart; there is one of it now so a new rule lands everywhere at once.
+ */
+const resolveUnlockFee = async (ad) => {
+    if (ad.unlockFee !== null && ad.unlockFee !== undefined) return ad.unlockFee;
+
+    if (ad.category && ad.subCategory) {
+        const category = await BazaarCategory.findOne({ name: ad.category })
+            .select('subCategoryUnlockFees')
+            .lean();
+        const match = (category?.subCategoryUnlockFees || []).find(
+            (f) => String(f.subCategory).trim().toLowerCase() === String(ad.subCategory).trim().toLowerCase()
+        );
+        if (match && match.unlockFee !== null && match.unlockFee !== undefined) return match.unlockFee;
+    }
+
+    const setting = await Setting.findOne({ key: 'bazaar_rules' }).lean();
+    return setting?.value?.bazaarCommissionFee ?? 20;
+};
+
+/**
+ * Records that a buyer has paid to see a seller's contact.
+ *
+ * The unlock is what `BazaarUnlockTransaction` says it is — that row is what
+ * `getUnlockedContactDetails` looks for before it hands over a phone number.
+ * The wallet path wrote one and the gateway path did not, so a buyer who paid
+ * by card was charged and still shown "Contact details locked". Both paths call
+ * this now, and there is only one definition of what unlocking means.
+ *
+ * Safe to call twice: a second call on an already-unlocked ad returns the
+ * existing record rather than charging the buyer a second entry.
+ */
+const finaliseUnlock = async ({ buyerId, ad, offerId = null, amount, paymentMode }) => {
+    const existing = await BazaarUnlockTransaction.findOne({
+        buyerId, adId: ad._id, status: 'success'
+    });
+    if (existing) return { record: existing, alreadyUnlocked: true };
+
+    const record = await BazaarUnlockTransaction.create({
+        buyerId,
+        adId: ad._id,
+        offerId: offerId || null,
+        amount,
+        paymentMode,
+        status: 'success'
+    });
+
+    // The older flag, still read when a buyer's offer thread is served.
+    await BazaarOffer.findOneAndUpdate(
+        { adId: ad._id, buyerId },
+        { isLeadUnlockedByBuyer: true }
+    );
+
+    try {
+        await new Notification({
+            recipientId: ad.sellerId,
+            recipientModel: 'User',
+            title: 'Contact Unlocked 🔓',
+            message: `A buyer has paid ₹${amount} to view your contact for "${ad.title}". They may reach out soon!`,
+            type: 'bazaar'
+        }).save();
+    } catch (err) {
+        console.error('Bazaar unlock notify failed:', err.message);
+    }
+
+    try {
+        const io = getIO();
+        io.to(`user_${buyerId}`).emit('BAZAAR_UNLOCK_SUCCESS', { adId: ad._id });
+        io.to(`user_${ad.sellerId}`).emit('BAZAAR_CONTACT_VIEWED', { adId: ad._id, buyerId });
+    } catch (socketErr) {
+        console.error('Bazaar socket emit error (finaliseUnlock):', socketErr.message);
+    }
+
+    return { record, alreadyUnlocked: false };
+};
+
+/**
+ * Which templates apply to a given ad: the ones written for everything, plus
+ * the ones written for its category, plus the ones for its exact subcategory.
+ */
+const templateScopeFor = (ad) => {
+    const scopes = [{ category: { $in: ['', null] } }];
+    if (ad?.category) {
+        scopes.push({ category: ad.category, subCategory: { $in: ['', null] } });
+        if (ad.subCategory) scopes.push({ category: ad.category, subCategory: ad.subCategory });
+    }
+    return { $or: scopes };
+};
+
+exports.resolveUnlockFee = resolveUnlockFee;
+exports.finaliseUnlock = finaliseUnlock;
+exports.templateScopeFor = templateScopeFor;
+
+// ========================
 // USER ACTIONS
 // ========================
 
@@ -484,7 +586,7 @@ exports.createCategory = async (req, res) => {
 exports.updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, icon, order, description, subCategories, fields, isActive } = req.body;
+    const { name, icon, order, description, subCategories, fields, isActive, subCategoryUnlockFees } = req.body;
     
     const category = await BazaarCategory.findById(id);
     if (!category) {
@@ -498,6 +600,18 @@ exports.updateCategory = async (req, res) => {
     if (subCategories) category.subCategories = subCategories;
     if (fields) category.fields = fields;
     if (isActive !== undefined) category.isActive = isActive;
+
+    // Per-subcategory unlock fees. Only entries naming a real subcategory of
+    // this category are kept, and a blank fee means "no override" rather than
+    // "free", so clearing the box falls back to the global fee instead of
+    // quietly making contacts cost nothing.
+    if (subCategoryUnlockFees !== undefined) {
+      const known = (category.subCategories || []).map(sc => String(sc).trim().toLowerCase());
+      category.subCategoryUnlockFees = (Array.isArray(subCategoryUnlockFees) ? subCategoryUnlockFees : [])
+        .filter(f => f && f.subCategory && known.includes(String(f.subCategory).trim().toLowerCase()))
+        .filter(f => f.unlockFee !== null && f.unlockFee !== undefined && f.unlockFee !== '')
+        .map(f => ({ subCategory: String(f.subCategory).trim(), unlockFee: Math.max(0, Number(f.unlockFee) || 0) }));
+    }
 
     await category.save();
     
@@ -579,10 +693,13 @@ exports.makeOffer = async (req, res) => {
 
       // ── RULE 2: Template allowlist validation + PII check
       // A. Text must strictly match an active admin chat template for 'buyer' or 'both'
+      // Scoped the same way the picker is, or a buyer could be offered a
+      // subcategory template and then refused for sending it.
       const matchedTemplate = await BazaarChatTemplate.findOne({
         text: predefinedMessage,
         forRole: { $in: ['buyer', 'both'] },
-        isActive: true
+        isActive: true,
+        ...templateScopeFor(ad)
       });
 
       if (!matchedTemplate) {
@@ -896,17 +1013,14 @@ exports.checkUnlockStatus = async (req, res) => {
     const { adId } = req.params;
     const buyerId = req.user._id;
 
-    const ad = await BazaarAd.findById(adId).select('unlockFee status sellerId');
+    // category and subCategory are needed to price the unlock; leaving them out
+    // of the projection silently charged every subcategory the global fee.
+    const ad = await BazaarAd.findById(adId).select('unlockFee status sellerId category subCategory');
     if (!ad) return res.status(404).json({ success: false, message: 'Ad not found' });
 
     const isSeller = ad.sellerId.toString() === buyerId.toString();
 
-    // Resolve the applicable fee: per-product override OR global setting
-    let fee = ad.unlockFee;
-    if (fee === null || fee === undefined) {
-      const setting = await Setting.findOne({ key: 'bazaar_rules' });
-      fee = setting?.value?.bazaarCommissionFee ?? 20;
-    }
+    const fee = await resolveUnlockFee(ad);
 
     // Check if already paid-unlock exists
     const existingUnlock = await BazaarUnlockTransaction.findOne({
@@ -1057,12 +1171,7 @@ exports.unlockLead = async (req, res) => {
       return res.status(400).json({ success: false, message: 'You have already unlocked this ad' });
     }
 
-    // Resolve the applicable fee: per-product override OR global setting
-    let fee = ad.unlockFee;
-    if (fee === null || fee === undefined) {
-      const setting = await Setting.findOne({ key: 'bazaar_rules' });
-      fee = setting?.value?.bazaarCommissionFee ?? 20;
-    }
+    const fee = await resolveUnlockFee(ad);
 
     // Fetch buyer's wallet
     const buyerWallet = await Wallet.findOne({ userId: buyerId });
@@ -1113,40 +1222,11 @@ exports.unlockLead = async (req, res) => {
       description: `Unlocked contact for Bazaar ad: "${ad.title}"`
     });
 
-    // Create BazaarUnlockTransaction (permanent record)
-    const unlockRecord = await BazaarUnlockTransaction.create({
-      buyerId,
-      adId,
-      offerId: offerId || null,
-      amount: fee,
-      paymentMode: 'wallet',
-      status: 'success'
+    // Recording the unlock, notifying the seller and the live update all happen
+    // in one place, shared with the gateway path.
+    const { record: unlockRecord } = await finaliseUnlock({
+      buyerId, ad, offerId, amount: fee, paymentMode: 'wallet'
     });
-
-    // Also mark the BazaarOffer if one exists for this buyer+ad (for backward-compat)
-    await BazaarOffer.findOneAndUpdate(
-      { adId, buyerId },
-      { isLeadUnlockedByBuyer: true },
-      { new: true }
-    );
-
-    // Notify seller that someone unlocked their contact
-    await new Notification({
-      recipientId: ad.sellerId,
-      recipientModel: 'User',
-      title: 'Contact Unlocked 🔓',
-      message: `A buyer has paid ₹${fee} to view your contact for "${ad.title}". They may reach out soon!`,
-      type: 'bazaar'
-    }).save();
-
-    // Emit real-time update
-    try {
-      const io = getIO();
-      io.to(`user_${buyerId}`).emit('BAZAAR_UNLOCK_SUCCESS', { adId });
-      io.to(`user_${ad.sellerId}`).emit('BAZAAR_CONTACT_VIEWED', { adId, buyerId });
-    } catch (socketErr) {
-      console.error('Bazaar socket emit error (unlockLead):', socketErr.message);
-    }
 
     // Return contact details immediately after successful payment
     res.json({
@@ -1182,7 +1262,7 @@ exports.unlockLead = async (req, res) => {
  */
 exports.getChatTemplates = async (req, res) => {
   try {
-    const { role } = req.query; // 'buyer' or 'seller'
+    const { role, adId } = req.query; // 'buyer' or 'seller'
     let query = { isActive: true };
 
     if (role === 'buyer') {
@@ -1191,6 +1271,14 @@ exports.getChatTemplates = async (req, res) => {
       query.forRole = { $in: ['seller', 'both'] };
     }
     // No role filter = return all active templates (admin view)
+
+    // Asked for a particular ad, only the templates that suit it come back:
+    // the general ones, plus its category's, plus its subcategory's. Without an
+    // ad this is the admin list, which shows everything.
+    if (adId) {
+      const ad = await BazaarAd.findById(adId).select('category subCategory').lean();
+      if (ad) Object.assign(query, templateScopeFor(ad));
+    }
 
     const templates = await BazaarChatTemplate.find(query).sort({ order: 1 });
     res.json({ success: true, data: templates });
@@ -1201,11 +1289,15 @@ exports.getChatTemplates = async (req, res) => {
 
 exports.createChatTemplate = async (req, res) => {
   try {
-    const { text, order, forRole } = req.body;
+    const { text, order, forRole, category, subCategory } = req.body;
     const template = await BazaarChatTemplate.create({
       text,
       order,
-      forRole: forRole || 'buyer'
+      forRole: forRole || 'buyer',
+      // Blank means it applies everywhere. A subcategory without a category
+      // would match nothing, so it is only kept alongside one.
+      category: (category || '').trim(),
+      subCategory: category ? (subCategory || '').trim() : ''
     });
     res.status(201).json({ success: true, data: template });
   } catch (error) {
@@ -1216,7 +1308,7 @@ exports.createChatTemplate = async (req, res) => {
 exports.updateChatTemplate = async (req, res) => {
   try {
     const { id } = req.params;
-    const { text, order, forRole, isActive } = req.body;
+    const { text, order, forRole, isActive, category, subCategory } = req.body;
     const template = await BazaarChatTemplate.findById(id);
     if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
 
@@ -1224,6 +1316,15 @@ exports.updateChatTemplate = async (req, res) => {
     if (order !== undefined) template.order = order;
     if (forRole !== undefined) template.forRole = forRole;
     if (isActive !== undefined) template.isActive = isActive;
+    if (category !== undefined) {
+      template.category = (category || '').trim();
+      // A subcategory only means something inside a category; clearing the
+      // category has to clear it too, or the template would match nothing.
+      if (!template.category) template.subCategory = '';
+    }
+    if (subCategory !== undefined && template.category) {
+      template.subCategory = (subCategory || '').trim();
+    }
 
     await template.save();
     res.json({ success: true, data: template });
