@@ -40,8 +40,14 @@ const AdminProviders = () => {
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
     const [selectedProvider, setSelectedProvider] = useState(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
     const [categories, setCategories] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
+    // Rejecting a whole application, or a single document within one — both
+    // land on this same dialog, distinguished by whether docId is set.
+    const [rejectionTarget, setRejectionTarget] = useState(null); // { providerId, docId? }
+    const [rejectionReason, setRejectionReason] = useState("");
+    const [docActionBusy, setDocActionBusy] = useState(null); // the docId currently being saved
 
     const todayDate = new Date().toLocaleDateString("en-CA");
 
@@ -61,7 +67,7 @@ const AdminProviders = () => {
     const [subExpiryDate, setSubExpiryDate] = useState("");
     const [subReason, setSubReason] = useState("");
 
-    useScrollLock(!!selectedProvider || showStatusModal);
+    useScrollLock(!!selectedProvider || showStatusModal || !!rejectionTarget);
 
     useEffect(() => {
         setTitle("Manage Providers");
@@ -261,6 +267,14 @@ const AdminProviders = () => {
     };
 
     const handleUpdateStatus = async (id, newStatus) => {
+        // Rejecting and suspending both need a reason the provider will see —
+        // silently rejecting an application left them with nothing to act on.
+        // Approving still needs nothing beyond the click.
+        if (newStatus === "rejected") {
+            setRejectionTarget({ providerId: id });
+            setRejectionReason("");
+            return;
+        }
         let reason = "";
         if (newStatus === "suspended") {
             reason = window.prompt("Please enter the reason for suspending this provider:");
@@ -274,9 +288,85 @@ const AdminProviders = () => {
         try {
             const { data } = await API.put(`/admin/providers/${id}/status`, { status: newStatus, reason });
             setProviders(providers.map(p => p._id === id ? data : p));
+            if (selectedProvider?._id === id) setSelectedProvider((prev) => ({ ...prev, ...data }));
             toast({ title: "Status Updated", description: `Provider is now ${newStatus}.` });
         } catch (err) {
             toast({ title: "Update Failed", variant: "destructive" });
+        }
+    };
+
+    // The whole-application reject and the per-document reject share the same
+    // dialog; which endpoint it calls depends on whether a docId came with it.
+    const submitRejection = async () => {
+        if (!rejectionTarget) return;
+        if (!rejectionReason.trim()) {
+            toast({ title: "Reason Required", description: "The provider will see this — it can't be blank.", variant: "destructive" });
+            return;
+        }
+        const { providerId, docId } = rejectionTarget;
+        try {
+            if (docId) {
+                setDocActionBusy(docId);
+                const { data } = await API.put(`/admin/providers/${providerId}/documents/${docId}/status`, {
+                    status: "rejected",
+                    rejectionReason: rejectionReason.trim()
+                });
+                setSelectedProvider(data.provider);
+                setProviders((prev) => prev.map((p) => p._id === providerId ? { ...p, status: data.provider.status } : p));
+                toast({ title: "Document Rejected", description: `${docId.toUpperCase().replace(/_/g, ' ')} was rejected.` });
+            } else {
+                const { data } = await API.put(`/admin/providers/${providerId}/status`, {
+                    status: "rejected",
+                    reason: rejectionReason.trim()
+                });
+                setProviders((prev) => prev.map((p) => p._id === providerId ? data : p));
+                if (selectedProvider?._id === providerId) setSelectedProvider((prev) => ({ ...prev, ...data }));
+                toast({ title: "Application Rejected" });
+            }
+            setRejectionTarget(null);
+            setRejectionReason("");
+        } catch (err) {
+            toast({ title: "Action Failed", description: err.response?.data?.message, variant: "destructive" });
+        } finally {
+            setDocActionBusy(null);
+        }
+    };
+
+    // Approving one document needs no reason, so it goes straight through;
+    // rejecting one opens the same dialog the whole-application reject uses.
+    const handleDocumentAction = async (providerId, docId, status) => {
+        if (status === "rejected") {
+            setRejectionTarget({ providerId, docId });
+            setRejectionReason("");
+            return;
+        }
+        setDocActionBusy(docId);
+        try {
+            const { data } = await API.put(`/admin/providers/${providerId}/documents/${docId}/status`, { status: "verified" });
+            setSelectedProvider(data.provider);
+            setProviders((prev) => prev.map((p) => p._id === providerId ? { ...p, status: data.provider.status } : p));
+            toast({ title: "Document Approved", description: `${docId.toUpperCase().replace(/_/g, ' ')} was approved.` });
+        } catch (err) {
+            toast({ title: "Action Failed", description: err.response?.data?.message, variant: "destructive" });
+        } finally {
+            setDocActionBusy(null);
+        }
+    };
+
+    // The row a table click hands over never carries `documents` — the list
+    // is deliberately projected without them to keep a page of twenty
+    // providers light — so the modal opens with what is on hand and is
+    // replaced the moment the real detail, documents included, arrives.
+    const openProviderDetails = async (provider) => {
+        setSelectedProvider(provider);
+        setLoadingDetail(true);
+        try {
+            const { data } = await API.get(`/admin/providers/${provider._id}`);
+            setSelectedProvider(data);
+        } catch (err) {
+            toast({ title: "Could not load full details", variant: "destructive" });
+        } finally {
+            setLoadingDetail(false);
         }
     };
 
@@ -637,7 +727,7 @@ const AdminProviders = () => {
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
                                                 <button
-                                                    onClick={() => setSelectedProvider(provider)}
+                                                    onClick={() => openProviderDetails(provider)}
                                                     className="h-8 px-3 rounded-lg bg-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-200 transition-colors"
                                                 >
                                                     Details
@@ -868,34 +958,141 @@ const AdminProviders = () => {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Identity Documents</h4>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                        {[
-                                            { label: "Profile", url: selectedProvider.profileImage },
-                                            { label: "Aadhaar Front", url: selectedProvider.kycAadhaarPhoto },
-                                            { label: "Aadhaar Back", url: selectedProvider.kycAadhaarBackPhoto },
-                                            { label: "PAN Card", url: selectedProvider.kycPanPhoto }
-                                        ].map((doc, idx) => (
-                                            <div key={idx} className="flex flex-col gap-1.5 p-2 rounded-xl bg-gray-50 border border-gray-100">
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 text-center">{doc.label}</span>
-                                                {doc.url ? (
-                                                    <a href={doc.url} target="_blank" rel="noreferrer" className="block h-24 rounded-lg overflow-hidden hover:opacity-80 transition-opacity border border-gray-200">
-                                                        <img src={doc.url} alt={doc.label} className="h-full w-full object-cover" />
-                                                    </a>
-                                                ) : (
-                                                    <div className="flex h-24 items-center justify-center rounded-lg bg-gray-100 border border-dashed border-gray-200">
-                                                        <span className="text-[9px] font-black uppercase text-gray-400">Missing</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Identity Documents</h4>
+                                        {selectedProvider.providerCategory === "sewak" && (
+                                            <span className="text-[9px] font-black uppercase text-blue-500 bg-blue-50 border border-blue-100 rounded-md px-1.5 py-0.5">Sewak</span>
+                                        )}
                                     </div>
+                                    {/* Profile photo sits alongside whichever KYC documents this
+                                        provider actually submitted -- a Partner and a Sewak don't
+                                        collect the same set, so this reads the real list rather than
+                                        four fixed slots that read "Missing" for anything beyond them. */}
+                                    {loadingDetail ? (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            {[0, 1, 2].map((i) => (
+                                                <div key={i} className="h-32 rounded-xl bg-gray-100 animate-pulse" />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            {[
+                                                { id: "profile", label: "Profile", url: selectedProvider.profileImage, reviewable: false },
+                                                ...(selectedProvider.documents || []).map((d) => ({
+                                                    id: d.id,
+                                                    label: d.id.toUpperCase().replace(/_/g, " "),
+                                                    url: d.url,
+                                                    status: d.status,
+                                                    rejectionReason: d.rejectionReason,
+                                                    reviewable: true
+                                                }))
+                                            ].map((doc) => (
+                                                <div key={doc.id} className="flex flex-col gap-1.5 p-2 rounded-xl bg-gray-50 border border-gray-100">
+                                                    <div className="flex items-center justify-between gap-1">
+                                                        <span className="text-[9px] font-black uppercase tracking-widest text-gray-500 truncate">{doc.label}</span>
+                                                        {doc.reviewable && (
+                                                            <span className={`shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
+                                                                doc.status === "verified" ? "bg-emerald-50 text-emerald-700" :
+                                                                doc.status === "rejected" ? "bg-rose-50 text-rose-700" :
+                                                                "bg-amber-50 text-amber-700"
+                                                            }`}>{doc.status}</span>
+                                                        )}
+                                                    </div>
+                                                    {doc.url ? (
+                                                        <a href={doc.url} target="_blank" rel="noreferrer" className="block h-24 rounded-lg overflow-hidden hover:opacity-80 transition-opacity border border-gray-200">
+                                                            <img src={doc.url} alt={doc.label} className="h-full w-full object-cover" />
+                                                        </a>
+                                                    ) : (
+                                                        <div className="flex h-24 items-center justify-center rounded-lg bg-gray-100 border border-dashed border-gray-200">
+                                                            <span className="text-[9px] font-black uppercase text-gray-400">Missing</span>
+                                                        </div>
+                                                    )}
+                                                    {doc.status === "rejected" && doc.rejectionReason && (
+                                                        <p className="text-[9px] font-medium text-rose-600 leading-snug">&quot;{doc.rejectionReason}&quot;</p>
+                                                    )}
+                                                    {doc.reviewable && doc.url && (
+                                                        <div className="flex gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                disabled={docActionBusy === doc.id || doc.status === "verified"}
+                                                                onClick={() => handleDocumentAction(selectedProvider._id, doc.id, "verified")}
+                                                                className="flex-1 h-7 rounded-md bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase hover:bg-emerald-100 disabled:opacity-40 transition-colors"
+                                                            >
+                                                                {docActionBusy === doc.id ? "..." : "Approve"}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={docActionBusy === doc.id || doc.status === "rejected"}
+                                                                onClick={() => handleDocumentAction(selectedProvider._id, doc.id, "rejected")}
+                                                                className="flex-1 h-7 rounded-md bg-rose-50 text-rose-700 text-[9px] font-black uppercase hover:bg-rose-100 disabled:opacity-40 transition-colors"
+                                                            >
+                                                                Reject
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                            {(selectedProvider.documents || []).length === 0 && (
+                                                <div className="col-span-full text-center py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                    No KYC documents submitted yet
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
                     </>
                 )}
             </AnimatePresence>
+
+            {/* Reason box, shared by rejecting a whole application and
+                rejecting a single document -- a rejection nobody explained
+                was the whole complaint, so this is never optional. */}
+            {rejectionTarget && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setRejectionTarget(null)} />
+                    <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+                        <div>
+                            <h3 className="text-base font-black text-gray-900">
+                                {rejectionTarget.docId
+                                    ? `Reject ${rejectionTarget.docId.toUpperCase().replace(/_/g, " ")}`
+                                    : "Reject Application"}
+                            </h3>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                                The provider will see this reason.
+                            </p>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[9px] font-black uppercase text-gray-500 tracking-wider">Rejection Reason</label>
+                            <textarea
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                placeholder="Example: Aadhaar photo is blurry, name does not match the application."
+                                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs h-24 resize-none outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setRejectionTarget(null)}
+                                className="h-10 px-4 font-bold border border-gray-200 text-gray-500 rounded-xl text-xs hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={submitRejection}
+                                disabled={docActionBusy === rejectionTarget.docId}
+                                className="h-10 px-5 font-black bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs"
+                            >
+                                Confirm Rejection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -104,6 +104,28 @@ const getProviders = async (req, res) => {
     }
 };
 
+// @desc    One provider, in full — including the documents the list view
+//          deliberately leaves out (PROVIDER_LIST_FIELDS strips them, since
+//          a row of every uploaded document's URL would bloat a page of
+//          twenty providers for a table that never displays them). The
+//          Details modal used to just reuse the row it already had from the
+//          list, which is exactly why "Identity Documents" always read as
+//          missing regardless of what a provider had actually submitted.
+// @route   GET /api/admin/providers/:id
+// @access  Private/Admin
+const getProviderById = async (req, res) => {
+    try {
+        const provider = await Provider.findById(req.params.id)
+            .select('-password -fcmTokens -fcmTokenMobile')
+            .populate('vendorType', 'name')
+            .lean();
+        if (!provider) return res.status(404).json({ message: 'Provider not found' });
+        res.json(provider);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Providers as a dropdown: a name and an id, nothing else
 // @route   GET /api/admin/providers/picker
 // @access  Private/Admin
@@ -2815,6 +2837,152 @@ const verifySewakDocument = async (req, res) => {
     }
 };
 
+/**
+ * Document-wise KYC review for the Providers screen — Partners and Sewaks
+ * alike, since `Provider.documents` carries whichever documents were actually
+ * collected regardless of category.
+ *
+ * The whole-provider Approve button already does a blanket verify of every
+ * pending document in one click; this is the other path, for looking at one
+ * document at a time and rejecting only the one that is wrong, with a reason
+ * the provider actually sees — the per-document `status`/`rejectionReason`
+ * fields the model has carried all along, with nothing that ever set them.
+ *
+ * A rejection reason is required, not optional: a rejection with no reason is
+ * exactly the kind of thing this was written to stop.
+ */
+const verifyProviderDocument = async (req, res) => {
+    try {
+        const { id, docId } = req.params;
+        const { status, rejectionReason, adminNotes } = req.body;
+
+        if (!['verified', 'rejected'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status. Must be verified or rejected.' });
+        }
+        if (status === 'rejected' && !String(rejectionReason || '').trim()) {
+            return res.status(400).json({ message: 'A rejection reason is required.' });
+        }
+
+        const provider = await Provider.findById(id);
+        if (!provider) return res.status(404).json({ message: 'Provider not found' });
+
+        const docIndex = provider.documents.findIndex(d => d.id === docId);
+        if (docIndex === -1) {
+            provider.documents.push({
+                id: docId,
+                status,
+                reviewedAt: new Date(),
+                rejectionReason: status === 'rejected' ? rejectionReason.trim() : null,
+                adminNotes: adminNotes || null
+            });
+        } else {
+            provider.documents[docIndex].status = status;
+            provider.documents[docIndex].reviewedAt = new Date();
+            provider.documents[docIndex].rejectionReason = status === 'rejected' ? rejectionReason.trim() : null;
+            if (adminNotes !== undefined) provider.documents[docIndex].adminNotes = adminNotes;
+        }
+        provider.markModified('documents');
+
+        const docLabel = docId.toUpperCase().replace(/_/g, ' ');
+        const { sendNotificationToUser } = require('../config/notificationService');
+        try {
+            await sendNotificationToUser(provider._id, 'provider', {
+                title: status === 'verified' ? `${docLabel} Approved` : `${docLabel} Rejected`,
+                body: status === 'verified'
+                    ? `Your ${docLabel} has been approved by the admin.`
+                    : `Your ${docLabel} was rejected. Reason: ${rejectionReason}`,
+                data: { type: 'kyc', id: provider._id.toString() }
+            });
+        } catch (err) {
+            console.error('Failed to notify provider on document update:', err.message);
+        }
+
+        if (status === 'rejected') {
+            provider.status = 'rejected';
+            provider.kycStatus = 'rejected';
+            provider.kycVerified = false;
+            provider.kycSubmitted = false;
+            try {
+                await sendNotificationToUser(provider._id, 'provider', {
+                    title: 'KYC Rejected',
+                    body: `Your KYC application was rejected. Please review and update the rejected items.`,
+                    data: { type: 'kyc', id: provider._id.toString() }
+                });
+            } catch (err) {
+                console.error('Failed to notify provider on overall kyc reject:', err.message);
+            }
+        } else {
+            // Complete once every document actually on file is verified — the
+            // documents a Partner and a Sewak collect differ, so this checks
+            // what was really submitted rather than a fixed list of ids.
+            const allVerified = provider.documents.length > 0
+                && provider.documents.every(d => d.status === 'verified');
+
+            if (allVerified) {
+                provider.kycVerified = true;
+                provider.kycStatus = 'verified';
+
+                // Sewaks stop here until the Training Panel clears them; a
+                // Partner has no such gate and this already no-ops for one.
+                const docGate = await requiresTrainingBeforeGoLive(provider);
+                if (docGate.blocked) {
+                    provider.status = 'pending';
+                    provider.isOnline = false;
+                } else {
+                    provider.status = 'verified';
+                    provider.isOnline = true;
+                }
+
+                try {
+                    await sendNotificationToUser(provider._id, 'provider', {
+                        title: 'KYC Approved',
+                        body: docGate.blocked
+                            ? 'Your identity verification is complete. Next step: visit your training centre to verify your starter kit items and complete basic training — your profile goes live right after.'
+                            : 'Your identity verification is complete and your profile is now live.',
+                        data: { type: 'kyc', id: provider._id.toString() }
+                    });
+                } catch (err) {
+                    console.error('Failed to notify provider on overall kyc verify:', err.message);
+                }
+            } else {
+                provider.kycStatus = 'partially_approved';
+            }
+        }
+
+        await provider.save();
+
+        try {
+            await AuditLog.create({
+                actionType: status === 'verified' ? 'APPROVE_DOCUMENT' : 'REJECT_DOCUMENT',
+                entityType: provider.providerCategory === 'sewak' ? 'SEWAK' : 'VENDOR',
+                entityId: provider._id,
+                entityName: provider.shopName || provider.ownerName,
+                verifiedBy: req.user._id,
+                verifiedByName: req.user.name,
+                verifiedByRole: req.user.role,
+                details: { docId, status, rejectionReason: status === 'rejected' ? rejectionReason : undefined }
+            });
+        } catch (auditErr) {
+            console.error('Audit log failed:', auditErr.message);
+        }
+
+        // The response replaces the modal's provider state directly, which is
+        // exactly the grid that just rendered these documents — the list
+        // projection (PROVIDER_LIST_FIELDS) strips `documents`, and sending
+        // that back here would make every document card vanish the instant
+        // one was reviewed.
+        const updated = await Provider.findById(id).select('-password -fcmTokens -fcmTokenMobile').lean();
+        res.json({
+            success: true,
+            message: `Document ${docId} status updated to ${status}`,
+            provider: updated
+        });
+    } catch (error) {
+        console.error('Verify Provider Document Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Get all subscription plans
 // @route   GET /api/admin/subscriptions
 // @access  Private/Admin
@@ -3775,6 +3943,7 @@ const deleteCoupon = async (req, res) => {
 
 module.exports = {
     getProviders,
+    getProviderById,
     getProviderStats,
     getProviderPicker,
     getProviderReports,
@@ -3835,6 +4004,7 @@ module.exports = {
     verifySewak,
     rejectSewak,
     verifySewakDocument,
+    verifyProviderDocument,
     deleteProvider,
     getAdminSubscriptionPlans,
     createSubscriptionPlan,

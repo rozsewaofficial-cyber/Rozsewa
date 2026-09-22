@@ -5,6 +5,7 @@ const partnerPolicyController = require('../controllers/partnerPolicyController'
 const broadcastController = require('../controllers/broadcastController');
 const {
     getProviders,
+    getProviderById,
     getProviderStats,
     getProviderPicker,
     getProviderReports,
@@ -66,6 +67,7 @@ const {
     verifySewak,
     rejectSewak,
     verifySewakDocument,
+    verifyProviderDocument,
     updateProviderCategory,
     getAdminSubscriptionPlans,
     createSubscriptionPlan,
@@ -137,12 +139,15 @@ router.put('/employees/:id/reject', protect, admin, rejectEmployee);
 router.get('/providers', protect, admin, getProviders);
 router.get('/providers/stats', protect, admin, getProviderStats);
 router.get('/providers/picker', protect, admin, getProviderPicker);
+// Kept below /stats and /picker, or :id would swallow both as a literal id.
+router.get('/providers/:id', protect, admin, getProviderById);
 router.get('/provider-reports', protect, admin, getProviderReports);
 router.patch('/provider-reports/:id/resolve', protect, admin, resolveProviderReport);
 router.delete('/providers/:id', protect, admin, deleteProvider);
 router.put('/providers/:id/status', protect, admin, updateProviderStatus);
 router.put('/providers/:id/plan', protect, admin, updateProviderPlan);
 router.put('/providers/:id/category-role', protect, admin, updateProviderCategory);
+router.put('/providers/:id/documents/:docId/status', protect, admin, verifyProviderDocument);
 
 // Night Charge Management
 router.get('/night-charge', protect, admin, getNightChargeSettings);
