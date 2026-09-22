@@ -20,6 +20,7 @@ const AdminSettings = () => {
     autoAssign: true,
     vendorCardEnabled: true,
     vendorCardPrice: 99,
+    vendorCardValidityDays: 365,
     lead_min_wallet_balance: 200,
     lead_unlock_price: 50,
     lead_free_unlock_limit: 3,
@@ -56,6 +57,7 @@ const AdminSettings = () => {
         autoAssign: data.autoAssign !== undefined ? data.autoAssign : true,
         vendorCardEnabled: data.vendorCardEnabled !== undefined ? data.vendorCardEnabled : true,
         vendorCardPrice: data.vendorCardPrice || 99,
+        vendorCardValidityDays: data.vendorCardValidityDays || 365,
         lead_min_wallet_balance: data.lead_min_wallet_balance || 200,
         lead_unlock_price: data.lead_unlock_price || 50,
         lead_free_unlock_limit: data.lead_free_unlock_limit !== undefined ? Number(data.lead_free_unlock_limit) : 3,
@@ -99,6 +101,7 @@ const AdminSettings = () => {
     try {
       const updates = [
         API.post("/admin/settings", { key: "vendorCardPrice", value: platformSettings.vendorCardPrice }),
+        API.post("/admin/settings", { key: "vendorCardValidityDays", value: platformSettings.vendorCardValidityDays }),
       ];
       await Promise.all(updates);
       toast({ title: "Settings Saved", description: "Global rules updated successfully." });
@@ -245,10 +248,16 @@ const AdminSettings = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   {platformSettings.vendorCardEnabled && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-gray-700">₹</span>
-                      <input type="number" value={platformSettings.vendorCardPrice} onChange={(e) => setPlatformSettings({ ...platformSettings, vendorCardPrice: parseInt(e.target.value) || 0 })} className="w-16 rounded-lg border border-gray-200 py-1.5 px-2 text-sm text-center font-bold focus:border-emerald-500 focus:outline-none" />
-                    </div>
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-gray-700">₹</span>
+                        <input type="number" value={platformSettings.vendorCardPrice} onChange={(e) => setPlatformSettings({ ...platformSettings, vendorCardPrice: parseInt(e.target.value) || 0 })} className="w-16 rounded-lg border border-gray-200 py-1.5 px-2 text-sm text-center font-bold focus:border-emerald-500 focus:outline-none" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="number" value={platformSettings.vendorCardValidityDays} onChange={(e) => setPlatformSettings({ ...platformSettings, vendorCardValidityDays: parseInt(e.target.value) || 0 })} className="w-16 rounded-lg border border-gray-200 py-1.5 px-2 text-sm text-center font-bold focus:border-emerald-500 focus:outline-none" />
+                        <span className="text-xs font-bold text-gray-700">days valid</span>
+                      </div>
+                    </>
                   )}
                   <button onClick={() => {
                     const newVal = !platformSettings.vendorCardEnabled;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { CreditCard, TrendingUp, Users, IndianRupee, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { CreditCard, TrendingUp, Users, IndianRupee, Loader2, ChevronLeft, ChevronRight, MapPin, X, ShieldAlert } from "lucide-react";
 import API from "@/lib/api";
 
 const Admin99Card = () => {
@@ -8,8 +8,10 @@ const Admin99Card = () => {
     const [stats, setStats] = useState({
         totalSales: 0,
         activeSubscribers: 0,
+        totalExpired: 0,
         totalRevenue: 0,
-        recentActivations: []
+        recentActivations: [],
+        cities: []
     });
     const [loading, setLoading] = useState(true);
 
@@ -17,14 +19,34 @@ const Admin99Card = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
+    // Filters
+    const [cityFilter, setCityFilter] = useState("all");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
+    const [cardStatus, setCardStatus] = useState("all");
+    const hasFilters = cityFilter !== "all" || dateFrom || dateTo || cardStatus !== "all";
+
     useEffect(() => {
         setTitle("Vendor Registration Card");
-        fetchCardData();
     }, [setTitle]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+        fetchCardData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cityFilter, dateFrom, dateTo, cardStatus]);
+
     const fetchCardData = async () => {
+        setLoading(true);
         try {
-            const { data } = await API.get("/admin/99cards");
+            const { data } = await API.get("/admin/99cards", {
+                params: {
+                    ...(cityFilter !== "all" ? { city: cityFilter } : {}),
+                    ...(dateFrom ? { from: dateFrom } : {}),
+                    ...(dateTo ? { to: dateTo } : {}),
+                    ...(cardStatus !== "all" ? { cardStatus } : {})
+                }
+            });
             setStats(data);
         } catch (err) {
             console.error("Card Stats Loading Error:", err);
@@ -52,7 +74,7 @@ const Admin99Card = () => {
                 <p className="text-sm text-muted-foreground mt-1">Track mandatory vendor subscription metrics and referral networks.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-teal-50/50 p-6 shadow-sm hover:shadow-md transition-all">
                     <CreditCard className="h-8 w-8 text-emerald-600 mb-4" />
                     <p className="text-sm font-bold text-emerald-800 uppercase tracking-wider mb-1">Total Sales</p>
@@ -65,12 +87,74 @@ const Admin99Card = () => {
                     <h2 className="text-4xl font-black text-blue-900">{stats.activeSubscribers.toLocaleString()}</h2>
                     <p className="text-xs text-blue-600 font-bold mt-2">Verified & Online Responders</p>
                 </div>
+                <div className="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-rose-50/50 p-6 shadow-sm hover:shadow-md transition-all">
+                    <ShieldAlert className="h-8 w-8 text-red-600 mb-4" />
+                    <p className="text-sm font-bold text-red-800 uppercase tracking-wider mb-1">Expired Cards</p>
+                    <h2 className="text-4xl font-black text-red-900">{stats.totalExpired.toLocaleString()}</h2>
+                    <p className="text-xs text-red-600 font-bold mt-2">Valid for {stats.cardValidityDays || 365} days from registration</p>
+                </div>
                 <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-orange-50/50 p-6 shadow-sm hover:shadow-md transition-all">
                     <IndianRupee className="h-8 w-8 text-amber-600 mb-4" />
                     <p className="text-sm font-bold text-amber-800 uppercase tracking-wider mb-1">Card Revenue</p>
                     <h2 className="text-4xl font-black text-amber-900">₹{(stats.totalRevenue / 100000).toFixed(1)}L</h2>
-                    <p className="text-xs text-amber-600 font-bold mt-2">All time generated (₹{stats.cardPrice || 99}/unit)</p>
+                    <p className="text-xs text-amber-600 font-bold mt-2">Within current filter (₹{stats.cardPrice || 99}/unit)</p>
                 </div>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-xl p-1.5 shadow-sm">
+                    {["all", "active", "expired"].map((s) => (
+                        <button
+                            key={s}
+                            onClick={() => setCardStatus(s)}
+                            className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${cardStatus === s ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`}
+                        >
+                            {s}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="relative w-full sm:w-52">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                    <select
+                        value={cityFilter}
+                        onChange={(e) => setCityFilter(e.target.value)}
+                        className="block w-full appearance-none rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm transition-all"
+                    >
+                        <option value="all">All Cities</option>
+                        {(stats.cities || []).map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        max={dateTo || undefined}
+                        className="rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm transition-all"
+                    />
+                    <span className="text-xs font-bold text-gray-400">to</span>
+                    <input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        min={dateFrom || undefined}
+                        className="rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm transition-all"
+                    />
+                </div>
+
+                {hasFilters && (
+                    <button
+                        onClick={() => { setCityFilter("all"); setDateFrom(""); setDateTo(""); setCardStatus("all"); }}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-all self-start sm:self-auto"
+                    >
+                        <X className="h-3 w-3" /> Clear
+                    </button>
+                )}
             </div>
 
             <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden mt-8">
@@ -83,22 +167,26 @@ const Admin99Card = () => {
                             <tr>
                                 <th className="px-6 py-4 font-bold">Vendor Code</th>
                                 <th className="px-6 py-4 font-bold">Shop Name</th>
+                                <th className="px-6 py-4 font-bold">City</th>
                                 <th className="px-6 py-4 font-bold">Referral Used</th>
                                 <th className="px-6 py-4 font-bold">Free Bookings</th>
-                                <th className="px-6 py-4 font-bold">Status</th>
-                                <th className="px-6 py-4 font-bold">Date</th>
+                                <th className="px-6 py-4 font-bold">Card Status</th>
+                                <th className="px-6 py-4 font-bold">Registered</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {stats.recentActivations.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="px-6 py-8 text-center text-gray-400 font-bold">No card activations yet.</td>
+                                    <td colSpan="7" className="px-6 py-8 text-center text-gray-400 font-bold">No card activations yet.</td>
                                 </tr>
                             ) : (
-                                paginatedActivations.map((item, i) => (
+                                paginatedActivations.map((item) => {
+                                    const isExpired = item.vendorCardExpiry && new Date(item.vendorCardExpiry) < new Date();
+                                    return (
                                     <tr key={item._id} className="hover:bg-gray-50/50 transition">
                                         <td className="px-6 py-4 font-mono font-bold text-emerald-700">{item.vendorCode || 'N/A'}</td>
                                         <td className="px-6 py-4 font-bold text-gray-900">{item.shopName}</td>
+                                        <td className="px-6 py-4 text-xs font-bold text-gray-600">{item.city || 'N/A'}</td>
                                         <td className="px-6 py-4">
                                             <span className="px-2 py-1 bg-gray-100 rounded text-xs font-bold text-gray-700">
                                                 {item.referredBy || 'Organic'}
@@ -110,16 +198,16 @@ const Admin99Card = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center gap-1.5">
-                                                <div className={`h-1.5 w-1.5 rounded-full ${i < 3 ? 'bg-emerald-500' : 'bg-gray-300'} animate-pulse`}></div>
-                                                <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">Live</span>
-                                            </div>
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest ${isExpired ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                {isExpired ? 'Expired' : 'Active'}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4 text-xs font-bold text-gray-500">
                                             {item.joinedDate ? new Date(item.joinedDate).toLocaleDateString() : 'N/A'}
                                         </td>
                                     </tr>
-                                ))
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

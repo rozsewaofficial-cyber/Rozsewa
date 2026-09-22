@@ -3,6 +3,16 @@ const generateToken = require('../utils/generateToken');
 const Employee = require('../models/Employee');
 const { adminRecipients } = require('../utils/adminRecipients');
 
+// The 99 Card (mandatory vendor verification card) is valid for a period the
+// admin controls, not a hardcoded one — falls back to a year when unset.
+const computeVendorCardExpiry = async () => {
+    const Setting = require('../models/Setting');
+    const setting = await Setting.findOne({ key: 'vendorCardValidityDays' });
+    const days = setting ? parseInt(setting.value, 10) : 365;
+    const validDays = Number.isFinite(days) && days > 0 ? days : 365;
+    return new Date(Date.now() + validDays * 24 * 60 * 60 * 1000);
+};
+
 // @desc    Register a new provider
 // @route   POST /api/provider/register
 // @access  Public
@@ -90,6 +100,8 @@ const registerProvider = async (req, res) => {
         if (kycPanPhoto) initialDocs.push({ id: 'pan', url: kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' });
         if (gst) initialDocs.push({ id: 'gst', url: gst, status: 'pending', fileName: 'GST_Registration.jpg' });
 
+        const vendorCardExpiry = await computeVendorCardExpiry();
+
         const provider = await Provider.create({
             mobile,
             ownerName,
@@ -121,7 +133,8 @@ const registerProvider = async (req, res) => {
             location: req.body.location,
             isHomeVisitAvailable: isHomeVisitAvailable || false,
             is24x7: is24x7 || false,
-            status: 'pending' // Verification required by admin
+            status: 'pending', // Verification required by admin
+            vendorCardExpiry
         });
 
         // Push Notification for Admins (New KYC Request)
@@ -256,6 +269,8 @@ const registerSewak = async (req, res) => {
         if (kycPanPhoto) initialDocs.push({ id: 'pan', url: kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' });
         if (gst) initialDocs.push({ id: 'gst', url: gst, status: 'pending', fileName: 'GST_Registration.jpg' });
 
+        const vendorCardExpiry = await computeVendorCardExpiry();
+
         const sewak = await Provider.create({
             mobile,
             ownerName,
@@ -290,7 +305,8 @@ const registerSewak = async (req, res) => {
             commissionRate: 100, // 100% to Admin — Sewak earns via incentives, not commission
             kycVerified: false,
             isOnline: false, // Wait until verified
-            status: 'pending' // Verification required by admin
+            status: 'pending', // Verification required by admin
+            vendorCardExpiry
         });
 
         // Auto-assign category services/combos to the new Sewak (same as admin-created Sewaks)

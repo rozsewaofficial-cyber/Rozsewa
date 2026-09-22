@@ -1355,22 +1355,61 @@ const broadcastEmergency = async (req, res) => {
 const get99CardData = async (req, res) => {
     try {
         const Setting = require('../models/Setting');
-        const cardPriceSetting = await Setting.findOne({ key: 'vendorCardPrice' });
+        const [cardPriceSetting, validitySetting] = await Promise.all([
+            Setting.findOne({ key: 'vendorCardPrice' }),
+            Setting.findOne({ key: 'vendorCardValidityDays' })
+        ]);
         const cardPrice = cardPriceSetting ? parseFloat(cardPriceSetting.value) : 99;
+        const cardValidityDays = validitySetting ? parseInt(validitySetting.value, 10) : 365;
 
-        const totalSales = await Provider.countDocuments();
-        const activeSubscribers = await Provider.countDocuments({ status: 'verified' });
-        const recentActivations = await Provider.find()
-            .select('ownerName shopName joinedDate vendorCode employeeCode freeServicesLeft referredBy')
-            .sort({ joinedDate: -1 })
-            .limit(10);
+        const { city, from, to, cardStatus } = req.query;
+        const query = {};
+
+        if (city && city !== 'all') {
+            const escapeRx = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.city = new RegExp(`^${escapeRx(city)}$`, 'i');
+        }
+
+        // Registration date, as the two date pickers on the screen describe it.
+        if (from || to) {
+            query.joinedDate = {};
+            if (from) query.joinedDate.$gte = new Date(new Date(from).setHours(0, 0, 0, 0));
+            if (to) query.joinedDate.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+        }
+
+        // A card with no expiry recorded predates this field and is treated as
+        // still active rather than silently counted as expired.
+        const now = new Date();
+        if (cardStatus === 'active') {
+            query.$and = (query.$and || []).concat([
+                { $or: [{ vendorCardExpiry: null }, { vendorCardExpiry: { $gte: now } }] }
+            ]);
+        } else if (cardStatus === 'expired') {
+            query.vendorCardExpiry = { $lt: now };
+        }
+
+        const [totalSales, activeSubscribers, totalExpired, cities, recentActivations] = await Promise.all([
+            Provider.countDocuments(query),
+            Provider.countDocuments({ ...query, status: 'verified' }),
+            // Expired count describes the same city/date scope, independent of
+            // whichever card-status tab is currently selected.
+            Provider.countDocuments({ ...query, vendorCardExpiry: { $lt: now } }),
+            Provider.distinct('city'),
+            Provider.find(query)
+                .select('ownerName shopName city joinedDate vendorCode employeeCode freeServicesLeft referredBy vendorCardExpiry')
+                .sort({ joinedDate: -1 })
+                .limit(10)
+        ]);
 
         res.json({
             totalSales,
             activeSubscribers,
+            totalExpired,
             totalRevenue: totalSales * cardPrice,
             recentActivations,
-            cardPrice // Send card price to frontend too
+            cardPrice, // Send card price to frontend too
+            cardValidityDays,
+            cities: cities.filter(Boolean).sort()
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1454,6 +1493,7 @@ const getSettings = async (req, res) => {
             autoAssign: config.autoAssign !== undefined ? (config.autoAssign === 'true' || config.autoAssign === true) : true,
             vendorCardEnabled: config.vendorCardEnabled !== undefined ? (config.vendorCardEnabled === 'true' || config.vendorCardEnabled === true) : true,
             vendorCardPrice: config.vendorCardPrice || 99,
+            vendorCardValidityDays: config.vendorCardValidityDays || 365,
             // New Tiered Commission Keys
             commission_basic: config.commission_basic || 25,
             commission_standard: config.commission_standard || 20,

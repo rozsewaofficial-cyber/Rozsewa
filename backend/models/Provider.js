@@ -199,6 +199,10 @@ const providerSchema = mongoose.Schema({
         default: 'percentage'
     },
     joinedDate: { type: Date, default: Date.now },
+    // The 99 Card (mandatory vendor verification card) validity, computed at
+    // registration from the admin-configured `vendorCardValidityDays` setting.
+    // Left null for a provider registered before this existed.
+    vendorCardExpiry: { type: Date, default: null },
     fcmTokens: [String],
     fcmTokenMobile: [String],
     serviceRadius: {
