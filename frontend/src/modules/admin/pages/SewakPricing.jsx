@@ -131,7 +131,11 @@ const SewakPricing = () => {
         if (selectedService && selectedCatIdx !== null && categories[selectedCatIdx]._id === category._id) {
             updatedServices = category.services.map(s => {
                 if (s._id === selectedService._id) {
-                    return { ...s, basePrice: Number(selectedService.basePrice) || 0 };
+                    return {
+                        ...s,
+                        basePrice: Number(selectedService.basePrice) || 0,
+                        offerPrice: Number(selectedService.offerPrice) || 0
+                    };
                 }
                 return s;
             });
@@ -290,7 +294,10 @@ const SewakPricing = () => {
                                                                     </div>
                                                                     <div className="truncate">
                                                                         <h4 className="text-xs font-black text-gray-800 tracking-tight truncate">{svc.name}</h4>
-                                                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate">Base: ₹{svc.basePrice ?? 0}</p>
+                                                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate">
+                                                                            Base: ₹{svc.basePrice ?? 0}
+                                                                            {svc.offerPrice > 0 && <> • Offer: ₹{svc.offerPrice}</>}
+                                                                        </p>
                                                                     </div>
                                                                 </div>
                                                                 <Button
@@ -474,6 +481,36 @@ const SewakPricing = () => {
                                         <p className="text-[10px] font-medium text-gray-400 mt-3 flex items-start gap-1.5 leading-relaxed">
                                             <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
                                             This base price applies to all Sewaks offering this service globally. Make sure to hit 'Save Changes' below.
+                                        </p>
+                                    </div>
+
+                                    <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-sm">
+                                        <InputField label="Offer Price (₹)">
+                                            <div className="relative mt-2">
+                                                <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    placeholder="0"
+                                                    value={selectedService.offerPrice ?? ''}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        let cleanVal = val;
+                                                        if (val.startsWith('0') && val.length > 1) {
+                                                            cleanVal = val.replace(/^0+/, '');
+                                                        }
+                                                        const normalizedVal = cleanVal === '' ? '' : Math.max(0, Number(cleanVal));
+                                                        updatePrice(selectedCatIdx, selectedSvcIdx, 'offerPrice', normalizedVal);
+                                                        setSelectedService(prev => ({ ...prev, offerPrice: normalizedVal }));
+                                                    }}
+                                                    onFocus={(e) => e.target.select()}
+                                                    className="w-full h-14 pl-11 rounded-xl border border-gray-200 bg-gray-50 font-black text-2xl text-gray-900 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                                                />
+                                            </div>
+                                        </InputField>
+                                        <p className="text-[10px] font-medium text-gray-400 mt-3 flex items-start gap-1.5 leading-relaxed">
+                                            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-500" />
+                                            Optional. A higher reference amount shown alongside the base price so it reads like a discount. Leave at 0 to show no offer.
                                         </p>
                                     </div>
                                 </div>

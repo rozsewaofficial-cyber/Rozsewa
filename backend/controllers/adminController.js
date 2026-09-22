@@ -797,6 +797,7 @@ const getCategories = async (req, res) => {
                     _id: s._id,
                     name: s.name,
                     basePrice: Number(s.basePrice) || 0,
+                    offerPrice: Number(s.offerPrice) || 0,
                     description: s.description || ""
                 });
             });
@@ -810,6 +811,9 @@ const getCategories = async (req, res) => {
                     _id: s._id,
                     name: s.name,
                     basePrice: s.price !== undefined ? Number(s.price) : (existing?.basePrice || 0),
+                    // Standalone Service docs don't track offerPrice — it only
+                    // lives on the embedded copy, so carry it over as-is.
+                    offerPrice: existing?.offerPrice || 0,
                     description: s.description || existing?.description || "",
                     subcategoryId: s.subcategoryId,
                     subcategory: s.subcategory
@@ -907,6 +911,7 @@ const updateCategory = async (req, res) => {
                     _id: existing?._id || s._id || new mongoose.Types.ObjectId(),
                     name: s.name,
                     basePrice: Number(s.basePrice) || 0,
+                    offerPrice: Number(pick('offerPrice', 0)) || 0,
                     description: s.description || existing?.description || "",
                     image: pick('image', ""),
                     skillSessionRequired: !!pick('skillSessionRequired', false),

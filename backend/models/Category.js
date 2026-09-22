@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const subServiceSchema = mongoose.Schema({
     name: { type: String, required: true },
     basePrice: { type: Number, default: 0 },
+    // A higher reference amount shown alongside basePrice so the actual
+    // price reads like a discount off it. Optional — 0 means none is set.
+    offerPrice: { type: Number, default: 0 },
     description: { type: String },
     image: { type: String },
     // Skill Session gate — a Sewak must complete training before this service goes live.
