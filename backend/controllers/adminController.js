@@ -518,12 +518,31 @@ const getAdminStats = async (req, res) => {
  * Returns null when the user is scoped to nothing at all.
  */
 const adminBookingScope = async (req, { includeSearch = false } = {}) => {
-    const { status, search } = req.query;
+    const { status, search, city, from, to } = req.query;
     const query = {};
 
     // The table's "flagged" tab is a field, not a status.
     if (status === 'unauthorized') query.unauthorizedPaymentFlag = true;
     else if (status) query.status = status;
+
+    // bookingDate is stored as "YYYY-MM-DD" (or the literal "ASAP" for an
+    // express booking), which sorts lexicographically the same as
+    // chronologically, so a plain string range works without parsing it.
+    if (from || to) {
+        query.bookingDate = {};
+        if (from) query.bookingDate.$gte = String(from);
+        if (to) query.bookingDate.$lte = String(to);
+    }
+
+    // A booking has no city of its own — the provider serving it does.
+    let cityProviderIds = null;
+    if (city && city !== 'all') {
+        const escapeRx = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const cityProviders = await Provider.find({ city: new RegExp(`^${escapeRx(city)}$`, 'i') })
+            .select('_id').lean();
+        cityProviderIds = cityProviders.map(p => p._id);
+        query.providerId = { $in: cityProviderIds };
+    }
 
     // Searching used to happen in the browser over whatever rows it held, which
     // meant a search only ever found what had already been sent. It reaches the
@@ -556,7 +575,12 @@ const adminBookingScope = async (req, { includeSearch = false } = {}) => {
         // No employee record means no team, which means nothing to see —
         // not everything.
         if (!team) return null;
-        query.providerId = { $in: await teamSewakIds(team.codes) };
+        const teamProviderIds = await teamSewakIds(team.codes);
+        // A city filter already narrowed providerId above — intersect rather
+        // than overwrite, or a supervisor could be shown another team's city.
+        query.providerId = { $in: cityProviderIds
+            ? teamProviderIds.filter(id => cityProviderIds.some(cid => cid.equals(id)))
+            : teamProviderIds };
     }
 
     return query;
@@ -578,7 +602,7 @@ const adminBookingScope = async (req, { includeSearch = false } = {}) => {
 const getBookingStats = async (req, res) => {
     try {
         const query = await adminBookingScope(req);
-        if (!query) return res.json({ total: 0, revenue: 0, statusCounts: {} });
+        if (!query) return res.json({ total: 0, revenue: 0, statusCounts: {}, cities: [] });
 
         // Revenue is the completed bookings *within* the current scope. Spreading
         // `status: 'completed'` over the scope would overwrite a status filter
@@ -587,7 +611,7 @@ const getBookingStats = async (req, res) => {
         const scopedToOtherStatus = query.status && query.status !== 'completed';
         const revenueMatch = { ...query, status: 'completed' };
 
-        const [byStatus, revenueRow, unauthorized] = await Promise.all([
+        const [byStatus, revenueRow, unauthorized, cities] = await Promise.all([
             Booking.aggregate([
                 { $match: query },
                 { $group: { _id: '$status', count: { $sum: 1 } } }
@@ -596,7 +620,9 @@ const getBookingStats = async (req, res) => {
                 { $match: revenueMatch },
                 { $group: { _id: null, revenue: { $sum: '$totalAmount' } } }
             ]),
-            Booking.countDocuments({ ...query, unauthorizedPaymentFlag: true })
+            Booking.countDocuments({ ...query, unauthorizedPaymentFlag: true }),
+            // The city filter's options, which the page of rows on screen cannot know.
+            Provider.distinct('city')
         ]);
 
         const statusCounts = {};
@@ -616,7 +642,8 @@ const getBookingStats = async (req, res) => {
             cancelled: statusCounts.cancelled || 0,
             unauthorized,
             revenue: Math.round((revenueRow[0]?.revenue || 0) * 100) / 100,
-            statusCounts
+            statusCounts,
+            cities: cities.filter(Boolean).sort()
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

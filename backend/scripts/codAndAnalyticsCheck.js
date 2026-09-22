@@ -525,7 +525,7 @@ check('the admin headline is computed server-side over the whole scope', () => {
         'the per-status counts must be grouped in the database');
 
     const ui = frontend('modules', 'admin', 'pages', 'AdminBookings.jsx');
-    assert.ok(/API\.get\("\/admin\/bookings\/stats"\)/.test(ui), 'the screen must fetch them');
+    assert.ok(/API\.get\("\/admin\/bookings\/stats"/.test(ui), 'the screen must fetch them');
     assert.ok(/if \(serverStats\) return serverStats;/.test(ui),
         'and prefer them over anything derived from the page');
     assert.ok(/if \(serverStats\?\.statusCounts\) return serverStats\.statusCounts;/.test(ui),

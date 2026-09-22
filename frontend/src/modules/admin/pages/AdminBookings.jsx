@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useOutletContext, useNavigate, useLocation } from "react-router-dom";
-import { Search, Download, CalendarDays, IndianRupee, Loader2, Clock, Image, Filter, Users, TrendingUp, XCircle, CheckCircle2, Truck, Play, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Download, CalendarDays, IndianRupee, Loader2, Clock, Image, Filter, Users, TrendingUp, XCircle, CheckCircle2, Truck, Play, AlertCircle, ShieldAlert, ChevronLeft, ChevronRight, MapPin, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -30,6 +30,9 @@ const AdminBookings = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
+  const [cityFilter, setCityFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   // Totals for the whole collection, computed by the server.
@@ -42,7 +45,7 @@ const AdminBookings = () => {
   // Reset pagination when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filter]);
+  }, [searchTerm, filter, cityFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     setTitle("All Bookings");
@@ -57,7 +60,7 @@ const AdminBookings = () => {
     const t = setTimeout(() => fetchBookings(), searchTerm ? 350 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filter, currentPage]);
+  }, [searchTerm, filter, cityFilter, dateFrom, dateTo, currentPage]);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -75,10 +78,19 @@ const AdminBookings = () => {
             page: currentPage,
             limit: itemsPerPage,
             ...(filter !== "all" ? { status: filter } : {}),
-            ...(searchTerm ? { search: searchTerm } : {})
+            ...(searchTerm ? { search: searchTerm } : {}),
+            ...(cityFilter !== "all" ? { city: cityFilter } : {}),
+            ...(dateFrom ? { from: dateFrom } : {}),
+            ...(dateTo ? { to: dateTo } : {})
           }
         }),
-        API.get("/admin/bookings/stats")
+        API.get("/admin/bookings/stats", {
+          params: {
+            ...(cityFilter !== "all" ? { city: cityFilter } : {}),
+            ...(dateFrom ? { from: dateFrom } : {}),
+            ...(dateTo ? { to: dateTo } : {})
+          }
+        })
       ]);
       setBookings(list.data);
       setServerStats(totals.data);
@@ -136,6 +148,10 @@ const AdminBookings = () => {
     return counts;
   }, [bookings, serverStats]);
 
+  // The cities that exist, which a page of rows cannot know.
+  const cities = serverStats?.cities || [];
+  const hasDateOrCityFilter = cityFilter !== "all" || dateFrom || dateTo;
+
   const handleExport = async () => {
     // The table holds one page, so exporting it would quietly produce a file
     // of ten rows. This asks for everything that matches instead.
@@ -145,7 +161,10 @@ const AdminBookings = () => {
         params: {
           limit: 1000,
           ...(filter !== "all" ? { status: filter } : {}),
-          ...(searchTerm ? { search: searchTerm } : {})
+          ...(searchTerm ? { search: searchTerm } : {}),
+          ...(cityFilter !== "all" ? { city: cityFilter } : {}),
+          ...(dateFrom ? { from: dateFrom } : {}),
+          ...(dateTo ? { to: dateTo } : {})
         }
       });
       exportRows = data;
@@ -278,6 +297,50 @@ const AdminBookings = () => {
             placeholder="Search by name, mobile, service..."
           />
         </div>
+      </div>
+
+      {/* Date & City Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        <div className="relative w-full sm:w-52">
+          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+          <select
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            className="block w-full appearance-none rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm transition-all"
+          >
+            <option value="all">All Cities</option>
+            {cities.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            max={dateTo || undefined}
+            className="rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm transition-all"
+          />
+          <span className="text-xs font-bold text-gray-400">to</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            min={dateFrom || undefined}
+            className="rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm font-bold text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm transition-all"
+          />
+        </div>
+
+        {hasDateOrCityFilter && (
+          <button
+            onClick={() => { setCityFilter("all"); setDateFrom(""); setDateTo(""); }}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gray-100 px-3 py-2.5 text-[10px] font-black uppercase tracking-wider text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-all self-start sm:self-auto"
+          >
+            <X className="h-3 w-3" /> Clear
+          </button>
+        )}
       </div>
 
       {/* Bookings Table */}
