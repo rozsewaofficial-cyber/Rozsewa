@@ -1085,15 +1085,28 @@ const getUserStats = async (req, res) => {
         const scope = adminUserScope({ ...req.query, status: undefined }, { includeSearch: false });
 
         const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        // Every customer's wallet, joined and summed here rather than fetched
+        // and totalled on the page — the user list arrives one page at a
+        // time, so adding up the rows in hand would report the balance of
+        // whichever twenty customers happened to be on screen.
         const [row] = await User.aggregate([
             { $match: scope },
+            {
+                $lookup: {
+                    from: 'wallets',
+                    localField: '_id',
+                    foreignField: 'userId',
+                    as: 'wallet'
+                }
+            },
             {
                 $group: {
                     _id: null,
                     total: { $sum: 1 },
                     active: { $sum: { $cond: [{ $ne: ['$isActive', false] }, 1, 0] } },
                     blocked: { $sum: { $cond: [{ $eq: ['$isActive', false] }, 1, 0] } },
-                    recent: { $sum: { $cond: [{ $gte: ['$createdAt', weekAgo] }, 1, 0] } }
+                    recent: { $sum: { $cond: [{ $gte: ['$createdAt', weekAgo] }, 1, 0] } },
+                    totalWalletBalance: { $sum: { $ifNull: [{ $first: '$wallet.balance' }, 0] } }
                 }
             }
         ]);
@@ -1102,7 +1115,8 @@ const getUserStats = async (req, res) => {
             total: row?.total || 0,
             active: row?.active || 0,
             blocked: row?.blocked || 0,
-            recent: row?.recent || 0
+            recent: row?.recent || 0,
+            totalWalletBalance: Math.round((row?.totalWalletBalance || 0) * 100) / 100
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

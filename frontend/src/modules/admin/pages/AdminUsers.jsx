@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import TablePager from "@/modules/admin/components/TablePager";
 import { useOutletContext } from "react-router-dom";
 import { useScrollLock } from "@/lib/scrollLock";
-import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail, X, MapPin, ChevronLeft, ChevronRight, Users, Activity, AlertOctagon, TrendingUp } from "lucide-react";
+import { Search, MoreVertical, ShieldAlert, CheckCircle2, Ban, Loader2, User as UserIcon, Phone, Mail, X, MapPin, ChevronLeft, ChevronRight, Users, Activity, AlertOctagon, TrendingUp, Wallet as WalletIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
@@ -100,6 +100,11 @@ const AdminUsers = () => {
             const { data } = await API.put(`/admin/users/${id}/toggle-status`);
             if (data.success) {
                 setUsers(prev => prev.map(u => u._id === id ? { ...u, isActive: data.isActive } : u));
+                // The Blocked/Active tiles read from serverStats, which this
+                // toggle just made stale — a block that had visibly happened
+                // in the table still read "Blocked Accounts 0" above it until
+                // the whole page was reloaded.
+                API.get("/admin/users/stats").then((res) => setServerStats(res.data)).catch(() => {});
                 toast({
                     title: data.isActive ? "User Unblocked" : "User Blocked",
                     description: `The account is now ${data.isActive ? 'active' : 'restricted'}.`
@@ -143,7 +148,7 @@ const AdminUsers = () => {
             return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7;
         }).length;
         
-        return { total: users.length, active, blocked, recent };
+        return { total: users.length, active, blocked, recent, totalWalletBalance: 0 };
     }, [users, serverStats]);
 
     if (loading) return (
@@ -174,12 +179,13 @@ const AdminUsers = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 {[
                     { label: "Total Users", value: stats.total, icon: Users, cls: "text-blue-700 bg-blue-50 border-blue-200" },
                     { label: "Active Accounts", value: stats.active, icon: Activity, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
                     { label: "Blocked Accounts", value: stats.blocked, icon: AlertOctagon, cls: "text-red-700 bg-red-50 border-red-200" },
                     { label: "New (Last 7 Days)", value: stats.recent, icon: TrendingUp, cls: "text-amber-700 bg-amber-50 border-amber-200" },
+                    { label: "Total Wallet Balance", value: `₹${stats.totalWalletBalance.toLocaleString("en-IN")}`, icon: WalletIcon, cls: "text-purple-700 bg-purple-50 border-purple-200" },
                 ].map((s, i) => (
                     <div key={i} className={`rounded-xl border p-4 ${s.cls}`}>
                         <div className="flex items-center gap-1.5 mb-1.5">

@@ -193,6 +193,10 @@ const googleAuth = async (req, res) => {
             }
         }
 
+        if (!isNewUser && user.role === 'customer' && user.isActive === false) {
+            return res.status(403).json({ message: 'Your account has been blocked. Please contact support.' });
+        }
+
         const profileComplete = !!(user.mobile && user.city && user.state);
 
         res.json({
@@ -256,6 +260,10 @@ const loginWithOTP = async (req, res) => {
             return res.status(404).json({ message: 'No account found with this mobile number' });
         }
 
+        if (!isProvider && user.role === 'customer' && user.isActive === false) {
+            return res.status(403).json({ message: 'Your account has been blocked. Please contact support.' });
+        }
+
         res.json({
             success: true,
             message: "Login successful",
@@ -301,6 +309,15 @@ const authUser = async (req, res) => {
             console.log(`Password match result: ${isMatch}`);
 
             if (isMatch) {
+                // Admin/employee active status is handled elsewhere (HRM); this
+                // only stops a blocked customer signing back in. isActive was
+                // being flipped by the admin Block button but nothing ever
+                // read it at login, so a blocked account could keep using the
+                // app exactly as before.
+                if (user.role === 'customer' && user.isActive === false) {
+                    return res.status(403).json({ message: 'Your account has been blocked. Please contact support.' });
+                }
+
                 res.json({
                     success: true,
                     message: "Login successful",

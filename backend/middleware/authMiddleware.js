@@ -35,6 +35,17 @@ const protect = async (req, res, next) => {
                 return res.status(401).json({ message: 'Not authorized, user not found' });
             }
 
+            // A customer an admin has blocked must not keep using a session
+            // opened before the block — the Block button flips this flag, but
+            // nothing enforced it here, so a blocked account carried on
+            // exactly as before until its token happened to expire. 401, like
+            // every other rejection in this function, so the frontend's
+            // existing interceptor logs them out and redirects instead of
+            // just failing every request from here on.
+            if (principal.role === 'customer' && principal.isActive === false) {
+                return res.status(401).json({ message: 'Your account has been blocked. Please contact support.' });
+            }
+
             req.user = principal;
 
             next();
