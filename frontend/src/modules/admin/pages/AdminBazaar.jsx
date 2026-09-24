@@ -1003,7 +1003,7 @@ const CategoriesTab = () => {
       {/* Category Modal (Add / Edit Category with Subcategory Chips) */}
       {showCatModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden space-y-4 p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto space-y-4 p-6">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-black text-lg text-slate-900">{editingCat ? 'Edit Category' : 'Add New Category'}</h3>
               <button onClick={() => setShowCatModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
@@ -1127,7 +1127,7 @@ const CategoriesTab = () => {
       {/* Field Modal (Add / Edit Dynamic Field) */}
       {showFieldModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden space-y-4 p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto space-y-4 p-6">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="font-black text-lg text-slate-900">{editingField ? 'Edit Field' : 'Add New Dynamic Field'}</h3>
               <button onClick={() => setShowFieldModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg">
