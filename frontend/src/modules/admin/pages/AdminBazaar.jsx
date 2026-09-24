@@ -282,6 +282,17 @@ const AllAdsTab = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [subCategoryFilter, setSubCategoryFilter] = useState('');
+  // The subcategory dropdown's options — cleared along with the filter
+  // whenever the category above it changes.
+  const [adCategories, setAdCategories] = useState([]);
+
+  useEffect(() => {
+    api.get('/bazaar/categories')
+      .then(res => setAdCategories(res.data?.data || res.data || []))
+      .catch(() => { /* the filter simply stays category-less */ });
+  }, []);
 
   const fetchAds = useCallback(async () => {
     setLoading(true);
@@ -289,11 +300,13 @@ const AllAdsTab = () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
       if (search) params.append('search', search);
+      if (categoryFilter) params.append('category', categoryFilter);
+      if (categoryFilter && subCategoryFilter) params.append('subCategory', subCategoryFilter);
       const res = await api.get(`/bazaar/admin/ads?${params}`);
       if (res.data.success) setAds(res.data.data);
     } catch (e) { toast.error('Failed to load ads'); }
     finally { setLoading(false); }
-  }, [statusFilter, search]);
+  }, [statusFilter, search, categoryFilter, subCategoryFilter]);
 
   useEffect(() => { fetchAds(); }, [fetchAds]);
 
@@ -332,6 +345,27 @@ const AllAdsTab = () => {
           <option value="expired">Expired</option>
           <option value="cancelled">Cancelled</option>
         </select>
+        <select
+          value={categoryFilter}
+          onChange={e => { setCategoryFilter(e.target.value); setSubCategoryFilter(''); }}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none"
+        >
+          <option value="">All Categories</option>
+          {adCategories.map(c => (
+            <option key={c._id || c.name} value={c.name}>{c.name}</option>
+          ))}
+        </select>
+        <select
+          value={subCategoryFilter}
+          onChange={e => setSubCategoryFilter(e.target.value)}
+          disabled={!categoryFilter}
+          className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none disabled:opacity-50"
+        >
+          <option value="">All Subcategories</option>
+          {(adCategories.find(c => c.name === categoryFilter)?.subCategories || []).map(sc => (
+            <option key={sc} value={sc}>{sc}</option>
+          ))}
+        </select>
       </div>
 
       {loading ? (
@@ -359,7 +393,7 @@ const AllAdsTab = () => {
                       <img src={ad.images?.[0]} alt="" className="w-10 h-10 rounded-lg object-cover border border-slate-100 shrink-0" />
                       <div className="min-w-0">
                         <p className="font-bold text-slate-800 truncate max-w-[160px]">{ad.title}</p>
-                        <p className="text-[10px] text-slate-400">{ad.category}</p>
+                        <p className="text-[10px] text-slate-400">{ad.category}{ad.subCategory ? ` • ${ad.subCategory}` : ''}</p>
                       </div>
                     </div>
                   </td>

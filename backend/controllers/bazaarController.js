@@ -414,13 +414,18 @@ exports.getPendingAds = async (req, res) => {
 // Get All Ads for Admin Management (Live, Rejected, Sold, etc.)
 exports.getAllAdminAds = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, category, subCategory } = req.query;
     const query = {};
     if (status) {
       query.status = status;
     } else {
       query.status = { $ne: 'pending_review' };
     }
+    if (category) query.category = category;
+    // Only meaningful alongside a category — a subcategory name is not
+    // unique across categories, so filtering by it alone could mix ads
+    // from an unrelated category that happens to reuse the same tag.
+    if (subCategory && category) query.subCategory = subCategory;
     if (search) {
       // Escaped: what was typed is a title to look for, not a pattern to run.
       const safe = String(search).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
