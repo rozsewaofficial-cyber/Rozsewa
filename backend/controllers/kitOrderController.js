@@ -396,7 +396,7 @@ const getMyDues = async (req, res) => {
 // @access  Private/Admin
 const getAdminOrders = async (req, res) => {
     try {
-        const { status, categoryId, sewakId, dateFrom, dateTo } = req.query;
+        const { status, categoryId, sewakId, city, dateFrom, dateTo } = req.query;
         const query = {};
         if (status) query.status = status;
         if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) query.categoryId = categoryId;
@@ -405,6 +405,16 @@ const getAdminOrders = async (req, res) => {
             query.createdAt = {};
             if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
             if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); query.createdAt.$lte = d; }
+        }
+
+        // An order has no city of its own — the Sewak who placed it does.
+        if (city && city !== 'all') {
+            const escapeRx = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const sewaksInCity = await Provider.find({ city: new RegExp(`^${escapeRx(city)}$`, 'i') })
+                .select('_id').lean();
+            query.sewakId = query.sewakId
+                ? (sewaksInCity.some(s => String(s._id) === String(query.sewakId)) ? query.sewakId : null)
+                : { $in: sewaksInCity.map(s => s._id) };
         }
 
         const orders = await paginate(

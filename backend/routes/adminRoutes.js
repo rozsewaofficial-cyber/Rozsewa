@@ -375,6 +375,7 @@ router.get('/kit-payment-config/:categoryId', protect, admin, starterKitControll
 router.put('/kit-payment-config/:categoryId', protect, admin, starterKitController.updateKitPaymentConfig);
 
 router.get('/kit-inventory/summary', protect, admin, starterKitController.getInventorySummary);
+router.get('/kit-inventory/ledger', protect, admin, starterKitController.getStockLedger);
 
 router.get('/kit-orders', protect, admin, kitOrderController.getAdminOrders);
 router.put('/kit-orders/:id/confirm', protect, admin, kitOrderController.confirmOrder);

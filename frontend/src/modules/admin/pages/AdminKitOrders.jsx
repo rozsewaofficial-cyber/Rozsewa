@@ -30,6 +30,7 @@ const AdminKitOrders = () => {
   // Pending orders across the whole queue, which one page cannot report.
   const [pendingCount, setPendingCount] = useState(0);
   const [inventory, setInventory] = useState(null);
+  const [ledger, setLedger] = useState([]);
   const [dues, setDues] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -38,14 +39,45 @@ const AdminKitOrders = () => {
   const [deliveryDays, setDeliveryDays] = useState("5");
   const [saving, setSaving] = useState(false);
 
+  // Shared across Orders and the Inventory ledger: which categories and
+  // cities exist, which a page of rows on screen cannot know.
+  const [categories, setCategories] = useState([]);
+  const [cities, setCities] = useState([]);
+
+  // Orders filters
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [orderDateFrom, setOrderDateFrom] = useState("");
+  const [orderDateTo, setOrderDateTo] = useState("");
+
+  // Inventory filters
+  const [invCategoryFilter, setInvCategoryFilter] = useState("");
+  const [invStateFilter, setInvStateFilter] = useState("");
+
+  // Stock ledger filters
+  const [ledgerCategoryFilter, setLedgerCategoryFilter] = useState("");
+  const [ledgerDateFrom, setLedgerDateFrom] = useState("");
+  const [ledgerDateTo, setLedgerDateTo] = useState("");
+
   useScrollLock(!!confirmFor);
 
   useEffect(() => { setTitle("Kit Orders & Inventory"); }, [setTitle]);
 
+  useEffect(() => {
+    API.get("/admin/categories").then(({ data }) => setCategories(data || [])).catch(() => {});
+    API.get("/admin/providers/stats").then(({ data }) => setCities(data?.cities || [])).catch(() => {});
+  }, []);
+
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const params = statusFilter ? { status: statusFilter } : {};
+      const params = {
+        ...(statusFilter ? { status: statusFilter } : {}),
+        ...(categoryFilter ? { categoryId: categoryFilter } : {}),
+        ...(cityFilter ? { city: cityFilter } : {}),
+        ...(orderDateFrom ? { dateFrom: orderDateFrom } : {}),
+        ...(orderDateTo ? { dateTo: orderDateTo } : {}),
+      };
       const res = await API.get("/admin/kit-orders", { params });
       setOrders(res.data || []);
       // How many orders are still pending, across all of them rather than
@@ -54,17 +86,36 @@ const AdminKitOrders = () => {
     } catch {
       toast({ title: "Could not load orders", variant: "destructive" });
     } finally { setLoading(false); }
-  }, [statusFilter, toast]);
+  }, [statusFilter, categoryFilter, cityFilter, orderDateFrom, orderDateTo, toast]);
 
   const fetchInventory = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await API.get("/admin/kit-inventory/summary");
+      const params = {
+        ...(invCategoryFilter ? { categoryId: invCategoryFilter } : {}),
+        ...(invStateFilter ? { state: invStateFilter } : {}),
+      };
+      const { data } = await API.get("/admin/kit-inventory/summary", { params });
       setInventory(data);
     } catch {
       toast({ title: "Could not load inventory", variant: "destructive" });
     } finally { setLoading(false); }
-  }, [toast]);
+  }, [invCategoryFilter, invStateFilter, toast]);
+
+  const fetchLedger = useCallback(async () => {
+    try {
+      const params = {
+        ...(ledgerCategoryFilter ? { categoryId: ledgerCategoryFilter } : {}),
+        ...(ledgerDateFrom ? { dateFrom: ledgerDateFrom } : {}),
+        ...(ledgerDateTo ? { dateTo: ledgerDateTo } : {}),
+        limit: 100,
+      };
+      const { data } = await API.get("/admin/kit-inventory/ledger", { params });
+      setLedger(data || []);
+    } catch {
+      toast({ title: "Could not load stock entries", variant: "destructive" });
+    }
+  }, [ledgerCategoryFilter, ledgerDateFrom, ledgerDateTo, toast]);
 
   const fetchDues = useCallback(async () => {
     setLoading(true);
@@ -78,9 +129,9 @@ const AdminKitOrders = () => {
 
   useEffect(() => {
     if (tab === "orders") fetchOrders();
-    else if (tab === "inventory") fetchInventory();
+    else if (tab === "inventory") { fetchInventory(); fetchLedger(); }
     else fetchDues();
-  }, [tab, fetchOrders, fetchInventory, fetchDues]);
+  }, [tab, fetchOrders, fetchInventory, fetchLedger, fetchDues]);
 
   const submitConfirm = async (e) => {
     e.preventDefault();
@@ -141,7 +192,7 @@ const AdminKitOrders = () => {
       </div>
 
       {tab === "orders" && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
             <option value="">All statuses</option>
@@ -149,13 +200,44 @@ const AdminKitOrders = () => {
               <option key={s} value={s} className="capitalize">{s}</option>
             ))}
           </select>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
+            <option value="">All categories</option>
+            {categories.map((c) => (<option key={c._id} value={c._id}>{c.name}</option>))}
+          </select>
+          <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
+            <option value="">All cities</option>
+            {cities.map((c) => (<option key={c} value={c}>{c}</option>))}
+          </select>
+          <div className="flex items-center gap-1.5">
+            <input type="date" value={orderDateFrom} onChange={(e) => setOrderDateFrom(e.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500" />
+            <span className="text-xs font-bold text-slate-400">to</span>
+            <input type="date" value={orderDateTo} onChange={(e) => setOrderDateTo(e.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500" />
+          </div>
+          {(categoryFilter || cityFilter || orderDateFrom || orderDateTo) && (
+            <button onClick={() => { setCategoryFilter(""); setCityFilter(""); setOrderDateFrom(""); setOrderDateTo(""); }}
+              className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
+              Clear
+            </button>
+          )}
         </div>
       )}
 
       {loading ? (
         <div className="flex items-center justify-center py-24"><Loader2 className="h-7 w-7 animate-spin text-emerald-500" /></div>
       ) : tab === "inventory" ? (
-        <InventoryView inventory={inventory} />
+        <InventoryView
+          inventory={inventory}
+          invCategoryFilter={invCategoryFilter} setInvCategoryFilter={setInvCategoryFilter}
+          invStateFilter={invStateFilter} setInvStateFilter={setInvStateFilter}
+          ledger={ledger}
+          ledgerCategoryFilter={ledgerCategoryFilter} setLedgerCategoryFilter={setLedgerCategoryFilter}
+          ledgerDateFrom={ledgerDateFrom} setLedgerDateFrom={setLedgerDateFrom}
+          ledgerDateTo={ledgerDateTo} setLedgerDateTo={setLedgerDateTo}
+        />
       ) : tab === "dues" ? (
         <DuesView dues={dues} />
       ) : (
@@ -320,25 +402,46 @@ const AdminKitOrders = () => {
   );
 };
 
-const Tile = ({ label, value, accent }) => (
-  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+const Tile = ({ label, value, accent, active, onClick }) => (
+  <div
+    onClick={onClick}
+    className={`rounded-2xl border p-4 ${onClick ? "cursor-pointer" : ""} ${active ? "border-emerald-500 ring-1 ring-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"}`}
+  >
     <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
     <p className={`mt-1 text-2xl font-black tabular-nums ${accent || "text-slate-900 dark:text-white"}`}>{value}</p>
   </div>
 );
 
-const InventoryView = ({ inventory }) => {
+const InventoryView = ({
+  inventory, invCategoryFilter, setInvCategoryFilter, invStateFilter, setInvStateFilter,
+  ledger, ledgerCategoryFilter, setLedgerCategoryFilter, ledgerDateFrom, setLedgerDateFrom, ledgerDateTo, setLedgerDateTo
+}) => {
   if (!inventory) return null;
   const t = inventory.totals;
+  const toggleState = (s) => setInvStateFilter(invStateFilter === s ? "" : s);
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <Tile label="Items" value={t.items} />
-        <Tile label="Backorder" value={t.backorder} accent="text-red-600" />
-        <Tile label="Out of Stock" value={t.out} accent="text-orange-600" />
-        <Tile label="Low Stock" value={t.low} accent="text-amber-600" />
-        <Tile label="Healthy" value={t.ok} accent="text-emerald-600" />
+        <Tile label="Backorder" value={t.backorder} accent="text-red-600" active={invStateFilter === "backorder"} onClick={() => toggleState("backorder")} />
+        <Tile label="Out of Stock" value={t.out} accent="text-orange-600" active={invStateFilter === "out"} onClick={() => toggleState("out")} />
+        <Tile label="Low Stock" value={t.low} accent="text-amber-600" active={invStateFilter === "low"} onClick={() => toggleState("low")} />
+        <Tile label="Healthy" value={t.ok} accent="text-emerald-600" active={invStateFilter === "ok"} onClick={() => toggleState("ok")} />
         <Tile label="Stock Value" value={`₹${t.stockValue}`} />
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center">
+        <select value={invCategoryFilter} onChange={(e) => setInvCategoryFilter(e.target.value)}
+          className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
+          <option value="">All categories</option>
+          {(inventory.categories || []).map((c) => (<option key={c._id} value={c._id}>{c.name}</option>))}
+        </select>
+        {(invCategoryFilter || invStateFilter) && (
+          <button onClick={() => { setInvCategoryFilter(""); setInvStateFilter(""); }}
+            className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
+            Clear
+          </button>
+        )}
       </div>
 
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 overflow-x-auto">
@@ -353,7 +456,9 @@ const InventoryView = ({ inventory }) => {
             </tr>
           </thead>
           <tbody>
-            {inventory.rows.map((r) => (
+            {inventory.rows.length === 0 ? (
+              <tr><td colSpan="5" className="py-8 text-center text-sm font-semibold text-slate-400">No items match these filters</td></tr>
+            ) : inventory.rows.map((r) => (
               <tr key={r._id} className="border-t border-slate-100 dark:border-slate-800">
                 <td className="py-2 font-semibold text-slate-700 dark:text-slate-300">{r.name}</td>
                 <td className="py-2 text-slate-500">{r.category}</td>
@@ -364,6 +469,66 @@ const InventoryView = ({ inventory }) => {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Stock entry log — every manual restock/correction, date-wise */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-black text-slate-800 dark:text-white flex items-center gap-2">
+          <Boxes className="h-4 w-4 text-emerald-600" /> Stock Entry Log
+        </h3>
+        <div className="flex flex-wrap gap-2 items-center">
+          <select value={ledgerCategoryFilter} onChange={(e) => setLedgerCategoryFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
+            <option value="">All categories</option>
+            {(inventory.categories || []).map((c) => (<option key={c._id} value={c._id}>{c.name}</option>))}
+          </select>
+          <div className="flex items-center gap-1.5">
+            <input type="date" value={ledgerDateFrom} onChange={(e) => setLedgerDateFrom(e.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500" />
+            <span className="text-xs font-bold text-slate-400">to</span>
+            <input type="date" value={ledgerDateTo} onChange={(e) => setLedgerDateTo(e.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500" />
+          </div>
+          {(ledgerCategoryFilter || ledgerDateFrom || ledgerDateTo) && (
+            <button onClick={() => { setLedgerCategoryFilter(""); setLedgerDateFrom(""); setLedgerDateTo(""); }}
+              className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
+            <thead>
+              <tr className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <th className="pb-2 text-left">Date</th>
+                <th className="pb-2 text-left">Item</th>
+                <th className="pb-2 text-left">Category</th>
+                <th className="pb-2 text-right">Change</th>
+                <th className="pb-2 text-right">New Stock</th>
+                <th className="pb-2 text-left">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.length === 0 ? (
+                <tr><td colSpan="6" className="py-8 text-center text-sm font-semibold text-slate-400">No stock entries match these filters</td></tr>
+              ) : ledger.map((e) => (
+                <tr key={e._id} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="py-2 text-slate-500 whitespace-nowrap">
+                    {new Date(e.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </td>
+                  <td className="py-2 font-semibold text-slate-700 dark:text-slate-300">{e.itemName}</td>
+                  <td className="py-2 text-slate-500">{e.category}</td>
+                  <td className={`py-2 text-right font-black tabular-nums ${e.delta >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                    {e.delta >= 0 ? "+" : ""}{e.delta}
+                  </td>
+                  <td className="py-2 text-right tabular-nums text-slate-500">{e.newStock}</td>
+                  <td className="py-2 text-slate-500">{e.reason || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

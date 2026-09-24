@@ -3,6 +3,8 @@ const StarterKitItem = require('../models/StarterKitItem');
 const KitCombo = require('../models/KitCombo');
 const KitPaymentConfig = require('../models/KitPaymentConfig');
 const KitOrder = require('../models/KitOrder');
+const KitStockLedger = require('../models/KitStockLedger');
+const { pageParams, paginate } = require('../utils/pagination');
 
 // ── Starter Kit Items ────────────────────────────────────────────────────────
 
@@ -101,6 +103,7 @@ const adjustStock = async (req, res) => {
         const item = await StarterKitItem.findById(req.params.id);
         if (!item) return res.status(404).json({ message: 'Item not found' });
 
+        const previousStock = item.availableStock;
         if (absolute !== undefined) {
             item.availableStock = Number(absolute);
         } else if (delta !== undefined) {
@@ -110,7 +113,21 @@ const adjustStock = async (req, res) => {
         }
 
         await item.save();
-        console.log(`[KitStock] ${item.name} -> ${item.availableStock} (${reason || 'manual adjustment'})`);
+
+        // A restock with no trace once the process restarts is one an admin
+        // can never explain later — this is the one place that entry is made.
+        await KitStockLedger.create({
+            itemId: item._id,
+            itemName: item.name,
+            categoryId: item.categoryId,
+            delta: item.availableStock - previousStock,
+            previousStock,
+            newStock: item.availableStock,
+            reason: reason || 'Manual adjustment',
+            actorId: req.user?._id || null,
+            actorName: req.user?.name || ''
+        });
+
         res.json(item);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -382,14 +399,19 @@ const updateKitPaymentConfig = async (req, res) => {
 // @access  Private/Admin
 const getInventorySummary = async (req, res) => {
     try {
-        const items = await StarterKitItem.find({})
+        const { categoryId, state } = req.query;
+        const query = {};
+        if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) query.categoryId = categoryId;
+
+        const items = await StarterKitItem.find(query)
             .populate('categoryId', 'name')
             .sort({ availableStock: 1 })
             .lean();
 
-        const rows = items.map(i => ({
+        let rows = items.map(i => ({
             _id: i._id,
             name: i.name,
+            categoryId: i.categoryId?._id || null,
             category: i.categoryId?.name || '—',
             availableStock: i.availableStock,
             kitQuantity: i.kitQuantity,
@@ -401,17 +423,61 @@ const getInventorySummary = async (req, res) => {
                         : 'ok'
         }));
 
-        res.json({
-            totals: {
-                items: rows.length,
-                backorder: rows.filter(r => r.state === 'backorder').length,
-                out: rows.filter(r => r.state === 'out').length,
-                low: rows.filter(r => r.state === 'low').length,
-                ok: rows.filter(r => r.state === 'ok').length,
-                stockValue: rows.reduce((s, r) => s + Math.max(0, r.availableStock) * r.price, 0)
-            },
-            rows
-        });
+        // Totals describe the category scope above, but not a state filter —
+        // narrowing to "Low Stock" rows shouldn't also zero out every other tile.
+        const totals = {
+            items: rows.length,
+            backorder: rows.filter(r => r.state === 'backorder').length,
+            out: rows.filter(r => r.state === 'out').length,
+            low: rows.filter(r => r.state === 'low').length,
+            ok: rows.filter(r => r.state === 'ok').length,
+            stockValue: rows.reduce((s, r) => s + Math.max(0, r.availableStock) * r.price, 0)
+        };
+
+        if (state && ['backorder', 'out', 'low', 'ok'].includes(state)) {
+            rows = rows.filter(r => r.state === state);
+        }
+
+        // The category filter's options, independent of whatever is
+        // currently selected, so choosing one never removes the others.
+        const allCategories = await StarterKitItem.find({})
+            .populate('categoryId', 'name')
+            .select('categoryId')
+            .lean();
+        const categories = [...new Map(
+            allCategories.filter(i => i.categoryId).map(i => [String(i.categoryId._id), i.categoryId])
+        ).values()].sort((a, b) => a.name.localeCompare(b.name));
+
+        res.json({ totals, rows, categories });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Date-wise stock entry log (restocks and corrections)
+// @route   GET /api/admin/kit-inventory/ledger
+// @access  Private/Admin
+const getStockLedger = async (req, res) => {
+    try {
+        const { categoryId, dateFrom, dateTo } = req.query;
+        const query = {};
+        if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) query.categoryId = categoryId;
+        if (dateFrom || dateTo) {
+            query.createdAt = {};
+            if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+            if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); query.createdAt.$lte = d; }
+        }
+
+        const entries = await paginate(
+            KitStockLedger.find(query)
+                .populate('categoryId', 'name')
+                .sort({ createdAt: -1 })
+                .lean(),
+            pageParams(req)
+        );
+
+        res.set('X-Total-Count', String(await KitStockLedger.countDocuments(query)));
+        res.json(entries.map(e => ({ ...e, category: e.categoryId?.name || '—' })));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -430,5 +496,6 @@ module.exports = {
     getKitPaymentConfig,
     updateKitPaymentConfig,
     getInventorySummary,
+    getStockLedger,
     hydrateCombo
 };
