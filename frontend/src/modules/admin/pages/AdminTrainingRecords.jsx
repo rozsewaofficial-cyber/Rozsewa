@@ -40,6 +40,14 @@ const AdminTrainingRecords = () => {
   const [reopenReason, setReopenReason] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // City-wise, training centre-wise, date-wise, trainer-wise.
+  const [cityFilter, setCityFilter] = useState("");
+  const [centerFilter, setCenterFilter] = useState("");
+  const [trainerFilter, setTrainerFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const hasFilters = cityFilter || centerFilter || trainerFilter || dateFrom || dateTo;
+
   useScrollLock(!!openSewak || !!reopenFor);
 
   useEffect(() => { setTitle("Training Records"); }, [setTitle]);
@@ -47,10 +55,19 @@ const AdminTrainingRecords = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const params = statusFilter ? { status: statusFilter } : {};
+      // The stats call deliberately leaves status out, so the tab counts keep
+      // describing the whole scope while the queue below answers the status
+      // that was picked. The other filters apply to both.
+      const scopeParams = {
+        ...(cityFilter ? { city: cityFilter } : {}),
+        ...(centerFilter ? { trainingCenterId: centerFilter } : {}),
+        ...(trainerFilter ? { trainerId: trainerFilter } : {}),
+        ...(dateFrom ? { dateFrom } : {}),
+        ...(dateTo ? { dateTo } : {}),
+      };
       const [recRes, statRes] = await Promise.all([
-        API.get("/admin/training-records", { params }),
-        API.get("/admin/training-records/stats"),
+        API.get("/admin/training-records", { params: { ...scopeParams, ...(statusFilter ? { status: statusFilter } : {}) } }),
+        API.get("/admin/training-records/stats", { params: scopeParams }),
       ]);
       setRecords(recRes.data || []);
       setOnHoldTotal(Number(recRes.headers?.["x-onhold-count"]) || 0);
@@ -60,7 +77,7 @@ const AdminTrainingRecords = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, toast]);
+  }, [statusFilter, cityFilter, centerFilter, trainerFilter, dateFrom, dateTo, toast]);
 
   useEffect(() => { if (tab === "queue") fetchAll(); }, [tab, fetchAll]);
 
@@ -119,7 +136,7 @@ const AdminTrainingRecords = () => {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
               className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
               <option value="">All statuses</option>
@@ -128,6 +145,36 @@ const AdminTrainingRecords = () => {
               <option value="on_hold_item_missing">On hold</option>
               <option value="training_done">Completed</option>
             </select>
+            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
+              <option value="">All cities</option>
+              {(stats?.cities || []).map((c) => (<option key={c} value={c}>{c}</option>))}
+            </select>
+            <select value={centerFilter} onChange={(e) => setCenterFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
+              <option value="">All training centres</option>
+              {(stats?.trainingCenters || []).map((c) => (<option key={c._id} value={c._id}>{c.name}</option>))}
+            </select>
+            <select value={trainerFilter} onChange={(e) => setTrainerFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500">
+              <option value="">All trainers</option>
+              {(stats?.trainers || []).map((t) => (<option key={t._id} value={t._id}>{t.name}</option>))}
+            </select>
+            <div className="flex items-center gap-1.5">
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                max={dateTo || undefined}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500" />
+              <span className="text-xs font-bold text-slate-400">to</span>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                min={dateFrom || undefined}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500" />
+            </div>
+            {hasFilters && (
+              <button onClick={() => { setCityFilter(""); setCenterFilter(""); setTrainerFilter(""); setDateFrom(""); setDateTo(""); }}
+                className="rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
+                Clear
+              </button>
+            )}
           </div>
 
           {onHoldCount > 0 && (
@@ -174,6 +221,12 @@ const AdminTrainingRecords = () => {
                           </p>
                           {r.holdReason && (
                             <p className="mt-1 text-[11px] font-semibold text-amber-600">{r.holdReason}</p>
+                          )}
+                          {r.completedByTrainer && (
+                            <p className="mt-1 text-[11px] font-semibold text-emerald-600">
+                              Completed by {r.completedByTrainer.name}
+                              {r.completedByTrainer.trainingCenter?.name ? ` · ${r.completedByTrainer.trainingCenter.name}` : ""}
+                            </p>
                           )}
                         </div>
                       </div>

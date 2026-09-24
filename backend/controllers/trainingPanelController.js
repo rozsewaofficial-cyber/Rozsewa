@@ -6,6 +6,8 @@ const StarterKitItem = require('../models/StarterKitItem');
 const KitOrder = require('../models/KitOrder');
 const Setting = require('../models/Setting');
 const AuditLog = require('../models/AuditLog');
+const Trainer = require('../models/Trainer');
+const TrainingCenter = require('../models/TrainingCenter');
 
 const DEFAULT_TOPICS = [
     { key: 'customer_talk', label: 'Customer se kaise baat karni hai' },
@@ -594,15 +596,60 @@ const completeTraining = async (req, res) => {
 // ADMIN
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * What the Training Records screen is asking for: status, category, and the
+ * city/centre/trainer/date filters the admin note asked for. Shared by the
+ * work queue and its stats so a tab's count and the rows under it can never
+ * describe two different sets.
+ *
+ * A record carries no city, centre or trainer of its own — city comes from
+ * the Sewak (Provider) it belongs to, and centre/trainer only exist once a
+ * Trainer has actually completed it (completedBy/completedByModel), the one
+ * structured trainer reference the model carries. A record still pending or
+ * in progress has no trainer bound to it yet, so a trainer/centre filter
+ * correctly excludes it rather than guessing who's working it.
+ */
+const adminTrainingScope = async (req) => {
+    const { status, categoryId, city, trainerId, trainingCenterId, dateFrom, dateTo } = req.query;
+    const query = {};
+    if (status) query.status = status;
+    // aggregate()'s $match does not auto-cast the way find()/countDocuments()
+    // does, so an id straight from req.query is a string that would silently
+    // match nothing once run through the pipeline — cast it explicitly.
+    if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+        query.categoryId = new mongoose.Types.ObjectId(categoryId);
+    }
+
+    if (dateFrom || dateTo) {
+        query.createdAt = {};
+        if (dateFrom) query.createdAt.$gte = new Date(new Date(dateFrom).setHours(0, 0, 0, 0));
+        if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); query.createdAt.$lte = d; }
+    }
+
+    if (city && city !== 'all') {
+        const escapeRx = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const sewaksInCity = await Provider.find({ city: new RegExp(`^${escapeRx(city)}$`, 'i') }).select('_id').lean();
+        query.sewakId = { $in: sewaksInCity.map(s => s._id) };
+    }
+
+    if (trainerId && mongoose.Types.ObjectId.isValid(trainerId)) {
+        query.completedByModel = 'Trainer';
+        query.completedBy = new mongoose.Types.ObjectId(trainerId);
+    } else if (trainingCenterId && mongoose.Types.ObjectId.isValid(trainingCenterId)) {
+        const trainersAtCentre = await Trainer.find({ trainingCenter: trainingCenterId }).select('_id').lean();
+        query.completedByModel = 'Trainer';
+        query.completedBy = { $in: trainersAtCentre.map(t => t._id) };
+    }
+
+    return query;
+};
+
 // @desc    Work queue of training records
 // @route   GET /api/admin/training-records
 // @access  Private/Admin
 const getTrainingRecords = async (req, res) => {
     try {
-        const { status, categoryId } = req.query;
-        const query = {};
-        if (status) query.status = status;
-        if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) query.categoryId = categoryId;
+        const query = await adminTrainingScope(req);
 
         // Pending / on-hold first — those are the rows needing a human. That
         // order used to be applied after loading every record, which once the
@@ -637,6 +684,24 @@ const getTrainingRecords = async (req, res) => {
             { path: 'categoryId', select: 'name' }
         ]);
 
+        // completedBy has no schema ref (it's typed for either User or
+        // Trainer), so the Trainer name it names is joined by hand rather
+        // than through .populate().
+        const trainerIds = [...new Set(
+            records.filter(r => r.completedByModel === 'Trainer' && r.completedBy).map(r => String(r.completedBy))
+        )];
+        if (trainerIds.length) {
+            const trainers = await Trainer.find({ _id: { $in: trainerIds } })
+                .populate('trainingCenter', 'name city')
+                .select('name trainingCenter').lean();
+            const trainerMap = new Map(trainers.map(t => [String(t._id), t]));
+            records.forEach(r => {
+                if (r.completedByModel === 'Trainer' && r.completedBy) {
+                    r.completedByTrainer = trainerMap.get(String(r.completedBy)) || null;
+                }
+            });
+        }
+
         res.set('X-Total-Count', String(await TrainingRecord.countDocuments(query)));
         // Records held up waiting for a missing kit item, across all of them.
         res.set('X-OnHold-Count', String(await TrainingRecord.countDocuments({ ...query, status: 'on_hold_item_missing' })));
@@ -651,8 +716,17 @@ const getTrainingRecords = async (req, res) => {
 // @access  Private/Admin
 const getTrainingStats = async (req, res) => {
     try {
-        const rows = await TrainingRecord.aggregate([
-            { $group: { _id: '$status', n: { $sum: 1 } } }
+        const query = await adminTrainingScope(req);
+        const [rows, cities, trainers, trainingCenters] = await Promise.all([
+            TrainingRecord.aggregate([
+                { $match: query },
+                { $group: { _id: '$status', n: { $sum: 1 } } }
+            ]),
+            // The filter dropdowns' own options, independent of anything
+            // currently selected.
+            Provider.distinct('city', { providerCategory: 'sewak' }),
+            Trainer.find({ isActive: true }).select('name trainingCenter').populate('trainingCenter', 'name').lean(),
+            TrainingCenter.find({}).select('name cities').lean()
         ]);
         const map = Object.fromEntries(rows.map(r => [r._id, r.n]));
         res.json({
@@ -660,7 +734,10 @@ const getTrainingStats = async (req, res) => {
             pending: map.pending || 0,
             inProgress: map.in_progress || 0,
             onHold: map.on_hold_item_missing || 0,
-            completed: map.training_done || 0
+            completed: map.training_done || 0,
+            cities: cities.filter(Boolean).sort(),
+            trainers,
+            trainingCenters
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
