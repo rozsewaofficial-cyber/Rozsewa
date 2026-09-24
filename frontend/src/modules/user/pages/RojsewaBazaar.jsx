@@ -19,6 +19,11 @@ const RojsewaBazaar = () => {
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [subCategoryFilter, setSubCategoryFilter] = useState('');
+  // Full category docs (with each one's own subCategories) — the live-ad
+  // facets only distinct the categories actually in stock, not their
+  // subcategory lists.
+  const [categoryDetails, setCategoryDetails] = useState([]);
   const [radiusFilter, setRadiusFilter] = useState(0); // 0 means 'All'
   const [selectedItem, setSelectedItem] = useState(null);
   const [showContact, setShowContact] = useState(false);
@@ -32,7 +37,13 @@ const RojsewaBazaar = () => {
     const t = setTimeout(() => fetchBazaarItems(), search ? 350 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, cityFilter, categoryFilter]);
+  }, [search, cityFilter, categoryFilter, subCategoryFilter]);
+
+  useEffect(() => {
+    api.get('/bazaar/categories')
+      .then(res => setCategoryDetails(res.data?.data || []))
+      .catch(() => { /* the subcategory row simply stays empty */ });
+  }, []);
 
   const fetchBazaarItems = async () => {
     try {
@@ -45,6 +56,7 @@ const RojsewaBazaar = () => {
             ...(search ? { search } : {}),
             ...(cityFilter ? { city: cityFilter } : {}),
             ...(categoryFilter ? { category: categoryFilter } : {}),
+            ...(categoryFilter && subCategoryFilter ? { subCategory: subCategoryFilter } : {}),
             limit: 60
           }
         }),
@@ -95,6 +107,9 @@ const RojsewaBazaar = () => {
   const uniqueCategories = facets.categories.length
     ? facets.categories
     : [...new Set(items.map(i => i.category).filter(Boolean))];
+  const activeSubCategories = categoryFilter
+    ? (categoryDetails.find(c => c.name === categoryFilter)?.subCategories || [])
+    : [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-28">
@@ -178,10 +193,10 @@ const RojsewaBazaar = () => {
                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Product</span>
                </div>
                <button
-                  onClick={() => setCategoryFilter('')}
+                  onClick={() => { setCategoryFilter(''); setSubCategoryFilter(''); }}
                   className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all shrink-0 border
-                    ${!categoryFilter 
-                      ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/20' 
+                    ${!categoryFilter
+                      ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/20'
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                 >
                   All Products
@@ -189,13 +204,45 @@ const RojsewaBazaar = () => {
                {uniqueCategories.map(cat => (
                  <button
                     key={cat}
-                    onClick={() => setCategoryFilter(cat === categoryFilter ? '' : cat)}
+                    onClick={() => { setCategoryFilter(cat === categoryFilter ? '' : cat); setSubCategoryFilter(''); }}
                     className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all shrink-0 border
-                      ${categoryFilter === cat 
-                        ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/20' 
+                      ${categoryFilter === cat
+                        ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/20'
                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                   >
                     {cat}
+                  </button>
+               ))}
+            </div>
+          )}
+
+          {/* Subcategory Filter — only once a category narrows it down to a
+              specific list worth showing. */}
+          {categoryFilter && activeSubCategories.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+               <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/70 dark:bg-slate-800 rounded-full">
+                 <Package className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                 <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Type</span>
+               </div>
+               <button
+                  onClick={() => setSubCategoryFilter('')}
+                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all shrink-0 border
+                    ${!subCategoryFilter
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                  All
+                </button>
+               {activeSubCategories.map(sub => (
+                 <button
+                    key={sub}
+                    onClick={() => setSubCategoryFilter(sub === subCategoryFilter ? '' : sub)}
+                    className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all shrink-0 border
+                      ${subCategoryFilter === sub
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                  >
+                    {sub}
                   </button>
                ))}
             </div>

@@ -184,11 +184,14 @@ exports.postAd = async (req, res) => {
 // Get Live Ads (For Buyers - Includes Distance Sorting if lat/lng provided)
 exports.getLiveAds = async (req, res) => {
   try {
-    const { category, minPrice, maxPrice, condition, lat, lng, radiusKm = 10, search } = req.query;
+    const { category, subCategory, minPrice, maxPrice, condition, lat, lng, radiusKm = 10, search } = req.query;
 
     const query = { status: 'live' };
 
     if (category) query.category = category;
+    // Only meaningful alongside a category — a subcategory name is not
+    // unique across categories on its own.
+    if (subCategory && category) query.subCategory = subCategory;
     if (condition) query.condition = condition;
     
     if (minPrice || maxPrice) {
