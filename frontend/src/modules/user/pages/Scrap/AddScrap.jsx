@@ -48,9 +48,17 @@ const AddScrap = () => {
   });
 
   const [dynamicFieldsData, setDynamicFieldsData] = useState({});
+  // Every dynamic field configured for the category. A field pinned to one
+  // subcategory (e.g. "Screen Size" for TVs only) should not show up while
+  // filling out a Mobile ad in the same category, so what's actually
+  // rendered is filtered from this by the subcategory chosen below.
   const [selectedCategoryFields, setSelectedCategoryFields] = useState([]);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  const visibleFields = selectedCategoryFields.filter(
+    f => !f.subCategory || f.subCategory === (formData.subCategory || '')
+  );
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -175,7 +183,7 @@ const AddScrap = () => {
     }
 
     // Validate Dynamic Fields
-    for (const field of selectedCategoryFields) {
+    for (const field of visibleFields) {
       if (field.required && !dynamicFieldsData[field.name]) {
         toast({ title: `${field.label} is required`, variant: 'destructive' });
         return;
@@ -347,11 +355,11 @@ const AddScrap = () => {
             </div>
 
             {/* Dynamic Fields Section */}
-            {selectedCategoryFields.length > 0 && (
+            {visibleFields.length > 0 && (
               <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
                 <h3 className="text-sm font-black text-slate-800 dark:text-white">Additional Details</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {selectedCategoryFields.map((field) => (
+                  {visibleFields.map((field) => (
                     <div key={field.name}>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                         {field.label} {field.required && <span className="text-red-500">*</span>}

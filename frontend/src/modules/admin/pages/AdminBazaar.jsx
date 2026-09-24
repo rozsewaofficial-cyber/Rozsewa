@@ -536,7 +536,7 @@ const CategoriesTab = () => {
   // Field Modal State
   const [showFieldModal, setShowFieldModal] = useState(false);
   const [editingField, setEditingField] = useState(null);
-  const [fieldForm, setFieldForm] = useState({ label: '', name: '', type: 'text', options: '', required: false });
+  const [fieldForm, setFieldForm] = useState({ label: '', name: '', type: 'text', options: '', required: false, subCategory: '' });
   const [savingField, setSavingField] = useState(false);
 
   const fetchCategories = async () => {
@@ -653,11 +653,12 @@ const CategoriesTab = () => {
         name: field.name || '',
         type: field.type || 'text',
         options: field.options ? field.options.join(', ') : '',
-        required: field.required || false
+        required: field.required || false,
+        subCategory: field.subCategory || ''
       });
     } else {
       setEditingField(null);
-      setFieldForm({ label: '', name: '', type: 'text', options: '', required: false });
+      setFieldForm({ label: '', name: '', type: 'text', options: '', required: false, subCategory: '' });
     }
     setShowFieldModal(true);
   };
@@ -677,7 +678,8 @@ const CategoriesTab = () => {
       label: fieldForm.label.trim(),
       type: fieldForm.type,
       options: parsedOptions,
-      required: fieldForm.required
+      required: fieldForm.required,
+      subCategory: fieldForm.subCategory || ''
     };
 
     let updatedFields = [...(selectedCat.fields || [])];
@@ -863,6 +865,7 @@ const CategoriesTab = () => {
                         <tr>
                           <th className="px-4 py-3 text-left">Field Label</th>
                           <th className="px-4 py-3 text-left">Field Type</th>
+                          <th className="px-4 py-3 text-left">Subcategory</th>
                           <th className="px-4 py-3 text-left">Options (if any)</th>
                           <th className="px-4 py-3 text-center">Required</th>
                           <th className="px-4 py-3 text-right">Actions</th>
@@ -879,6 +882,15 @@ const CategoriesTab = () => {
                               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200 uppercase text-[9px] tracking-wider">
                                 {f.type}
                               </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              {f.subCategory ? (
+                                <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2 py-0.5 rounded border border-purple-100">
+                                  {f.subCategory}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 font-medium">All</span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-slate-500">
                               {f.options?.length > 0 ? (
@@ -1168,6 +1180,22 @@ const CategoriesTab = () => {
                   <option value="image">Image Upload</option>
                 </select>
               </div>
+
+              {selectedCat?.subCategories?.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Applies To (Subcategory)</label>
+                  <select
+                    value={fieldForm.subCategory}
+                    onChange={e => setFieldForm({ ...fieldForm, subCategory: e.target.value })}
+                    className="w-full mt-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">All Subcategories of {selectedCat.name}</option>
+                    {selectedCat.subCategories.map(sub => (
+                      <option key={sub} value={sub}>{sub} only</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {fieldForm.type === 'dropdown' && (
                 <div>

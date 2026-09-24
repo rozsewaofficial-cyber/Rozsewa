@@ -35,13 +35,16 @@ const bazaarCategorySchema = new mongoose.Schema({
   fields: [{
     name: { type: String, required: true },
     label: { type: String, required: true },
-    type: { 
-      type: String, 
+    type: {
+      type: String,
       enum: ['text', 'number', 'dropdown', 'checkbox', 'textarea', 'date', 'image'],
       required: true
     },
     options: [{ type: String }], // Only populated for dropdowns
-    required: { type: Boolean, default: false }
+    required: { type: Boolean, default: false },
+    // Blank applies the field to every subcategory of this category — the
+    // same "blank means no override" convention subCategoryUnlockFees uses.
+    subCategory: { type: String, trim: true, default: '' }
   }],
   isActive: {
     type: Boolean,
