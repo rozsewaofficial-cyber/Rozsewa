@@ -139,7 +139,7 @@ exports.configureWaiver = async (req, res) => {
 // @access  Private (Admin)
 exports.getCommissionAnalytics = async (req, res) => {
     try {
-        const { startDate, endDate, categoryId, providerId, subscriptionId } = req.query;
+        const { startDate, endDate, categoryId, providerId, subscriptionId, city, providerCategory } = req.query;
 
         // Build completed bookings query matcher
         const matchQuery = { status: 'completed' };
@@ -158,11 +158,28 @@ exports.getCommissionAnalytics = async (req, res) => {
         if (categoryId) {
             matchQuery['commissionSnapshot.bookingCategorySnapshot.id'] = new mongoose.Types.ObjectId(categoryId);
         }
-        if (providerId) {
-            matchQuery.providerId = new mongoose.Types.ObjectId(providerId);
-        }
         if (subscriptionId) {
             matchQuery['commissionSnapshot.subscriptionSnapshot.planId'] = new mongoose.Types.ObjectId(subscriptionId);
+        }
+
+        // A booking has no city or Partner/Sewak flag of its own — both come
+        // from the Provider it belongs to. A single specific provider already
+        // pins that exactly, so it takes priority over the two broader filters
+        // rather than the two being ANDed against a provider they can't
+        // possibly disagree with.
+        if (providerId) {
+            matchQuery.providerId = new mongoose.Types.ObjectId(providerId);
+        } else if (city || providerCategory) {
+            const providerFilter = {};
+            if (city && city !== 'all') {
+                const escapeRx = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                providerFilter.city = new RegExp(`^${escapeRx(city)}$`, 'i');
+            }
+            if (providerCategory === 'sewak') providerFilter.providerCategory = 'sewak';
+            else if (providerCategory === 'partner') providerFilter.providerCategory = { $ne: 'sewak' };
+
+            const matchingProviders = await Provider.find(providerFilter).select('_id').lean();
+            matchQuery.providerId = { $in: matchingProviders.map(p => p._id) };
         }
 
         // Lean rows carrying only the five fields the reduction below reads.
@@ -225,8 +242,11 @@ exports.getCommissionAnalytics = async (req, res) => {
             // figure cover the same period.
             ledgerQuery.createdAt = { $gte: matchQuery.completedAt.$gte };
         }
-        if (providerId) {
-            ledgerQuery.provider = new mongoose.Types.ObjectId(providerId);
+        // Same scope as the bookings above — a single provider, or the set
+        // resolved from city/providerCategory — so subscription revenue
+        // describes the same slice as everything else on the screen.
+        if (matchQuery.providerId) {
+            ledgerQuery.provider = matchQuery.providerId;
         }
         // A sum, so it is summed in the database — the amounts never travel.
         const [ledgerTotals] = await FinancialLedger.aggregate([

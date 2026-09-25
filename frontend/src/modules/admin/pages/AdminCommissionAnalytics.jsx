@@ -25,11 +25,14 @@ export default function AdminCommissionAnalytics() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('');
   const [selectedSubPlan, setSelectedSubPlan] = useState('');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [selectedProviderCategory, setSelectedProviderCategory] = useState('');
 
   // Dropdown lists
   const [categories, setCategories] = useState([]);
   const [providers, setProviders] = useState([]);
   const [subPlans, setSubPlans] = useState([]);
+  const [cities, setCities] = useState([]);
 
   useEffect(() => {
     setTitle("Commission Analytics");
@@ -39,15 +42,18 @@ export default function AdminCommissionAnalytics() {
 
   const fetchDropdowns = async () => {
     try {
-      const [catsRes, subsRes, provsRes] = await Promise.all([
+      const [catsRes, subsRes, provsRes, provStatsRes] = await Promise.all([
         API.get('/admin/categories'),
         API.get('/admin/subscriptions'),
         // A dropdown needs names and ids, not every provider document.
-        API.get('/admin/providers/picker')
+        API.get('/admin/providers/picker'),
+        // The cities that exist, which the analytics rows cannot know.
+        API.get('/admin/providers/stats')
       ]);
       setCategories(catsRes.data || []);
       setSubPlans(subsRes.data || []);
       setProviders(provsRes.data.providers || provsRes.data || []);
+      setCities(provStatsRes.data?.cities || []);
     } catch (err) {
       console.error("Error loading dropdown data:", err);
     }
@@ -62,6 +68,10 @@ export default function AdminCommissionAnalytics() {
       if (selectedCategory) params.categoryId = selectedCategory;
       if (selectedProvider) params.providerId = selectedProvider;
       if (selectedSubPlan) params.subscriptionId = selectedSubPlan;
+      // Ignored server-side once a specific provider is picked, since that
+      // already pins exactly one city and one provider type.
+      if (selectedCity) params.city = selectedCity;
+      if (selectedProviderCategory) params.providerCategory = selectedProviderCategory;
 
       const { data } = await API.get('/v2/admin/commission/analytics', { params });
       setAnalytics(data);
@@ -83,6 +93,8 @@ export default function AdminCommissionAnalytics() {
     setSelectedCategory('');
     setSelectedProvider('');
     setSelectedSubPlan('');
+    setSelectedCity('');
+    setSelectedProviderCategory('');
     setTimeout(() => {
       fetchAnalytics();
     }, 50);
@@ -128,7 +140,7 @@ export default function AdminCommissionAnalytics() {
         <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
           <Filter className="h-4 w-4 text-emerald-600" /> Filter Analytics
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="text-[10px] font-bold text-slate-400 uppercase">Start Date</label>
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-full border p-2 rounded-lg text-xs bg-white text-slate-600 outline-emerald-500" />
@@ -145,17 +157,43 @@ export default function AdminCommissionAnalytics() {
             </select>
           </div>
           <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase">Provider</label>
-            <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)} className="w-full border p-2 rounded-lg text-xs bg-white text-slate-600 outline-emerald-500">
-              <option value="">All Providers</option>
-              {providers.map(p => <option key={p._id} value={p._id}>{p.shopName || p.ownerName}</option>)}
-            </select>
-          </div>
-          <div>
             <label className="text-[10px] font-bold text-slate-400 uppercase">Subscription Plan</label>
             <select value={selectedSubPlan} onChange={e => setSelectedSubPlan(e.target.value)} className="w-full border p-2 rounded-lg text-xs bg-white text-slate-600 outline-emerald-500">
               <option value="">All Plans</option>
               {subPlans.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">City</label>
+            <select value={selectedCity} onChange={e => setSelectedCity(e.target.value)} disabled={!!selectedProvider} className="w-full border p-2 rounded-lg text-xs bg-white text-slate-600 outline-emerald-500 disabled:opacity-50">
+              <option value="">All Cities</option>
+              {cities.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Partner / Sewak</label>
+            <select value={selectedProviderCategory} onChange={e => setSelectedProviderCategory(e.target.value)} disabled={!!selectedProvider} className="w-full border p-2 rounded-lg text-xs bg-white text-slate-600 outline-emerald-500 disabled:opacity-50">
+              <option value="">All</option>
+              <option value="partner">Partner</option>
+              <option value="sewak">Sewak</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Provider</label>
+            <select
+              value={selectedProvider}
+              onChange={e => {
+                setSelectedProvider(e.target.value);
+                // A specific provider already pins one city and one type —
+                // City / Partner-Sewak stop meaning anything alongside it.
+                if (e.target.value) { setSelectedCity(''); setSelectedProviderCategory(''); }
+              }}
+              className="w-full border p-2 rounded-lg text-xs bg-white text-slate-600 outline-emerald-500"
+            >
+              <option value="">All Providers</option>
+              {providers.map(p => <option key={p._id} value={p._id}>{p.shopName || p.ownerName}</option>)}
             </select>
           </div>
         </div>
