@@ -450,6 +450,7 @@ const createBooking = async (req, res) => {
         let finalTotalAmount = payableAmount;
         let nightChargeAmount = 0;
         let appliedNightChargePercent = 0;
+        let appliedNightChargeMode = null;
         let gstAmount = 0;
         let platformFee = 0;
         let appliedGstPercent = 0;
@@ -470,7 +471,7 @@ const createBooking = async (req, res) => {
                     });
                 }
             }
-            
+
             if (categoryForFee) {
                 appliedGstPercent = categoryForFee.gstPercent || 0;
                 platformFee = categoryForFee.platformFee || 0;
@@ -478,15 +479,30 @@ const createBooking = async (req, res) => {
 
                 // Night charge logic
                 const config = await Setting.findOne({ key: 'night_charge_config' });
-                if (config && config.value.enabled) {
-                    const { startTime, endTime, defaultPercent } = config.value;
+                // Partner/Sewak is an on/off switch, not a category override —
+                // a booking whose target provider type has it turned off skips
+                // the charge entirely regardless of category settings.
+                const appliesToThisBooking = config?.value
+                    ? (isSewakBooking ? config.value.applyToSewak !== false : config.value.applyToPartner !== false)
+                    : true;
+                if (config && config.value.enabled && appliesToThisBooking) {
+                    const { startTime, endTime, chargeType } = config.value;
                     if (isNightTime(bookingTime, startTime, endTime)) {
-                        let percent = defaultPercent;
-                        if (categoryForFee.hasNightCharge) {
-                            percent = categoryForFee.nightChargePercent;
+                        if (chargeType === 'flat') {
+                            const flatAmount = categoryForFee.hasNightCharge
+                                ? (categoryForFee.nightChargeFlatAmount || 0)
+                                : (config.value.defaultFlatAmount || 0);
+                            appliedNightChargeMode = 'flat';
+                            nightChargeAmount = Math.round(flatAmount);
+                        } else {
+                            let percent = config.value.defaultPercent;
+                            if (categoryForFee.hasNightCharge) {
+                                percent = categoryForFee.nightChargePercent;
+                            }
+                            appliedNightChargePercent = percent;
+                            appliedNightChargeMode = 'percent';
+                            nightChargeAmount = Math.round((payableAmount * percent) / 100);
                         }
-                        appliedNightChargePercent = percent;
-                        nightChargeAmount = Math.round((payableAmount * percent) / 100);
                     }
                 }
             }
@@ -498,7 +514,9 @@ const createBooking = async (req, res) => {
         }
 
         let originalFixedPrice = subtotal - couponDiscount;
-        if (nightChargeAmount > 0 && appliedNightChargePercent > 0) {
+        if (nightChargeAmount > 0 && appliedNightChargeMode === 'flat') {
+            originalFixedPrice += nightChargeAmount;
+        } else if (nightChargeAmount > 0 && appliedNightChargePercent > 0) {
             originalFixedPrice += Math.round((originalFixedPrice * appliedNightChargePercent) / 100);
         }
         if (appliedGstPercent > 0) {
@@ -603,7 +621,12 @@ const createBooking = async (req, res) => {
             totalDiscount,
             paymentMode,
             serviceLocation,
-            extraCharges: nightChargeAmount > 0 ? [{ item: `Night Charge (${appliedNightChargePercent}%)`, amount: nightChargeAmount, status: 'approved' }] : []
+            extraCharges: nightChargeAmount > 0 ? [{
+                item: appliedNightChargeMode === 'flat' ? `Night Charge (₹${nightChargeAmount})` : `Night Charge (${appliedNightChargePercent}%)`,
+                amount: nightChargeAmount,
+                status: 'approved'
+            }] : [],
+            nightChargeMode: appliedNightChargeMode
         });
 
         let booking = await newBooking.save();
@@ -1007,8 +1030,12 @@ const updateBooking = async (req, res) => {
                 if (counterDecision === 'accept') {
                     const nightCharge = booking.extraCharges && booking.extraCharges.find(c => c.item && c.item.startsWith('Night Charge'));
                     const oldAmount = nightCharge ? (nightCharge.amount || 0) : 0;
-                    const ratio = oldAmount && booking.customerOffer ? (oldAmount / booking.customerOffer) : 0;
-                    const newNightChargeAmount = Math.round(ratio * booking.partnerCounterOffer);
+                    // A flat rupee night charge doesn't scale with the
+                    // negotiated price the way a percentage does — it carries
+                    // over unchanged rather than being rescaled by ratio.
+                    const newNightChargeAmount = booking.nightChargeMode === 'flat'
+                        ? oldAmount
+                        : Math.round((oldAmount && booking.customerOffer ? (oldAmount / booking.customerOffer) : 0) * booking.partnerCounterOffer);
                     const newExtraCharges = booking.extraCharges.map(charge => {
                         if (charge.item && charge.item.startsWith('Night Charge')) {
                             return { item: charge.item, amount: newNightChargeAmount, status: 'approved' };
@@ -1471,7 +1498,13 @@ const updateBookingStatusByProvider = async (req, res) => {
                         const ratio = oldAmount && booking.customerOffer ? (oldAmount / booking.customerOffer) : 0;
                         const newExtraCharges = booking.extraCharges.map(charge => {
                             if (charge.item && charge.item.startsWith('Night Charge')) {
-                                const newAmount = Math.round(booking.originalFixedPrice - (booking.originalFixedPrice / (1 + ratio)));
+                                // A flat rupee amount was already baked into
+                                // originalFixedPrice unchanged — reverting to
+                                // it carries the same flat figure over rather
+                                // than re-deriving it by ratio.
+                                const newAmount = booking.nightChargeMode === 'flat'
+                                    ? oldAmount
+                                    : Math.round(booking.originalFixedPrice - (booking.originalFixedPrice / (1 + ratio)));
                                 return { item: charge.item, amount: newAmount, status: 'approved' };
                             }
                             return charge;

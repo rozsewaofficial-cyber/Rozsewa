@@ -36,6 +36,11 @@ const categorySchema = mongoose.Schema({
     index: { type: Number, default: 0 }, // For ordering
     hasNightCharge: { type: Boolean, default: false },
     nightChargePercent: { type: Number, default: 0 },
+    // Used instead of nightChargePercent when the global night charge mode
+    // (Setting key 'night_charge_config'.chargeType) is 'flat' rather than
+    // 'percent'. Kept alongside rather than replacing it, so switching modes
+    // back and forth doesn't lose whichever figure isn't currently active.
+    nightChargeFlatAmount: { type: Number, default: 0 },
     services: [subServiceSchema], // Pre-defined services in this category
     combos: [comboTemplateSchema], // Pre-defined combos in this category
     businessModel: { type: String, enum: ['commission', 'lead'], default: 'commission' },

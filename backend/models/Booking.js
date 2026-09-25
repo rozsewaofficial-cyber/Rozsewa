@@ -221,6 +221,11 @@ const bookingSchema = new mongoose.Schema({
             status: { type: String, enum: ['pending', 'approved', 'declined'], default: 'approved' }
         }
     ],
+    // How the night charge line in extraCharges (if any) was computed — a
+    // flat rupee amount does not scale with a renegotiated price the way a
+    // percentage does, so a counter-offer repricing a booking needs to know
+    // which kind it is looking at rather than assuming percent.
+    nightChargeMode: { type: String, enum: ['percent', 'flat', null], default: null },
     travelCharge: {
         distanceKm: { type: Number },
         billableDistanceKm: { type: Number },

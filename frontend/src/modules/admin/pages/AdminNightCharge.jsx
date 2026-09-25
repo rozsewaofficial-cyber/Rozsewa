@@ -3,7 +3,7 @@ import { useOutletContext } from "react-router-dom";
 import {
     Moon, Sun, Percent, Save, RefreshCw,
     ChevronRight, Loader2, AlertCircle,
-    Clock, CheckCircle2, LayoutGrid, Zap
+    Clock, CheckCircle2, LayoutGrid, Zap, IndianRupee, Briefcase, HardHat
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,11 @@ const AdminNightCharge = () => {
     const [saving, setSaving] = useState(false);
     const [globalConfig, setGlobalConfig] = useState({
         enabled: false,
+        chargeType: 'percent',
         defaultPercent: 0,
+        defaultFlatAmount: 0,
+        applyToPartner: true,
+        applyToSewak: true,
         startTime: '21:00',
         endTime: '06:00'
     });
@@ -81,12 +85,15 @@ const AdminNightCharge = () => {
         }
     };
 
-    const handleCategoryUpdate = async (id, hasNightCharge, nightChargePercent) => {
+    // Sends whichever field the active global charge type actually reads —
+    // the other one is left untouched so switching modes back and forth
+    // doesn't lose it.
+    const handleCategoryUpdate = async (id, hasNightCharge, value) => {
         try {
-            const { data } = await API.put(`/admin/night-charge/category/${id}`, {
-                hasNightCharge,
-                nightChargePercent
-            });
+            const body = globalConfig.chargeType === 'flat'
+                ? { hasNightCharge, nightChargeFlatAmount: value }
+                : { hasNightCharge, nightChargePercent: value };
+            const { data } = await API.put(`/admin/night-charge/category/${id}`, body);
             setCategories(prev => prev.map(cat => cat._id === id ? data : cat));
             toast.success("Category updated");
             setEditingCategory(null);
@@ -147,27 +154,98 @@ const AdminNightCharge = () => {
                         </div>
 
                         <div className="space-y-3">
-                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Default Percentage (%)</label>
-                            <div className="relative">
-                                <Percent className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                <Input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={globalConfig.defaultPercent}
-                                    onChange={(e) => {
-                                        let val = e.target.value;
-                                        if (val === '') {
-                                            setGlobalConfig(prev => ({ ...prev, defaultPercent: '' }));
-                                            return;
-                                        }
-                                        let num = Number(val);
-                                        if (!isNaN(num)) {
-                                            setGlobalConfig(prev => ({ ...prev, defaultPercent: Math.min(100, Math.max(0, num)) }));
-                                        }
-                                    }}
-                                    className="pl-11 rounded-2xl border-gray-100 bg-gray-50/50 h-14 text-sm font-black"
-                                    placeholder="0"
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Charge Type</label>
+                            <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-2xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setGlobalConfig(prev => ({ ...prev, chargeType: 'percent' }))}
+                                    className={`flex items-center justify-center gap-1.5 h-11 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${globalConfig.chargeType !== 'flat' ? 'bg-slate-900 text-white shadow-sm' : 'text-gray-500'}`}
+                                >
+                                    <Percent className="h-3.5 w-3.5" /> Percentage
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setGlobalConfig(prev => ({ ...prev, chargeType: 'flat' }))}
+                                    className={`flex items-center justify-center gap-1.5 h-11 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${globalConfig.chargeType === 'flat' ? 'bg-slate-900 text-white shadow-sm' : 'text-gray-500'}`}
+                                >
+                                    <IndianRupee className="h-3.5 w-3.5" /> Rupees
+                                </button>
+                            </div>
+                        </div>
+
+                        {globalConfig.chargeType === 'flat' ? (
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Default Flat Amount (₹)</label>
+                                <div className="relative">
+                                    <IndianRupee className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        value={globalConfig.defaultFlatAmount}
+                                        onChange={(e) => {
+                                            let val = e.target.value;
+                                            if (val === '') {
+                                                setGlobalConfig(prev => ({ ...prev, defaultFlatAmount: '' }));
+                                                return;
+                                            }
+                                            let num = Number(val);
+                                            if (!isNaN(num)) {
+                                                setGlobalConfig(prev => ({ ...prev, defaultFlatAmount: Math.max(0, num) }));
+                                            }
+                                        }}
+                                        className="pl-11 rounded-2xl border-gray-100 bg-gray-50/50 h-14 text-sm font-black"
+                                        placeholder="0"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Default Percentage (%)</label>
+                                <div className="relative">
+                                    <Percent className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <Input
+                                        type="number"
+                                        min="0"
+                                        max="100"
+                                        value={globalConfig.defaultPercent}
+                                        onChange={(e) => {
+                                            let val = e.target.value;
+                                            if (val === '') {
+                                                setGlobalConfig(prev => ({ ...prev, defaultPercent: '' }));
+                                                return;
+                                            }
+                                            let num = Number(val);
+                                            if (!isNaN(num)) {
+                                                setGlobalConfig(prev => ({ ...prev, defaultPercent: Math.min(100, Math.max(0, num)) }));
+                                            }
+                                        }}
+                                        className="pl-11 rounded-2xl border-gray-100 bg-gray-50/50 h-14 text-sm font-black"
+                                        placeholder="0"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Applies To</label>
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <div className="flex items-center gap-2">
+                                    <Briefcase className="h-4 w-4 text-gray-400" />
+                                    <p className="font-black text-slate-900 text-sm">Partners</p>
+                                </div>
+                                <Switch
+                                    checked={globalConfig.applyToPartner}
+                                    onCheckedChange={(val) => setGlobalConfig(prev => ({ ...prev, applyToPartner: val }))}
+                                />
+                            </div>
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <div className="flex items-center gap-2">
+                                    <HardHat className="h-4 w-4 text-gray-400" />
+                                    <p className="font-black text-slate-900 text-sm">Sewaks</p>
+                                </div>
+                                <Switch
+                                    checked={globalConfig.applyToSewak}
+                                    onCheckedChange={(val) => setGlobalConfig(prev => ({ ...prev, applyToSewak: val }))}
                                 />
                             </div>
                         </div>
@@ -257,11 +335,17 @@ const AdminNightCharge = () => {
                                     <tr className="border-b border-gray-50">
                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Service Category</th>
                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Status</th>
-                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">Night Charge (%)</th>
+                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Night Charge ({globalConfig.chargeType === 'flat' ? '₹' : '%'})
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {categories.map((cat) => (
+                                    {categories.map((cat) => {
+                                        const isFlat = globalConfig.chargeType === 'flat';
+                                        const activeValue = isFlat ? (cat.nightChargeFlatAmount ?? 0) : (cat.nightChargePercent ?? 0);
+                                        const unit = isFlat ? '₹' : '%';
+                                        return (
                                         <tr key={cat._id} className="hover:bg-blue-50/20 transition-colors group">
                                             <td className="px-8 py-6">
                                                 <div className="flex items-center gap-4">
@@ -275,7 +359,7 @@ const AdminNightCharge = () => {
                                                 <div className="flex items-center gap-2">
                                                     <Switch
                                                         checked={cat.hasNightCharge}
-                                                        onCheckedChange={(val) => handleCategoryUpdate(cat._id, val, cat.nightChargePercent)}
+                                                        onCheckedChange={(val) => handleCategoryUpdate(cat._id, val, activeValue)}
                                                     />
                                                     <span className={`text-[9px] font-black uppercase tracking-tighter ${cat.hasNightCharge ? 'text-emerald-600' : 'text-gray-400'}`}>
                                                         {cat.hasNightCharge ? 'Enabled' : 'Disabled'}
@@ -288,14 +372,14 @@ const AdminNightCharge = () => {
                                                         <Input
                                                             type="number"
                                                             min="0"
-                                                            max="100"
+                                                            max={isFlat ? undefined : 100}
                                                             placeholder="0"
                                                             value={editValue}
                                                             onChange={(e) => setEditValue(e.target.value)}
                                                             onKeyDown={(e) => {
                                                                 if (e.key === 'Enter') {
                                                                     const val = editValue === '' ? 0 : Number(editValue);
-                                                                    handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, val)));
+                                                                    handleCategoryUpdate(cat._id, cat.hasNightCharge, isFlat ? Math.max(0, val) : Math.min(100, Math.max(0, val)));
                                                                 } else if (e.key === 'Escape') {
                                                                     setEditingCategory(null);
                                                                 }
@@ -303,12 +387,12 @@ const AdminNightCharge = () => {
                                                             className="h-10 rounded-lg font-black text-sm px-3 w-full"
                                                             autoFocus
                                                         />
-                                                        <span className="text-xs font-black text-gray-400">%</span>
-                                                        <Button 
-                                                            size="sm" 
+                                                        <span className="text-xs font-black text-gray-400">{unit}</span>
+                                                        <Button
+                                                            size="sm"
                                                             onClick={() => {
                                                                 const val = editValue === '' ? 0 : Number(editValue);
-                                                                handleCategoryUpdate(cat._id, cat.hasNightCharge, Math.min(100, Math.max(0, val)));
+                                                                handleCategoryUpdate(cat._id, cat.hasNightCharge, isFlat ? Math.max(0, val) : Math.min(100, Math.max(0, val)));
                                                             }}
                                                             className="h-10 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
                                                         >
@@ -319,17 +403,19 @@ const AdminNightCharge = () => {
                                                     <div
                                                         onClick={() => {
                                                             setEditingCategory(cat._id);
-                                                            setEditValue(cat.nightChargePercent === 0 ? '' : cat.nightChargePercent);
+                                                            setEditValue(activeValue === 0 ? '' : activeValue);
                                                         }}
                                                         className="inline-flex items-center gap-2 px-6 py-2 bg-gray-100 rounded-lg cursor-pointer hover:bg-blue-600 hover:text-white transition-all group/val min-w-[80px] justify-center"
                                                     >
-                                                        <span className="text-sm font-black">{cat.nightChargePercent}</span>
-                                                        <span className="text-xs font-bold opacity-50 group-hover/val:opacity-100">%</span>
+                                                        {isFlat && <span className="text-xs font-bold opacity-50 group-hover/val:opacity-100">{unit}</span>}
+                                                        <span className="text-sm font-black">{activeValue}</span>
+                                                        {!isFlat && <span className="text-xs font-bold opacity-50 group-hover/val:opacity-100">{unit}</span>}
                                                     </div>
                                                 )}
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

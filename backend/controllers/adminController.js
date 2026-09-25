@@ -3160,13 +3160,26 @@ const getAuditLogs = async (req, res) => {
 // @desc    Get Night Charge Settings
 // @route   GET /api/admin/night-charge
 // @access  Private/Admin
+const DEFAULT_NIGHT_CHARGE_CONFIG = {
+    enabled: false,
+    chargeType: 'percent',
+    defaultPercent: 10,
+    defaultFlatAmount: 0,
+    applyToPartner: true,
+    applyToSewak: true,
+    startTime: '21:00',
+    endTime: '06:00'
+};
+
 const getNightChargeSettings = async (req, res) => {
     try {
         const globalSetting = await Setting.findOne({ key: 'night_charge_config' });
-        const categories = await Category.find({}, 'name hasNightCharge nightChargePercent');
+        const categories = await Category.find({}, 'name hasNightCharge nightChargePercent nightChargeFlatAmount');
 
         res.json({
-            global: globalSetting ? globalSetting.value : { enabled: false, defaultPercent: 10, startTime: '21:00', endTime: '06:00' },
+            // Spread over the default so a config saved before chargeType/
+            // applyToPartner/applyToSewak existed still comes back complete.
+            global: globalSetting ? { ...DEFAULT_NIGHT_CHARGE_CONFIG, ...globalSetting.value } : DEFAULT_NIGHT_CHARGE_CONFIG,
             categories
         });
     } catch (error) {
@@ -3179,7 +3192,10 @@ const getNightChargeSettings = async (req, res) => {
 // @access  Private/Admin
 const updateGlobalNightCharge = async (req, res) => {
     try {
-        const { enabled, defaultPercent, startTime, endTime } = req.body;
+        const {
+            enabled, chargeType, defaultPercent, defaultFlatAmount,
+            applyToPartner, applyToSewak, startTime, endTime
+        } = req.body;
 
         if (!startTime || !endTime) {
             return res.status(400).json({ message: "Start time and End time are required" });
@@ -3187,17 +3203,28 @@ const updateGlobalNightCharge = async (req, res) => {
         if (startTime === endTime) {
             return res.status(400).json({ message: "Start time and End time cannot be the same" });
         }
+        if (chargeType && !['percent', 'flat'].includes(chargeType)) {
+            return res.status(400).json({ message: "chargeType must be 'percent' or 'flat'" });
+        }
+
+        const value = {
+            enabled,
+            chargeType: chargeType || 'percent',
+            defaultPercent: Number(defaultPercent) || 0,
+            defaultFlatAmount: Number(defaultFlatAmount) || 0,
+            applyToPartner: applyToPartner !== undefined ? !!applyToPartner : true,
+            applyToSewak: applyToSewak !== undefined ? !!applyToSewak : true,
+            startTime,
+            endTime
+        };
 
         let setting = await Setting.findOne({ key: 'night_charge_config' });
         if (setting) {
-            setting.value = { enabled, defaultPercent, startTime, endTime };
+            setting.value = value;
             setting.updatedAt = Date.now();
             await setting.save();
         } else {
-            setting = await Setting.create({
-                key: 'night_charge_config',
-                value: { enabled, defaultPercent, startTime, endTime }
-            });
+            setting = await Setting.create({ key: 'night_charge_config', value });
         }
 
         res.json(setting.value);
@@ -3211,7 +3238,7 @@ const updateGlobalNightCharge = async (req, res) => {
 // @access  Private/Admin
 const updateCategoryNightCharge = async (req, res) => {
     try {
-        const { hasNightCharge, nightChargePercent } = req.body;
+        const { hasNightCharge, nightChargePercent, nightChargeFlatAmount } = req.body;
         const category = await Category.findById(req.params.id);
 
         if (!category) {
@@ -3219,7 +3246,8 @@ const updateCategoryNightCharge = async (req, res) => {
         }
 
         category.hasNightCharge = hasNightCharge;
-        category.nightChargePercent = nightChargePercent;
+        if (nightChargePercent !== undefined) category.nightChargePercent = nightChargePercent;
+        if (nightChargeFlatAmount !== undefined) category.nightChargeFlatAmount = nightChargeFlatAmount;
         await category.save();
 
         res.json(category);
@@ -3238,11 +3266,12 @@ const applyGlobalNightChargeToAll = async (req, res) => {
             return res.status(404).json({ message: 'Global settings not found' });
         }
 
-        const { defaultPercent, enabled } = globalSetting.value;
+        const { defaultPercent, defaultFlatAmount, enabled } = globalSetting.value;
 
         await Category.updateMany({}, {
             hasNightCharge: enabled,
-            nightChargePercent: defaultPercent
+            nightChargePercent: defaultPercent || 0,
+            nightChargeFlatAmount: defaultFlatAmount || 0
         });
 
         res.json({ message: 'Applied to all categories successfully' });

@@ -88,7 +88,7 @@ const getPublicProviderById = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id)
             .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability')
-            .populate('vendorType', 'name icon hasNightCharge nightChargePercent');
+            .populate('vendorType', 'name icon hasNightCharge nightChargePercent nightChargeFlatAmount');
 
         if (!provider) {
             return res.status(404).json({ message: 'Provider not found' });
@@ -334,7 +334,17 @@ const getPublicConfig = async (req, res) => {
             // row saved, this said disabled while booking creation said enabled,
             // so a customer was charged a travel fee the checkout never showed.
             distanceCharge: await DistanceChargeService.getConfig(),
-            nightCharge: config.night_charge_config || { enabled: false, defaultPercent: 10, startTime: '21:00', endTime: '06:00' }
+            nightCharge: {
+                enabled: false,
+                chargeType: 'percent',
+                defaultPercent: 10,
+                defaultFlatAmount: 0,
+                applyToPartner: true,
+                applyToSewak: true,
+                startTime: '21:00',
+                endTime: '06:00',
+                ...(config.night_charge_config || {})
+            }
         });
     } catch (error) {
         res.status(500).json({ message: error.message });

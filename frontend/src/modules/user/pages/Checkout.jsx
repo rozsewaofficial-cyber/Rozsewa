@@ -648,17 +648,30 @@ const Checkout = () => {
   const getNightChargeAmount = () => {
     if (!selectedTime || !nightChargeConfig) return 0;
 
+    // Partner/Sewak is an on/off switch, not a category override — a
+    // provider whose type has it turned off skips the charge entirely.
+    const isSewak = providerDetails?.providerCategory === "sewak";
+    const appliesToThisProvider = isSewak
+      ? nightChargeConfig.applyToSewak !== false
+      : nightChargeConfig.applyToPartner !== false;
+    if (!appliesToThisProvider) return 0;
+
     // Check if category override is active
     const categoryOverride = providerDetails?.vendorType;
     let isActive = nightChargeConfig.enabled;
+    const isFlat = nightChargeConfig.chargeType === "flat";
     let percentage = nightChargeConfig.defaultPercent || 0;
+    let flatAmount = nightChargeConfig.defaultFlatAmount || 0;
 
     if (categoryOverride && categoryOverride.hasNightCharge !== undefined) {
       isActive = categoryOverride.hasNightCharge;
       percentage = categoryOverride.nightChargePercent;
+      flatAmount = categoryOverride.nightChargeFlatAmount;
     }
 
-    if (!isActive || percentage <= 0) return 0;
+    if (!isActive) return 0;
+    if (!isFlat && percentage <= 0) return 0;
+    if (isFlat && flatAmount <= 0) return 0;
 
     const timeToMins = (tStr) => {
       if (!tStr) return 0;
@@ -684,7 +697,7 @@ const Checkout = () => {
     }
 
     if (isNight) {
-      return Math.round((subtotal * percentage) / 100);
+      return isFlat ? Math.round(flatAmount) : Math.round((subtotal * percentage) / 100);
     }
     return 0;
   };
