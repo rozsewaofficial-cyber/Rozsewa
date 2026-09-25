@@ -5,6 +5,25 @@ const generateToken = require('../utils/generateToken');
 const OTP = require('../models/OTP');
 const { sendSMSOTP } = require('../utils/smsService');
 const { sendEmail } = require('../utils/emailService');
+const LoginLog = require('../models/LoginLog');
+
+const STAFF_ROLES = ['admin', 'superadmin', 'supervisor', 'field_staff', 'employee'];
+
+/** Records an admin-panel login. Never lets a logging failure fail the login itself. */
+const recordStaffLogin = async (user, req) => {
+    if (!STAFF_ROLES.includes(user.role)) return;
+    try {
+        await LoginLog.create({
+            userId: user._id,
+            name: user.name,
+            role: user.role,
+            city: user.city || '',
+            ipAddress: req.ip || req.headers['x-forwarded-for'] || ''
+        });
+    } catch (err) {
+        console.error('[LoginLog] failed to record staff login:', err.message);
+    }
+};
 
 // @desc    Send OTP to mobile
 // @route   POST /api/auth/send-otp
@@ -317,6 +336,8 @@ const authUser = async (req, res) => {
                 if (user.role === 'customer' && user.isActive === false) {
                     return res.status(403).json({ message: 'Your account has been blocked. Please contact support.' });
                 }
+
+                recordStaffLogin(user, req);
 
                 res.json({
                     success: true,

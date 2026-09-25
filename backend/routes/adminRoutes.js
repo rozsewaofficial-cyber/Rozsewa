@@ -34,6 +34,8 @@ const {
     get99CardData,
     getFeedbackData,
     getActivityLogs,
+    getLoginLogs,
+    getLoginLogCities,
     getSettings,
     updateSettings,
     updateAdminProfile,
@@ -197,6 +199,9 @@ router.get('/feedback', protect, admin, getFeedbackData);
 
 // Activity logs
 router.get('/activity', protect, admin, getActivityLogs);
+// Mounted ahead of the ':id'-less routes below — no id here to collide with.
+router.get('/login-logs/cities', protect, admin, getLoginLogCities);
+router.get('/login-logs', protect, admin, getLoginLogs);
 
 // Platform Settings & Profile
 router.get('/settings', protect, admin, getSettings);

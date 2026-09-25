@@ -12,6 +12,7 @@ const AuditLog = require('../models/AuditLog');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Employee = require('../models/Employee');
 const Coupon = require('../models/Coupon');
+const LoginLog = require('../models/LoginLog');
 const axios = require('axios');
 const { teamCodesFor, sewaksOfTeam, teamSewakIds } = require('../utils/supervisorScope');
 // Trigger restart
@@ -1473,6 +1474,73 @@ const getActivityLogs = async (req, res) => {
 
         const allLogs = [...providerLogs, ...bookingLogs].sort((a, b) => new Date(b.time) - new Date(a.time));
         res.json(allLogs);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    System Login Report — city-wise, date-wise and time-of-day-wise
+// @route   GET /api/admin/login-logs
+// @access  Private/Admin
+const getLoginLogs = async (req, res) => {
+    try {
+        const { city, dateFrom, dateTo, timeFrom, timeTo } = req.query;
+
+        const match = {};
+        if (city && city !== 'all') {
+            const escapeRx = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            match.city = new RegExp(`^${escapeRx(city)}$`, 'i');
+        }
+        if (dateFrom || dateTo) {
+            match.createdAt = {};
+            if (dateFrom) match.createdAt.$gte = new Date(new Date(dateFrom).setHours(0, 0, 0, 0));
+            if (dateTo) { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); match.createdAt.$lte = d; }
+        }
+
+        const { page, limit } = pageParams(req);
+
+        // Time-of-day (e.g. "logins between 21:00 and 23:00", any date) needs
+        // the hour:minute of the login itself, in IST — createdAt is UTC and
+        // a raw date range can't express "this time, every day" on its own.
+        if (timeFrom || timeTo) {
+            const pipeline = [
+                { $match: match },
+                { $addFields: { hhmm: { $dateToString: { format: '%H:%M', date: '$createdAt', timezone: '+05:30' } } } }
+            ];
+            const timeMatch = {};
+            if (timeFrom) timeMatch.$gte = timeFrom;
+            if (timeTo) timeMatch.$lte = timeTo;
+            pipeline.push({ $match: { hhmm: timeMatch } });
+
+            const countPipeline = [...pipeline, { $count: 'total' }];
+            pipeline.push({ $sort: { createdAt: -1 } }, { $skip: (page - 1) * limit }, { $limit: limit });
+
+            const [logs, countResult] = await Promise.all([
+                LoginLog.aggregate(pipeline),
+                LoginLog.aggregate(countPipeline)
+            ]);
+            res.set('X-Total-Count', String(countResult[0]?.total || 0));
+            return res.json(logs);
+        }
+
+        const [logs, total] = await Promise.all([
+            paginate(LoginLog.find(match).sort({ createdAt: -1 }), pageParams(req)),
+            LoginLog.countDocuments(match)
+        ]);
+        res.set('X-Total-Count', String(total));
+        res.json(logs);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Cities that appear in the login log, for the filter dropdown
+// @route   GET /api/admin/login-logs/cities
+// @access  Private/Admin
+const getLoginLogCities = async (req, res) => {
+    try {
+        const cities = await LoginLog.distinct('city');
+        res.json(cities.filter(Boolean).sort());
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -4072,6 +4140,8 @@ module.exports = {
     get99CardData,
     getFeedbackData,
     getActivityLogs,
+    getLoginLogs,
+    getLoginLogCities,
     getSettings,
     updateSettings,
     updateAdminProfile,
