@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useOutletContext } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Image as ImageIcon, ToggleLeft, ToggleRight, Trash2, Edit3, X, Save, Camera, Loader2, Target, Presentation, EyeOff } from "lucide-react";
+import { Plus, Image as ImageIcon, ToggleLeft, ToggleRight, Trash2, Edit3, X, Save, Camera, Loader2, Target, Presentation, EyeOff, Video, Film } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
@@ -25,10 +25,13 @@ const AdminBanners = () => {
 
     useScrollLock(showForm);
     const [isUploading, setIsUploading] = useState(false);
+    const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+    const MAX_VIDEO_SIZE = 10 * 1024 * 1024; // 10MB
     const [form, setForm] = useState({
         title: "",
         description: "",
         imageUrl: "",
+        videoUrl: "",
         ctaLink: "/shops",
         ctaText: "Book Now",
         active: true
@@ -75,7 +78,7 @@ const AdminBanners = () => {
     };
 
     const resetForm = () => {
-        setForm({ title: "", description: "", imageUrl: "", ctaLink: "/shops", ctaText: "Book Now", active: true });
+        setForm({ title: "", description: "", imageUrl: "", videoUrl: "", ctaLink: "/shops", ctaText: "Book Now", active: true });
         setShowForm(false);
         setEditId(null);
     };
@@ -103,6 +106,36 @@ const AdminBanners = () => {
             setIsUploading(false);
         }
     };
+
+    const handleVideoUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.size > MAX_VIDEO_SIZE) {
+            toast({ title: "Video too large", description: "Video size should be less than 10 MB.", variant: "destructive" });
+            e.target.value = "";
+            return;
+        }
+
+        setIsUploadingVideo(true);
+        try {
+            const data = new FormData();
+            data.append("video", file);
+
+            const res = await API.post("/admin/banners/upload-video", data, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+            setForm({ ...form, videoUrl: res.data.url });
+            toast({ title: "Video Uploaded" });
+        } catch (err) {
+            toast({ title: "Upload Failed", description: err.response?.data?.message || "Please try again.", variant: "destructive" });
+        } finally {
+            setIsUploadingVideo(false);
+            e.target.value = "";
+        }
+    };
+
+    const handleRemoveVideo = () => setForm({ ...form, videoUrl: "" });
 
     const handleDelete = async (id) => {
         if (!window.confirm("Remove this banner?")) return;
@@ -209,6 +242,11 @@ const AdminBanners = () => {
                                         Hidden
                                     </div>
                                 )}
+                                {b.videoUrl && (
+                                    <div className={`absolute bottom-3 left-3 flex items-center gap-1 px-2 py-1 rounded bg-black/50 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-widest ${!b.active ? 'ml-16' : ''}`}>
+                                        <Film className="h-3 w-3" /> Video
+                                    </div>
+                                )}
                             </div>
 
                             <div className="p-5 flex-1 flex flex-col">
@@ -299,6 +337,28 @@ const AdminBanners = () => {
                                                 </div>
                                             )}
                                         </label>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Video (Optional, &lt; 10 MB)</label>
+                                            {form.videoUrl ? (
+                                                <div className="relative rounded-xl overflow-hidden border border-emerald-500 bg-black shadow-sm">
+                                                    <video src={form.videoUrl} className="w-full h-40 object-cover" controls muted />
+                                                    <button type="button" onClick={handleRemoveVideo} className="absolute top-2 right-2 h-7 w-7 flex items-center justify-center rounded-lg bg-black/60 text-white hover:bg-black/80 transition-colors">
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <label className="relative flex flex-col items-center justify-center w-full h-24 rounded-xl border border-dashed border-gray-300 bg-white hover:bg-gray-50 cursor-pointer transition-all">
+                                                    <input type="file" className="hidden" onChange={handleVideoUpload} accept="video/*" disabled={isUploadingVideo} />
+                                                    {isUploadingVideo ? (
+                                                        <Loader2 className="h-5 w-5 animate-spin text-blue-600 mb-1.5" />
+                                                    ) : (
+                                                        <Video className="h-5 w-5 text-gray-300 mb-1.5" />
+                                                    )}
+                                                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Upload Video (Max 10MB)</span>
+                                                </label>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="space-y-4">

@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { uploadVideo } = require('../config/cloudinary');
 const partnerConfigController = require('../controllers/partnerConfigController');
 const partnerPolicyController = require('../controllers/partnerPolicyController');
 const broadcastController = require('../controllers/broadcastController');
@@ -29,6 +30,7 @@ const {
     updateBanner,
     deleteBanner,
     toggleBannerStatus,
+    uploadBannerVideo,
     getEmergencyData,
     broadcastEmergency,
     get99CardData,
@@ -181,6 +183,7 @@ router.post('/banners', protect, admin, addBanner);
 router.put('/banners/:id', protect, admin, updateBanner);
 router.delete('/banners/:id', protect, admin, deleteBanner);
 router.patch('/banners/:id/status', protect, admin, toggleBannerStatus);
+router.post('/banners/upload-video', protect, admin, uploadVideo.single('video'), uploadBannerVideo);
 
 // Provider Banner management
 const providerBannerController = require('../controllers/providerBannerController');

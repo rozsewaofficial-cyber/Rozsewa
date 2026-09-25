@@ -1285,6 +1285,41 @@ const updateBanner = async (req, res) => {
     }
 };
 
+// @desc    Upload a short banner video (< 10MB)
+// @route   POST /api/admin/banners/upload-video
+// @access  Private/Admin
+const uploadBannerVideo = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No video file provided' });
+        }
+
+        if (req.file.size > 10 * 1024 * 1024) {
+            return res.status(400).json({ message: 'Video file size must be less than 10MB' });
+        }
+
+        const { cloudinary } = require('../config/cloudinary');
+
+        const uploadFromBuffer = (fileBuffer) => {
+            return new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    { folder: 'rojsewa/banners', resource_type: 'video' },
+                    (error, result) => {
+                        if (error) return reject(error);
+                        resolve(result);
+                    }
+                );
+                stream.end(fileBuffer);
+            });
+        };
+
+        const result = await uploadFromBuffer(req.file.buffer);
+        res.json({ url: result.secure_url });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Toggle banner status
 // @route   PATCH /api/admin/banners/:id/status
 // @access  Private/Admin
@@ -4135,6 +4170,7 @@ module.exports = {
     updateBanner,
     deleteBanner,
     toggleBannerStatus,
+    uploadBannerVideo,
     getEmergencyData,
     broadcastEmergency,
     get99CardData,

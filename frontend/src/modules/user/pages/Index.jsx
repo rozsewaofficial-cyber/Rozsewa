@@ -109,7 +109,8 @@ const Index = () => {
           title: b.title || "",
           subtitle: b.description || b.subtitle || "",
           link: b.ctaLink || b.link || "/shops",
-          image: imageUrl || defaultBanners[i % defaultBanners.length].image
+          image: imageUrl || defaultBanners[i % defaultBanners.length].image,
+          video: b.videoUrl || null
         };
       }) || [];
 
@@ -341,15 +342,27 @@ const Index = () => {
                   onClick={() => handleBannerClick(banner)}
                   className="w-full h-full shrink-0 snap-center snap-always relative cursor-pointer"
                 >
-                  <img
-                    src={banner.image}
-                    className="w-full h-full object-cover pointer-events-none"
-                    alt="Promo Banner"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = defaultBanners[idx % defaultBanners.length].image;
-                    }}
-                  />
+                  {banner.video ? (
+                    <video
+                      src={banner.video}
+                      className="w-full h-full object-cover pointer-events-none"
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      poster={banner.image}
+                    />
+                  ) : (
+                    <img
+                      src={banner.image}
+                      className="w-full h-full object-cover pointer-events-none"
+                      alt="Promo Banner"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = defaultBanners[idx % defaultBanners.length].image;
+                      }}
+                    />
+                  )}
                   {(banner.title || banner.subtitle) && (
                     <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
                       {banner.title && (
