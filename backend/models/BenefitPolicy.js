@@ -7,6 +7,7 @@ const benefitPolicySchema = mongoose.Schema({
     color: { type: String, default: 'text-emerald-600' },
     bgColor: { type: String, default: 'bg-emerald-50' },
     type: { type: String, enum: ['benefit', 'policy'], default: 'benefit' }, // 'benefit' for grid, 'policy' for list
+    audience: { type: String, enum: ['user', 'provider'], default: 'provider' }, // who this is shown to — never Sewak, gated separately in the provider app
     isActive: { type: Boolean, default: true },
     displayOrder: { type: Number, default: 0 }
 }, {

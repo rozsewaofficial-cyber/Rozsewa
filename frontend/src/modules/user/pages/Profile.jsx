@@ -20,6 +20,7 @@ const menuItems = [
   { icon: Clock, label: "My Bookings", desc: "View booking history", path: "/my-bookings" },
   { icon: Heart, label: "Favorites", desc: "Saved providers", path: "/favorites" },
   { icon: ShoppingBag, label: "My Bazaar Ads", desc: "Ads you have posted", path: "/my-bazaar-ads" },
+  { icon: Gift, label: "Benefit Policy", desc: "Your privileges & requests", path: "/benefits" },
   { icon: MapPin, label: "Saved Addresses", desc: "Home, Office & more", path: "/addresses" },
   { icon: Bell, label: "Notifications", desc: "Manage alerts", path: "/notifications" },
   { icon: HelpCircle, label: "Help & Support", desc: "FAQs & tickets", path: "/help-support" },

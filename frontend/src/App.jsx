@@ -72,6 +72,7 @@ import ProviderDocuments from "./modules/provider/pages/ProviderDocuments";
 import ProviderReviews from "./modules/provider/pages/ProviderReviews";
 import Provider99Card from "./modules/provider/pages/Provider99Card";
 import ProviderBenefitPolicy from "./modules/provider/pages/ProviderBenefitPolicy";
+import CustomerBenefitPolicy from "./modules/user/pages/CustomerBenefitPolicy";
 import ProviderSettings from "./modules/provider/pages/ProviderSettings";
 import ProviderSupport from "./modules/provider/pages/ProviderSupport";
 import ProviderNotifications from "./modules/provider/pages/ProviderNotifications";
@@ -210,6 +211,7 @@ const App = () => (
                         <Route path="/notifications" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Notifications /></ProtectedRoute>} />
                         <Route path="/wallet" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><Wallet /></ProtectedRoute>} />
                         <Route path="/coins" element={<ProtectedRoute allowedRoles={["customer"]}><RozSewaCoins /></ProtectedRoute>} />
+                        <Route path="/benefits" element={<ProtectedRoute allowedRoles={["customer"]}><CustomerBenefitPolicy /></ProtectedRoute>} />
                         <Route path="/insta-work" element={<ProtectedRoute allowedRoles={["customer"]}><InstaWork /></ProtectedRoute>} />
                         <Route path="/refer-earn" element={<ProtectedRoute allowedRoles={["customer"]}><ReferEarn /></ProtectedRoute>} />
                         <Route path="/submit-lead" element={<ProtectedRoute allowedRoles={["customer", "provider", "sewak"]}><LeadRequirementForm /></ProtectedRoute>} />

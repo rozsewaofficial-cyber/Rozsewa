@@ -64,7 +64,14 @@ const deleteBenefitPolicy = async (req, res) => {
 // @access  Public
 const getPublicBenefitPolicies = async (req, res) => {
     try {
-        const policies = await BenefitPolicy.find({ isActive: true }).sort({ displayOrder: 1 });
+        const scope = { isActive: true };
+        // The customer app and the provider app each only want their own
+        // audience's cards — without this, a "user"-only benefit would leak
+        // into the provider screen and vice versa.
+        if (req.query.audience === 'user' || req.query.audience === 'provider') {
+            scope.audience = req.query.audience;
+        }
+        const policies = await BenefitPolicy.find(scope).sort({ displayOrder: 1 });
         res.json(policies);
     } catch (error) {
         res.status(500).json({ message: error.message });

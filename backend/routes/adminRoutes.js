@@ -116,6 +116,11 @@ const {
     deleteBenefitPolicy
 } = require('../controllers/benefitPolicyController');
 
+const {
+    getBenefitRequests,
+    updateBenefitRequestStatus
+} = require('../controllers/benefitRequestController');
+
 const { getWithdrawals, updateWithdrawalStatus } = require('../controllers/withdrawalController');
 const { getCommissionData, getFinanceData, getEarningsData, getIncentives, updateIncentiveSettings, settleCodBooking, updateGstRate } = require('../controllers/commissionController');
 
@@ -275,6 +280,8 @@ router.get('/benefit-policies', protect, admin, getBenefitPolicies);
 router.post('/benefit-policies', protect, admin, createBenefitPolicy);
 router.put('/benefit-policies/:id', protect, admin, updateBenefitPolicy);
 router.delete('/benefit-policies/:id', protect, admin, deleteBenefitPolicy);
+router.get('/benefit-requests', protect, admin, getBenefitRequests);
+router.patch('/benefit-requests/:id', protect, admin, updateBenefitRequestStatus);
 
 // Withdrawal Management
 router.get('/withdrawals', protect, admin, getWithdrawals);

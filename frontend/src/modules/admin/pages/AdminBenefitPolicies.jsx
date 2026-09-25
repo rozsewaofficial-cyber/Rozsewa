@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
-import { Plus, Edit, Trash2, ShieldCheck, Zap, TrendingUp, Users, Headphones, Star, Save, X, GripVertical, FileText, CheckCircle2 } from "lucide-react";
+import { Plus, Edit, Trash2, ShieldCheck, Zap, TrendingUp, Users, Headphones, Star, Save, X, GripVertical, FileText, CheckCircle2, ListChecks, CheckCircle, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import API from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -14,8 +14,127 @@ const InputField = ({ label, children }) => (
 
 const inputCls = "w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all";
 
+const BenefitRequestsTab = () => {
+    const { toast } = useToast();
+    const [requests, setRequests] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [audienceFilter, setAudienceFilter] = useState("all");
+
+    const fetchRequests = async () => {
+        setLoading(true);
+        try {
+            const params = {
+                ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+                ...(audienceFilter !== "all" ? { audience: audienceFilter } : {}),
+            };
+            const { data } = await API.get("/admin/benefit-requests", { params });
+            setRequests(data);
+        } catch (err) {
+            toast({ title: "Error fetching requests", variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { fetchRequests(); }, [statusFilter, audienceFilter]);
+
+    const handleStatusUpdate = async (id, status) => {
+        let adminNotes = "";
+        if (status === "rejected") {
+            adminNotes = prompt("Enter reason for rejection:");
+            if (!adminNotes) return;
+        }
+        try {
+            await API.patch(`/admin/benefit-requests/${id}`, { status, adminNotes });
+            toast({ title: `Request ${status}` });
+            fetchRequests();
+        } catch (err) {
+            toast({ title: "Error", description: err.response?.data?.message || "Action failed", variant: "destructive" });
+        }
+    };
+
+    const applicantLabel = (req) => {
+        const a = req.applicantId;
+        if (!a) return "N/A";
+        return req.applicantRole === "provider" ? (a.shopName || a.ownerName || "N/A") : (a.name || "N/A");
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+                {["all", "pending", "approved", "rejected"].map(s => (
+                    <button key={s} onClick={() => setStatusFilter(s)}
+                        className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all ${statusFilter === s ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>
+                        {s}
+                    </button>
+                ))}
+                <select value={audienceFilter} onChange={e => setAudienceFilter(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-500">
+                    <option value="all">All Applicants</option>
+                    <option value="customer">Users</option>
+                    <option value="provider">Providers</option>
+                </select>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-gray-50/80 text-[10px] uppercase font-black tracking-widest text-gray-500 border-b border-gray-100">
+                            <tr>
+                                <th className="px-6 py-4">Applicant</th>
+                                <th className="px-6 py-4">Type</th>
+                                <th className="px-6 py-4">Benefit</th>
+                                <th className="px-6 py-4">Date</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {loading ? (
+                                <tr><td colSpan="6" className="px-6 py-4 text-center text-gray-500">Loading...</td></tr>
+                            ) : requests.length === 0 ? (
+                                <tr><td colSpan="6" className="px-6 py-4 text-center text-gray-500">No requests found.</td></tr>
+                            ) : requests.map(req => (
+                                <tr key={req._id} className="hover:bg-gray-50/50 transition">
+                                    <td className="px-6 py-4 font-bold text-gray-900">{applicantLabel(req)}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${req.applicantRole === "provider" ? "bg-blue-50 text-blue-600" : "bg-purple-50 text-purple-600"}`}>
+                                            {req.applicantRole}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-xs font-bold text-gray-700">{req.policyId?.title || "N/A"}</td>
+                                    <td className="px-6 py-4 text-xs font-bold text-gray-500">{new Date(req.createdAt).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider block w-fit ${req.status === "approved" ? "bg-emerald-50 text-emerald-600" : req.status === "rejected" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600"}`}>
+                                            {req.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {req.status === "pending" && (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleStatusUpdate(req._id, "approved")} className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors" title="Approve">
+                                                    <CheckCircle className="h-4 w-4" />
+                                                </button>
+                                                <button onClick={() => handleStatusUpdate(req._id, "rejected")} className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors" title="Reject">
+                                                    <XCircle className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const AdminBenefitPolicies = () => {
     const { toast } = useToast();
+    const [tab, setTab] = useState("policies");
     const [policies, setPolicies] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -24,6 +143,7 @@ const AdminBenefitPolicies = () => {
     useScrollLock(showModal);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState("all");
+    const [filterAudience, setFilterAudience] = useState("all");
 
     const [formData, setFormData] = useState({
         title: "",
@@ -32,6 +152,7 @@ const AdminBenefitPolicies = () => {
         color: "text-emerald-600",
         bgColor: "bg-emerald-50",
         type: "benefit",
+        audience: "provider",
         isActive: true,
         displayOrder: 0
     });
@@ -75,6 +196,7 @@ const AdminBenefitPolicies = () => {
                 color: "text-emerald-600",
                 bgColor: "bg-emerald-50",
                 type: "benefit",
+                audience: "provider",
                 isActive: true,
                 displayOrder: policies.length
             });
@@ -126,7 +248,8 @@ const AdminBenefitPolicies = () => {
     const filteredPolicies = policies.filter(p => {
         const matchesSearch = p.title?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesType = filterType === 'all' || p.type === filterType;
-        return matchesSearch && matchesType;
+        const matchesAudience = filterAudience === 'all' || (p.audience || 'provider') === filterAudience;
+        return matchesSearch && matchesType && matchesAudience;
     }).sort((a, b) => a.displayOrder - b.displayOrder);
 
     return (
@@ -136,15 +259,33 @@ const AdminBenefitPolicies = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
                 <div>
                     <h2 className="text-2xl font-black text-gray-900 tracking-tight">Benefits & Policies</h2>
-                    <p className="mt-1 text-sm text-gray-500 font-medium">Manage the dynamic content shown to providers during onboarding.</p>
+                    <p className="mt-1 text-sm text-gray-500 font-medium">Manage user-wise and provider-wise content, and review benefit requests.</p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95"
-                >
-                    <Plus className="h-4 w-4" /> Add Record
-                </button>
+                {tab === "policies" && (
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95"
+                    >
+                        <Plus className="h-4 w-4" /> Add Record
+                    </button>
+                )}
             </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 border-b border-gray-200">
+                {[
+                    { id: "policies", label: "Policies", icon: FileText },
+                    { id: "requests", label: "Requests", icon: ListChecks },
+                ].map(t => (
+                    <button key={t.id} onClick={() => setTab(t.id)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors ${tab === t.id ? "border-blue-600 text-blue-600" : "border-transparent text-gray-400 hover:text-gray-700"}`}>
+                        <t.icon className="h-4 w-4" /> {t.label}
+                    </button>
+                ))}
+            </div>
+
+            {tab === "requests" ? <BenefitRequestsTab /> : (
+            <>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -185,6 +326,12 @@ const AdminBenefitPolicies = () => {
                         </button>
                     ))}
                 </div>
+                <select value={filterAudience} onChange={e => setFilterAudience(e.target.value)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-gray-500">
+                    <option value="all">User-wise & Provider-wise</option>
+                    <option value="user">User-wise</option>
+                    <option value="provider">Provider-wise</option>
+                </select>
             </div>
 
             {/* Data Grid */}
@@ -236,10 +383,15 @@ const AdminBenefitPolicies = () => {
                                     {policy.description}
                                 </p>
 
-                                <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
-                                    <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${policy.type === 'benefit' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
-                                        {policy.type}
-                                    </span>
+                                <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between flex-wrap gap-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${policy.type === 'benefit' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-purple-50 text-purple-600 border border-purple-100'}`}>
+                                            {policy.type}
+                                        </span>
+                                        <span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${(policy.audience || 'provider') === 'user' ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                            {(policy.audience || 'provider') === 'user' ? 'User-wise' : 'Provider-wise'}
+                                        </span>
+                                    </div>
                                     <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1">
                                         <GripVertical className="h-3 w-3" /> Ord: {policy.displayOrder}
                                     </span>
@@ -293,8 +445,14 @@ const AdminBenefitPolicies = () => {
                                             </div>
                                             <InputField label="Content Type">
                                                 <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} className={inputCls}>
-                                                    <option value="benefit">Provider Benefit (Grid)</option>
-                                                    <option value="policy">Platform Policy (List)</option>
+                                                    <option value="benefit">Benefit (Grid)</option>
+                                                    <option value="policy">Policy (List)</option>
+                                                </select>
+                                            </InputField>
+                                            <InputField label="Shown To">
+                                                <select value={formData.audience || 'provider'} onChange={e => setFormData({ ...formData, audience: e.target.value })} className={inputCls}>
+                                                    <option value="provider">Providers (never Sewak)</option>
+                                                    <option value="user">Users (Customers)</option>
                                                 </select>
                                             </InputField>
                                             <InputField label="Display Order">
@@ -374,6 +532,9 @@ const AdminBenefitPolicies = () => {
                     </>
                 )}
             </AnimatePresence>
+
+            </>
+            )}
 
         </div>
     );
