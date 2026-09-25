@@ -615,6 +615,8 @@ const getEarningsData = async (req, res) => {
                     grossSales: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] },
                     companyRevenue: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] },
                     partnerPayout: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] },
+                    totalExpense: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] },
+                    totalProfit: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] },
                     pendingSettlement: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] },
                     travelCharges: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] },
                     refunds: { value: 0, prevValue: 0, percentageChange: 0, sparkline: [] }

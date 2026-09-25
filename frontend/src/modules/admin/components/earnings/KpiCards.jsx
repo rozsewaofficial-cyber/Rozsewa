@@ -1,5 +1,5 @@
 import React from "react";
-import { TrendingUp, IndianRupee, CreditCard, Users, Truck, Undo2, ArrowUpRight, ArrowDownRight, Info, Coins, Wallet } from "lucide-react";
+import { TrendingUp, IndianRupee, CreditCard, Users, Truck, Undo2, ArrowUpRight, ArrowDownRight, Info, Coins, Wallet, Receipt, PiggyBank } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -53,6 +53,22 @@ const KpiCards = ({ data, isLoading }) => {
             color: "text-purple-600 bg-purple-50 border-purple-100",
             stroke: "#7c3aed",
             tooltip: "Total earnings distributed to service partners (completed bookings volume minus commissions)."
+        },
+        {
+            key: "totalExpense",
+            label: "Total Expense",
+            icon: Receipt,
+            color: "text-orange-600 bg-orange-50 border-orange-100",
+            stroke: "#ea580c",
+            tooltip: "The platform's one real cash outflow over the period — what was paid out to partners. Same figure as Partner Payouts, framed as an expense."
+        },
+        {
+            key: "totalProfit",
+            label: "Total Profit",
+            icon: PiggyBank,
+            color: "text-lime-600 bg-lime-50 border-lime-100",
+            stroke: "#65a30d",
+            tooltip: "Net Revenue minus Total Expense (partner payouts) — what's left over after the platform's one real cost."
         },
         {
             key: "pendingSettlement",

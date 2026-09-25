@@ -528,6 +528,19 @@ class EarningsAnalyticsService {
             sparkline: this.binFromRollup(curr.byBin, currentStart, currentEnd, interval, field).map(p => p.value)
         });
 
+        // A sparkline built from two rollup fields subtracted per bin, rather
+        // than one — used below for Total Profit, which has no single stored
+        // field of its own.
+        const diffCard = (currValue, prevValue, fieldA, fieldB) => ({
+            value: round(currValue),
+            prevValue: round(prevValue),
+            percentageChange: pct(currValue, prevValue),
+            sparkline: this.binSeries(currentStart, currentEnd, interval).map(({ key }) => {
+                const bin = curr.byBin[key] || {};
+                return Math.round((((bin[fieldA] || 0) - (bin[fieldB] || 0))) * 100) / 100;
+            })
+        });
+
         const pendingNow = pending(currentWithdrawals);
         return {
             grossSales: card('gross', curr.totals.gross, prev.totals.gross),
@@ -541,6 +554,18 @@ class EarningsAnalyticsService {
             // that actually lands.
             netRevenue: card('netRevenue', curr.totals.netRevenue, prev.totals.netRevenue),
             partnerPayout: card('payout', curr.totals.payout, prev.totals.payout),
+            // Admin note asked for this as its own figure — what partner
+            // payouts (the platform's one real cash outflow) cost over the
+            // period. Same underlying number as partnerPayout, framed as an
+            // expense rather than a payout.
+            totalExpense: card('payout', curr.totals.payout, prev.totals.payout),
+            // Net Revenue minus what was paid out to partners — what's left
+            // after the platform's one real cost.
+            totalProfit: diffCard(
+                curr.totals.netRevenue - curr.totals.payout,
+                prev.totals.netRevenue - prev.totals.payout,
+                'netRevenue', 'payout'
+            ),
             pendingSettlement: {
                 value: round(pendingNow),
                 prevValue: round(prevPendingTotal),
