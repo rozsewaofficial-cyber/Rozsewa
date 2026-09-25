@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import TablePager from "@/modules/admin/components/TablePager";
 import { useOutletContext } from "react-router-dom";
 import { useScrollLock } from "@/lib/scrollLock";
@@ -35,6 +35,13 @@ const AdminUsers = () => {
     const itemsPerPage = 10;
     const [walletData, setWalletData] = useState(null);
     const [loadingWallet, setLoadingWallet] = useState(false);
+    // Switching type/city/date fires the fetch effect more than once per
+    // interaction (the type switch also resets the page and clears the
+    // city, each its own state update). Without this, an earlier request
+    // that happens to resolve after a later one would overwrite it with
+    // stale data — or, if it merely rejects late, pop a spurious "Fetch
+    // Failed" toast for a request nothing on screen is still waiting on.
+    const fetchSeqRef = useRef(0);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -107,6 +114,7 @@ const AdminUsers = () => {
     });
 
     const fetchUsers = async () => {
+        const mySeq = ++fetchSeqRef.current;
         setLoading(true);
         try {
             const dateParams = {
@@ -130,6 +138,7 @@ const AdminUsers = () => {
                     }),
                     API.get("/admin/users/stats", { params: { ...cityParams, ...dateParams } })
                 ]);
+                if (mySeq !== fetchSeqRef.current) return; // superseded by a newer request
                 setUsers(list.data);
                 const reported = Number(list.headers?.["x-total-count"]);
                 setUsersTotal(Number.isFinite(reported) ? reported : list.data.length);
@@ -147,15 +156,17 @@ const AdminUsers = () => {
                     }),
                     API.get("/admin/providers/stats", { params: providerParams })
                 ]);
+                if (mySeq !== fetchSeqRef.current) return; // superseded by a newer request
                 setUsers((list.data || []).map(normalizeProvider));
                 const reported = Number(list.headers?.["x-total-count"]);
                 setUsersTotal(Number.isFinite(reported) ? reported : list.data.length);
                 setServerStats(totals.data);
             }
         } catch (err) {
+            if (mySeq !== fetchSeqRef.current) return; // a superseded request failing is not the user's problem
             toast({ title: "Fetch Failed", variant: "destructive" });
         } finally {
-            setLoading(false);
+            if (mySeq === fetchSeqRef.current) setLoading(false);
         }
     };
 

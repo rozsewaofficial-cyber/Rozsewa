@@ -97,4 +97,20 @@ check('switching type resets the page and clears the city filter, since the two 
     assert.ok(/setCurrentPage\(1\);\s*\n\s*setCityFilter\(""\);\s*\n\s*\}, \[userType\]\);/.test(ui));
 });
 
+console.log('\nA superseded fetch (type/city/date changing before the previous one resolves) never wins or errors');
+
+check('every response and error is checked against the latest request before touching state', () => {
+    const fn = sliceFn(ui, 'const fetchUsers');
+    assert.ok(/const mySeq = \+\+fetchSeqRef\.current/.test(fn));
+    assert.ok((fn.match(/if \(mySeq !== fetchSeqRef\.current\) return;/g) || []).length >= 2,
+        'both the customer branch and the provider branch need the guard, not just one');
+});
+
+check('a stale request\'s rejection is swallowed instead of surfacing a spurious "Fetch Failed" toast', () => {
+    const fn = sliceFn(ui, 'const fetchUsers');
+    const catchBlock = fn.slice(fn.indexOf('} catch (err) {'));
+    assert.ok(/if \(mySeq !== fetchSeqRef\.current\) return;/.test(catchBlock.split('toast(')[0]),
+        'the guard has to run before the toast, or a late failure from an abandoned request still shows one');
+});
+
 console.log(`\n${passed} user-report-filter checks passed.\n`);
