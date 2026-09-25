@@ -20,6 +20,14 @@ const AdminUsers = () => {
     const [serverStats, setServerStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    // Which actor type the report is showing. Customers live on User;
+    // Partner/Sewak are the same Provider collection AdminProviders.jsx
+    // already manages, split by providerCategory — this screen only reports
+    // on them, it doesn't duplicate that page's block/verify actions.
+    const [userType, setUserType] = useState("customer");
+    const [cityFilter, setCityFilter] = useState("");
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
     const [selectedUser, setSelectedUser] = useState(null);
     useScrollLock(!!selectedUser);
     const activeSelectedUser = selectedUser ? users.find(u => u._id === selectedUser._id) : null;
@@ -31,6 +39,17 @@ const AdminUsers = () => {
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm]);
+
+    // Switching type/city/date starts back at page one, and clears whichever
+    // city was picked for the old type since the two types don't share a
+    // city list.
+    useEffect(() => {
+        setCurrentPage(1);
+        setCityFilter("");
+    }, [userType]);
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [cityFilter, dateFrom, dateTo]);
 
     useEffect(() => {
         if (selectedUser) {
@@ -67,27 +86,72 @@ const AdminUsers = () => {
         const t = setTimeout(() => fetchUsers(), searchTerm ? 350 : 0);
         return () => clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchTerm, currentPage]);
+    }, [searchTerm, currentPage, userType, cityFilter, dateFrom, dateTo]);
+
+    // A Provider document (Partner/Sewak) doesn't share User's shape, so it's
+    // normalized into the same fields the table and stat cards already read
+    // (name/mobile/email/city/createdAt), with the original status kept for
+    // the one place — the row's status badge — that still needs it.
+    const normalizeProvider = (p) => ({
+        _id: p._id,
+        name: p.ownerName || p.shopName,
+        shopName: p.shopName,
+        mobile: p.mobile,
+        email: p.email,
+        city: p.city,
+        address: p.address,
+        createdAt: p.createdAt,
+        role: p.providerCategory === 'sewak' ? 'sewak' : 'partner',
+        providerStatus: p.status,
+        isProviderRow: true
+    });
 
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            // The stats call carries no search, so the cards keep describing every
-            // customer while the table answers what was typed.
-            const [list, totals] = await Promise.all([
-                API.get("/admin/users", {
-                    params: {
-                        ...(searchTerm ? { search: searchTerm } : {}),
-                        page: currentPage,
-                        limit: itemsPerPage
-                    }
-                }),
-                API.get("/admin/users/stats")
-            ]);
-            setUsers(list.data);
-            const reported = Number(list.headers?.["x-total-count"]);
-            setUsersTotal(Number.isFinite(reported) ? reported : list.data.length);
-            setServerStats(totals.data);
+            const dateParams = {
+                ...(dateFrom ? { from: dateFrom } : {}),
+                ...(dateTo ? { to: dateTo } : {})
+            };
+            const cityParams = cityFilter ? { city: cityFilter } : {};
+
+            if (userType === 'customer') {
+                // The stats call carries no search, so the cards keep describing every
+                // customer while the table answers what was typed.
+                const [list, totals] = await Promise.all([
+                    API.get("/admin/users", {
+                        params: {
+                            ...(searchTerm ? { search: searchTerm } : {}),
+                            ...cityParams,
+                            ...dateParams,
+                            page: currentPage,
+                            limit: itemsPerPage
+                        }
+                    }),
+                    API.get("/admin/users/stats", { params: { ...cityParams, ...dateParams } })
+                ]);
+                setUsers(list.data);
+                const reported = Number(list.headers?.["x-total-count"]);
+                setUsersTotal(Number.isFinite(reported) ? reported : list.data.length);
+                setServerStats(totals.data);
+            } else {
+                const providerParams = { category: userType, ...cityParams, ...dateParams };
+                const [list, totals] = await Promise.all([
+                    API.get("/admin/providers", {
+                        params: {
+                            ...providerParams,
+                            ...(searchTerm ? { search: searchTerm } : {}),
+                            page: currentPage,
+                            limit: itemsPerPage
+                        }
+                    }),
+                    API.get("/admin/providers/stats", { params: providerParams })
+                ]);
+                setUsers((list.data || []).map(normalizeProvider));
+                const reported = Number(list.headers?.["x-total-count"]);
+                setUsersTotal(Number.isFinite(reported) ? reported : list.data.length);
+                setServerStats(totals.data);
+            }
         } catch (err) {
             toast({ title: "Fetch Failed", variant: "destructive" });
         } finally {
@@ -137,19 +201,22 @@ const AdminUsers = () => {
     const filteredUsers = users || [];
     const paginatedUsers = filteredUsers;
 
-    // Counts of every customer, not of the page on screen. The local fallback
-    // only covers the moment before the first response arrives.
+    // Counts of every matching record, not of the page on screen. The local
+    // fallback only covers the moment before the first response arrives.
     const stats = useMemo(() => {
         if (serverStats) return serverStats;
+        if (userType !== 'customer') return { total: users.length, verified: 0, pending: 0, suspended: 0, rejected: 0, cities: [] };
         const active = users.filter(u => u.isActive !== false).length;
         const blocked = users.filter(u => u.isActive === false).length;
         const recent = users.filter(u => {
             const diffTime = Math.abs(new Date() - new Date(u.createdAt));
             return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) <= 7;
         }).length;
-        
-        return { total: users.length, active, blocked, recent, totalWalletBalance: 0 };
-    }, [users, serverStats]);
+
+        return { total: users.length, active, blocked, recent, totalWalletBalance: 0, cities: [] };
+    }, [users, serverStats, userType]);
+
+    const cityOptions = stats.cities || [];
 
     if (loading) return (
         <div className="flex h-96 flex-col items-center justify-center space-y-4">
@@ -178,15 +245,60 @@ const AdminUsers = () => {
                 </div>
             </div>
 
+            {/* Type / City / Date Filters */}
+            <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+                <div className="flex gap-1.5">
+                    {[
+                        { key: "customer", label: "Customers" },
+                        { key: "partner", label: "Partners" },
+                        { key: "sewak", label: "Sewaks" },
+                    ].map(t => (
+                        <button
+                            key={t.key}
+                            onClick={() => setUserType(t.key)}
+                            className={`rounded-lg px-3.5 py-2 text-[10px] font-black uppercase tracking-wider transition-all ${userType === t.key ? "bg-gray-900 text-white shadow-sm" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                        >
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+                <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:border-blue-500">
+                    <option value="">All Cities</option>
+                    {cityOptions.map(c => (<option key={c} value={c}>{c}</option>))}
+                </select>
+                <div className="flex items-center gap-1.5">
+                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                        max={dateTo || undefined}
+                        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:border-blue-500" />
+                    <span className="text-xs font-bold text-gray-400">to</span>
+                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                        min={dateFrom || undefined}
+                        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:border-blue-500" />
+                </div>
+                {(cityFilter || dateFrom || dateTo) && (
+                    <button onClick={() => { setCityFilter(""); setDateFrom(""); setDateTo(""); }}
+                        className="rounded-xl bg-gray-100 px-3 py-2 text-[10px] font-bold text-gray-500 hover:bg-gray-200">
+                        Clear
+                    </button>
+                )}
+            </div>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                {[
+                {(userType === 'customer' ? [
                     { label: "Total Users", value: stats.total, icon: Users, cls: "text-blue-700 bg-blue-50 border-blue-200" },
                     { label: "Active Accounts", value: stats.active, icon: Activity, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
                     { label: "Blocked Accounts", value: stats.blocked, icon: AlertOctagon, cls: "text-red-700 bg-red-50 border-red-200" },
                     { label: "New (Last 7 Days)", value: stats.recent, icon: TrendingUp, cls: "text-amber-700 bg-amber-50 border-amber-200" },
-                    { label: "Total Wallet Balance", value: `₹${stats.totalWalletBalance.toLocaleString("en-IN")}`, icon: WalletIcon, cls: "text-purple-700 bg-purple-50 border-purple-200" },
-                ].map((s, i) => (
+                    { label: "Total Wallet Balance", value: `₹${(stats.totalWalletBalance || 0).toLocaleString("en-IN")}`, icon: WalletIcon, cls: "text-purple-700 bg-purple-50 border-purple-200" },
+                ] : [
+                    { label: `Total ${userType === 'sewak' ? 'Sewaks' : 'Partners'}`, value: stats.total, icon: Users, cls: "text-blue-700 bg-blue-50 border-blue-200" },
+                    { label: "Verified", value: stats.verified, icon: Activity, cls: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+                    { label: "Pending", value: stats.pending, icon: TrendingUp, cls: "text-amber-700 bg-amber-50 border-amber-200" },
+                    { label: "Suspended", value: stats.suspended, icon: AlertOctagon, cls: "text-red-700 bg-red-50 border-red-200" },
+                    { label: "Rejected", value: stats.rejected, icon: AlertOctagon, cls: "text-gray-700 bg-gray-50 border-gray-200" },
+                ]).map((s, i) => (
                     <div key={i} className={`rounded-xl border p-4 ${s.cls}`}>
                         <div className="flex items-center gap-1.5 mb-1.5">
                             <s.icon className="h-3.5 w-3.5 opacity-70" />
@@ -206,7 +318,9 @@ const AdminUsers = () => {
                         </div>
                         <div>
                             <h3 className="text-sm font-black text-gray-900">User Registry</h3>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Customer Accounts</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                {userType === 'customer' ? 'Customer Accounts' : userType === 'sewak' ? 'Sewak Accounts' : 'Partner Accounts'}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -217,6 +331,7 @@ const AdminUsers = () => {
                             <tr>
                                 <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-gray-400">Personal Info</th>
                                 <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-gray-400">Contact & Access</th>
+                                <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-gray-400">City</th>
                                 <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-gray-400">Membership</th>
                                 <th className="px-6 py-4 text-right text-[9px] font-black uppercase tracking-widest text-gray-400">Actions</th>
                             </tr>
@@ -224,7 +339,7 @@ const AdminUsers = () => {
                         <tbody className="divide-y divide-gray-100">
                             {filteredUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" className="px-6 py-12 text-center">
+                                    <td colSpan="5" className="px-6 py-12 text-center">
                                         <UserIcon className="h-10 w-10 text-gray-200 mx-auto mb-2" />
                                         <p className="text-gray-400 font-bold text-sm tracking-tight">No registered users found.</p>
                                     </td>
@@ -239,7 +354,9 @@ const AdminUsers = () => {
                                                 </div>
                                                 <div>
                                                     <p className="font-extrabold text-gray-900 tracking-tight">{user.name}</p>
-                                                    <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${user.isActive === false ? 'text-red-500' : 'text-blue-600'}`}>{user.isActive === false ? 'Blocked' : user.role}</p>
+                                                    <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${user.isProviderRow ? 'text-purple-600' : user.isActive === false ? 'text-red-500' : 'text-blue-600'}`}>
+                                                        {user.isProviderRow ? user.providerStatus : (user.isActive === false ? 'Blocked' : user.role)}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
@@ -254,36 +371,45 @@ const AdminUsers = () => {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
+                                            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
+                                                <MapPin className="h-3 w-3 text-gray-400" /> {user.city || '—'}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
                                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Since registration</p>
                                             <p className="text-xs font-bold text-gray-900">{new Date(user.createdAt).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleToggleStatus(user._id, user.isActive)}
-                                                    className={`h-8 px-3 inline-flex items-center gap-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-colors ${
-                                                        user.isActive === false
-                                                            ? "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
-                                                            : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100"
-                                                    }`}
-                                                >
-                                                    {user.isActive === false ? <><CheckCircle2 className="h-3 w-3" /> Unblock</> : <><Ban className="h-3 w-3" /> Block</>}
-                                                </button>
-                                                <button
-                                                    onClick={() => setSelectedUser(user)}
-                                                    className="h-8 px-3 rounded-lg bg-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-200 transition-colors"
-                                                    title="View Details"
-                                                >
-                                                    Details
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteUser(user._id)}
-                                                    className="h-8 px-3 rounded-lg bg-red-50 border border-red-100 text-[10px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100 transition-colors"
-                                                    title="Delete User"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
+                                            {user.isProviderRow ? (
+                                                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Managed in Providers</span>
+                                            ) : (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => handleToggleStatus(user._id, user.isActive)}
+                                                        className={`h-8 px-3 inline-flex items-center gap-1.5 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-colors ${
+                                                            user.isActive === false
+                                                                ? "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
+                                                                : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100"
+                                                        }`}
+                                                    >
+                                                        {user.isActive === false ? <><CheckCircle2 className="h-3 w-3" /> Unblock</> : <><Ban className="h-3 w-3" /> Block</>}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSelectedUser(user)}
+                                                        className="h-8 px-3 rounded-lg bg-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-200 transition-colors"
+                                                        title="View Details"
+                                                    >
+                                                        Details
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteUser(user._id)}
+                                                        className="h-8 px-3 rounded-lg bg-red-50 border border-red-100 text-[10px] font-black uppercase tracking-widest text-red-600 hover:bg-red-100 transition-colors"
+                                                        title="Delete User"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 ))

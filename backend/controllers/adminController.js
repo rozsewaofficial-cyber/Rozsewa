@@ -1105,9 +1105,20 @@ const adminUserScope = (params, { includeSearch = true } = {}) => {
     if (params.status === 'active') query.isActive = { $ne: false };
     else if (params.status === 'blocked') query.isActive = false;
 
+    const escape = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c);
+    if (params.city && params.city !== 'all') query.city = new RegExp(`^${escape(params.city)}$`, 'i');
+
+    // The joined-on range, as the screen's two date pickers describe it.
+    const { from, to } = params;
+    if (from || to) {
+        query.createdAt = {};
+        if (from) query.createdAt.$gte = new Date(new Date(from).setHours(0, 0, 0, 0));
+        if (to) query.createdAt.$lte = new Date(new Date(to).setHours(23, 59, 59, 999));
+    }
+
     const term = String(includeSearch ? (params.search || '') : '').trim();
     if (term) {
-        const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, (c) => '\\' + c), 'i');
+        const rx = new RegExp(escape(term), 'i');
         query.$or = [{ name: rx }, { mobile: rx }, { email: rx }];
     }
 
@@ -1144,34 +1155,41 @@ const getUserStats = async (req, res) => {
         // and totalled on the page — the user list arrives one page at a
         // time, so adding up the rows in hand would report the balance of
         // whichever twenty customers happened to be on screen.
-        const [row] = await User.aggregate([
-            { $match: scope },
-            {
-                $lookup: {
-                    from: 'wallets',
-                    localField: '_id',
-                    foreignField: 'userId',
-                    as: 'wallet'
+        const [rows, cities] = await Promise.all([
+            User.aggregate([
+                { $match: scope },
+                {
+                    $lookup: {
+                        from: 'wallets',
+                        localField: '_id',
+                        foreignField: 'userId',
+                        as: 'wallet'
+                    }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        active: { $sum: { $cond: [{ $ne: ['$isActive', false] }, 1, 0] } },
+                        blocked: { $sum: { $cond: [{ $eq: ['$isActive', false] }, 1, 0] } },
+                        recent: { $sum: { $cond: [{ $gte: ['$createdAt', weekAgo] }, 1, 0] } },
+                        totalWalletBalance: { $sum: { $ifNull: [{ $first: '$wallet.balance' }, 0] } }
+                    }
                 }
-            },
-            {
-                $group: {
-                    _id: null,
-                    total: { $sum: 1 },
-                    active: { $sum: { $cond: [{ $ne: ['$isActive', false] }, 1, 0] } },
-                    blocked: { $sum: { $cond: [{ $eq: ['$isActive', false] }, 1, 0] } },
-                    recent: { $sum: { $cond: [{ $gte: ['$createdAt', weekAgo] }, 1, 0] } },
-                    totalWalletBalance: { $sum: { $ifNull: [{ $first: '$wallet.balance' }, 0] } }
-                }
-            }
+            ]),
+            // The filter dropdown offers the cities that exist, which the page
+            // of rows on screen cannot know.
+            User.distinct('city', scope)
         ]);
+        const row = rows[0];
 
         res.json({
             total: row?.total || 0,
             active: row?.active || 0,
             blocked: row?.blocked || 0,
             recent: row?.recent || 0,
-            totalWalletBalance: Math.round((row?.totalWalletBalance || 0) * 100) / 100
+            totalWalletBalance: Math.round((row?.totalWalletBalance || 0) * 100) / 100,
+            cities: cities.filter(Boolean).sort()
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
