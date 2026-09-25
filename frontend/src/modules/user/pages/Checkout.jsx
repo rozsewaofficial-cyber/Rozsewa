@@ -531,6 +531,7 @@ const Checkout = () => {
       const { data } = await API.post("/public/coupons/validate", {
         code: coupon,
         amount: subtotal,
+        providerId: checkoutData.providerId || null,
       });
 
       setAppliedCouponData(data);

@@ -17,14 +17,15 @@ const AdminCoupons = () => {
   const [categories, setCategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [newCoupon, setNewCoupon] = useState({ 
-      code: "", 
-      discount: "", 
-      maxUses: "", 
-      expiry: "", 
+  const [newCoupon, setNewCoupon] = useState({
+      code: "",
+      discount: "",
+      maxUses: "",
+      expiry: "",
       minOrderAmount: "",
       maxDiscountAmount: "",
-      targetCategory: "" 
+      targetCategory: "",
+      applicableTo: "both"
   });
   const [loading, setLoading] = useState(true);
 
@@ -108,12 +109,13 @@ const AdminCoupons = () => {
             expiryDate: newCoupon.expiry,
             minOrderAmount: newCoupon.minOrderAmount ? Number(newCoupon.minOrderAmount) : 0,
             maxDiscountAmount: newCoupon.maxDiscountAmount ? Number(newCoupon.maxDiscountAmount) : null,
-            targetCategory: newCoupon.targetCategory || null
+            targetCategory: newCoupon.targetCategory || null,
+            applicableTo: newCoupon.applicableTo || "both"
         };
 
         const { data } = await API.post('/admin/coupons', payload);
         setCoupons([data, ...coupons]);
-        setNewCoupon({ code: "", discount: "", maxUses: "", expiry: "", minOrderAmount: "", maxDiscountAmount: "", targetCategory: "" });
+        setNewCoupon({ code: "", discount: "", maxUses: "", expiry: "", minOrderAmount: "", maxDiscountAmount: "", targetCategory: "", applicableTo: "both" });
         setShowModal(false);
         toast({ title: "Coupon Created", description: `Coupon ${data.code} is now live.` });
     } catch (error) {
@@ -193,18 +195,25 @@ const AdminCoupons = () => {
                   </span>
                 </div>
                 
-                {coupon.targetCategory && (
-                    <div className="mt-1 flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold w-max">
-                        <TagIcon className="h-3.5 w-3.5" />
-                        {coupon.targetCategory.name} Only
-                    </div>
-                )}
-                {!coupon.targetCategory && (
-                    <div className="mt-1 flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold w-max">
-                        <TagIcon className="h-3.5 w-3.5" />
-                        Global (All Categories)
-                    </div>
-                )}
+                <div className="flex flex-wrap gap-1.5">
+                    {coupon.targetCategory ? (
+                        <div className="mt-1 flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold w-max">
+                            <TagIcon className="h-3.5 w-3.5" />
+                            {coupon.targetCategory.name} Only
+                        </div>
+                    ) : (
+                        <div className="mt-1 flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold w-max">
+                            <TagIcon className="h-3.5 w-3.5" />
+                            Global (All Categories)
+                        </div>
+                    )}
+                    {coupon.applicableTo && coupon.applicableTo !== 'both' && (
+                        <div className={`mt-1 flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold w-max ${coupon.applicableTo === 'sewak' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                            <TagIcon className="h-3.5 w-3.5" />
+                            {coupon.applicableTo === 'sewak' ? 'Sewak' : 'Partner'} Only
+                        </div>
+                    )}
+                </div>
 
                 <div className="grid grid-cols-2 gap-4 mt-2">
                   <div>
@@ -269,6 +278,19 @@ const AdminCoupons = () => {
                       {categories.map(cat => (
                           <option key={cat._id} value={cat._id}>{cat.name}</option>
                       ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1.5">Applicable To</label>
+                  <select
+                      value={newCoupon.applicableTo}
+                      onChange={e => setNewCoupon({ ...newCoupon, applicableTo: e.target.value })}
+                      className="block w-full rounded-xl border border-gray-200 bg-gray-50 py-3 px-4 text-sm font-semibold text-gray-800 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  >
+                      <option value="both">Partner & Sewak (Both)</option>
+                      <option value="partner">Partner Only</option>
+                      <option value="sewak">Sewak Only</option>
                   </select>
                 </div>
 

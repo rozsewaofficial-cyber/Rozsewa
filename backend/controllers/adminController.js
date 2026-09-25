@@ -4099,7 +4099,7 @@ const getAdminCoupons = async (req, res) => {
 // @access  Private/Admin
 const createCoupon = async (req, res) => {
     try {
-        const { code, discount, description, expiryDate, maxUsage, minOrderAmount, maxDiscountAmount, targetCategory } = req.body;
+        const { code, discount, description, expiryDate, maxUsage, minOrderAmount, maxDiscountAmount, targetCategory, applicableTo } = req.body;
 
         const existing = await Coupon.findOne({ code: code.toUpperCase() });
         if (existing) {
@@ -4114,7 +4114,8 @@ const createCoupon = async (req, res) => {
             maxUsage,
             minOrderAmount,
             maxDiscountAmount,
-            targetCategory: targetCategory || null
+            targetCategory: targetCategory || null,
+            applicableTo: ['partner', 'sewak', 'both'].includes(applicableTo) ? applicableTo : 'both'
         });
 
         await newCoupon.save();

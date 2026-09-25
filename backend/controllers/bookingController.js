@@ -411,7 +411,12 @@ const createBooking = async (req, res) => {
                     }
                 }
 
-                if (belongsToCategory) {
+                // A coupon scoped to Partner-only or Sewak-only must match who this
+                // booking is actually with — isSewakBooking is already resolved above.
+                const matchesProviderType = !coupon.applicableTo || coupon.applicableTo === 'both'
+                    || (coupon.applicableTo === 'sewak') === isSewakBooking;
+
+                if (belongsToCategory && matchesProviderType) {
                     if (coupon.discount.includes("%")) {
                         const percent = parseInt(coupon.discount);
                         couponDiscount = Math.round(subtotal * (percent / 100));
@@ -426,6 +431,8 @@ const createBooking = async (req, res) => {
                     // Increment usage count
                     coupon.usageCount += 1;
                     await coupon.save();
+                } else if (!matchesProviderType) {
+                    console.warn(`[COUPON REJECTED] Coupon ${couponCode} is restricted to ${coupon.applicableTo} providers, but this booking is${isSewakBooking ? '' : ' not'} with a Sewak.`);
                 } else {
                     console.warn(`[COUPON REJECTED] Coupon ${couponCode} is restricted to category ${coupon.targetCategory.name}, but serviceId ${serviceId} does not belong to it.`);
                 }

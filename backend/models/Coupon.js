@@ -11,6 +11,7 @@ const couponSchema = mongoose.Schema({
     minOrderAmount: { type: Number, default: 0 },
     maxDiscountAmount: { type: Number },
     targetCategory: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null }, // Null means global
+    applicableTo: { type: String, enum: ['partner', 'sewak', 'both'], default: 'both' }, // Which provider type the booking must be with
     createdAt: { type: Date, default: Date.now }
 }, {
     timestamps: true

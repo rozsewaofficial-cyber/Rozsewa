@@ -424,11 +424,23 @@ const getPublicCoupons = async (req, res) => {
 // @access  Public
 const validateCoupon = async (req, res) => {
     try {
-        const { code, amount, serviceId } = req.body;
+        const { code, amount, serviceId, providerId } = req.body;
         const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true }).populate('targetCategory');
 
         if (!coupon) {
             return res.status(404).json({ message: 'Invalid coupon code' });
+        }
+
+        // A coupon scoped to Partner-only or Sewak-only must match the provider
+        // this checkout is actually with, the same rule createBooking enforces
+        // as the trusted final check.
+        const mongoose = require('mongoose');
+        if (coupon.applicableTo && coupon.applicableTo !== 'both' && providerId && mongoose.Types.ObjectId.isValid(providerId)) {
+            const provider = await Provider.findById(providerId).select('providerCategory');
+            const isSewakBooking = provider?.providerCategory === 'sewak';
+            if ((coupon.applicableTo === 'sewak') !== isSewakBooking) {
+                return res.status(400).json({ message: `This coupon is only valid for ${coupon.applicableTo === 'sewak' ? 'Sewak' : 'Partner'} bookings.` });
+            }
         }
 
         if (new Date() > coupon.expiryDate) {
