@@ -13,6 +13,7 @@ const AdminFeedback = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [providerTypeFilter, setProviderTypeFilter] = useState("all");
 
   useEffect(() => {
     setTitle("Review & Feedback");
@@ -47,8 +48,9 @@ const AdminFeedback = () => {
       (filter === "negative" && r.rating <= 3) ||
       (filter === "unacknowledged" && !r.acknowledged);
     const matchesRole = roleFilter === "all" || r.role === roleFilter;
+    const matchesProviderType = providerTypeFilter === "all" || r.providerCategory === providerTypeFilter;
 
-    return matchesSearch && matchesFilter && matchesRole;
+    return matchesSearch && matchesFilter && matchesRole && matchesProviderType;
   });
 
   if (loading) return (
@@ -93,14 +95,20 @@ const AdminFeedback = () => {
               <option value="user">From Users</option>
               <option value="provider">From Providers</option>
             </select>
+            <select value={providerTypeFilter} onChange={(e) => setProviderTypeFilter(e.target.value)} className="rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-3 pr-8 text-xs font-bold text-gray-700 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 hover:bg-white transition-colors cursor-pointer appearance-none">
+              <option value="all">Partner & Sewak</option>
+              <option value="partner">Partner-wise</option>
+              <option value="sewak">Sewak-wise</option>
+            </select>
           </div>
         </div>
-        {(filter !== "all" || roleFilter !== "all" || searchTerm !== "") && (
-          <button 
+        {(filter !== "all" || roleFilter !== "all" || providerTypeFilter !== "all" || searchTerm !== "") && (
+          <button
             onClick={() => {
               setSearchTerm("");
               setFilter("all");
               setRoleFilter("all");
+              setProviderTypeFilter("all");
             }}
             className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50/50 hover:bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition-all active:scale-95 shadow-sm"
           >
@@ -130,8 +138,13 @@ const AdminFeedback = () => {
                         {review.role}
                       </span>
                     </h3>
-                    <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mt-0.5">
+                    <p className="text-[10px] sm:text-xs font-semibold text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
                       {review.date} • towards <span className="text-gray-900 underline decoration-gray-300 underline-offset-2">{review.provider || review.user}</span>
+                      {review.providerCategory && (
+                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${review.providerCategory === 'sewak' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          {review.providerCategory}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>

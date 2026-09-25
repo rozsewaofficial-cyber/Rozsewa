@@ -1479,7 +1479,7 @@ const getFeedbackData = async (req, res) => {
         const reviews = await paginate(
             Booking.find({ rating: { $gt: 0 } })
                 .populate('userId', 'name')
-                .populate('providerId', 'shopName')
+                .populate('providerId', 'shopName providerCategory')
                 .sort({ createdAt: -1 }),
             pageParams(req)
         );
@@ -1494,6 +1494,9 @@ const getFeedbackData = async (req, res) => {
             comment: r.comment || 'No comment provided.',
             tags: r.rating >= 4 ? ['Good Service'] : ['Needs Attention'],
             provider: r.providerId?.shopName || 'Provider',
+            // Who the feedback is about, not who left it — Partner unless the
+            // provider is explicitly a Sewak, same default as the Provider model.
+            providerCategory: r.providerId?.providerCategory === 'sewak' ? 'sewak' : 'partner',
             acknowledged: false // This could be stored in DB later if needed
         }));
 
