@@ -207,19 +207,28 @@ const getPublicProviders = async (req, res) => {
         }
 
         if (search) {
-            const matchingServices = await Service.find({
-                $or: [
-                    { name: { $regex: search, $options: 'i' } },
-                    { description: { $regex: search, $options: 'i' } }
-                ]
-            }).select('providerId');
+            const searchRx = { $regex: search, $options: 'i' };
+
+            // Providers only ever get matched two ways: their own shop/owner
+            // name, or a Service they personally created on their profile.
+            // Neither one touches the admin-defined category catalog, so a
+            // brand-new category (or a sub-service in it) was invisible to
+            // search until some provider happened to type the same word into
+            // their own shop name — "Electrician" existing as a category was
+            // not enough to find an Electrician provider by that word.
+            const [matchingServices, matchingCategories] = await Promise.all([
+                Service.find({ $or: [{ name: searchRx }, { description: searchRx }] }).select('providerId'),
+                Category.find({ $or: [{ name: searchRx }, { 'services.name': searchRx }] }).select('_id')
+            ]);
 
             const serviceProviderIds = matchingServices.map(s => s.providerId);
+            const matchingCategoryIds = matchingCategories.map(c => c._id);
 
             query.$or = [
-                { shopName: { $regex: search, $options: 'i' } },
-                { ownerName: { $regex: search, $options: 'i' } },
-                { _id: { $in: serviceProviderIds } }
+                { shopName: searchRx },
+                { ownerName: searchRx },
+                { _id: { $in: serviceProviderIds } },
+                { vendorType: { $in: matchingCategoryIds } }
             ];
         }
 
