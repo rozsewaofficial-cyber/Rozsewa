@@ -185,6 +185,12 @@ const SewakServices = () => {
         return matched.length > 0 ? matched : combosList; // fallback to all if no match
       })();
 
+  // The search box sits above the subcategory grid too, so it has to narrow
+  // that list — searchQuery used to only ever reach filteredServices/
+  // filteredCombos, which only render once a subcategory is already picked.
+  const filteredSubcategories = subcategories
+    .filter(sub => sub.name.toLowerCase().includes(searchQuery.toLowerCase()) || (sub.description && sub.description.toLowerCase().includes(searchQuery.toLowerCase())));
+
   const filteredServices = subcategoryFilteredServices
     .filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || (s.description && s.description.toLowerCase().includes(searchQuery.toLowerCase())));
 
@@ -283,7 +289,9 @@ const SewakServices = () => {
               <Briefcase className="h-4 w-4 text-blue-500" /> Choose a Subcategory
             </h2>
             <div className="flex flex-col gap-3">
-              {subcategories.length > 0 ? subcategories.map(sub => (
+              {subcategories.length > 0 && filteredSubcategories.length === 0 ? (
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">No subcategories match "{searchQuery}".</p>
+              ) : subcategories.length > 0 ? filteredSubcategories.map(sub => (
                 <button
                   key={sub._id}
                   onClick={() => setSelectedSubcategory(sub._id)}
