@@ -30,9 +30,30 @@ const menuItems = [
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, syncFCMToken } = useAuth();
   const { toast } = useToast();
   const confirm = useConfirm();
+  const [testingNotification, setTestingNotification] = useState(false);
+
+  const handleTestNotification = async () => {
+    setTestingNotification(true);
+    try {
+      if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        await Notification.requestPermission();
+      }
+      if ('Notification' in window && Notification.permission === 'denied') {
+        toast({ title: "Notifications Blocked", description: "Please enable notifications for this site in your browser settings, then try again.", variant: "destructive" });
+        return;
+      }
+      await syncFCMToken();
+      await API.post("/notifications/fcm-tokens/test");
+      toast({ title: "Test Notification Sent", description: "You should receive a push notification on this device shortly." });
+    } catch (err) {
+      toast({ title: "Test Failed", description: err.response?.data?.message || "Could not send test notification.", variant: "destructive" });
+    } finally {
+      setTestingNotification(false);
+    }
+  };
   
   const [profile, setProfile] = useState({
     name: user?.name || "",
@@ -388,6 +409,22 @@ const Profile = () => {
               </motion.button>
             );
           })}
+        </div>
+
+        {/* Push Notifications */}
+        <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm flex items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col text-left">
+            <span className="text-[15px] font-bold text-slate-900 dark:text-white">Push Notifications</span>
+            <p className="text-[13px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 max-w-[220px]">Send a test push to this device to confirm broadcasts & alerts are working.</p>
+          </div>
+          <button
+            onClick={handleTestNotification}
+            disabled={testingNotification}
+            className="shrink-0 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-60"
+          >
+            {testingNotification ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+            {testingNotification ? "Sending…" : "Send Test"}
+          </button>
         </div>
 
         {/* Logout Button */}
