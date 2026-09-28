@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
   <title>Rozsewa</title>
   <meta name="description" content="Rojsewa - Your trusted service provider">
-  
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -22,6 +22,19 @@
   <meta name="twitter:image" content="/RozSewa.png">
 
   <link rel="icon" type="image/png" href="/RozSewa.png" />
+
+  <!-- iOS Safari only exposes the Web Push API (Notification.requestPermission
+       + push subscription) to a site running as an installed, standalone PWA
+       (iOS 16.4+) — a plain Safari tab can never obtain a push token, no
+       matter how the backend/FCM side is configured. These make the app
+       installable and tell iOS how to present it once added to Home Screen. -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="RozSewa" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <meta name="theme-color" content="#0B1120" />
+
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 </head>
 

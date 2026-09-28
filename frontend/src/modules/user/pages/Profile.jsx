@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown, MessageCircle, ShoppingBag, Loader2, Trash2, Coins, Zap } from "lucide-react";
+import { User, MapPin, Phone, Mail, ChevronRight, Wallet, Star, Clock, Settings, LogOut, Bell, Shield, Gift, Heart, HelpCircle, Edit3, X, Save, Crown, MessageCircle, ShoppingBag, Loader2, Trash2, Coins, Zap, Share, SquarePlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -34,6 +34,17 @@ const Profile = () => {
   const { toast } = useToast();
   const confirm = useConfirm();
   const [testingNotification, setTestingNotification] = useState(false);
+
+  // iOS Safari only grants the Web Push API to a site installed to the Home
+  // Screen (iOS 16.4+) — a plain Safari tab can never get a push token, no
+  // matter what the backend sends. There's no programmatic install prompt
+  // like Android's; the only fix is telling the person how to do it.
+  const isIOSNotInstalled = (() => {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS reports as Mac
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    return isIOS && !isStandalone;
+  })();
 
   const handleTestNotification = async () => {
     setTestingNotification(true);
@@ -411,6 +422,21 @@ const Profile = () => {
           })}
         </div>
 
+        {/* iOS Home Screen install notice — Safari cannot receive push at all otherwise */}
+        {isIOSNotInstalled && (
+          <div className="rounded-3xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10 p-5 shadow-sm flex items-start gap-3 mb-6">
+            <div className="h-9 w-9 shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <SquarePlus className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="text-[14px] font-bold text-slate-900 dark:text-white">Add RozSewa to your Home Screen</span>
+              <p className="text-[13px] font-semibold text-slate-600 dark:text-slate-400 mt-0.5">
+                iPhone only allows notifications for apps added to your Home Screen. Tap <Share className="inline h-3.5 w-3.5 -mt-0.5" /> Share in Safari, then "Add to Home Screen" — open RozSewa from there to enable Push Notifications.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Push Notifications */}
         <div className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-sm flex items-center justify-between gap-4 mb-6">
           <div className="flex flex-col text-left">
@@ -419,7 +445,7 @@ const Profile = () => {
           </div>
           <button
             onClick={handleTestNotification}
-            disabled={testingNotification}
+            disabled={testingNotification || isIOSNotInstalled}
             className="shrink-0 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95 disabled:opacity-60"
           >
             {testingNotification ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}

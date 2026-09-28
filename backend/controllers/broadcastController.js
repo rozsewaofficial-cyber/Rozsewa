@@ -111,6 +111,15 @@ const sendNotificationBroadcast = async (req, res) => {
         const audience = await resolveAudience(targetType, recipients);
         if (audience.length === 0) return res.status(400).json({ message: 'No recipients matched this target' });
 
+        // notifyUser's duplicate-prevention key falls back to 'default' when
+        // there's no bookingId/leadId/data.id — which is always the case for
+        // a broadcast. Two separate broadcasts to the same people with the
+        // same title within the 24h NotificationLog TTL collapsed onto that
+        // identical key and silently no-opped for every recipient (showing
+        // as a false "0 of N" in the history, with no error). Each broadcast
+        // send is its own event and needs its own key.
+        const broadcastNonce = Date.now().toString();
+
         let successCount = 0;
         let failCount = 0;
 
@@ -121,7 +130,8 @@ const sendNotificationBroadcast = async (req, res) => {
                     userRole: person.role === 'customer' ? 'user' : 'provider',
                     title,
                     message,
-                    type: 'broadcast'
+                    type: 'broadcast',
+                    data: { id: broadcastNonce }
                 });
                 if (result) successCount++; else failCount++;
             } catch (err) {
