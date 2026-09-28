@@ -154,7 +154,12 @@ const ShopListing = () => {
       <TopNav />
       
       {/* Header */}
-      <div className="relative pt-6 pb-4 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm mb-2 z-10">
+      {/* z-30, not z-10: <main> below is position:static, so its own
+          positioned descendants (a ServiceCard's z-10 favorite heart, its
+          z-20 price pill) compared directly at this level, tied at z-10 and
+          won on DOM order since <main> comes later — poking through the
+          search suggestion dropdown nested in here despite its own z-60. */}
+      <div className="relative pt-6 pb-4 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm mb-2 z-30">
         <div className="max-w-6xl mx-auto flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
