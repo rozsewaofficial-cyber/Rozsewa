@@ -110,8 +110,13 @@ const CategoryGrid = ({ showAll = true, mode = "partner", searchQuery = "" }) =>
             }
           }
         }}
-        className={`group flex flex-col items-center text-center w-full h-full bg-white dark:bg-slate-900 rounded-[20px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-2 sm:p-3 transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : "hover:shadow-md hover:border-slate-200"}`}
+        className={`group relative flex flex-col items-center text-center w-full h-full bg-white dark:bg-slate-900 rounded-[20px] shadow-[0_2px_12px_rgba(0,0,0,0.06)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-2 sm:p-3 transition-all ${cat.isComingSoon ? "cursor-not-allowed opacity-60 grayscale" : "hover:shadow-md hover:border-slate-200"}`}
       >
+        {cat.isComingSoon && (
+          <span className="absolute top-1 right-1 z-20 rounded-full bg-slate-900/85 dark:bg-black/85 px-1.5 py-0.5 text-[8px] sm:text-[9px] font-black uppercase tracking-wide text-white shadow-sm">
+            Coming Soon
+          </span>
+        )}
         <div className={`relative flex items-center justify-center w-[90%] sm:w-[85%] aspect-square rounded-full bg-[#006e33] dark:bg-emerald-800 mb-2 sm:mb-3 transition-transform duration-300 group-hover:scale-105 mx-auto overflow-hidden shrink-0`}>
           {cat.image ? (
             <img src={cat.image} alt={cat.name} className="absolute inset-0 w-full h-full object-cover" />

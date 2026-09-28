@@ -62,7 +62,10 @@ const getPublicCategoryByName = async (req, res) => {
 // @access  Public
 const getPublicCategories = async (req, res) => {
     try {
-        let categories = await Category.find({ isActive: true }).sort({ name: 1 }).lean();
+        // Same ordering the admin's own category list uses (adminController.js
+        // getCategories) — the admin-configured `index`, not alphabetical. A-Z
+        // buried whatever the admin actually wanted shown first.
+        let categories = await Category.find({ isActive: true }).sort({ index: 1 }).lean();
 
         // The customer app's Local Expert / Sewak toggle should only show
         // categories that provider type actually serves.
