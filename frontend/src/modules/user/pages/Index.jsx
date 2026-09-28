@@ -421,11 +421,11 @@ const Index = () => {
 
         {(!serviceMode || serviceMode === "partner") ? (
           <div className="space-y-6">
-            {/* Categories Section ("Just for you") */}
+            {/* Categories Section ("Your Nearby Experts") */}
             <section>
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="text-blue-500 text-2xl leading-none">#</span> Just for you
+                  <span className="text-blue-500 text-2xl leading-none">#</span> Your Nearby Experts
                 </h2>
                 <button
                   onClick={() => setShowAllCategories(!showAllCategories)}
