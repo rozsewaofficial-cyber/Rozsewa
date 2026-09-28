@@ -472,7 +472,7 @@ const Profile = () => {
                     </div>
                     <label className="absolute -bottom-2 -right-2 cursor-pointer rounded-full bg-blue-600 p-3 text-white shadow-lg border-4 border-white dark:border-slate-900 hover:bg-blue-700 transition-colors">
                       <Edit3 className="h-4 w-4" />
-                      <input type="file" accept="image/*" capture="user" className="hidden" onChange={handleImageUpload} />
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                     </label>
                   </div>
                 </div>
