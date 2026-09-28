@@ -23,6 +23,7 @@ const ShopListing = () => {
   const [sortBy, setSortBy] = useState(initialSort);
   const [minRating, setMinRating] = useState("");
   const [homeVisit, setHomeVisit] = useState(false);
+  const [storeVisitOnly, setStoreVisitOnly] = useState(false);
   const [is24x7, setIs24x7] = useState(false);
   const [hasCombo, setHasCombo] = useState(false);
   const [radius, setRadius] = useState(15);
@@ -53,7 +54,7 @@ const ShopListing = () => {
     } else {
       setLoading(false);
     }
-  }, [category, isEmergency, searchQuery, mode, minRating, homeVisit, is24x7, hasCombo, radius, userCity]);
+  }, [category, isEmergency, searchQuery, mode, minRating, homeVisit, storeVisitOnly, is24x7, hasCombo, radius, userCity]);
 
   const fetchProviders = async () => {
     setLoading(true);
@@ -65,6 +66,7 @@ const ShopListing = () => {
         mode,
         minRating,
         homeVisit: homeVisit ? "true" : "",
+        storeVisitOnly: storeVisitOnly ? "true" : "",
         is24x7: is24x7 ? "true" : "",
         hasCombo: hasCombo ? "true" : "",
         radius
@@ -137,12 +139,13 @@ const ShopListing = () => {
     return a.numericDistance - b.numericDistance;
   });
 
-  const activeFiltersCount = (minRating ? 1 : 0) + (homeVisit ? 1 : 0) + (is24x7 ? 1 : 0) + (hasCombo ? 1 : 0) + (radius !== 15 ? 1 : 0);
+  const activeFiltersCount = (minRating ? 1 : 0) + (homeVisit ? 1 : 0) + (storeVisitOnly ? 1 : 0) + (is24x7 ? 1 : 0) + (hasCombo ? 1 : 0) + (radius !== 15 ? 1 : 0);
 
   const clearFilters = () => {
     setSortBy('distance');
     setMinRating("");
     setHomeVisit(false);
+    setStoreVisitOnly(false);
     setIs24x7(false);
     setHasCombo(false);
     setRadius(15);
@@ -205,6 +208,12 @@ const ShopListing = () => {
                 <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-400">
                   <span>Home Visit</span>
                   <X className="h-3 w-3 cursor-pointer" onClick={() => setHomeVisit(false)} />
+                </div>
+              )}
+              {storeVisitOnly && (
+                <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-bold text-blue-700 dark:border-blue-900 dark:bg-blue-900/30 dark:text-blue-400">
+                  <span>Store Visit Only</span>
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setStoreVisitOnly(false)} />
                 </div>
               )}
               {is24x7 && (
@@ -349,7 +358,14 @@ const ShopListing = () => {
                           {homeVisit && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
                         </div>
                         <span className={`text-[15px] font-medium ${homeVisit ? 'text-slate-900 dark:text-white font-bold' : 'text-slate-600 dark:text-slate-400'}`}>Home Visit</span>
-                        <input type="checkbox" checked={homeVisit} onChange={() => setHomeVisit(!homeVisit)} className="hidden" />
+                        <input type="checkbox" checked={homeVisit} onChange={() => { setHomeVisit(!homeVisit); if (!homeVisit) setStoreVisitOnly(false); }} className="hidden" />
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer group">
+                        <div className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${storeVisitOnly ? 'border-blue-500 bg-blue-500' : 'border-slate-300 dark:border-slate-600 group-hover:border-blue-400'}`}>
+                          {storeVisitOnly && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
+                        </div>
+                        <span className={`text-[15px] font-medium ${storeVisitOnly ? 'text-slate-900 dark:text-white font-bold' : 'text-slate-600 dark:text-slate-400'}`}>Store Visit Only</span>
+                        <input type="checkbox" checked={storeVisitOnly} onChange={() => { setStoreVisitOnly(!storeVisitOnly); if (!storeVisitOnly) setHomeVisit(false); }} className="hidden" />
                       </label>
                       <label className="flex items-center gap-3 cursor-pointer group">
                         <div className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${is24x7 ? 'border-blue-500 bg-blue-500' : 'border-slate-300 dark:border-slate-600 group-hover:border-blue-400'}`}>

@@ -168,7 +168,7 @@ const getFeaturedProviders = async (req, res) => {
 // @access  Public
 const getPublicProviders = async (req, res) => {
     try {
-        const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo } = req.query;
+        const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo, storeVisitOnly } = req.query;
         let query = { status: 'verified', isOnline: true };
 
         if (mode === 'sewak') {
@@ -184,6 +184,11 @@ const getPublicProviders = async (req, res) => {
         }
         if (homeVisit === 'true') {
             query.isHomeVisitAvailable = true;
+        }
+        if (storeVisitOnly === 'true') {
+            // A provider who never turned Home Visit on only serves customers
+            // who come to their shop — that's what "Store Visit Only" means.
+            query.isHomeVisitAvailable = { $ne: true };
         }
         if (is24x7 === 'true') {
             query.is24x7 = true;
