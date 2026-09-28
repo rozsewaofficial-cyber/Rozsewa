@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, SlidersHorizontal, ArrowRight } from "lucide-react";
 import API from "@/lib/api";
 
-const SearchBar = ({ onSearch, onFilterClick, initialValue = "", hideFilterIcon = false }) => {
+const SearchBar = ({ onSearch, onFilterClick, initialValue = "", hideFilterIcon = false, mode }) => {
   const [query, setQuery] = useState(initialValue);
   const [categories, setCategories] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -12,12 +12,15 @@ const SearchBar = ({ onSearch, onFilterClick, initialValue = "", hideFilterIcon 
   useEffect(() => {
     const fetchCats = async () => {
       try {
-        const { data } = await API.get('/public/categories');
+        // Scoped to the active Local Expert / Sewak toggle — suggesting a
+        // category the other mode doesn't serve led straight to an empty,
+        // dead-end results screen that looked like search was broken.
+        const { data } = await API.get('/public/categories', { params: mode ? { mode } : {} });
         setCategories(data);
       } catch(e) {}
     };
     fetchCats();
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     function handleClickOutside(event) {

@@ -314,7 +314,7 @@ const Index = () => {
         </div>
 
         <div className="max-w-7xl mx-auto relative z-20">
-          <SearchBar onSearch={handleSearch} onFilterClick={(query) => {
+          <SearchBar mode={serviceMode} onSearch={handleSearch} onFilterClick={(query) => {
             let url = `/shops?mode=${serviceMode}&filterOpen=true`;
             if (query && query.trim()) url += `&search=${encodeURIComponent(query)}`;
             navigate(url);

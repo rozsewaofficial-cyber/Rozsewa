@@ -191,7 +191,7 @@ const ShopListing = () => {
             )}
           </div>
           
-          <SearchBar initialValue={searchQuery} onSearch={(val) => {
+          <SearchBar mode={mode} initialValue={searchQuery} onSearch={(val) => {
             setSearchQuery(val);
           }} onFilterClick={() => setIsFilterOpen(true)} hideFilterIcon={true} />
           
