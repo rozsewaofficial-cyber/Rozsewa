@@ -5,22 +5,29 @@ import API from "@/lib/api";
 
 const SearchBar = ({ onSearch, onFilterClick, initialValue = "", hideFilterIcon = false, mode }) => {
   const [query, setQuery] = useState(initialValue);
-  const [categories, setCategories] = useState([]);
+  const [matches, setMatches] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const wrapperRef = useRef(null);
 
+  // Category names alone used to be the entire suggestion list — typing an
+  // exact subcategory or service name (e.g. "Haircut") matched nothing, even
+  // though providers offering it exist. This asks the server for matching
+  // categories, subcategories AND services, debounced so it doesn't fire on
+  // every keystroke.
   useEffect(() => {
-    const fetchCats = async () => {
+    const q = query.trim();
+    if (!q) { setMatches([]); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
       try {
-        // Scoped to the active Local Expert / Sewak toggle — suggesting a
-        // category the other mode doesn't serve led straight to an empty,
-        // dead-end results screen that looked like search was broken.
-        const { data } = await API.get('/public/categories', { params: mode ? { mode } : {} });
-        setCategories(data);
-      } catch(e) {}
-    };
-    fetchCats();
-  }, [mode]);
+        const { data } = await API.get('/public/search-suggestions', { params: { q, ...(mode ? { mode } : {}) } });
+        if (!cancelled) setMatches(data);
+      } catch (e) {
+        if (!cancelled) setMatches([]);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query, mode]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -33,10 +40,6 @@ const SearchBar = ({ onSearch, onFilterClick, initialValue = "", hideFilterIcon 
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [wrapperRef]);
-
-  const filtered = query.trim() 
-    ? categories.filter(c => c.name.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 5)
-    : [];
 
   return (
     <form 
@@ -86,33 +89,50 @@ const SearchBar = ({ onSearch, onFilterClick, initialValue = "", hideFilterIcon 
       
       {/* Suggestions Dropdown */}
       <AnimatePresence>
-        {showSuggestions && filtered.length > 0 && (
+        {showSuggestions && matches.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             className="absolute top-full left-0 right-0 mt-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-[20px] shadow-[0_20px_40px_-15px_rgba(0,0,0,0.15)] border border-slate-100 dark:border-slate-800 overflow-hidden z-[60]"
           >
-            {filtered.map((cat, idx) => (
-              <button
-                key={cat._id || idx}
-                type="button"
-                onClick={() => {
-                  setQuery(cat.name);
-                  setShowSuggestions(false);
-                  onSearch?.(cat.name);
-                }}
-                className="w-full text-left px-5 py-3.5 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 flex items-center justify-between border-b border-slate-100/50 dark:border-slate-800/50 last:border-0 transition-all group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
-                    <Search className="w-3.5 h-3.5 text-blue-500" />
+            {matches.map((m, idx) => {
+              const context = m.type === 'service'
+                ? (m.subcategoryName || m.categoryName)
+                : (m.type === 'subcategory' ? m.categoryName : '');
+              return (
+                <button
+                  key={`${m.type}-${m.name}-${idx}`}
+                  type="button"
+                  onClick={() => {
+                    // Sewak mode's results screen only ever matches a
+                    // category name — a subcategory/service collection isn't
+                    // wired in there, so searching by its own name is a dead
+                    // end. Its parent category always resolves.
+                    const searchTerm = (mode === 'sewak' && m.type !== 'category' && m.categoryName)
+                      ? m.categoryName
+                      : m.name;
+                    setQuery(m.name);
+                    setShowSuggestions(false);
+                    onSearch?.(searchTerm);
+                  }}
+                  className="w-full text-left px-5 py-3.5 hover:bg-slate-100/80 dark:hover:bg-slate-800/80 flex items-center justify-between border-b border-slate-100/50 dark:border-slate-800/50 last:border-0 transition-all group"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 shrink-0 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                      <Search className="w-3.5 h-3.5 text-blue-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{m.name}</span>
+                      {context && (
+                        <span className="block text-[11px] font-medium text-slate-400 truncate">in {context}</span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{cat.name}</span>
-                </div>
-                <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-              </button>
-            ))}
+                  <ArrowRight className="w-4 h-4 shrink-0 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
+                </button>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>

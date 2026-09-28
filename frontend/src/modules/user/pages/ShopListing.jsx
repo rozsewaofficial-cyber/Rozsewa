@@ -125,14 +125,12 @@ const ShopListing = () => {
     };
   });
 
-  const filtered = allProvidersList.filter((p) => {
-    const sQuery = searchQuery.toLowerCase();
-    const pName = p.name.toLowerCase();
-    const pCat = p.category.toLowerCase();
-    return pName.includes(sQuery) || pCat.includes(sQuery);
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
+  // The backend search (fetchProviders' `search` param) already matches shop
+  // name, owner name, service names, and category/subcategory names — a
+  // provider whose match came from a service or subcategory, not their own
+  // shop name, was silently dropped right back out by re-filtering here on
+  // name/category text alone.
+  const sorted = [...allProvidersList].sort((a, b) => {
     if (sortBy === "rating") return b.rating - a.rating;
     if (sortBy === "price_low") return a.price - b.price;
     if (sortBy === "price_high") return b.price - a.price;

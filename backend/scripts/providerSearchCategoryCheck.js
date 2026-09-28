@@ -43,14 +43,14 @@ check('a live regex query against Category.name and its services[].name, not a h
 });
 
 check('matching categories are joined onto the provider query by vendorType, alongside the existing shopName/ownerName/Service matches', () => {
-    assert.ok(/const matchingCategoryIds = matchingCategories\.map\(c => c\._id\)/.test(fn));
+    assert.ok(/matchingCategories\.map\(c => c\._id\)/.test(fn));
     assert.ok(/\{ vendorType: \{ \$in: matchingCategoryIds \} \}/.test(fn));
     assert.ok(/\{ shopName: searchRx \}/.test(fn) && /\{ ownerName: searchRx \}/.test(fn) && /_id: \{ \$in: serviceProviderIds \}/.test(fn),
         'the fix should extend the existing matches, not replace them');
 });
 
-check('both lookups run together rather than one blocking the other', () => {
-    assert.ok(/const \[matchingServices, matchingCategories\] = await Promise\.all\(/.test(fn));
+check('all three lookups run together rather than one blocking the others', () => {
+    assert.ok(/const \[matchingServices, matchingCategories, matchingSubcategories\] = await Promise\.all\(/.test(fn));
 });
 
 console.log(`\n${passed} provider-search-category checks passed.\n`);

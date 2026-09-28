@@ -6,6 +6,7 @@ const Service = require('../models/Service');
 const Coupon = require('../models/Coupon');
 const Zone = require('../models/Zone');
 const Combo = require('../models/Combo');
+const Subcategory = require('../models/Subcategory');
 const ProviderBanner = require('../models/ProviderBanner');
 
 // @desc    Get all active zones/cities
@@ -224,13 +225,22 @@ const getPublicProviders = async (req, res) => {
             // search until some provider happened to type the same word into
             // their own shop name — "Electrician" existing as a category was
             // not enough to find an Electrician provider by that word.
-            const [matchingServices, matchingCategories] = await Promise.all([
+            // A subcategory (e.g. "Hair Care & Styling") lives only in its own
+            // collection — matching just Service names and the category
+            // catalog left it invisible, even though it groups real,
+            // bookable services. Resolving it to its parent category surfaces
+            // the same providers a direct category search already would.
+            const [matchingServices, matchingCategories, matchingSubcategories] = await Promise.all([
                 Service.find({ $or: [{ name: searchRx }, { description: searchRx }] }).select('providerId'),
-                Category.find({ $or: [{ name: searchRx }, { 'services.name': searchRx }] }).select('_id')
+                Category.find({ $or: [{ name: searchRx }, { 'services.name': searchRx }] }).select('_id'),
+                Subcategory.find({ name: searchRx }).select('categoryId')
             ]);
 
             const serviceProviderIds = matchingServices.map(s => s.providerId);
-            const matchingCategoryIds = matchingCategories.map(c => c._id);
+            const matchingCategoryIds = [
+                ...matchingCategories.map(c => c._id),
+                ...matchingSubcategories.map(s => s.categoryId)
+            ];
 
             query.$or = [
                 { shopName: searchRx },
@@ -555,6 +565,58 @@ const verifyReferralCode = async (req, res) => {
     }
 };
 
+
+// @desc    Autocomplete suggestions across categories, subcategories and
+//          services — the search box only ever suggested category names,
+//          so typing an exact subcategory/service (e.g. "Haircut") showed
+//          nothing to tap even though providers offering it do exist.
+// @route   GET /api/public/search-suggestions?q=&mode=
+// @access  Public
+const escapeSearchRegex = (str) => (str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const getPublicSearchSuggestions = async (req, res) => {
+    try {
+        const q = (req.query.q || '').trim();
+        if (!q) return res.json([]);
+
+        const mode = req.query.mode === 'sewak' ? 'sewak' : (req.query.mode === 'partner' ? 'partner' : null);
+        const rx = { $regex: escapeSearchRegex(q), $options: 'i' };
+        // visibleTo is only ever set on admin-curated rows; a missing/legacy
+        // value must still be offered, not silently dropped from either mode.
+        const modeFilter = mode ? { $or: [{ visibleTo: { $exists: false } }, { visibleTo: 'both' }, { visibleTo: mode }] } : {};
+
+        const [categories, subcategories, services] = await Promise.all([
+            Category.find({ isActive: true, name: rx, ...modeFilter }).select('name').limit(5).lean(),
+            Subcategory.find({ isActive: true, name: rx, ...modeFilter }).select('name categoryId').populate('categoryId', 'name').limit(5).lean(),
+            // categoryId is the reliable link — a Service can carry a stale/
+            // blank legacy `category` string while its categoryId is correct
+            // (or vice versa for very old rows), so resolve both and prefer
+            // whichever one actually has a name.
+            Service.find({ visible: true, name: rx, ...modeFilter }).select('name category subcategory categoryId').populate('categoryId', 'name').limit(5).lean()
+        ]);
+
+        const results = [
+            ...categories.map(c => ({ type: 'category', name: c.name })),
+            ...subcategories.map(s => ({ type: 'subcategory', name: s.name, categoryName: s.categoryId ? s.categoryId.name : '' })),
+            ...services.map(s => ({ type: 'service', name: s.name, categoryName: (s.categoryId && s.categoryId.name) || s.category || '', subcategoryName: s.subcategory || '' }))
+        ];
+
+        // A service and a subcategory that happen to share a name (or a name
+        // already covered by a category match) would otherwise show as two
+        // near-identical rows for the same tap.
+        const seen = new Set();
+        const deduped = results.filter(r => {
+            const key = r.name.trim().toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
+        res.json(deduped.slice(0, 10));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 module.exports = {
     getPublicBanners,
     getPublicCategories,
@@ -567,5 +629,6 @@ module.exports = {
     getPublicCoupons,
     validateCoupon,
     verifyReferralCode,
-    getPublicZones
+    getPublicZones,
+    getPublicSearchSuggestions
 };
