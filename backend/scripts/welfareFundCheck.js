@@ -130,7 +130,11 @@ check('it reads the balance from the wallet, not the session', () => {
     // so the card is handed the balance by the page that loaded the wallet.
     assert.ok(/walletBalance = 0, onContributed/.test(card),
         'the balance and the refresh callback are both props');
-    assert.ok(!/useAuth/.test(card), 'it must not reach for a balance the session has not got');
+    // useAuth is fine here for the direct-payment path (Razorpay prefill needs
+    // name/email/mobile, same as TipSection.jsx) — what must never happen is
+    // the wallet *balance* itself being read off the session instead of the prop.
+    assert.ok(!/walletBalance\s*=\s*user\?\./.test(card) && !/const \{[^}]*walletBalance[^}]*\} = useAuth/.test(card),
+        'it must not reach for a balance the session has not got');
 });
 
 check('the wallet page hands it the balance and refreshes after a gift', () => {

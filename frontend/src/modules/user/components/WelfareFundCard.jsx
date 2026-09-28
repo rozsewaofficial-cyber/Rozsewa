@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, HeartHandshake, Loader2, Users } from "lucide-react";
+import { ShieldCheck, HeartHandshake, Loader2, Users, Wallet as WalletIcon, CreditCard } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 
 const AMOUNT_OPTIONS = [10, 20, 50, 100];
+
+const loadRazorpay = () =>
+  new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 
 /**
  * The customer's side of the RozSewa Welfare Fund.
@@ -20,11 +31,13 @@ const AMOUNT_OPTIONS = [10, 20, 50, 100];
  */
 const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [selectedAmount, setSelectedAmount] = useState(20);
   const [customAmount, setCustomAmount] = useState("");
   const [isCustom, setIsCustom] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPayingDirect, setIsPayingDirect] = useState(false);
   const [given, setGiven] = useState({ totalContributed: 0, contributionsCount: 0 });
   const [fund, setFund] = useState(null);
 
@@ -81,6 +94,63 @@ const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // A card/UPI gift, independent of wallet balance — for a customer with
+  // nothing in their wallet, or who'd simply rather not draw it down.
+  const handleContributeDirect = async () => {
+    if (!amount || amount < 1) {
+      toast({ title: "Enter a valid amount", variant: "destructive" });
+      return;
+    }
+    setIsPayingDirect(true);
+    try {
+      const ok = await loadRazorpay();
+      if (!ok) {
+        toast({ title: "Payment SDK failed to load", variant: "destructive" });
+        setIsPayingDirect(false);
+        return;
+      }
+      const { data: order } = await API.post("/welfare-fund/order", { amount });
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa Welfare Fund",
+        description: "Anna Seva & Jeev Seva contribution",
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            await API.post("/welfare-fund/verify", { ...response, amount });
+            toast({ title: "Thank you!", description: `Your ₹${amount} contribution has been received.` });
+            setOpen(false);
+            setIsCustom(false);
+            setCustomAmount("");
+            await load();
+            onContributed?.();
+          } catch (err) {
+            toast({
+              title: "Payment Verification Failed",
+              description: err.response?.data?.message,
+              variant: "destructive"
+            });
+          } finally {
+            setIsPayingDirect(false);
+          }
+        },
+        modal: { ondismiss: () => setIsPayingDirect(false) },
+        prefill: { name: user?.name, email: user?.email, contact: user?.mobile },
+        theme: { color: "#059669" }
+      };
+      new window.Razorpay(options).open();
+    } catch (err) {
+      toast({
+        title: "Could Not Start Payment",
+        description: err.response?.data?.message || err.message,
+        variant: "destructive"
+      });
+      setIsPayingDirect(false);
     }
   };
 
@@ -176,23 +246,32 @@ const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
             />
           )}
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setOpen(false); setIsCustom(false); setCustomAmount(""); }}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-muted-foreground border border-border hover:bg-muted"
-            >
-              Cancel
-            </button>
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={handleContribute}
-              disabled={isSubmitting}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-2"
+              disabled={isSubmitting || isPayingDirect}
+              className="py-2.5 rounded-xl text-[11px] font-bold bg-muted text-foreground border border-border hover:bg-muted/70 disabled:opacity-60 flex items-center justify-center gap-1.5"
             >
-              {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `Contribute ₹${amount || 0}`}
+              {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WalletIcon className="h-3.5 w-3.5" />}
+              Pay via Wallet
+            </button>
+            <button
+              onClick={handleContributeDirect}
+              disabled={isSubmitting || isPayingDirect}
+              className="py-2.5 rounded-xl text-[11px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-1.5"
+            >
+              {isPayingDirect ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+              Pay via UPI/Card
             </button>
           </div>
+          <button
+            onClick={() => { setOpen(false); setIsCustom(false); setCustomAmount(""); }}
+            className="w-full py-2 rounded-xl text-[10px] font-bold text-muted-foreground hover:bg-muted"
+          >
+            Cancel
+          </button>
           <p className="text-[9px] text-muted-foreground font-medium text-center">
-            Deducted from wallet balance · Wallet: ₹{walletBalance.toLocaleString("en-IN")}
+            Wallet balance: ₹{walletBalance.toLocaleString("en-IN")}
           </p>
         </div>
       )}

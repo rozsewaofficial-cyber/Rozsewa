@@ -116,7 +116,16 @@ const createBooking = async (req, res) => {
         items = [],
         customerOffer,
         userProposedAmount,
-        serviceLocation = 'home' } = req.body;
+        serviceLocation = 'home',
+        welfareFundAmount } = req.body;
+
+    // A cash ("after") booking has no online charge to bundle this into —
+    // the provider collects cash directly, and this platform contribution
+    // must never pass through their hands. Capped generously against abuse.
+    const requestedWelfareFundAmount = Number(welfareFundAmount) || 0;
+    const safeWelfareFundAmount = (paymentMode === 'now' && requestedWelfareFundAmount > 0)
+        ? Math.min(requestedWelfareFundAmount, 500)
+        : 0;
 
     try {
         if (providerId) {
@@ -612,6 +621,7 @@ const createBooking = async (req, res) => {
             baseServiceAmount: payableAmount,
             gstAmount: gstAmount,
             platformFee: platformFee,
+            welfareFundAmount: safeWelfareFundAmount,
             address,
             location: req.body.location,
             couponCode,

@@ -25,6 +25,20 @@ const welfareFundContributionSchema = new mongoose.Schema({
     note: {
         type: String,
         default: ''
+    },
+    // Wallet-debit contributions (the original path) leave these unset.
+    // A direct Razorpay gift, or one bundled into a booking's payment, sets
+    // them for audit — same convention as Tip.razorpayOrderId/PaymentId.
+    paymentMethod: {
+        type: String,
+        enum: ['wallet', 'razorpay'],
+        default: 'wallet'
+    },
+    razorpayOrderId: { type: String },
+    razorpayPaymentId: { type: String },
+    bookingId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Booking'
     }
 }, {
     timestamps: true

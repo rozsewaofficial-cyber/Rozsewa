@@ -74,6 +74,8 @@ const Checkout = () => {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [paymentMode, setPaymentMode] = useState("now");
+  const [contributeWelfare, setContributeWelfare] = useState(false);
+  const WELFARE_FUND_AMOUNT = 10;
   const [coupon, setCoupon] = useState("");
   const [couponApplied, setCouponApplied] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -719,7 +721,10 @@ const Checkout = () => {
     platformFee;
 
   const coinDiscount = coinRedemption?.discount || 0;
-  const total = Math.max(0, grossTotal - coinDiscount);
+  // Cash bookings never touch this — the provider collects cash directly,
+  // and a platform contribution must never pass through their hands.
+  const welfareFundAmount = (paymentMode === "now" && contributeWelfare) ? WELFARE_FUND_AMOUNT : 0;
+  const total = Math.max(0, grossTotal - coinDiscount) + welfareFundAmount;
 
   // Calculate minimum allowed offer (e.g. max 30% discount on subtotal)
   const minAllowedOffer = Math.floor(subtotal * 0.7);
@@ -928,7 +933,11 @@ const Checkout = () => {
           checkoutData.requiredProviderCategory || "partner",
         bookingDate: isExpress ? "ASAP" : selectedDate,
         bookingTime: isExpress ? "ASAP" : selectedTime,
-        totalAmount: total,
+        // Service total only — welfareFundAmount travels separately so the
+        // server's own trusted total (which drives provider payout) never
+        // includes it, even as a fallback.
+        totalAmount: total - welfareFundAmount,
+        welfareFundAmount,
         address: selectedAddress
           ? selectedAddress.address
           : serviceLocation === "shop"
@@ -1870,6 +1879,29 @@ const Checkout = () => {
                 <p className="rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                   RozSewa Coins cannot be combined with this offer.
                 </p>
+              )}
+              {paymentMode === "now" && (
+                <label className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${contributeWelfare
+                    ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30'
+                    : 'border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/40'
+                  }`}>
+                  <input type="checkbox" checked={contributeWelfare} onChange={(e) => setContributeWelfare(e.target.checked)} className="hidden" />
+                  <div className={`h-5 w-5 shrink-0 rounded-md border-2 flex items-center justify-center transition-colors ${contributeWelfare ? 'bg-emerald-600 border-emerald-600' : 'border-slate-300 dark:border-slate-700'
+                    }`}>
+                    {contributeWelfare && <Check className="h-3 w-3 text-white stroke-[3]" />}
+                  </div>
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">Contribute ₹{WELFARE_FUND_AMOUNT} to RozSewa Welfare Fund</p>
+                    <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">Added to this booking's payment · Anna Seva & Jeev Seva</p>
+                  </div>
+                </label>
+              )}
+              {welfareFundAmount > 0 && (
+                <div className="flex justify-between text-sm text-emerald-600 dark:text-emerald-400">
+                  <span className="font-bold">Welfare Fund Contribution</span>
+                  <span className="font-black">+₹{welfareFundAmount}</span>
+                </div>
               )}
               <div className="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
                 <span className="text-sm font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">

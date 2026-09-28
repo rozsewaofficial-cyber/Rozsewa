@@ -1,8 +1,15 @@
 const { pageParams, paginate } = require('../utils/pagination');
+const Razorpay = require('razorpay');
+const crypto = require('crypto');
 const Provider = require('../models/Provider');
 const User = require('../models/User');
 const WelfareFundContribution = require('../models/WelfareFundContribution');
 const { Wallet, Transaction } = require('../models/Wallet');
+
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 /**
  * Who is giving, and which wallet the money comes out of.
@@ -109,6 +116,78 @@ const contributeToWelfareFund = async (req, res) => {
     }
 };
 
+// @desc    Create a Razorpay order for a direct (non-wallet) contribution —
+//          for a customer/partner with nothing in their wallet, or who'd
+//          simply rather pay by card/UPI than draw it down.
+// @route   POST /api/welfare-fund/order
+// @access  Private (Customer / Provider / Sewak)
+const createWelfareFundOrder = async (req, res) => {
+    try {
+        const amount = Number(req.body.amount);
+        if (!amount || isNaN(amount) || amount < 1) {
+            return res.status(400).json({ message: 'Please enter a valid contribution amount.' });
+        }
+
+        const order = await razorpay.orders.create({
+            amount: Math.round(amount * 100),
+            currency: 'INR',
+            receipt: `welfare_${Date.now()}`
+        });
+
+        res.json(order);
+    } catch (error) {
+        console.error('Welfare Fund order creation failed:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Verify a direct Razorpay contribution and log it — no wallet is
+//          touched, since the money never passed through one.
+// @route   POST /api/welfare-fund/verify
+// @access  Private (Customer / Provider / Sewak)
+const verifyWelfareFundPayment = async (req, res) => {
+    try {
+        const { amount, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+        const contributionAmount = Number(amount);
+
+        if (!contributionAmount || contributionAmount < 1 || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({ message: 'Missing required fields for payment verification.' });
+        }
+
+        const sign = `${razorpay_order_id}|${razorpay_payment_id}`;
+        const expectedSign = crypto
+            .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+            .update(sign)
+            .digest('hex');
+        if (razorpay_signature !== expectedSign) {
+            return res.status(400).json({ message: 'Payment verification failed — signature mismatch.' });
+        }
+
+        const contributor = await contributorFor(req.user);
+        if (!contributor) {
+            return res.status(404).json({ message: 'Account not found' });
+        }
+
+        const contribution = await WelfareFundContribution.create({
+            contributorType: contributor.kind,
+            ...contributor.contributionKey,
+            amount: contributionAmount,
+            note: String(req.body.note || '').slice(0, 280),
+            paymentMethod: 'razorpay',
+            razorpayOrderId: razorpay_order_id,
+            razorpayPaymentId: razorpay_payment_id
+        });
+
+        res.status(201).json({
+            message: 'Thank you for contributing to the RozSewa Welfare Fund!',
+            contribution
+        });
+    } catch (error) {
+        console.error('Welfare Fund payment verification failed:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    The caller's own contribution history
 // @route   GET /api/welfare-fund/my-contributions
 // @access  Private (Customer / Provider / Sewak)
@@ -184,6 +263,8 @@ const getWelfareFundSummary = async (req, res) => {
 
 module.exports = {
     contributeToWelfareFund,
+    createWelfareFundOrder,
+    verifyWelfareFundPayment,
     getMyWelfareFundContributions,
     getWelfareFundSummary
 };

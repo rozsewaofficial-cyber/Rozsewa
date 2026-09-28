@@ -53,6 +53,16 @@ const bookingSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // An optional Welfare Fund gift bundled into this booking's own payment,
+    // paid online alongside it — separate from totalAmount so it never
+    // inflates the provider's payout or the platform's commission, both of
+    // which are computed off totalAmount elsewhere. The Razorpay order for
+    // this booking (paymentController.createOrder) adds this on top of
+    // totalAmount when charging the customer.
+    welfareFundAmount: {
+        type: Number,
+        default: 0
+    },
     status: {
         type: String,
         enum: ['pending', 'confirmed', 'on_the_way', 'started', 'completed', 'cancelled'],

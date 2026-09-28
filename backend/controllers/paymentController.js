@@ -103,11 +103,14 @@ const createOrder = async (req, res) => {
 
         if (bookingId) {
             const Booking = require('../models/Booking');
-            booking = await Booking.findById(bookingId).select('totalAmount userId');
+            booking = await Booking.findById(bookingId).select('totalAmount welfareFundAmount userId');
             if (!booking) {
                 return res.status(404).json({ message: 'Booking not found' });
             }
-            amount = Number(booking.totalAmount);
+            // welfareFundAmount rides along on top of the service total — kept
+            // off totalAmount itself so it never inflates provider payout or
+            // platform commission, both computed from that field elsewhere.
+            amount = Number(booking.totalAmount) + Number(booking.welfareFundAmount || 0);
         }
 
         if (!amount || isNaN(amount) || amount <= 0) {
@@ -187,6 +190,22 @@ const verifyPayment = async (req, res) => {
                     newCollectionStatus: 'online_verified',
                     note: `Razorpay payment verified. Payment ID: ${razorpay_payment_id}`
                 });
+
+                // Logged only the first time this booking is verified paid —
+                // claimPayment's order-consume already stops a signature being
+                // replayed, but this guards against ever double-counting a gift.
+                if (booking.welfareFundAmount > 0 && prevPaymentStatus !== 'paid') {
+                    const WelfareFundContribution = require('../models/WelfareFundContribution');
+                    await WelfareFundContribution.create({
+                        contributorType: 'customer',
+                        userId: booking.userId,
+                        amount: booking.welfareFundAmount,
+                        note: `Added at checkout with booking #${booking._id.toString().slice(-6)}`,
+                        paymentMethod: 'razorpay',
+                        razorpayPaymentId: razorpay_payment_id,
+                        bookingId: booking._id
+                    });
+                }
 
                 const { notifyUser } = require('../config/notificationService');
                 await notifyUser({
