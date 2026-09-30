@@ -9,6 +9,45 @@ const Combo = require('../models/Combo');
 const Subcategory = require('../models/Subcategory');
 const ProviderBanner = require('../models/ProviderBanner');
 
+// A provider's working hours (Provider.availability, set from
+// ProviderAvailability.jsx) are entered in IST regardless of where the
+// server itself runs, so "current time" for this check is always computed
+// in Asia/Kolkata rather than the server's local/UTC clock.
+const getIstDayAndTime = () => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).formatToParts(new Date());
+    const day = parts.find(p => p.type === 'weekday').value;
+    let hour = parts.find(p => p.type === 'hour').value;
+    if (hour === '24') hour = '00'; // Intl quirk: midnight can come back as "24:00"
+    const minute = parts.find(p => p.type === 'minute').value;
+    return { day, time: `${hour}:${minute}` };
+};
+
+// Whether a provider is inside the working hours they configured — a
+// provider who set "9 to 12" showed up in listings at 1pm and every other
+// hour, because isOnline is a manual switch the provider has to remember to
+// flip and nothing ever checked their schedule against the clock.
+//
+// A provider who has never opened the Availability screen has an empty
+// availability array — that must still show them (today's default), not
+// hide every provider who never touched the setting.
+const isProviderWithinWorkingHours = (provider) => {
+    if (provider.is24x7) return true;
+    if (!provider.availability || provider.availability.length === 0) return true;
+
+    const { day, time } = getIstDayAndTime();
+    const todayEntry = provider.availability.find(a => a.day === day);
+    if (!todayEntry) return true; // no entry for today — fail open, not closed
+
+    if (todayEntry.isActive === false) return false;
+    return time >= todayEntry.startTime && time <= todayEntry.endTime;
+};
+
 // @desc    Get all active zones/cities
 // @route   GET /api/public/zones
 // @access  Public
@@ -155,15 +194,17 @@ const getFeaturedProviders = async (req, res) => {
         }
 
         let providersQuery = Provider.find(query)
-            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joinedDate reviewCount location')
+            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joinedDate reviewCount location availability is24x7')
             .populate('vendorType', 'name icon')
-            .limit(8);
+            .limit(40);
 
         if (!(lat && lng)) {
             providersQuery = providersQuery.sort({ rating: -1 });
         }
 
-        const providers = await providersQuery;
+        const providers = (await providersQuery)
+            .filter(isProviderWithinWorkingHours)
+            .slice(0, 8);
         res.json(providers);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -257,7 +298,7 @@ const getPublicProviders = async (req, res) => {
         }
 
         let providersQuery = Provider.find(query)
-            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled')
+            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled availability')
             .populate('vendorType', 'name icon services');
 
         if (!(lat && lng)) {
@@ -269,6 +310,10 @@ const getPublicProviders = async (req, res) => {
         // Fetch starting price and combo info for each provider
         const enrichedProviders = [];
         for (const p of providerDocs) {
+            if (!isProviderWithinWorkingHours(p)) {
+                continue; // "9 to 12" means gone from listings the rest of the day, not just greyed out
+            }
+
             const providerObj = p.toObject();
 
             const isSewak = p.providerCategory === 'sewak';
