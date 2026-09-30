@@ -20,6 +20,12 @@
  * ServiceCard by grid column, not a fixed min-width, so there was nothing to
  * narrow there.
  *
+ * Next follow-up ("iss part ki bhi height kum karo" + "white ki transparent
+ * blur krdo"): the bottom frosted info box (price/rating/name/category) had
+ * its own padding shrunk (p-3->p-2) and its background lightened from
+ * white/70 to white/40 with a stronger blur (lg->xl) so the underlying photo
+ * shows through more while the text stays legible.
+ *
  *   node scripts/serviceCardPolishCheck.js
  */
 const assert = require('assert');
@@ -84,6 +90,13 @@ check('the carousel card slot was narrowed (240px -> 200px), and its skeleton ma
     const block = page.slice(idx, idx + 1500);
     assert.ok(!/min-w-\[240px\]/.test(block), 'the old, wider slot must not still be present');
     assert.ok(/snap-start shrink-0 min-w-\[200px\]/.test(block));
+});
+
+check('the bottom info box is shorter and more transparent than the original frosted panel', () => {
+    assert.ok(!/bg-white\/70 dark:bg-slate-900\/70/.test(card),
+        'the old, more opaque background must not still be present');
+    assert.ok(/bg-white\/40 dark:bg-slate-900\/40 backdrop-blur-xl p-2\b/.test(card),
+        'lighter background, stronger blur, and tighter padding');
 });
 
 console.log(`\n${passed} service-card-polish checks passed.\n`);

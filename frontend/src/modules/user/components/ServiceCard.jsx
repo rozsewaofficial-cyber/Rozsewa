@@ -67,9 +67,9 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
       )}
 
       {/* Bottom Frosted Info Box */}
-      <div className="absolute inset-x-2 bottom-2 z-20 rounded-2xl bg-white/70 dark:bg-slate-900/70 backdrop-blur-lg p-3 shadow-lg border border-white/40 dark:border-white/10 transition-transform duration-300 group-hover:-translate-y-1">
+      <div className="absolute inset-x-2 bottom-2 z-20 rounded-2xl bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-2 shadow-lg border border-white/40 dark:border-white/10 transition-transform duration-300 group-hover:-translate-y-1">
         <div className="pr-9">
-          <div className="flex items-center justify-between gap-2 mb-1">
+          <div className="flex items-center justify-between gap-2 mb-0.5">
             <div className="flex items-center gap-1 min-w-0 text-[10px] font-bold text-slate-600 dark:text-slate-300">
               <Zap className="h-3 w-3 shrink-0 text-slate-500 dark:text-slate-400" />
               <span className="truncate">From ₹{price}</span>
@@ -83,11 +83,11 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
             )}
           </div>
           <h3 className="text-sm font-black text-slate-900 dark:text-white truncate">{name}</h3>
-          <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 truncate mt-0.5">{category}</p>
+          <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 truncate">{category}</p>
         </div>
 
         {/* Persistent Arrow button inside card bottom */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-100 dark:border-slate-700 transition-colors group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm border border-slate-100 dark:border-slate-700 transition-colors group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600">
           <ArrowUpRight className="h-4 w-4" />
         </div>
       </div>
