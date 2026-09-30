@@ -684,3 +684,8 @@ const verifyKitOrderPayment = async (req, res) => {
 };
 
 module.exports.verifyKitOrderPayment = verifyKitOrderPayment;
+// Reused by bazaarController.postAd to charge the seller's listing fee
+// before an ad is created, the same atomic-claim way every other paid
+// action in the app is charged (an order can only ever be spent once, and
+// only by the account that raised it).
+module.exports.claimPayment = claimPayment;

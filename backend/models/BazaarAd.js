@@ -90,6 +90,15 @@ const bazaarAdSchema = new mongoose.Schema({
     type: Number,
     default: null
   },
+  // The seller's listing fee, recorded at posting time for audit — the
+  // admin-configured fee can change later, so this is what was actually
+  // charged for this specific ad, not what the setting says today.
+  listingFeePaid: {
+    type: Number
+  },
+  listingFeePaymentId: {
+    type: String
+  },
   // Internal admin note added during approval (not visible to seller/buyer)
   adminNote: {
     type: String

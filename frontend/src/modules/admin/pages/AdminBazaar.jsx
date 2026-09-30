@@ -1732,7 +1732,7 @@ const SettingField = ({ label, description, value, onChange, prefix, suffix, min
 
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
 const SettingsTab = () => {
-  const [settings, setSettings] = useState({ bazaarCommissionFee: 20, minOfferPercentage: 50, maxCounterAttempts: 3, maxChatMessages: 10 });
+  const [settings, setSettings] = useState({ bazaarCommissionFee: 20, minOfferPercentage: 50, maxCounterAttempts: 3, maxChatMessages: 10, listingFee: 10 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -1768,6 +1768,16 @@ const SettingsTab = () => {
         description="The fee (₹) a buyer must pay to reveal a seller's contact. Can be overridden per-product during approval."
         value={settings.bazaarCommissionFee}
         onChange={val => updateSettingField('bazaarCommissionFee', val)}
+        prefix="₹"
+        min={0}
+        max={1000}
+        allowBulk={true}
+      />
+      <SettingField
+        label="Seller Listing Fee"
+        description="The fee (₹) a seller pays via Razorpay to post an ad, charged before the ad is created."
+        value={settings.listingFee}
+        onChange={val => updateSettingField('listingFee', val)}
         prefix="₹"
         min={0}
         max={1000}

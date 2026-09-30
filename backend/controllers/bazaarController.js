@@ -44,6 +44,16 @@ const resolveUnlockFee = async (ad) => {
 };
 
 /**
+ * What a seller is charged to post an ad — admin-configurable
+ * (bazaar_rules.listingFee), read fresh at payment-claim time so a stale
+ * client-side quote from before an admin fee change can't be honoured.
+ */
+const resolveListingFee = async () => {
+    const setting = await Setting.findOne({ key: 'bazaar_rules' }).lean();
+    return setting?.value?.listingFee ?? 10;
+};
+
+/**
  * Records that a buyer has paid to see a seller's contact.
  *
  * The unlock is what `BazaarUnlockTransaction` says it is — that row is what
@@ -123,15 +133,32 @@ exports.templateScopeFor = templateScopeFor;
 // Post a new Bazaar Ad
 exports.postAd = async (req, res) => {
   try {
-    const { 
-      title, description, category, subCategory, brand, condition, 
-      price, isNegotiable, images, location 
+    const {
+      title, description, category, subCategory, brand, condition,
+      price, isNegotiable, images, location
     } = req.body;
-    
+
     const userId = req.user._id;
 
     if (!images || images.length < 2 || images.length > 10) {
       return res.status(400).json({ success: false, message: 'Please upload between 2 to 10 images.' });
+    }
+
+    // Posting an ad costs the seller an admin-configurable listing fee
+    // (bazaar_rules.listingFee), charged here — before the ad exists — via
+    // the same atomic order-claim every other paid action in the app uses,
+    // so the payment can only ever be spent once and only by this account.
+    const { claimPayment } = require('./paymentController');
+    const claim = await claimPayment(req, { purpose: 'bazaar', principal: userId });
+    if (claim.error) {
+      return res.status(claim.status).json({ success: false, message: claim.error });
+    }
+    const currentListingFee = await resolveListingFee();
+    if (Number(claim.order.amount) !== Number(currentListingFee)) {
+      // The fee changed between the order being raised and this request —
+      // the seller was quoted a stale amount, so refuse rather than either
+      // under- or over-charge against today's real fee.
+      return res.status(400).json({ success: false, message: 'The listing fee has changed. Please try again.' });
     }
 
     // Fetch user for contact info (User or Provider)
@@ -165,7 +192,9 @@ exports.postAd = async (req, res) => {
       contactDetails: {
         phone: user.mobile, // From user model
         isVerified: user.isVerified
-      }
+      },
+      listingFeePaid: claim.order.amount,
+      listingFeePaymentId: req.body.razorpay_payment_id
     });
 
     await newAd.save();
@@ -1360,8 +1389,11 @@ exports.getBazaarSettings = async (req, res) => {
     if (!setting) {
       setting = await new Setting({
         key: 'bazaar_rules',
-        value: { minOfferPercentage: 50, maxCounterAttempts: 3, bazaarCommissionFee: 20, maxChatMessages: 10 }
+        value: { minOfferPercentage: 50, maxCounterAttempts: 3, bazaarCommissionFee: 20, maxChatMessages: 10, listingFee: 10 }
       }).save();
+    }
+    if (setting.value.listingFee === undefined) {
+      setting.value.listingFee = 10;
     }
     // Ensure fallback if key exists but maxChatMessages is undefined
     if (setting.value.maxChatMessages === undefined) {
@@ -1376,14 +1408,15 @@ exports.getBazaarSettings = async (req, res) => {
 
 exports.updateBazaarSettings = async (req, res) => {
   try {
-    const { minOfferPercentage, maxCounterAttempts, bazaarCommissionFee, maxChatMessages } = req.body;
+    const { minOfferPercentage, maxCounterAttempts, bazaarCommissionFee, maxChatMessages, listingFee } = req.body;
     let setting = await Setting.findOne({ key: 'bazaar_rules' });
-    
+
     const newValue = {
       minOfferPercentage: minOfferPercentage !== undefined ? minOfferPercentage : 50,
       maxCounterAttempts: maxCounterAttempts !== undefined ? maxCounterAttempts : 3,
       bazaarCommissionFee: bazaarCommissionFee !== undefined ? bazaarCommissionFee : 20,
-      maxChatMessages: maxChatMessages !== undefined ? maxChatMessages : 10
+      maxChatMessages: maxChatMessages !== undefined ? maxChatMessages : 10,
+      listingFee: listingFee !== undefined ? listingFee : 10
     };
 
     if (!setting) {

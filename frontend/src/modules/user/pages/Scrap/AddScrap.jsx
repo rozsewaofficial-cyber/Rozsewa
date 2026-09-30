@@ -4,6 +4,17 @@ import { ArrowLeft, CheckCircle, Image, Camera, Loader2, MapPin, X, IndianRupee,
 import { useToast } from '@/components/ui/use-toast';
 import { z } from "zod";
 import api from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+
+const loadRazorpay = () =>
+  new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 
 const conditions = ['New', 'Like New', 'Good', 'Fair', 'Poor', 'Not Applicable'];
 
@@ -27,8 +38,13 @@ const adSchema = z.object({
 const AddScrap = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [categories, setCategories] = useState([]);
+  // Admin-configurable (bazaar_rules.listingFee, AdminBazaar.jsx Settings tab)
+  // — fetched fresh so the price shown always matches what the backend will
+  // actually charge.
+  const [listingFee, setListingFee] = useState(10);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -63,6 +79,9 @@ const AddScrap = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     fetchCategories();
+    api.get('/bazaar/settings')
+      .then(({ data }) => { if (data.success && data.data?.listingFee !== undefined) setListingFee(data.data.listingFee); })
+      .catch(() => { /* keep the default shown above; postAd will still charge whatever the server says is current */ });
   }, []);
 
   const fetchCategories = async () => {
@@ -231,14 +250,59 @@ const AddScrap = () => {
 
       const finalData = { ...payload, images: imageUrls };
 
-      const res = await api.post('/bazaar/post', finalData);
-      if (res.data.success) {
-        toast({ title: 'Ad submitted for review!' });
-        navigate('/bazaar');
+      // Posting an ad costs a listing fee (admin-configurable) — collected
+      // via Razorpay before the ad is created, the same pattern used for
+      // every other paid action in the app (Checkout.jsx, TipSection.jsx).
+      const sdkReady = await loadRazorpay();
+      if (!sdkReady) {
+        setIsUploading(false);
+        toast({ title: 'Payment SDK failed to load. Are you online?', variant: 'destructive' });
+        return;
       }
+
+      const { data: order } = await api.post('/payment/order', { amount: listingFee, currency: 'INR', purpose: 'bazaar' });
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        amount: order.amount,
+        currency: order.currency,
+        name: "RozSewa",
+        description: `Listing fee for "${finalData.title}"`,
+        order_id: order.id,
+        handler: async (response) => {
+          try {
+            const res = await api.post('/bazaar/post', { ...finalData, ...response });
+            if (res.data.success) {
+              toast({ title: 'Ad submitted for review!' });
+              navigate('/bazaar');
+            }
+          } catch (err) {
+            toast({ title: err.response?.data?.message || 'Failed to post ad', variant: 'destructive' });
+          } finally {
+            setIsUploading(false);
+          }
+        },
+        modal: {
+          // The images are already uploaded; closing without paying just
+          // means no ad gets created from them, not an incomplete/broken one.
+          ondismiss: () => setIsUploading(false),
+        },
+        prefill: {
+          name: user?.name,
+          email: user?.email,
+          contact: user?.mobile,
+        },
+        theme: { color: "#2563eb" },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.on('payment.failed', () => {
+        setIsUploading(false);
+        toast({ title: 'Payment Failed', description: 'Could not collect the listing fee. Please try again.', variant: 'destructive' });
+      });
+      paymentObject.open();
     } catch (err) {
       toast({ title: err.response?.data?.message || 'Failed to post ad', variant: 'destructive' });
-    } finally {
       setIsUploading(false);
     }
   };
@@ -469,8 +533,9 @@ const AddScrap = () => {
 
           <div className="pt-2">
             <button type="submit" disabled={isUploading} className="w-full py-4 rounded-2xl text-white font-black shadow-lg shadow-blue-200 dark:shadow-none active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700">
-              {isUploading ? (<><Loader2 className="animate-spin w-5 h-5" /><span>Processing Ad...</span></>) : 'Post Ad for Review'}
+              {isUploading ? (<><Loader2 className="animate-spin w-5 h-5" /><span>Processing...</span></>) : `Pay ₹${listingFee} & Post Ad`}
             </button>
+            <p className="text-[10px] text-center font-semibold text-slate-500 mt-2">A one-time listing fee applies before your ad goes live for review.</p>
           </div>
         </form>
       </div>
