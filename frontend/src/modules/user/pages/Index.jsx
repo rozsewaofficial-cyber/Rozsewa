@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle, MessageCircle, Gift } from "lucide-react";
+import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, ShoppingBag, Recycle, MessageCircle, Gift } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -359,13 +359,6 @@ const Index = () => {
           Soon" badge) painted on top of the search suggestion dropdown
           nested in here, since <main> comes later in the DOM. */}
       <div className="relative z-30 pt-3 pb-4 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-end mb-2">
-          <button onClick={() => navigate('/notifications')} className="relative h-11 w-11 rounded-full bg-white/80 backdrop-blur-md border border-slate-200/60 dark:bg-slate-800/80 dark:border-slate-700/60 shadow-sm flex items-center justify-center active:scale-95 transition-all text-slate-700 dark:text-slate-300 hover:text-blue-600 hover:shadow-md">
-            <Bell className="w-[22px] h-[22px]" />
-            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full shadow-[0_0_0_2px_rgba(255,255,255,1)] dark:shadow-[0_0_0_2px_rgba(15,23,42,1)]"></span>
-          </button>
-        </div>
-
         <div className="max-w-7xl mx-auto relative z-20">
           <SearchBar mode={serviceMode} onSearch={handleSearch} onFilterClick={(query) => {
             let url = `/shops?mode=${serviceMode}&filterOpen=true`;

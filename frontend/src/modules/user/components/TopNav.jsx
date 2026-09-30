@@ -300,9 +300,9 @@ const libraries = ['places'];
               <img src="/RozSewa.png" alt="RojSewa" className="h-8 w-auto object-contain" />
             </Link>
 
-            <button 
-              onClick={() => setShowLocationModal(true)} 
-              className="flex items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3.5 py-2 text-[13px] font-bold text-slate-900 dark:text-white transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm"
+            <button
+              onClick={() => setShowLocationModal(true)}
+              className="flex items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-3.5 py-2 text-[13px] font-bold text-slate-900 dark:text-white transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 shadow-sm -ml-3"
             >
               <MapPin className="h-4 w-4 text-blue-600" />
               <span className="max-w-[90px] truncate">
@@ -312,15 +312,26 @@ const libraries = ['places'];
             </button>
 
             <div className="flex shrink-0 items-center gap-2">
-              <motion.button 
-                whileTap={{ scale: 0.9 }} 
-                onClick={toggleTheme} 
+              <Link
+                to="/notifications"
+                className="relative flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
+              >
+                <Bell className="h-5 w-5 text-slate-700 dark:text-slate-300" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white dark:ring-[#0B1120]">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={toggleTheme}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
               >
                 {isDark ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-slate-700" />}
               </motion.button>
-              <button 
-                onClick={handleProfileClick} 
+              <button
+                onClick={handleProfileClick}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-100 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 transition-colors hover:bg-blue-100 dark:hover:bg-blue-500/30 shadow-sm"
               >
                 <User className="h-5 w-5" />
