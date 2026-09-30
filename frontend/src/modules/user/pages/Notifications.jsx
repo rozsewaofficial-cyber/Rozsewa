@@ -130,25 +130,25 @@ const Notifications = () => {
       <TopNav />
       <main className="container max-w-2xl px-4 py-6 space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:bg-slate-800 transition-colors">
               <ArrowLeft className="h-5 w-5 text-slate-900 dark:text-white" />
             </motion.button>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Notifications</h1>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{unreadCount} unread message{unreadCount !== 1 && "s"}</p>
+            <div className="min-w-0">
+              <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight truncate">Notifications</h1>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">{unreadCount} unread message{unreadCount !== 1 && "s"}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-2 shrink-0">
             {unreadCount > 0 && (
-              <button onClick={handleMarkAllAsRead} className="flex h-9 items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-900/30 px-4 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors shrink-0">
-                <CheckCircle2 className="h-4 w-4" /> Mark Read
+              <button onClick={handleMarkAllAsRead} title="Mark Read" className="flex h-9 items-center gap-2 rounded-full bg-blue-50 dark:bg-blue-900/30 px-3 sm:px-4 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:bg-blue-900/40 transition-colors shrink-0">
+                <CheckCircle2 className="h-4 w-4" /> <span className="hidden sm:inline">Mark Read</span>
               </button>
             )}
             {notifications.length > 0 && (
-              <button onClick={handleClearAll} className="flex h-9 items-center gap-2 rounded-full bg-rose-50 dark:bg-rose-900/30 px-4 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:bg-rose-900/40 transition-colors shrink-0">
-                <Trash2 className="h-4 w-4" /> Clear All
+              <button onClick={handleClearAll} title="Clear All" className="flex h-9 items-center gap-2 rounded-full bg-rose-50 dark:bg-rose-900/30 px-3 sm:px-4 text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:bg-rose-900/40 transition-colors shrink-0">
+                <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Clear All</span>
               </button>
             )}
           </div>
