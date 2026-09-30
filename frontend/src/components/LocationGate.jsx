@@ -22,7 +22,7 @@ const LocationGate = () => {
   // ============================================================================
   const BYPASS_LOCATION_GATE = false;
 
-  const { userLocation, detectLocation } = useAuth();
+  const { userLocation, detectLocation, setUserCity } = useAuth();
   const [status, setStatus] = useState("prompt"); // 'prompt' | 'checking' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState("");
   const [manualCity, setManualCity] = useState("");
@@ -72,10 +72,20 @@ const LocationGate = () => {
   };
 
   const handleSelectSuggestion = (suggestion) => {
+    // Nominatim's description is a full address ("Indore, Indore District,
+    // Madhya Pradesh, India") — the backend's city filter only matches
+    // against the plain city name, so only the first segment is usable.
+    const cityName = suggestion.description.split(",")[0].trim();
     setManualCity(suggestion.description);
     setSuggestions([]);
-    sessionStorage.setItem("rozsewa_user_city", suggestion.description);
+    sessionStorage.setItem("rozsewa_user_city", cityName);
     sessionStorage.setItem("location_gate_passed", "true");
+    // AuthContext only reads sessionStorage once, at mount — without this,
+    // userCity/userLocation both stay empty for the rest of the session, so
+    // every provider search (ShopListing's fetchProviders) sends neither lat/
+    // lng nor city and falls back to matching providers nationwide, not just
+    // the city shown in the header.
+    setUserCity(cityName);
     setStatus("success");
   };
 
@@ -88,8 +98,13 @@ const LocationGate = () => {
 
   const handleManualSubmit = () => {
     if (manualCity.trim()) {
-      sessionStorage.setItem("rozsewa_user_city", manualCity.trim());
+      const cityName = manualCity.trim();
+      sessionStorage.setItem("rozsewa_user_city", cityName);
       sessionStorage.setItem("location_gate_passed", "true");
+      // See handleSelectSuggestion — the context state, not just
+      // sessionStorage, has to be updated for provider searches to actually
+      // filter by it.
+      setUserCity(cityName);
       setStatus("success");
     }
   };
