@@ -526,22 +526,6 @@ const Index = () => {
               </section>
             )}
 
-            {/* Sell Scrap CTA */}
-            <section className="space-y-4 pt-2 pb-4">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-[24px] border border-blue-100 dark:border-blue-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
-                <div className="relative z-10 w-[70%]">
-                  <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Got scrap to sell?</h3>
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">Schedule a pickup from your home and get the best price for your scrap.</p>
-                  <Link to="/scrap/add" className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-blue-200 dark:shadow-none">
-                    Sell Scrap Now <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-                <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
-                  <Recycle className="w-28 h-28 text-blue-500" />
-                </div>
-              </div>
-            </section>
-
             {/* Bazaar Promo Section */}
             <section className="space-y-4 pt-2">
               <div className="flex items-center justify-between">
@@ -566,6 +550,21 @@ const Index = () => {
               </div>
             </section>
 
+            {/* Sell Scrap CTA */}
+            <section className="space-y-4 pt-2 pb-4">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-[24px] border border-blue-100 dark:border-blue-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
+                <div className="relative z-10 w-[70%]">
+                  <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Got scrap to sell?</h3>
+                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">Schedule a pickup from your home and get the best price for your scrap.</p>
+                  <Link to="/scrap/add" className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-blue-200 dark:shadow-none">
+                    Sell Scrap Now <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+                <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
+                  <Recycle className="w-28 h-28 text-blue-500" />
+                </div>
+              </div>
+            </section>
 
           </div>
         ) : (
