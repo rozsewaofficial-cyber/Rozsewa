@@ -10,6 +10,10 @@
  * "Book Emergency Help" action row with an arrow, instead of a plain
  * pill of decorative text.
  *
+ * Follow-up: the card still took up too much vertical space on the home
+ * feed ("iss ki height kum karo") — trimmed the outer padding, icon badge,
+ * and text sizes down a notch (p-5->p-4, h-14/w-7 icon->h-11/w-5, etc).
+ *
  *   node scripts/emergencyBannerRedesignCheck.js
  */
 const assert = require('assert');
@@ -36,13 +40,22 @@ check('the old rainbow gradient headline and three-column divided layout are gon
 
 check('the card has a clear icon badge, title, and a short subtitle', () => {
     assert.ok(/24\/7 Emergency Services/.test(block));
-    assert.ok(/Siren className="w-7 h-7 text-red-500"/.test(block));
+    assert.ok(/<Siren className="w-\d+ h-\d+ text-red-500"/.test(block));
     assert.ok(/LIVE/.test(block));
 });
 
 check('it ends with an explicit call-to-action row, not just decorative text', () => {
     assert.ok(/Book Emergency Help/.test(block));
     assert.ok(/<ArrowRight/.test(block), 'a directional cue that this row is tappable');
+});
+
+console.log('\nThe card stays compact — a home feed with several sections shouldn\'t give one of them an oversized slot');
+
+check('the outer card padding and icon badge were trimmed down, not left at the original larger size', () => {
+    assert.ok(/rounded-\[24px\][^"]*\bp-4\b/.test(block),
+        'the card padding (was p-5) should be tighter');
+    assert.ok(/h-11 w-11 rounded-2xl bg-red-500\/10/.test(block),
+        'the icon badge (was h-14 w-14) should be smaller');
 });
 
 console.log(`\n${passed} emergency-banner-redesign checks passed.\n`);

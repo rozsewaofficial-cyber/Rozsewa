@@ -555,26 +555,26 @@ const Index = () => {
         <section className="mt-8 mb-4">
           <Link
             to="/shops?category=Emergency"
-            className="block relative overflow-hidden rounded-[24px] bg-gradient-to-br from-slate-900 to-slate-950 border border-red-900/40 p-5 shadow-lg shadow-red-950/10 active:scale-[0.98] transition-all"
+            className="block relative overflow-hidden rounded-[24px] bg-gradient-to-br from-slate-900 to-slate-950 border border-red-900/40 p-4 shadow-lg shadow-red-950/10 active:scale-[0.98] transition-all"
           >
             <div className="absolute -right-8 -top-8 w-36 h-36 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
 
-            <div className="relative z-10 flex items-start gap-4">
-              <div className="shrink-0 h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
-                <Siren className="w-7 h-7 text-red-500" />
+            <div className="relative z-10 flex items-center gap-3">
+              <div className="shrink-0 h-11 w-11 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                <Siren className="w-5 h-5 text-red-500" />
               </div>
-              <div className="min-w-0 pt-0.5">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-[17px] font-black text-white tracking-tight">24/7 Emergency Services</h2>
+                  <h2 className="text-[15px] font-black text-white tracking-tight">24/7 Emergency Services</h2>
                   <span className="shrink-0 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-[9px] font-black tracking-wider text-red-400">LIVE</span>
                 </div>
-                <p className="text-[12px] font-medium text-slate-400 mt-1.5 leading-relaxed">
+                <p className="text-[11px] font-medium text-slate-400 mt-1 leading-snug">
                   Electrician, plumber, ambulance & locksmith — help arrives fast, any time of day.
                 </p>
               </div>
             </div>
 
-            <div className="relative z-10 mt-4 flex items-center justify-between rounded-2xl bg-white/5 border border-white/10 px-4 py-3">
+            <div className="relative z-10 mt-3 flex items-center justify-between rounded-2xl bg-white/5 border border-white/10 px-4 py-2.5">
               <span className="text-[11px] font-black uppercase tracking-widest text-red-400">Book Emergency Help</span>
               <ArrowRight className="w-4 h-4 text-red-400" />
             </div>
