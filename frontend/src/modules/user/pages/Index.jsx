@@ -13,7 +13,7 @@ import ServiceCard from "@/modules/user/components/ServiceCard";
 import RecentBookingTracker from "@/modules/user/components/RecentBookingTracker";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
-import { UserCircle, ShieldCheck, Tag, Clock, Siren, Truck, Wrench, Zap } from "lucide-react";
+import { UserCircle, ShieldCheck, Tag, Clock, Siren, Truck, Zap } from "lucide-react";
 
 const defaultBanners = [
   { id: 1, title: "Summer Mega Sale", subtitle: "Flat 30% OFF on AC Repair", image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=1200&q=80", link: "/shops?search=AC" },
@@ -534,47 +534,31 @@ const Index = () => {
         )}
 
         {/* 24/7 Emergency Banner */}
-        <section className="mt-10 mb-4 px-1">
-          <Link to="/shops?category=Emergency" className="block relative group rounded-[24px] bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-red-900/50 p-6 text-center shadow-[0_0_20px_rgba(220,38,38,0.15)] hover:shadow-[0_0_30px_rgba(220,38,38,0.25)] transition-all">
-            {/* Background glowing effects with overflow hidden to keep it inside borders */}
-            <div className="absolute inset-0 rounded-[22px] overflow-hidden pointer-events-none">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-red-600/20 via-transparent to-transparent"></div>
-            </div>
+        <section className="mt-8 mb-4">
+          <Link
+            to="/shops?category=Emergency"
+            className="block relative overflow-hidden rounded-[24px] bg-gradient-to-br from-slate-900 to-slate-950 border border-red-900/40 p-5 shadow-lg shadow-red-950/10 active:scale-[0.98] transition-all"
+          >
+            <div className="absolute -right-8 -top-8 w-36 h-36 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Siren Icon - positioned outside the overflow-hidden background */}
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-16 h-16 bg-slate-900 rounded-full border-2 border-red-900/50 flex items-center justify-center shadow-[0_0_20px_rgba(220,38,38,0.4)] z-20">
-              <Siren className="w-8 h-8 text-red-500 animate-pulse drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-            </div>
-
-            <div className="relative z-10 pt-4">
-              <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-red-300 to-red-500 drop-shadow-sm uppercase">
-                24/7 EMERGENCY
-              </h2>
-
-              <div className="flex items-center justify-center gap-4 mt-3 mb-4">
-                <div className="flex flex-col items-center">
-                  <Wrench className="w-5 h-5 text-amber-500/80 mb-1" />
-                  <span className="text-[10px] font-bold text-amber-500/80 uppercase">Fix It</span>
-                </div>
-                <div className="w-px h-8 bg-slate-800"></div>
-                <div className="flex flex-col justify-center flex-1">
-                  <p className="text-[13px] font-medium text-slate-300 leading-tight">
-                    Urgent Help (Electrician, Plumber, Ambulance, Locksmith, etc.)
-                  </p>
-                </div>
-                <div className="w-px h-8 bg-slate-800"></div>
-                <div className="flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full border-2 border-amber-500/80 flex items-center justify-center">
-                    <span className="text-[11px] font-black text-amber-500/80">24/7</span>
-                  </div>
-                </div>
+            <div className="relative z-10 flex items-start gap-4">
+              <div className="shrink-0 h-14 w-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                <Siren className="w-7 h-7 text-red-500" />
               </div>
-
-              <div className="inline-block px-4 py-1.5 rounded-full bg-red-950/50 border border-red-900/50">
-                <p className="text-[11px] font-black tracking-widest text-red-400 uppercase">
-                  Fast Response | Anytime Support
+              <div className="min-w-0 pt-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-[17px] font-black text-white tracking-tight">24/7 Emergency Services</h2>
+                  <span className="shrink-0 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-[9px] font-black tracking-wider text-red-400">LIVE</span>
+                </div>
+                <p className="text-[12px] font-medium text-slate-400 mt-1.5 leading-relaxed">
+                  Electrician, plumber, ambulance & locksmith — help arrives fast, any time of day.
                 </p>
               </div>
+            </div>
+
+            <div className="relative z-10 mt-4 flex items-center justify-between rounded-2xl bg-white/5 border border-white/10 px-4 py-3">
+              <span className="text-[11px] font-black uppercase tracking-widest text-red-400">Book Emergency Help</span>
+              <ArrowRight className="w-4 h-4 text-red-400" />
             </div>
           </Link>
         </section>
