@@ -66,7 +66,13 @@ const getPublicCategories = async (req, res) => {
         // Same ordering the admin's own category list uses (adminController.js
         // getCategories) — the admin-configured `index`, not alphabetical. A-Z
         // buried whatever the admin actually wanted shown first.
-        let categories = await Category.find({ isActive: true }).sort({ index: 1 }).lean();
+        //
+        // A "Coming Soon" category is disabled/greyed-out and un-tappable —
+        // sorted purely by index it could still land first, pushing every
+        // bookable category below a row of dead cards. isComingSoon sorts
+        // ascending (false before true) so real categories always lead;
+        // index still breaks ties within each group.
+        let categories = await Category.find({ isActive: true }).sort({ isComingSoon: 1, index: 1 }).lean();
 
         // The customer app's Local Expert / Sewak toggle should only show
         // categories that provider type actually serves.

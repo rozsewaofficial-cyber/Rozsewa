@@ -41,12 +41,20 @@ console.log('\nThe customer-facing category list is ordered the same way the adm
 
 check('getPublicCategories sorts by index, matching adminController.getCategories, not alphabetically', () => {
     const fn = sliceFn(controller, 'const getPublicCategories');
-    assert.ok(/\.sort\(\{ index: 1 \}\)/.test(fn));
+    assert.ok(/\.sort\(\{ isComingSoon: 1, index: 1 \}\)/.test(fn));
     assert.ok(!/\.sort\(\{ name: 1 \}\)/.test(fn), 'A-Z buried whatever the admin actually wanted shown first');
 });
 
 check('this matches the admin\'s own convention, not a newly-invented one', () => {
     assert.ok(/Category\.find\(\)\.sort\(\{ index: 1 \}\)/.test(adminController));
+});
+
+check('a "Coming Soon" category is demoted below every real, bookable one, admin index or not', () => {
+    // Sorted purely by index, a disabled Coming Soon card could still land
+    // first — pushing every tappable category below a row of dead cards.
+    const fn = sliceFn(controller, 'const getPublicCategories');
+    assert.ok(/\.sort\(\{ isComingSoon: 1,/.test(fn),
+        'isComingSoon must be the PRIMARY sort key (false sorts before true) — index alone cannot guarantee this');
 });
 
 console.log('\nA "Coming Soon" category actually says so, not just fades out');
