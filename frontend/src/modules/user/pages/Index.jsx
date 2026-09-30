@@ -492,6 +492,9 @@ const Index = () => {
               <section className="space-y-4 pt-2 pb-2">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Explore Our Providers</h2>
+                  <Link to={`/shops?mode=${serviceMode || "partner"}`} className="text-[13px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 transition-colors">
+                    View all
+                  </Link>
                 </div>
 
                 <div className="flex overflow-x-auto pb-4 -mx-1 px-1 gap-4 snap-x snap-mandatory scrollbar-hide">
