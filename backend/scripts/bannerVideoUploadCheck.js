@@ -37,6 +37,11 @@ const controller = read('controllers/adminController.js');
 const routes = read('routes/adminRoutes.js');
 const adminUi = feRead('modules/admin/pages/AdminBanners.jsx');
 const customerUi = feRead('modules/user/pages/Index.jsx');
+// The actual <img>/<video> rendering moved out of Index.jsx and into its own
+// PromoBannerCarousel component so the carousel can render more than once on
+// the page (see promoBannerRepeatCheck.js) — Index.jsx now only maps the API
+// response into the banners it hands that component.
+const carouselUi = feRead('modules/user/components/PromoBannerCarousel.jsx');
 
 console.log('\nBanner carries an optional video, never required (existing banners keep working)');
 
@@ -84,9 +89,9 @@ check('the banner mapping carries the video through from the API response', () =
 });
 
 check('a <video> renders (autoplay, muted, loop) in place of the <img> when banner.video is set', () => {
-    assert.ok(/banner\.video \?/.test(customerUi));
-    assert.ok(/src=\{banner\.video\}/.test(customerUi));
-    assert.ok(/autoPlay/.test(customerUi) && /muted/.test(customerUi) && /loop/.test(customerUi));
+    assert.ok(/banner\.video \?/.test(carouselUi));
+    assert.ok(/src=\{banner\.video\}/.test(carouselUi));
+    assert.ok(/autoPlay/.test(carouselUi) && /muted/.test(carouselUi) && /loop/.test(carouselUi));
 });
 
 console.log(`\n${passed} banner-video-upload checks passed.\n`);

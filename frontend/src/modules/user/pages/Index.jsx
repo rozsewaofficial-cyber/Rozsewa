@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -7,6 +7,7 @@ import BottomNav from "@/modules/user/components/BottomNav";
 import EmergencyButton from "@/modules/user/components/EmergencyButton";
 import SearchBar from "@/modules/user/components/SearchBar";
 import CategoryGrid from "@/modules/user/components/CategoryGrid";
+import PromoBannerCarousel from "@/modules/user/components/PromoBannerCarousel";
 import OfferCard from "@/components/OfferCard";
 import ServiceCard from "@/modules/user/components/ServiceCard";
 import RecentBookingTracker from "@/modules/user/components/RecentBookingTracker";
@@ -24,7 +25,6 @@ const Index = () => {
   const { userLocation, userCity, userState, userDistrict, userPincode, detectLocation, serviceMode, setServiceMode, user } = useAuth();
   const userName = user ? (user.name || user.ownerName || "Guest").split(" ")[0] : "Guest";
   const [showAllCategories, setShowAllCategories] = useState(false);
-  const [currentBanner, setCurrentBanner] = useState(0);
   const [banners, setBanners] = useState([]);
   // Live offer cards for the home carousel. Failing to load them must never
   // block the rest of the home page, so this is fetched on its own.
@@ -162,8 +162,6 @@ const Index = () => {
     }
   };
 
-  const bannerScrollRef = useRef(null);
-
   // Whether to offer Insta Work here at all. Asked for the city, because it
   // launches city by city. Kept apart from the main home fetch so it runs when
   // the session is ready — folded into that fetch, it only ran if the user had
@@ -193,35 +191,6 @@ const Index = () => {
       .catch(() => { /* home page renders fine without offers */ });
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (banners.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentBanner((prev) => {
-        const next = (prev + 1) % banners.length;
-        if (bannerScrollRef.current) {
-          bannerScrollRef.current.scrollTo({
-            left: next * bannerScrollRef.current.clientWidth,
-            behavior: "smooth"
-          });
-        }
-        return next;
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [banners.length]);
-
-  const handleBannerScroll = (e) => {
-    if (!e.target) return;
-    const scrollLeft = e.target.scrollLeft;
-    const width = e.target.clientWidth;
-    if (width > 0) {
-      const index = Math.round(scrollLeft / width);
-      if (index !== currentBanner) {
-        setCurrentBanner(index);
-      }
-    }
-  };
 
   const handleSearch = (query, filter) => {
     let url = `/shops?mode=${serviceMode}&`;
@@ -361,70 +330,7 @@ const Index = () => {
         <RecentBookingTracker />
 
         {/* Banner Section */}
-        {banners.length > 0 && (
-          <div className="relative w-full aspect-[21/9] sm:aspect-[3/1] max-h-[220px] rounded-[20px] sm:rounded-[24px] overflow-hidden shadow-sm group bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50">
-            <div 
-              ref={bannerScrollRef}
-              onScroll={handleBannerScroll}
-              className="flex w-full h-full overflow-x-auto snap-x snap-mandatory scrollbar-hide"
-              style={{ scrollBehavior: 'smooth' }}
-            >
-              {banners.map((banner, idx) => (
-                <div 
-                  key={`${banner.id}-${idx}`} 
-                  onClick={() => handleBannerClick(banner)}
-                  className="w-full h-full shrink-0 snap-center snap-always relative cursor-pointer"
-                >
-                  {banner.video ? (
-                    <video
-                      src={banner.video}
-                      className="w-full h-full object-cover pointer-events-none"
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      poster={banner.image}
-                    />
-                  ) : (
-                    <img
-                      src={banner.image}
-                      className="w-full h-full object-cover pointer-events-none"
-                      alt="Promo Banner"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = defaultBanners[idx % defaultBanners.length].image;
-                      }}
-                    />
-                  )}
-                  {(banner.title || banner.subtitle) && (
-                    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
-                      {banner.title && (
-                        <h2 className="text-white text-base sm:text-xl font-black max-w-[80%] leading-tight drop-shadow-md">
-                          {banner.title}
-                        </h2>
-                      )}
-                      {banner.subtitle && (
-                        <p className="text-white/90 text-[10px] sm:text-sm font-semibold mt-0.5 max-w-[80%] leading-snug drop-shadow-md">
-                          {banner.subtitle}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Banner Pagination Dots */}
-            <div className="absolute bottom-3 right-4 flex gap-1.5 z-20 bg-black/20 backdrop-blur-md px-2 py-1.5 rounded-full pointer-events-none">
-              {banners.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${i === currentBanner ? "w-4 bg-white" : "w-1.5 bg-white/50"}`}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        <PromoBannerCarousel banners={banners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
         {/* Global Service Mode Toggle */}
         <div className="flex flex-col items-center justify-center mt-6 mb-8 px-4">
@@ -493,6 +399,9 @@ const Index = () => {
                 </div>
               </section>
             )}
+
+            {/* Promo banner repeated above Bazaar Chats */}
+            <PromoBannerCarousel banners={banners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
             {/* Active Bazaar Chats (If any) */}
             {bazaarChats.length > 0 && (
