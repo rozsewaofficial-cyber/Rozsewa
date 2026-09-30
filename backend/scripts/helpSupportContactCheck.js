@@ -3,9 +3,10 @@
  * (WhatsApp / Call Us / Email Us / Raise Ticket) "aren't active" — they were
  * wired to a fake placeholder number (919999999999) and a placeholder email
  * (support@rozsewa.in), so a tap never reached anyone real. Per the user's
- * own choice, all four now open the same WhatsApp chat, which replaces the
- * inline Raise Ticket form (still available at its own dedicated page,
- * SupportTickets.jsx) and the tel:/mailto: links.
+ * choice, WhatsApp/Call Us/Raise Ticket all open the same real WhatsApp
+ * chat (replacing the inline Raise Ticket form — still available at its own
+ * dedicated page, SupportTickets.jsx — and the old tel: link). Email Us was
+ * later given its own real mailto:, once the user supplied a real address.
  *
  *   node scripts/helpSupportContactCheck.js
  */
@@ -23,20 +24,26 @@ const page = feRead('modules/user/pages/HelpSupport.jsx');
 
 console.log('\nAll four contact tiles open a real, working channel');
 
-check('all four tiles share one WhatsApp handler, not separate tel:/mailto: links', () => {
+check('WhatsApp, Call Us and Raise Ticket share one real WhatsApp handler', () => {
     assert.ok(/const openWhatsAppSupport = \(\) => window\.open\(`https:\/\/wa\.me\/\$\{WHATSAPP_SUPPORT_NUMBER\}`/.test(page),
-        'a single handler, so updating the number in one place fixes every tile');
+        'a single handler, so updating the number in one place fixes every tile that uses it');
     const tilesBlock = page.slice(page.indexOf('{/* Contact Methods */}'), page.indexOf('{/* FAQ Search */}'));
     const actionMatches = tilesBlock.match(/action: openWhatsAppSupport/g) || [];
-    assert.strictEqual(actionMatches.length, 4, 'WhatsApp, Call Us, Email Us and Raise Ticket all use it');
-    assert.ok(!/tel:\+919999999999/.test(tilesBlock) && !/mailto:support@rozsewa\.in/.test(tilesBlock),
-        'the old placeholder tel:/mailto: links are gone, not just unreachable');
+    assert.strictEqual(actionMatches.length, 3, 'WhatsApp, Call Us and Raise Ticket — Email Us has its own real mailto: now');
+    assert.ok(!/tel:\+919999999999/.test(tilesBlock),
+        'the old placeholder tel: link is gone, not just unreachable');
 });
 
-check('the number lives in one clearly-marked constant, easy to swap for the real one', () => {
-    assert.ok(/TODO: replace with RozSewa's real WhatsApp support number/.test(page),
-        'flagged so the placeholder does not silently ship as real');
-    assert.ok(/const WHATSAPP_SUPPORT_NUMBER = "919999999999"/.test(page));
+check('the WhatsApp number is real, not the old placeholder', () => {
+    assert.ok(/const WHATSAPP_SUPPORT_NUMBER = "919122323770"/.test(page));
+    assert.ok(!/919999999999/.test(page), 'the placeholder must not linger anywhere in the file');
+});
+
+check('Email Us opens a real mailto:, not WhatsApp', () => {
+    const tilesBlock = page.slice(page.indexOf('{/* Contact Methods */}'), page.indexOf('{/* FAQ Search */}'));
+    assert.ok(/action: openSupportEmail/.test(tilesBlock));
+    assert.ok(/const openSupportEmail = \(\) => window\.location\.href = `mailto:\$\{SUPPORT_EMAIL\}`/.test(page));
+    assert.ok(/const SUPPORT_EMAIL = "support@rozsewa\.com"/.test(page));
 });
 
 console.log('\nThe inline Raise Ticket form is gone, not left dead');

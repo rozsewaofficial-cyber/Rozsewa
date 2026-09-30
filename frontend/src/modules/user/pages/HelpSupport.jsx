@@ -7,9 +7,10 @@ import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import API from "@/lib/api";
 
-// TODO: replace with RozSewa's real WhatsApp support number before launch.
-const WHATSAPP_SUPPORT_NUMBER = "919999999999";
+const WHATSAPP_SUPPORT_NUMBER = "919122323770";
+const SUPPORT_EMAIL = "support@rozsewa.com";
 const openWhatsAppSupport = () => window.open(`https://wa.me/${WHATSAPP_SUPPORT_NUMBER}`, '_blank');
+const openSupportEmail = () => window.location.href = `mailto:${SUPPORT_EMAIL}`;
 
 const HelpSupport = () => {
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ const HelpSupport = () => {
            {[
              { label: "WhatsApp", icon: MessageSquare, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20", action: openWhatsAppSupport },
              { label: "Call Us", icon: Phone, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20", action: openWhatsAppSupport },
-             { label: "Email Us", icon: Mail, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-500/10 border-rose-100 dark:border-rose-500/20", action: openWhatsAppSupport },
+             { label: "Email Us", icon: Mail, color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-500/10 border-rose-100 dark:border-rose-500/20", action: openSupportEmail },
              { label: "Raise Ticket", icon: Ticket, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-500/10 border-purple-100 dark:border-purple-500/20", action: openWhatsAppSupport },
            ].map((opt) => (
              <motion.button 
