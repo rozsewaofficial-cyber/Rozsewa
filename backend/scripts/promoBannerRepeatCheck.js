@@ -44,8 +44,10 @@ check('Index.jsx no longer keeps its own duplicate banner scroll state', () => {
 });
 
 check('two independent <PromoBannerCarousel> instances are rendered', () => {
+    // The two show different data (see partnerBannerSlotCheck.js) — this only
+    // pins that there are two separate elements, not that their props match.
     const page = feRead('modules/user/pages/Index.jsx');
-    const matches = page.match(/<PromoBannerCarousel banners=\{banners\} defaultBanners=\{defaultBanners\} onBannerClick=\{handleBannerClick\} \/>/g) || [];
+    const matches = page.match(/<PromoBannerCarousel /g) || [];
     assert.strictEqual(matches.length, 2, 'one at the top, one above Bazaar Chats');
 });
 

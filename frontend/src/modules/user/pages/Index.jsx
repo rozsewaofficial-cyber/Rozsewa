@@ -26,6 +26,10 @@ const Index = () => {
   const userName = user ? (user.name || user.ownerName || "Guest").split(" ")[0] : "Guest";
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [banners, setBanners] = useState([]);
+  // Just the paid partner promotions (1/7/30-day plans, ProviderBanner
+  // model) — shown again above Bazaar Chats, separate from the mixed
+  // admin+partner carousel at the top.
+  const [partnerBanners, setPartnerBanners] = useState([]);
   // Live offer cards for the home carousel. Failing to load them must never
   // block the rest of the home page, so this is fetched on its own.
   const [homeOffers, setHomeOffers] = useState([]);
@@ -126,6 +130,7 @@ const Index = () => {
 
       const mergedBanners = [...apiBanners, ...pBanners];
       setBanners(mergedBanners.length > 0 ? mergedBanners : defaultBanners);
+      setPartnerBanners(pBanners);
 
       if (user) {
         try {
@@ -400,8 +405,8 @@ const Index = () => {
               </section>
             )}
 
-            {/* Promo banner repeated above Bazaar Chats */}
-            <PromoBannerCarousel banners={banners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
+            {/* Partner-promoted banners (1/7/30-day plans) above Bazaar Chats — not a repeat of the mixed admin+partner carousel at the top */}
+            <PromoBannerCarousel banners={partnerBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
             {/* Active Bazaar Chats (If any) */}
             {bazaarChats.length > 0 && (
