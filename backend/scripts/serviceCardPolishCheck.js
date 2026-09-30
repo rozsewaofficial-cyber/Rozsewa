@@ -9,6 +9,11 @@
  *   button instead (one hover-only top-right, one persistent bottom-right,
  *   both doing the same thing — the hover one never even shows on touch).
  *
+ * Follow-up: the card (h-52, 208px) was still taller than it needed to be
+ * on "Explore Our Providers" ("inn ki height thodi kum karo") — trimmed to
+ * h-44 (176px). Index.jsx's loading skeleton is kept at the same height so
+ * the layout doesn't jump when real cards replace it.
+ *
  *   node scripts/serviceCardPolishCheck.js
  */
 const assert = require('assert');
@@ -50,6 +55,21 @@ check('"Explore Our Providers" has a View all link, like Categories and Bazaar d
     const idx = page.indexOf('Explore Our Providers');
     const block = page.slice(Math.max(0, idx - 200), idx + 300);
     assert.ok(/View all/.test(block));
+});
+
+console.log('\nThe card is compact, and its loading skeleton matches so real cards don\'t cause a layout jump');
+
+check('the card height was trimmed down (h-52 -> h-44), not left at the original taller size', () => {
+    assert.ok(!/\bh-52\b/.test(card), 'the old, taller card height must not still be present');
+    assert.ok(/relative h-44 w-full overflow-hidden rounded-3xl/.test(card));
+});
+
+check('the Index.jsx loading skeleton height matches the real card height', () => {
+    const page = feRead('modules/user/pages/Index.jsx');
+    const idx = page.indexOf('Explore Our Providers');
+    const block = page.slice(idx, idx + 1500);
+    assert.ok(/min-w-\[240px\] h-44 bg-slate-200/.test(block),
+        'a mismatched skeleton height makes the page jump when real cards load in');
 });
 
 console.log(`\n${passed} service-card-polish checks passed.\n`);

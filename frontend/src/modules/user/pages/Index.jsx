@@ -514,7 +514,7 @@ const Index = () => {
 
                 <div className="flex overflow-x-auto pb-4 -mx-1 px-1 gap-4 snap-x snap-mandatory scrollbar-hide">
                   {loading ? (
-                    [...Array(4)].map((_, i) => <div key={i} className="min-w-[240px] h-48 bg-slate-200 dark:bg-slate-800 rounded-3xl animate-pulse shrink-0"></div>)
+                    [...Array(4)].map((_, i) => <div key={i} className="min-w-[240px] h-44 bg-slate-200 dark:bg-slate-800 rounded-3xl animate-pulse shrink-0"></div>)
                   ) : (
                     featured.map((p, i) => (
                       <motion.div key={p.id} className="snap-start shrink-0 min-w-[240px]" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.1 }}>

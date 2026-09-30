@@ -41,7 +41,7 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => navigate(`/shop/${id}`)}
-      className="group relative h-52 w-full overflow-hidden rounded-3xl cursor-pointer"
+      className="group relative h-44 w-full overflow-hidden rounded-3xl cursor-pointer"
     >
       <img src={image} alt={name} className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
       
