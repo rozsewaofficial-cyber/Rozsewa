@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle, MessageCircle } from "lucide-react";
+import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, Bell, ShoppingBag, Recycle, MessageCircle, Gift } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -244,6 +244,33 @@ const Index = () => {
         </div>
         <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
           <Zap className="w-28 h-28 text-amber-500" />
+        </div>
+      </div>
+    </section>
+  );
+
+  // RozSewa Coins already has a "Refer & Earn" entry (a small pill in its own
+  // header), but that's only visible once someone has already found their
+  // way into Coins — there was no way to discover it from the home screen
+  // itself. Rendered alongside instaWorkSection, above Sell Scrap, in both
+  // the Local Expert and Sewak branches.
+  const referEarnSection = (
+    <section className="space-y-4 pt-2 pb-4">
+      <div className="bg-gradient-to-r from-fuchsia-50 to-purple-50 dark:from-fuchsia-900/20 dark:to-purple-900/20 p-5 rounded-[24px] border border-fuchsia-100 dark:border-fuchsia-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
+        <div className="relative z-10 w-[70%]">
+          <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Refer friends, earn coins</h3>
+          <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">
+            Share your code — you and your friend both get RozSewa Coins when they book.
+          </p>
+          <Link
+            to="/refer-earn"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-fuchsia-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-fuchsia-200 dark:shadow-none"
+          >
+            <Gift className="w-3.5 h-3.5" /> Refer & Earn
+          </Link>
+        </div>
+        <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
+          <Gift className="w-28 h-28 text-fuchsia-500" />
         </div>
       </div>
     </section>
@@ -493,6 +520,7 @@ const Index = () => {
             </section>
 
             {instaWorkSection}
+            {referEarnSection}
 
             {/* Sell Scrap CTA */}
             <section className="space-y-4 pt-2 pb-4">
@@ -554,6 +582,7 @@ const Index = () => {
             </section>
 
             {instaWorkSection}
+            {referEarnSection}
 
             {/* Sell Scrap CTA for Sewak */}
             <section className="space-y-4 pt-2 pb-4">
