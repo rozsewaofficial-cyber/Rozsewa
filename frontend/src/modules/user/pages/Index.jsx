@@ -565,23 +565,23 @@ const Index = () => {
           </Link>
         </section>
         {/* Why Choose Us */}
-        <section className="mt-8 space-y-4 pt-2">
+        <section className="mt-6 space-y-3 pt-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Why RozSewa?</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {[
               { title: "Verified Pros", desc: "100% background-checked experts", icon: ShieldCheck, color: "emerald" },
               { title: "Fixed Pricing", desc: "No hidden costs, transparent rates", icon: Tag, color: "blue" },
               { title: "On-Time Service", desc: "Punctual & reliable doorstep service", icon: Clock, color: "amber" },
             ].map((item, idx) => (
-              <div key={idx} className="flex items-center gap-4 p-4 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
-                <div className={`p-3.5 rounded-[18px] shrink-0 ${item.color === 'emerald' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : item.color === 'blue' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
-                  <item.icon className="w-6 h-6" />
+              <div key={idx} className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
+                <div className={`p-2.5 rounded-2xl shrink-0 ${item.color === 'emerald' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : item.color === 'blue' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+                  <item.icon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-900 dark:text-white text-[15px] mb-0.5">{item.title}</h3>
-                  <p className="text-[12px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">{item.desc}</p>
+                  <h3 className="font-black text-slate-900 dark:text-white text-[14px] mb-0.5">{item.title}</h3>
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">{item.desc}</p>
                 </div>
               </div>
             ))}
