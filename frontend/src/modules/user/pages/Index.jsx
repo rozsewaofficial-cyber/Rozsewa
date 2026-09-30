@@ -225,54 +225,67 @@ const Index = () => {
     }
   };
 
-  // Rendered above the Sell Scrap CTA in both the Local Expert and Sewak
-  // branches — defined once here so both spots stay in sync.
-  const instaWorkSection = instaEnabled && (
-    <section className="space-y-4 pt-2 pb-4">
-      <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-5 rounded-[24px] border border-amber-100 dark:border-amber-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
-        <div className="relative z-10 w-[70%]">
-          <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Need someone right now?</h3>
-          <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">
-            Book a worker by the hour for short or urgent jobs. Pay for the time you use.
-          </p>
-          <Link
-            to="/insta-work"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-amber-200 dark:shadow-none"
-          >
-            <Zap className="w-3.5 h-3.5" /> Book Insta Work
-          </Link>
+  // Bazaar / Insta Work / Refer & Earn / Sell Scrap used to each be their
+  // own full-width card, stacked one after another — four scrolls' worth of
+  // near-identical banners. Laid out as a 2x2 grid of compact tiles instead,
+  // defined once here so both the Local Expert and Sewak branches stay
+  // in sync. Insta Work drops out of the grid entirely when disabled for
+  // this city, rather than leaving an empty slot.
+  const quickLinksGrid = (
+    <section className="grid grid-cols-2 gap-3 pt-2 pb-4">
+      <Link
+        to="/bazaar"
+        className="relative overflow-hidden rounded-[20px] border border-teal-100 dark:border-teal-800/50 bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+      >
+        <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
+          <ShoppingBag className="w-5 h-5 text-teal-600" />
         </div>
-        <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
-          <Zap className="w-28 h-28 text-amber-500" />
+        <div>
+          <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">RozSewa Bazaar</h3>
+          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Buy & sell nearby</p>
         </div>
-      </div>
-    </section>
-  );
+      </Link>
 
-  // RozSewa Coins already has a "Refer & Earn" entry (a small pill in its own
-  // header), but that's only visible once someone has already found their
-  // way into Coins — there was no way to discover it from the home screen
-  // itself. Rendered alongside instaWorkSection, above Sell Scrap, in both
-  // the Local Expert and Sewak branches.
-  const referEarnSection = (
-    <section className="space-y-4 pt-2 pb-4">
-      <div className="bg-gradient-to-r from-fuchsia-50 to-purple-50 dark:from-fuchsia-900/20 dark:to-purple-900/20 p-5 rounded-[24px] border border-fuchsia-100 dark:border-fuchsia-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
-        <div className="relative z-10 w-[70%]">
-          <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Refer friends, earn coins</h3>
-          <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">
-            Share your code — you and your friend both get RozSewa Coins when they book.
-          </p>
-          <Link
-            to="/refer-earn"
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-fuchsia-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-fuchsia-200 dark:shadow-none"
-          >
-            <Gift className="w-3.5 h-3.5" /> Refer & Earn
-          </Link>
+      {instaEnabled && (
+        <Link
+          to="/insta-work"
+          className="relative overflow-hidden rounded-[20px] border border-amber-100 dark:border-amber-800/50 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+        >
+          <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
+            <Zap className="w-5 h-5 text-amber-500" />
+          </div>
+          <div>
+            <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">Insta Work</h3>
+            <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Book by the hour</p>
+          </div>
+        </Link>
+      )}
+
+      <Link
+        to="/refer-earn"
+        className="relative overflow-hidden rounded-[20px] border border-fuchsia-100 dark:border-fuchsia-800/50 bg-gradient-to-br from-fuchsia-50 to-purple-50 dark:from-fuchsia-900/20 dark:to-purple-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+      >
+        <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
+          <Gift className="w-5 h-5 text-fuchsia-600" />
         </div>
-        <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
-          <Gift className="w-28 h-28 text-fuchsia-500" />
+        <div>
+          <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">Refer & Earn</h3>
+          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Earn RozSewa Coins</p>
         </div>
-      </div>
+      </Link>
+
+      <Link
+        to="/scrap/add"
+        className="relative overflow-hidden rounded-[20px] border border-blue-100 dark:border-blue-800/50 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+      >
+        <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
+          <Recycle className="w-5 h-5 text-blue-600" />
+        </div>
+        <div>
+          <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">Sell Scrap</h3>
+          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Get instant pickup</p>
+        </div>
+      </Link>
     </section>
   );
 
@@ -495,48 +508,7 @@ const Index = () => {
               </section>
             )}
 
-            {/* Bazaar Promo Section */}
-            <section className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                  <ShoppingBag className="text-teal-500 w-5 h-5" /> Rozsewa Bazaar
-                </h2>
-                <Link to="/bazaar" className="text-[13px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 transition-colors">
-                  Browse All
-                </Link>
-              </div>
-              <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 p-5 rounded-[24px] border border-teal-100 dark:border-teal-800/50 relative overflow-hidden flex items-center justify-between">
-                <div className="relative z-10">
-                  <h3 className="font-black text-slate-900 dark:text-white text-lg">Verified Second Hand Goods</h3>
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mt-1 max-w-[200px]">Buy and sell scrap/items securely with other users nearby.</p>
-                  <Link to="/bazaar" className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all">
-                    Explore Bazaar <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-                <div className="absolute right-[-20px] top-1/2 -translate-y-1/2 opacity-20">
-                  <ShoppingBag className="w-32 h-32 text-teal-600" />
-                </div>
-              </div>
-            </section>
-
-            {instaWorkSection}
-            {referEarnSection}
-
-            {/* Sell Scrap CTA */}
-            <section className="space-y-4 pt-2 pb-4">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-[24px] border border-blue-100 dark:border-blue-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
-                <div className="relative z-10 w-[70%]">
-                  <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Got scrap to sell?</h3>
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">Schedule a pickup from your home and get the best price for your scrap.</p>
-                  <Link to="/scrap/add" className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-blue-200 dark:shadow-none">
-                    Sell Scrap Now <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-                <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
-                  <Recycle className="w-28 h-28 text-blue-500" />
-                </div>
-              </div>
-            </section>
+            {quickLinksGrid}
 
           </div>
         ) : (
@@ -557,48 +529,7 @@ const Index = () => {
               <CategoryGrid showAll={showAllCategories} mode={serviceMode} />
             </section>
 
-            {/* Bazaar Promo Section for Sewak */}
-            <section className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                  <ShoppingBag className="text-teal-500 w-5 h-5" /> Rozsewa Bazaar
-                </h2>
-                <Link to="/bazaar" className="text-[13px] font-bold text-teal-600 hover:text-teal-700 dark:text-teal-400 transition-colors">
-                  Browse All
-                </Link>
-              </div>
-              <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 p-5 rounded-[24px] border border-teal-100 dark:border-teal-800/50 relative overflow-hidden flex items-center justify-between">
-                <div className="relative z-10">
-                  <h3 className="font-black text-slate-900 dark:text-white text-lg">Verified Second Hand Goods</h3>
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mt-1 max-w-[200px]">Buy and sell scrap/items securely with other users nearby.</p>
-                  <Link to="/bazaar" className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-teal-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all">
-                    Explore Bazaar <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-                <div className="absolute right-[-20px] top-1/2 -translate-y-1/2 opacity-20">
-                  <ShoppingBag className="w-32 h-32 text-teal-600" />
-                </div>
-              </div>
-            </section>
-
-            {instaWorkSection}
-            {referEarnSection}
-
-            {/* Sell Scrap CTA for Sewak */}
-            <section className="space-y-4 pt-2 pb-4">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-[24px] border border-blue-100 dark:border-blue-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
-                <div className="relative z-10 w-[70%]">
-                  <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Got scrap to sell?</h3>
-                  <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">Schedule a pickup from your home and get the best price for your scrap.</p>
-                  <Link to="/scrap/add" className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-blue-200 dark:shadow-none">
-                    Sell Scrap Now <ArrowRight className="w-3.5 h-3.5" />
-                  </Link>
-                </div>
-                <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
-                  <Recycle className="w-28 h-28 text-blue-500" />
-                </div>
-              </div>
-            </section>
+            {quickLinksGrid}
           </div>
         )}
 
