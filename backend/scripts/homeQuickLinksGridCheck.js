@@ -62,4 +62,19 @@ check('tile titles are never clipped with an ellipsis at real card widths', () =
     }
 });
 
+check('the icon aligns to the top of the text block, consistently, whether the title wraps to one or two lines', () => {
+    // items-center vertically centered the icon against the *whole* row
+    // height — fine for a single-line title, but for a two-line title
+    // ("RozSewa Bazaar", "Refer & Earn" at real widths) it left the icon
+    // sitting noticeably higher than it did on the one-line tiles right
+    // next to it, an inconsistency visible at a glance across the grid.
+    const idx = page.indexOf('const quickLinksGrid = (');
+    const block = page.slice(idx, idx + 4000);
+    const rowMatches = block.match(/className="flex items-(start|center) gap-2\.5[^"]*"/g) || [];
+    assert.strictEqual(rowMatches.length, 4, 'all four tile rows should be present');
+    for (const cls of rowMatches) {
+        assert.ok(cls.includes('items-start'), `every tile row must use items-start, not items-center: ${cls}`);
+    }
+});
+
 console.log(`\n${passed} home-quick-links-grid checks passed.\n`);

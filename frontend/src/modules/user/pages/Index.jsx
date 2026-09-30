@@ -235,7 +235,7 @@ const Index = () => {
     <section className="grid grid-cols-2 gap-3 pt-2 pb-4">
       <Link
         to="/bazaar"
-        className="flex items-center gap-2.5 rounded-[16px] border border-teal-100 dark:border-teal-800/50 bg-teal-50/70 dark:bg-teal-900/20 p-3.5 active:scale-95 transition-all"
+        className="flex items-start gap-2.5 rounded-[16px] border border-teal-100 dark:border-teal-800/50 bg-teal-50/70 dark:bg-teal-900/20 p-3.5 active:scale-95 transition-all"
       >
         <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
           <ShoppingBag className="w-4 h-4 text-teal-600" />
@@ -249,7 +249,7 @@ const Index = () => {
       {instaEnabled && (
         <Link
           to="/insta-work"
-          className="flex items-center gap-2.5 rounded-[16px] border border-amber-100 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-900/20 p-3.5 active:scale-95 transition-all"
+          className="flex items-start gap-2.5 rounded-[16px] border border-amber-100 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-900/20 p-3.5 active:scale-95 transition-all"
         >
           <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
             <Zap className="w-4 h-4 text-amber-500" />
@@ -263,7 +263,7 @@ const Index = () => {
 
       <Link
         to="/refer-earn"
-        className="flex items-center gap-2.5 rounded-[16px] border border-fuchsia-100 dark:border-fuchsia-800/50 bg-fuchsia-50/70 dark:bg-fuchsia-900/20 p-3.5 active:scale-95 transition-all"
+        className="flex items-start gap-2.5 rounded-[16px] border border-fuchsia-100 dark:border-fuchsia-800/50 bg-fuchsia-50/70 dark:bg-fuchsia-900/20 p-3.5 active:scale-95 transition-all"
       >
         <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
           <Gift className="w-4 h-4 text-fuchsia-600" />
@@ -276,7 +276,7 @@ const Index = () => {
 
       <Link
         to="/scrap/add"
-        className="flex items-center gap-2.5 rounded-[16px] border border-blue-100 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-900/20 p-3.5 active:scale-95 transition-all"
+        className="flex items-start gap-2.5 rounded-[16px] border border-blue-100 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-900/20 p-3.5 active:scale-95 transition-all"
       >
         <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
           <Recycle className="w-4 h-4 text-blue-600" />
