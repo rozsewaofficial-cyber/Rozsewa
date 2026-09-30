@@ -251,6 +251,30 @@ const Index = () => {
     }
   };
 
+  // Rendered above the Sell Scrap CTA in both the Local Expert and Sewak
+  // branches — defined once here so both spots stay in sync.
+  const instaWorkSection = instaEnabled && (
+    <section className="space-y-4 pt-2 pb-4">
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-5 rounded-[24px] border border-amber-100 dark:border-amber-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
+        <div className="relative z-10 w-[70%]">
+          <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Need someone right now?</h3>
+          <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">
+            Book a worker by the hour for short or urgent jobs. Pay for the time you use.
+          </p>
+          <Link
+            to="/insta-work"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-amber-200 dark:shadow-none"
+          >
+            <Zap className="w-3.5 h-3.5" /> Book Insta Work
+          </Link>
+        </div>
+        <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
+          <Zap className="w-28 h-28 text-amber-500" />
+        </div>
+      </div>
+    </section>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-28 md:pb-8">
       {/* Service Mode Selection Modal */}
@@ -554,6 +578,8 @@ const Index = () => {
               </div>
             </section>
 
+            {instaWorkSection}
+
             {/* Sell Scrap CTA */}
             <section className="space-y-4 pt-2 pb-4">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-[24px] border border-blue-100 dark:border-blue-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
@@ -613,6 +639,8 @@ const Index = () => {
               </div>
             </section>
 
+            {instaWorkSection}
+
             {/* Sell Scrap CTA for Sewak */}
             <section className="space-y-4 pt-2 pb-4">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-5 rounded-[24px] border border-blue-100 dark:border-blue-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
@@ -629,30 +657,6 @@ const Index = () => {
               </div>
             </section>
           </div>
-        )}
-
-        {/* Insta Work CTA — outside the mode branches, so it is offered
-            whether the customer is browsing Local Experts or Sewaks. */}
-        {instaEnabled && (
-          <section className="space-y-4 pt-2 pb-4">
-            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-5 rounded-[24px] border border-amber-100 dark:border-amber-800/50 relative overflow-hidden flex items-center justify-between shadow-sm">
-              <div className="relative z-10 w-[70%]">
-                <h3 className="font-black text-slate-900 dark:text-white text-lg leading-tight">Need someone right now?</h3>
-                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mt-1.5 mb-3 leading-relaxed">
-                  Book a worker by the hour for short or urgent jobs. Pay for the time you use.
-                </p>
-                <Link
-                  to="/insta-work"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white text-xs font-bold rounded-xl active:scale-95 transition-all shadow-md shadow-amber-200 dark:shadow-none"
-                >
-                  <Zap className="w-3.5 h-3.5" /> Book Insta Work
-                </Link>
-              </div>
-              <div className="absolute right-[-10px] top-1/2 -translate-y-1/2 opacity-30">
-                <Zap className="w-28 h-28 text-amber-500" />
-              </div>
-            </div>
-          </section>
         )}
 
         {/* 24/7 Emergency Banner */}
