@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Star, BadgeCheck, MapPin, Phone, MessageCircle, Plus, Minus, ShoppingCart, ShieldCheck, Camera, CheckCircle2, ChevronDown, X, Package } from "lucide-react";
+import { ArrowLeft, ArrowRight, Star, BadgeCheck, MapPin, Phone, MessageCircle, Plus, Minus, ShoppingCart, ShieldCheck, Camera, CheckCircle2, ChevronDown, X, Package, Heart } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/context/AuthContext";
 
 const defaultProviderFallback = {
   id: "default",
@@ -29,7 +30,9 @@ import { Loader2 } from "lucide-react";
 const ShopDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user } = useAuth();
   const [tab, setTab] = useState("services"); // services | reviews | about
+  const [isFavorite, setIsFavorite] = useState(false);
   const [cart, setCart] = useState(() => {
     try {
       const shopId = window.location.pathname.split("/").pop();
@@ -154,6 +157,30 @@ const ShopDetail = () => {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (user?.favorites) {
+      setIsFavorite(user.favorites.includes(id));
+    }
+  }, [user, id]);
+
+  const toggleFavorite = async () => {
+    if (!user) {
+      toast({ title: "Please login to add favorites" });
+      return;
+    }
+    try {
+      if (isFavorite) {
+        await API.delete(`/auth/favorites/${id}`);
+        setIsFavorite(false);
+      } else {
+        await API.post("/auth/favorites", { providerId: id });
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      console.error("Failed to update favorite", error);
+    }
+  };
+
 
   const addToCart = (planId) => { setCart((prev) => ({ ...prev, [planId]: (prev[planId] || 0) + 1 })); };
   const removeFromCart = (planId) => {
@@ -227,6 +254,11 @@ const ShopDetail = () => {
         <motion.button whileTap={{ scale: 0.9 }} onClick={() => navigate('/shops')}
           className="absolute left-4 sm:left-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/40 shadow-sm transition-colors">
           <ArrowLeft className="h-5 w-5" />
+        </motion.button>
+
+        <motion.button whileTap={{ scale: 0.9 }} onClick={toggleFavorite}
+          className="absolute right-4 sm:right-6 top-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/40 shadow-sm transition-colors">
+          <Heart className={`h-5 w-5 ${isFavorite ? "fill-rose-500 text-rose-500" : ""}`} />
         </motion.button>
 
         {/* Floating Info Box */}
