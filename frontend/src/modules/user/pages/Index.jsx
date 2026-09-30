@@ -26,7 +26,6 @@ const defaultBanners = [
 const Index = () => {
   const navigate = useNavigate();
   const { userLocation, userCity, userState, userDistrict, userPincode, detectLocation, serviceMode, setServiceMode, user } = useAuth();
-  const userName = user ? (user.name || user.ownerName || "Guest").split(" ")[0] : "Guest";
   const [showAllCategories, setShowAllCategories] = useState(false);
   // The paid partner promotions (1/7/30-day plans, ProviderBanner model) —
   // shown at the top and repeated above Bazaar Chats, taking priority over
@@ -359,16 +358,8 @@ const Index = () => {
           positioned descendant there (a card's favorite heart, a "Coming
           Soon" badge) painted on top of the search suggestion dropdown
           nested in here, since <main> comes later in the DOM. */}
-      <div className="relative z-30 pt-6 pb-4 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between mb-3">
-          <div>
-            <h1 className="text-3xl font-outfit font-medium tracking-tight text-slate-900 dark:text-white">
-              Hi, <span className="font-bold">{userName}</span>
-            </h1>
-            <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-1">
-              You are welcome to RozSewa
-            </p>
-          </div>
+      <div className="relative z-30 pt-3 pb-4 px-5 sm:px-8 bg-gradient-to-b from-[#e0f2fe] via-[#f0f9ff] to-slate-50 dark:from-slate-900 dark:via-slate-900/50 dark:to-slate-950 rounded-b-[2rem] shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-end mb-2">
           <button onClick={() => navigate('/notifications')} className="relative h-11 w-11 rounded-full bg-white/80 backdrop-blur-md border border-slate-200/60 dark:bg-slate-800/80 dark:border-slate-700/60 shadow-sm flex items-center justify-center active:scale-95 transition-all text-slate-700 dark:text-slate-300 hover:text-blue-600 hover:shadow-md">
             <Bell className="w-[22px] h-[22px]" />
             <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full shadow-[0_0_0_2px_rgba(255,255,255,1)] dark:shadow-[0_0_0_2px_rgba(15,23,42,1)]"></span>
