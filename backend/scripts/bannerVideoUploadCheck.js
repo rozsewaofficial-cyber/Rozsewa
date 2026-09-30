@@ -9,14 +9,14 @@
  * These pin: the model carries an optional videoUrl; the upload endpoint
  * enforces the 10MB limit server-side (never trusting the client-side check
  * alone); the admin form offers a video picker with its own client-side size
- * guard; and PromoBannerCarousel renders a <video> instead of an <img> when
- * a banner has one.
+ * guard; the customer home page maps an admin banner's videoUrl through; and
+ * PromoBannerCarousel renders a <video> instead of an <img> when a banner
+ * has one.
  *
- * The admin promo banners themselves stopped appearing on the customer home
- * page in a later fix (customer complaint: a free admin banner could push a
- * paying partner's banner out of the top, paid-visibility slot — see
- * partnerBannerSlotCheck.js), so this no longer asserts that Index.jsx maps
- * an admin banner's videoUrl through to the carousel.
+ * Admin banners are the fallback shown only when no partner banner is active
+ * for the viewer's location (see partnerBannerSlotCheck.js) — a free banner
+ * still never displaces a paid one, but when it is the one shown, its video
+ * plays like any other.
  *
  *   node scripts/bannerVideoUploadCheck.js
  */
@@ -42,6 +42,7 @@ const model = read('models/Banner.js');
 const controller = read('controllers/adminController.js');
 const routes = read('routes/adminRoutes.js');
 const adminUi = feRead('modules/admin/pages/AdminBanners.jsx');
+const customerUi = feRead('modules/user/pages/Index.jsx');
 // <img>/<video> rendering lives in its own PromoBannerCarousel component so
 // the carousel can render more than once on the page (see
 // promoBannerRepeatCheck.js) — it takes whatever `banners` list it's handed
@@ -87,7 +88,11 @@ check('a chosen video is uploaded to the new endpoint and stored on the form', (
     assert.ok(/setForm\(\{ \.\.\.form, videoUrl: res\.data\.url \}\)/.test(fn));
 });
 
-console.log('\nThe carousel plays a video instead of the static image when one exists');
+console.log('\nThe customer home page carries the video through, and the carousel plays it');
+
+check('the admin banner mapping carries the video through from the API response', () => {
+    assert.ok(/video: b\.videoUrl \|\| null/.test(customerUi));
+});
 
 check('a <video> renders (autoplay, muted, loop) in place of the <img> when banner.video is set', () => {
     assert.ok(/banner\.video \?/.test(carouselUi));

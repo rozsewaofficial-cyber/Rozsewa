@@ -15,9 +15,12 @@ import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 import { UserCircle, ShieldCheck, Tag, Clock, Siren, Truck, Zap } from "lucide-react";
 
+// Last-resort fallback if even the admin hasn't created a promotional banner
+// yet — never shown once at least one exists, so this never needs editing
+// from code again.
 const defaultBanners = [
-  { id: 1, title: "Summer Mega Sale", subtitle: "Flat 30% OFF on AC Repair", image: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=1200&q=80", link: "/shops?search=AC" },
-  { id: 2, title: "Premium Salon at Home", subtitle: "Expert grooming starting ₹199", image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=1200&q=80", link: "/shops?category=Salon" },
+  { id: 1, title: "RozSewa Bazaar", subtitle: "Buy & sell used items near you", image: "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=1200&q=80", link: "/bazaar" },
+  { id: 2, title: "Got something to sell?", subtitle: "Post your ad on Bazaar today", image: "https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=1200&q=80", link: "/scrap/add" },
 ];
 
 const Index = () => {
@@ -26,10 +29,15 @@ const Index = () => {
   const userName = user ? (user.name || user.ownerName || "Guest").split(" ")[0] : "Guest";
   const [showAllCategories, setShowAllCategories] = useState(false);
   // The paid partner promotions (1/7/30-day plans, ProviderBanner model) —
-  // shown at the top and repeated above Bazaar Chats. Admin promotional
-  // banners used to be mixed into the top carousel too, but that meant a
-  // paying partner's banner could be pushed out by a free admin one.
+  // shown at the top and repeated above Bazaar Chats, taking priority over
+  // adminBanners below since a paying partner shouldn't be displaced by a
+  // free admin one.
   const [partnerBanners, setPartnerBanners] = useState([]);
+  // Admin-managed promotional banners (Banner model, edited from
+  // AdminBanners.jsx) — shown only when no partner banner is active for this
+  // location, so the slot is never empty but a free banner never bumps a
+  // paid one.
+  const [adminBanners, setAdminBanners] = useState([]);
   // Live offer cards for the home carousel. Failing to load them must never
   // block the rest of the home page, so this is fetched on its own.
   const [homeOffers, setHomeOffers] = useState([]);
@@ -98,10 +106,27 @@ const Index = () => {
 
       const providersEndpoint = `/public/featured-providers?${params.toString()}`;
 
-      const [providerBannersRes, providersRes] = await Promise.all([
+      const [bannersRes, providerBannersRes, providersRes] = await Promise.all([
+        API.get("/public/banners"),
         API.get(`/public/provider-banners/active?${params.toString()}`),
         API.get(providersEndpoint)
       ]);
+
+      const aBanners = bannersRes.data?.map((b, i) => {
+        let imageUrl = b.imageUrl || b.image;
+        if (imageUrl && !imageUrl.startsWith("http") && !imageUrl.startsWith("data:")) {
+          imageUrl = `http://localhost:5000/${imageUrl.replace(/^\//, '')}`;
+        }
+        return {
+          id: b._id || b.id || i,
+          title: b.title || "",
+          subtitle: b.description || b.subtitle || "",
+          link: b.ctaLink || b.link || "/shops",
+          image: imageUrl || defaultBanners[i % defaultBanners.length].image,
+          video: b.videoUrl || null
+        };
+      }) || [];
+      setAdminBanners(aBanners);
 
       // Add provider banners
       const pBanners = providerBannersRes.data?.banners?.map((b) => ({
@@ -213,6 +238,14 @@ const Index = () => {
   // defined once here so both the Local Expert and Sewak branches stay
   // in sync. Insta Work drops out of the grid entirely when disabled for
   // this city, rather than leaving an empty slot.
+  // Partner banners first (paid, location-matched); falls back to the
+  // admin-managed promotional banners when none are active for this
+  // location, and only to the hardcoded defaults if the admin hasn't made
+  // one either — the slot is never just blank.
+  const displayBanners = partnerBanners.length > 0
+    ? partnerBanners
+    : (adminBanners.length > 0 ? adminBanners : defaultBanners);
+
   const quickLinksGrid = (
     <section className="grid grid-cols-2 gap-3 pt-2 pb-4">
       <Link
@@ -357,7 +390,7 @@ const Index = () => {
         <RecentBookingTracker />
 
         {/* Banner Section */}
-        <PromoBannerCarousel banners={partnerBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
+        <PromoBannerCarousel banners={displayBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
         {/* Global Service Mode Toggle */}
         <div className="flex flex-col items-center justify-center mt-6 mb-8 px-4">
@@ -428,7 +461,7 @@ const Index = () => {
             )}
 
             {/* Partner-promoted banners (1/7/30-day plans), repeated above Bazaar Chats for extra visibility — same list as the top carousel */}
-            <PromoBannerCarousel banners={partnerBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
+            <PromoBannerCarousel banners={displayBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
             {/* Active Bazaar Chats (If any) */}
             {bazaarChats.length > 0 && (
