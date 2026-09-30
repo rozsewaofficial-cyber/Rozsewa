@@ -169,8 +169,12 @@ const Index = () => {
   // the session is ready — folded into that fetch, it only ran if the user had
   // already loaded by the time a location change triggered it, which on a cold
   // load it had not.
+  //
+  // GET /insta/services is deliberately public ("so the Insta menu can
+  // render before login" — instaRoutes.js) — a guard here that skipped the
+  // fetch for a signed-out visitor hid the whole CTA from every guest,
+  // contradicting that.
   useEffect(() => {
-    if (!user) { setInstaEnabled(false); return; }
     let cancelled = false;
     API.get(`/insta/services${userCity ? `?city=${encodeURIComponent(userCity)}` : ""}`)
       .then(({ data }) => {
