@@ -207,30 +207,37 @@ const verifyPayment = async (req, res) => {
                     });
                 }
 
+                // Fired without awaiting: notifyUser's own chain (FCM push, plus
+                // SMTP email and an SMS gateway call for the provider leg) is
+                // several real network round-trips. Blocking the payment-verify
+                // response on all of that is what customers were feeling as
+                // "Razorpay is slow" — the money had already cleared; only the
+                // notification fan-out was still running. notifyUser already
+                // swallows its own errors and never needs to affect this response.
                 const { notifyUser } = require('../config/notificationService');
-                await notifyUser({
+                notifyUser({
                     userId: booking.userId,
                     userRole: 'user',
                     title: 'Payment Successful',
                     message: `Payment of ₹${booking.totalAmount} for ${booking.serviceName} was successful.`,
                     type: 'payment',
                     bookingId: booking._id
-                });
+                }).catch(notiErr => console.error('[Notification Trigger Error] Failed to send payment success notification to customer:', notiErr));
 
                 if (booking.providerId) {
                     try {
                         const { emitToProvider, emitToUser } = require('../config/socket');
                         emitToProvider(booking.providerId, 'PAYMENT_COMPLETED', { bookingId: booking._id });
                         emitToUser(booking.userId, 'PAYMENT_COMPLETED', { bookingId: booking._id });
-                        
-                        await notifyUser({
+
+                        notifyUser({
                             userId: booking.providerId,
                             userRole: 'provider',
                             title: 'Payment Received',
                             message: `Payment of ₹${booking.totalAmount} for ${booking.serviceName} has been received.`,
                             type: 'payment',
                             bookingId: booking._id
-                        });
+                        }).catch(notiErr => console.error('[Notification Trigger Error] Failed to send payment received notification to provider:', notiErr));
                     } catch (notiErr) {
                         console.error('[Notification Trigger Error] Failed to send payment received notification to provider:', notiErr);
                     }

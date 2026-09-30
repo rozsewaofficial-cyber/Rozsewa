@@ -903,6 +903,14 @@ const Checkout = () => {
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {
+      // index.html already loads this SDK eagerly, so by the time checkout
+      // is reached it's normally already present — re-injecting and waiting
+      // on a fresh <script> load on every single payment attempt was pure
+      // added latency in front of the Razorpay modal opening at all.
+      if (window.Razorpay) {
+        resolve(true);
+        return;
+      }
       const script = document.createElement("script");
       script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.onload = () => resolve(true);
