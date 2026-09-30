@@ -14,6 +14,12 @@
  * h-44 (176px). Index.jsx's loading skeleton is kept at the same height so
  * the layout doesn't jump when real cards replace it.
  *
+ * Follow-up to the follow-up ("width bhi thodi kum karo"): the carousel slot
+ * (min-w-[240px]) was narrowed to min-w-[200px] too, on both the real card
+ * and its skeleton. ShopListing.jsx's grid layout is untouched — it sizes
+ * ServiceCard by grid column, not a fixed min-width, so there was nothing to
+ * narrow there.
+ *
  *   node scripts/serviceCardPolishCheck.js
  */
 const assert = require('assert');
@@ -68,8 +74,16 @@ check('the Index.jsx loading skeleton height matches the real card height', () =
     const page = feRead('modules/user/pages/Index.jsx');
     const idx = page.indexOf('Explore Our Providers');
     const block = page.slice(idx, idx + 1500);
-    assert.ok(/min-w-\[240px\] h-44 bg-slate-200/.test(block),
+    assert.ok(/min-w-\[200px\] h-44 bg-slate-200/.test(block),
         'a mismatched skeleton height makes the page jump when real cards load in');
+});
+
+check('the carousel card slot was narrowed (240px -> 200px), and its skeleton matches', () => {
+    const page = feRead('modules/user/pages/Index.jsx');
+    const idx = page.indexOf('Explore Our Providers');
+    const block = page.slice(idx, idx + 1500);
+    assert.ok(!/min-w-\[240px\]/.test(block), 'the old, wider slot must not still be present');
+    assert.ok(/snap-start shrink-0 min-w-\[200px\]/.test(block));
 });
 
 console.log(`\n${passed} service-card-polish checks passed.\n`);
