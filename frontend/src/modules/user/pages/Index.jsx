@@ -25,10 +25,10 @@ const Index = () => {
   const { userLocation, userCity, userState, userDistrict, userPincode, detectLocation, serviceMode, setServiceMode, user } = useAuth();
   const userName = user ? (user.name || user.ownerName || "Guest").split(" ")[0] : "Guest";
   const [showAllCategories, setShowAllCategories] = useState(false);
-  const [banners, setBanners] = useState([]);
-  // Just the paid partner promotions (1/7/30-day plans, ProviderBanner
-  // model) — shown again above Bazaar Chats, separate from the mixed
-  // admin+partner carousel at the top.
+  // The paid partner promotions (1/7/30-day plans, ProviderBanner model) —
+  // shown at the top and repeated above Bazaar Chats. Admin promotional
+  // banners used to be mixed into the top carousel too, but that meant a
+  // paying partner's banner could be pushed out by a free admin one.
   const [partnerBanners, setPartnerBanners] = useState([]);
   // Live offer cards for the home carousel. Failing to load them must never
   // block the rest of the home page, so this is fetched on its own.
@@ -98,25 +98,10 @@ const Index = () => {
 
       const providersEndpoint = `/public/featured-providers?${params.toString()}`;
 
-      const [bannersRes, providerBannersRes, providersRes] = await Promise.all([
-        API.get("/public/banners"),
+      const [providerBannersRes, providersRes] = await Promise.all([
         API.get(`/public/provider-banners/active?${params.toString()}`),
         API.get(providersEndpoint)
       ]);
-      const apiBanners = bannersRes.data?.map((b, i) => {
-        let imageUrl = b.imageUrl || b.image;
-        if (imageUrl && !imageUrl.startsWith("http") && !imageUrl.startsWith("data:")) {
-          imageUrl = `http://localhost:5000/${imageUrl.replace(/^\//, '')}`;
-        }
-        return {
-          id: b._id || b.id || i,
-          title: b.title || "",
-          subtitle: b.description || b.subtitle || "",
-          link: b.ctaLink || b.link || "/shops",
-          image: imageUrl || defaultBanners[i % defaultBanners.length].image,
-          video: b.videoUrl || null
-        };
-      }) || [];
 
       // Add provider banners
       const pBanners = providerBannersRes.data?.banners?.map((b) => ({
@@ -128,8 +113,6 @@ const Index = () => {
         image: b.imageUrl
       })) || [];
 
-      const mergedBanners = [...apiBanners, ...pBanners];
-      setBanners(mergedBanners.length > 0 ? mergedBanners : defaultBanners);
       setPartnerBanners(pBanners);
 
       if (user) {
@@ -160,7 +143,6 @@ const Index = () => {
       setFeatured(mappedProviders.length > 0 ? mappedProviders : []);
     } catch (err) {
       console.error("Home fetch failed:", err);
-      setBanners(defaultBanners);
       setFeatured([]);
     } finally {
       setLoading(false);
@@ -375,7 +357,7 @@ const Index = () => {
         <RecentBookingTracker />
 
         {/* Banner Section */}
-        <PromoBannerCarousel banners={banners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
+        <PromoBannerCarousel banners={partnerBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
         {/* Global Service Mode Toggle */}
         <div className="flex flex-col items-center justify-center mt-6 mb-8 px-4">
@@ -445,7 +427,7 @@ const Index = () => {
               </section>
             )}
 
-            {/* Partner-promoted banners (1/7/30-day plans) above Bazaar Chats — not a repeat of the mixed admin+partner carousel at the top */}
+            {/* Partner-promoted banners (1/7/30-day plans), repeated above Bazaar Chats for extra visibility — same list as the top carousel */}
             <PromoBannerCarousel banners={partnerBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
             {/* Active Bazaar Chats (If any) */}

@@ -9,8 +9,14 @@
  * These pin: the model carries an optional videoUrl; the upload endpoint
  * enforces the 10MB limit server-side (never trusting the client-side check
  * alone); the admin form offers a video picker with its own client-side size
- * guard; and the customer homepage renders a <video> instead of an <img>
- * when a banner has one.
+ * guard; and PromoBannerCarousel renders a <video> instead of an <img> when
+ * a banner has one.
+ *
+ * The admin promo banners themselves stopped appearing on the customer home
+ * page in a later fix (customer complaint: a free admin banner could push a
+ * paying partner's banner out of the top, paid-visibility slot — see
+ * partnerBannerSlotCheck.js), so this no longer asserts that Index.jsx maps
+ * an admin banner's videoUrl through to the carousel.
  *
  *   node scripts/bannerVideoUploadCheck.js
  */
@@ -36,11 +42,10 @@ const model = read('models/Banner.js');
 const controller = read('controllers/adminController.js');
 const routes = read('routes/adminRoutes.js');
 const adminUi = feRead('modules/admin/pages/AdminBanners.jsx');
-const customerUi = feRead('modules/user/pages/Index.jsx');
-// The actual <img>/<video> rendering moved out of Index.jsx and into its own
-// PromoBannerCarousel component so the carousel can render more than once on
-// the page (see promoBannerRepeatCheck.js) — Index.jsx now only maps the API
-// response into the banners it hands that component.
+// <img>/<video> rendering lives in its own PromoBannerCarousel component so
+// the carousel can render more than once on the page (see
+// promoBannerRepeatCheck.js) — it takes whatever `banners` list it's handed
+// and plays a video for any entry that has one, regardless of source.
 const carouselUi = feRead('modules/user/components/PromoBannerCarousel.jsx');
 
 console.log('\nBanner carries an optional video, never required (existing banners keep working)');
@@ -82,11 +87,7 @@ check('a chosen video is uploaded to the new endpoint and stored on the form', (
     assert.ok(/setForm\(\{ \.\.\.form, videoUrl: res\.data\.url \}\)/.test(fn));
 });
 
-console.log('\nThe customer homepage plays the video instead of the static image when one exists');
-
-check('the banner mapping carries the video through from the API response', () => {
-    assert.ok(/video: b\.videoUrl \|\| null/.test(customerUi));
-});
+console.log('\nThe carousel plays a video instead of the static image when one exists');
 
 check('a <video> renders (autoplay, muted, loop) in place of the <img> when banner.video is set', () => {
     assert.ok(/banner\.video \?/.test(carouselUi));
