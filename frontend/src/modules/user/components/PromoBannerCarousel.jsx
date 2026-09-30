@@ -39,7 +39,7 @@ const PromoBannerCarousel = ({ banners, defaultBanners, onBannerClick }) => {
   if (banners.length === 0) return null;
 
   return (
-    <div className="relative w-full aspect-[21/9] sm:aspect-[3/1] max-h-[220px] rounded-[20px] sm:rounded-[24px] overflow-hidden shadow-sm group bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50">
+    <div className="relative w-full aspect-[21/9] sm:aspect-[3/1] max-h-[220px] rounded-[4px] overflow-hidden shadow-sm group bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
