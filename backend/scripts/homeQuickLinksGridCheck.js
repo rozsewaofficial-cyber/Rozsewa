@@ -4,6 +4,12 @@
  * near-identical banners). Wanted as a 2x2 grid — 2 in one row, the other 2
  * in the row below.
  *
+ * Follow-up: the first grid pass used a tall vertical tile (icon on top,
+ * title below) with `truncate`, which clipped every title at real mobile
+ * widths ("RozSew...", "Refer & E..."). Redesigned as a compact horizontal
+ * tile (icon left, text right, no truncate, smaller type) so the full label
+ * always shows.
+ *
  *   node scripts/homeQuickLinksGridCheck.js
  */
 const assert = require('assert');
@@ -42,6 +48,18 @@ check('Insta Work drops out of the grid (not an empty slot) when disabled for th
     const block = page.slice(idx, idx + 4000);
     assert.ok(/\{instaEnabled && \(/.test(block),
         'conditionally rendered inside the grid, same instaEnabled flag as before');
+});
+
+check('tile titles are never clipped with an ellipsis at real card widths', () => {
+    const idx = page.indexOf('const quickLinksGrid = (');
+    const block = page.slice(idx, idx + 4000);
+    assert.ok(!/text-\[13px\] leading-tight truncate/.test(block),
+        'this was the exact class combination that clipped "RozSewa Bazaar" down to "RozSew..."');
+    const titleMatches = block.match(/<h3 className="font-black[^"]*">/g) || [];
+    assert.ok(titleMatches.length >= 4, 'all four tile titles should be present');
+    for (const cls of titleMatches) {
+        assert.ok(!cls.includes('truncate'), `a tile title must not clip: ${cls}`);
+    }
 });
 
 console.log(`\n${passed} home-quick-links-grid checks passed.\n`);

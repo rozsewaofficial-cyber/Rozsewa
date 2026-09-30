@@ -235,55 +235,55 @@ const Index = () => {
     <section className="grid grid-cols-2 gap-3 pt-2 pb-4">
       <Link
         to="/bazaar"
-        className="relative overflow-hidden rounded-[20px] border border-teal-100 dark:border-teal-800/50 bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+        className="flex items-center gap-2.5 rounded-[16px] border border-teal-100 dark:border-teal-800/50 bg-teal-50/70 dark:bg-teal-900/20 p-3.5 active:scale-95 transition-all"
       >
-        <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
-          <ShoppingBag className="w-5 h-5 text-teal-600" />
+        <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+          <ShoppingBag className="w-4 h-4 text-teal-600" />
         </div>
-        <div>
-          <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">RozSewa Bazaar</h3>
-          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Buy & sell nearby</p>
+        <div className="min-w-0">
+          <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">RozSewa Bazaar</h3>
+          <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Buy & sell nearby</p>
         </div>
       </Link>
 
       {instaEnabled && (
         <Link
           to="/insta-work"
-          className="relative overflow-hidden rounded-[20px] border border-amber-100 dark:border-amber-800/50 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+          className="flex items-center gap-2.5 rounded-[16px] border border-amber-100 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-900/20 p-3.5 active:scale-95 transition-all"
         >
-          <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
-            <Zap className="w-5 h-5 text-amber-500" />
+          <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+            <Zap className="w-4 h-4 text-amber-500" />
           </div>
-          <div>
-            <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">Insta Work</h3>
-            <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Book by the hour</p>
+          <div className="min-w-0">
+            <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">Insta Work</h3>
+            <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Book by the hour</p>
           </div>
         </Link>
       )}
 
       <Link
         to="/refer-earn"
-        className="relative overflow-hidden rounded-[20px] border border-fuchsia-100 dark:border-fuchsia-800/50 bg-gradient-to-br from-fuchsia-50 to-purple-50 dark:from-fuchsia-900/20 dark:to-purple-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+        className="flex items-center gap-2.5 rounded-[16px] border border-fuchsia-100 dark:border-fuchsia-800/50 bg-fuchsia-50/70 dark:bg-fuchsia-900/20 p-3.5 active:scale-95 transition-all"
       >
-        <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
-          <Gift className="w-5 h-5 text-fuchsia-600" />
+        <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+          <Gift className="w-4 h-4 text-fuchsia-600" />
         </div>
-        <div>
-          <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">Refer & Earn</h3>
-          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Earn RozSewa Coins</p>
+        <div className="min-w-0">
+          <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">Refer & Earn</h3>
+          <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Earn RozSewa Coins</p>
         </div>
       </Link>
 
       <Link
         to="/scrap/add"
-        className="relative overflow-hidden rounded-[20px] border border-blue-100 dark:border-blue-800/50 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4 flex flex-col justify-between min-h-[132px] active:scale-95 transition-all shadow-sm"
+        className="flex items-center gap-2.5 rounded-[16px] border border-blue-100 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-900/20 p-3.5 active:scale-95 transition-all"
       >
-        <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-slate-900/50 flex items-center justify-center shadow-sm">
-          <Recycle className="w-5 h-5 text-blue-600" />
+        <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+          <Recycle className="w-4 h-4 text-blue-600" />
         </div>
-        <div>
-          <h3 className="font-black text-slate-900 dark:text-white text-sm leading-tight">Sell Scrap</h3>
-          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 mt-1">Get instant pickup</p>
+        <div className="min-w-0">
+          <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">Sell Scrap</h3>
+          <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Get instant pickup</p>
         </div>
       </Link>
     </section>
