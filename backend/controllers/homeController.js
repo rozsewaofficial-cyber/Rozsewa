@@ -136,7 +136,7 @@ const getPublicCategories = async (req, res) => {
 const getPublicProviderById = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id)
-            .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability')
+            .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability is24x7')
             .populate('vendorType', 'name icon hasNightCharge nightChargePercent nightChargeFlatAmount');
 
         if (!provider) {

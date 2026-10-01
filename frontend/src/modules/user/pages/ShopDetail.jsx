@@ -100,6 +100,7 @@ const ShopDetail = () => {
           qualifications: found.qualifications?.length > 0 ? found.qualifications : defaultProviderFallback.qualifications,
           warranty: found.warranty || defaultProviderFallback.warranty,
           isOnline: found.isOnline !== undefined ? found.isOnline : true,
+          is24x7: found.is24x7 || false,
           portfolio: found.portfolio || [],
           openingTime: found.openingTime || "09:00 AM",
           closingTime: found.closingTime || "06:00 PM"
@@ -380,28 +381,34 @@ const ShopDetail = () => {
               <div className="space-y-3">
                 <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Individual Services</h2>
 
-                {servicesList.filter(s => {
-                  const types = Array.isArray(s.serviceType) ? s.serviceType : [s.serviceType];
-                  if (serviceFilter === 'all') return true;
-                  if (serviceFilter === 'both') return types.includes('home') && types.includes('shop');
-                  return types.includes(serviceFilter) || types.includes('both');
-                }).length === 0 ? (
-                  <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">
-                    <p className="text-sm font-medium text-slate-500 mb-4">No specific services listed.</p>
-                    <button 
-                      onClick={() => navigate(`/submit-lead?category=${provider?.vendorType?._id || provider?.vendorType}`)} 
-                      className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
-                    >
-                      Post Your Requirement
-                    </button>
-                  </div>
-                ) : (
-                  servicesList.filter(s => {
+                {(() => {
+                  // A provider whose overall availability is 24/7 offers every
+                  // service round the clock — most never bother tagging each
+                  // individual service '24x7' too, so requiring that tag made
+                  // this filter show "no services" for almost every shop.
+                  const filteredServices = servicesList.filter(s => {
+                    if (serviceFilter === '24x7' && provider?.is24x7) return true;
                     const types = Array.isArray(s.serviceType) ? s.serviceType : [s.serviceType];
                     if (serviceFilter === 'all') return true;
                     if (serviceFilter === 'both') return types.includes('home') && types.includes('shop');
                     return types.includes(serviceFilter) || types.includes('both');
-                  }).map((service, idx) => (
+                  });
+
+                  if (filteredServices.length === 0) {
+                    return (
+                      <div className="text-center py-10 bg-slate-50 dark:bg-slate-900 rounded-[24px] border border-slate-200 dark:border-slate-800">
+                        <p className="text-sm font-medium text-slate-500 mb-4">No specific services listed.</p>
+                        <button
+                          onClick={() => navigate(`/submit-lead?category=${provider?.vendorType?._id || provider?.vendorType}`)}
+                          className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
+                        >
+                          Post Your Requirement
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return filteredServices.map((service, idx) => (
                     <div key={service.id} className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm transition-all hover:border-blue-500/30">
                       <div className="p-3.5" onClick={() => setExpandedPlan(expandedPlan === service.id ? null : service.id)}>
                         <div className="flex items-start justify-between gap-3 cursor-pointer">
@@ -497,8 +504,8 @@ const ShopDetail = () => {
                         )}
                       </AnimatePresence>
                     </div>
-                  ))
-                )}
+                  ));
+                })()}
               </div>
             </motion.div>
           )}
