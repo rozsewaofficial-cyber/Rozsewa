@@ -255,23 +255,31 @@ const ServiceHistory = () => {
     }, 1000);
   };
 
+  // A provider's counter-offer is recorded as booking.partnerCounterOffer /
+  // offerStatus: 'countered' (set by the real provider flow in
+  // IncomingRequestModal.jsx via PATCH /bookings/:id/status). The
+  // accept-counter/reject-counter routes instead read a separate, never-
+  // populated booking.negotiation field — calling them here always failed
+  // with "no counter offer to accept", since negotiation.status was never
+  // actually set. PUT /bookings/:id with counterDecision is the endpoint
+  // that reads partnerCounterOffer/offerStatus for real.
   const handleAcceptCounter = async (id) => {
     try {
-      await API.patch(`/bookings/${id}/accept-counter`);
+      await API.put(`/bookings/${id}`, { counterDecision: 'accept' });
       toast({ title: "Price Accepted!", description: "Booking is now confirmed." });
       fetchBookings();
     } catch (err) {
-      toast({ title: "Failed to accept price", variant: "destructive" });
+      toast({ title: "Failed to accept price", description: err.response?.data?.message, variant: "destructive" });
     }
   };
 
   const handleRejectCounter = async (id) => {
     try {
-      await API.patch(`/bookings/${id}/reject-counter`);
+      await API.put(`/bookings/${id}`, { counterDecision: 'reject' });
       toast({ title: "Price Rejected", description: "Booking has been cancelled." });
       fetchBookings();
     } catch (err) {
-      toast({ title: "Failed to reject price", variant: "destructive" });
+      toast({ title: "Failed to reject price", description: err.response?.data?.message, variant: "destructive" });
     }
   };
 
@@ -422,7 +430,7 @@ const ServiceHistory = () => {
                         </motion.button>
                         <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleAcceptCounter(booking.id); }}
                           className="flex-1 rounded-xl border-2 border-blue-600 bg-blue-600 py-3 text-[13px] font-bold text-white hover:bg-blue-700 transition-all">
-                          Accept ₹{booking.negotiation?.providerCounterAmount}
+                          Accept ₹{booking.partnerCounterOffer || booking.negotiation?.providerCounterAmount}
                         </motion.button>
                       </div>
                     )}
