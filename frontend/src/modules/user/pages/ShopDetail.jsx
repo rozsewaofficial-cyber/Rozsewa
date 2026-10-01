@@ -100,6 +100,7 @@ const ShopDetail = () => {
           qualifications: found.qualifications?.length > 0 ? found.qualifications : defaultProviderFallback.qualifications,
           warranty: found.warranty || defaultProviderFallback.warranty,
           isOnline: found.isOnline !== undefined ? found.isOnline : true,
+          isWithinWorkingHours: found.isWithinWorkingHours !== undefined ? found.isWithinWorkingHours : true,
           is24x7: found.is24x7 || false,
           portfolio: found.portfolio || [],
           openingTime: found.openingTime || "09:00 AM",
@@ -276,9 +277,13 @@ const ShopDetail = () => {
                   <Star className="h-3.5 w-3.5 fill-current" /> {provider.rating} ({provider.reviews})
                 </span>
                 <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-emerald-400" /> {provider.address}</span>
-                {!provider.isOnline && (
+                {!provider.isOnline ? (
                   <span className="flex items-center gap-1 rounded-[10px] bg-rose-500/80 backdrop-blur-sm px-3 py-1 text-[11px] font-black uppercase text-white shadow-sm border border-rose-400/50">
                     <X className="h-3.5 w-3.5" /> Offline
+                  </span>
+                ) : !provider.isWithinWorkingHours && (
+                  <span className="flex items-center gap-1 rounded-[10px] bg-rose-500/80 backdrop-blur-sm px-3 py-1 text-[11px] font-black uppercase text-white shadow-sm border border-rose-400/50">
+                    <X className="h-3.5 w-3.5" /> Currently Closed
                   </span>
                 )}
               </div>
@@ -620,10 +625,10 @@ const ShopDetail = () => {
                 </div>
                 <button
                   onClick={handleCheckout}
-                  disabled={!provider.isOnline}
-                  className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-bold tracking-wide transition-all ${!provider.isOnline ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}`}
+                  disabled={!provider.isOnline || !provider.isWithinWorkingHours}
+                  className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-[11px] font-bold tracking-wide transition-all ${(!provider.isOnline || !provider.isWithinWorkingHours) ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}`}
                 >
-                  {!provider.isOnline ? 'Offline' : 'Continue'} <ArrowRight className="h-3.5 w-3.5" />
+                  {!provider.isOnline ? 'Offline' : !provider.isWithinWorkingHours ? 'Closed' : 'Continue'} <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>

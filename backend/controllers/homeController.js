@@ -164,6 +164,11 @@ const getPublicProviderById = async (req, res) => {
 
         const providerData = provider.toObject();
         providerData.bookedSlots = bookedSlots;
+        // The listing endpoints already hide a provider outside their
+        // configured hours — but a direct link (shared, bookmarked, or from
+        // Favorites) bypasses that filter entirely. The profile itself still
+        // loads; this just tells the frontend whether to show it as closed.
+        providerData.isWithinWorkingHours = isProviderWithinWorkingHours(provider);
 
         res.json(providerData);
     } catch (error) {

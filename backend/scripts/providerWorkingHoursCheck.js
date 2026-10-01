@@ -13,6 +13,15 @@
  * opened the Availability screen (empty array) must still show — this pins
  * that too.
  *
+ * Follow-up: the customer kept reporting this same issue even after it was
+ * fixed, because the complaint literally said "uska profile show na kare" —
+ * the listing endpoints hide an out-of-hours provider, but their direct
+ * profile page (ShopDetail.jsx, reached via a shared link or Favorites)
+ * never applied the check at all. Fixed by having getPublicProviderById
+ * report isWithinWorkingHours, and ShopDetail.jsx shows a "Currently
+ * Closed" badge and disables checkout when it's false — the profile still
+ * loads (info/reviews stay visible), only booking is blocked.
+ *
  *   node scripts/providerWorkingHoursCheck.js
  */
 const assert = require('assert');
@@ -20,6 +29,8 @@ const path = require('path');
 const fs = require('fs');
 
 const read = (rel) => fs.readFileSync(path.join(__dirname, '..', rel.split('/').join(path.sep)), 'utf8');
+const feRead = (rel) => fs.readFileSync(
+    path.join(__dirname, '..', '..', 'frontend', 'src', rel.split('/').join(path.sep)), 'utf8');
 
 let passed = 0;
 const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
@@ -70,6 +81,24 @@ check('getPublicProviders skips an out-of-hours provider in its enrichment loop'
     const providerSelectLine = fn.split('\n').find(l => l.includes('.select(') && l.includes('isEmergencyEnabled'));
     assert.ok(providerSelectLine && /availability'\)/.test(providerSelectLine),
         'the main Provider .select() projection must include availability, or the filter always sees it as empty');
+});
+
+console.log('\nThe direct profile page (not just listings) reflects working hours too');
+
+check('getPublicProviderById reports isWithinWorkingHours on the response', () => {
+    const fn = sliceFn(controller, 'const getPublicProviderById', 'const getFeaturedProviders');
+    assert.ok(/providerData\.isWithinWorkingHours = isProviderWithinWorkingHours\(provider\)/.test(fn));
+    const selectLine = fn.split('\n').find(l => l.includes('.select(') && l.includes('openingTime'));
+    assert.ok(selectLine && /availability is24x7/.test(selectLine),
+        'without availability/is24x7 in the projection, isProviderWithinWorkingHours always sees an empty/missing provider');
+});
+
+check('ShopDetail.jsx shows a Currently Closed badge and disables checkout, without hiding the rest of the profile', () => {
+    const page = feRead('modules/user/pages/ShopDetail.jsx');
+    assert.ok(/isWithinWorkingHours: found\.isWithinWorkingHours !== undefined \? found\.isWithinWorkingHours : true/.test(page));
+    assert.ok(/Currently Closed/.test(page));
+    assert.ok(/disabled=\{!provider\.isOnline \|\| !provider\.isWithinWorkingHours\}/.test(page),
+        'checkout must be blocked when outside hours, the same as when the provider is offline');
 });
 
 console.log(`\n${passed} provider-working-hours checks passed.\n`);
