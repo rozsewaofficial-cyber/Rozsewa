@@ -121,6 +121,11 @@ const Checkout = () => {
           if (data) {
             const pData = data.data || data;
             setProviderDetails(pData);
+            // serviceLocation defaults to "home"; a provider with Home Visit
+            // switched off must start on At-Shop, not on a disabled option.
+            if (pData.providerCategory !== "sewak" && pData.isHomeVisitAvailable === false) {
+              setServiceLocation("shop");
+            }
             setProviderHours({
               openingTime: pData.openingTime || "09:00 AM",
               closingTime: pData.closingTime || "06:00 PM",

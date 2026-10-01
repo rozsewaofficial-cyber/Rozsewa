@@ -102,6 +102,7 @@ const ShopDetail = () => {
           isOnline: found.isOnline !== undefined ? found.isOnline : true,
           isWithinWorkingHours: found.isWithinWorkingHours !== undefined ? found.isWithinWorkingHours : true,
           is24x7: found.is24x7 || false,
+          isHomeVisitAvailable: found.providerCategory === 'sewak' ? true : found.isHomeVisitAvailable !== false,
           portfolio: found.portfolio || [],
           openingTime: found.openingTime || "09:00 AM",
           closingTime: found.closingTime || "06:00 PM"
@@ -327,7 +328,9 @@ const ShopDetail = () => {
               {/* Service Filter Tabs */}
               <div className="flex bg-white dark:bg-slate-900 p-1.5 rounded-full border border-slate-200 dark:border-slate-800 shadow-sm text-[13px] font-bold mb-2">
                 <button onClick={() => setServiceFilter('all')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === 'all' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>All Services</button>
+                {provider.isHomeVisitAvailable && (
                 <button onClick={() => setServiceFilter('home')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === 'home' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>Home Visit</button>
+                )}
                 <button onClick={() => setServiceFilter('24x7')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === '24x7' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>24x7 Emergency</button>
               </div>
 

@@ -139,6 +139,10 @@ const createBooking = async (req, res) => {
             if (!specificProvider.isOnline) {
                 return res.status(400).json({ message: 'Provider is currently offline and not accepting bookings.' });
             }
+            // Sewak-category providers have no home-visit toggle of their own.
+            if (serviceLocation === 'home' && specificProvider.providerCategory !== 'sewak' && specificProvider.isHomeVisitAvailable === false) {
+                return res.status(400).json({ message: 'This provider does not offer home visits. Please choose At-Shop.' });
+            }
         }
 
         // --- 1. Compute Trusted Subtotal on Backend ---
