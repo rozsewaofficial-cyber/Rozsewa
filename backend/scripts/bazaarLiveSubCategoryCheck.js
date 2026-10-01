@@ -57,7 +57,7 @@ check('picking a different category clears whatever subcategory was selected', (
     // Category tiles share one handler for "All Products" (name '') and each
     // category, so every change goes through the same clear.
     assert.ok(/setCategoryFilter\(cat\.name === categoryFilter \? '' : cat\.name\); setSubCategoryFilter\(''\)/.test(ui),
-        'switching or clearing the category should not leave the old category's subcategory selected');
+        'switching or clearing the category should not leave the old subcategory selected');
 });
 
 check('the selected subcategory is actually sent to the live-ads request', () => {
