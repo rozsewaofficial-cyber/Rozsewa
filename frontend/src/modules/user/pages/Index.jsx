@@ -308,7 +308,7 @@ const Index = () => {
       {/* Service Mode Selection Modal */}
       {!serviceMode && (
         <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6">
-          <div className="bg-white dark:bg-slate-900 rounded-[32px] p-8 w-full max-w-sm shadow-2xl border border-slate-200/60 dark:border-slate-800/80 text-center relative overflow-hidden animate-in fade-in zoom-in duration-300">
+          <div className="bg-white dark:bg-slate-900 rounded-[32px] p-6 w-full max-w-sm shadow-2xl border border-slate-200/60 dark:border-slate-800/80 text-center relative overflow-hidden animate-in fade-in zoom-in duration-300">
             <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-blue-500/10 to-transparent pointer-events-none" />
             
             <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6 border border-blue-100 dark:border-blue-800/50 relative z-10">
@@ -321,30 +321,27 @@ const Index = () => {
             </p>
             
             <div className="space-y-3 relative z-10">
-              <button 
-                onClick={() => setServiceMode('partner')}
-                className="w-full h-auto py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 flex flex-col items-center justify-center gap-1"
-              >
-                <div className="flex items-center justify-center gap-2 font-black tracking-wide text-base">
-                  <Briefcase className="w-5 h-5" />
-                  Explore as Local Expert
-                </div>
-                <div className="text-blue-100/90 text-xs font-semibold text-center">
-                  Find verified professionals & shops
-                </div>
-              </button>
-              <button 
-                onClick={() => setServiceMode('sewak')}
-                className="w-full h-auto py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white rounded-2xl transition-all active:scale-[0.98] flex flex-col items-center justify-center gap-1"
-              >
-                <div className="flex items-center justify-center gap-2 font-black tracking-wide text-base">
-                  <Heart className="w-5 h-5" />
-                  Explore as Sewak
-                </div>
-                <div className="text-slate-500 dark:text-slate-400 text-xs font-semibold text-center">
-                  Find domestic helpers & daily wagers
-                </div>
-              </button>
+              {[
+                { mode: 'partner', Icon: Briefcase, title: 'Local Expert', desc: 'Find verified professionals & shops', primary: true },
+                { mode: 'sewak', Icon: Heart, title: 'Sewak', desc: 'Find domestic helpers & daily wagers', primary: false },
+              ].map(({ mode, Icon, title, desc, primary }) => (
+                <button
+                  key={mode}
+                  onClick={() => setServiceMode(mode)}
+                  className={`w-full flex items-center gap-3 rounded-2xl p-3 text-left transition-all active:scale-[0.98] ${primary
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-white'}`}
+                >
+                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${primary ? 'bg-white/20' : 'bg-white dark:bg-slate-900'}`}>
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-base font-black leading-tight">{title}</span>
+                    <span className={`mt-0.5 block text-xs font-semibold leading-snug ${primary ? 'text-blue-100/90' : 'text-slate-500 dark:text-slate-400'}`}>{desc}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 opacity-70" />
+                </button>
+              ))}
             </div>
           </div>
         </div>
