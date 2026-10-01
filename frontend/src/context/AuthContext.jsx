@@ -465,6 +465,37 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithApple = async (identityToken, name) => {
+    try {
+      const { data: apiResponse } = await API.post("/auth/apple", { identityToken, name });
+
+      const authData = apiResponse.data?.user || apiResponse;
+      const token = apiResponse.data?.token || apiResponse.token;
+      const needsProfileCompletion = !!apiResponse.data?.needsProfileCompletion;
+
+      const sessionData = { ...authData, token, role: 'customer' };
+      setAuth(sessionData);
+
+      try {
+        const { requestForToken } = await import("@/lib/firebase");
+        const fcmToken = await requestForToken();
+        if (fcmToken) {
+          await API.post("/notifications/fcm-tokens/save",
+            { token: fcmToken, platform: 'web' },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          localStorage.setItem("rozsewa_last_fcm_token", fcmToken);
+        }
+      } catch (err) {
+        console.error("Error saving FCM token on Apple login", err);
+      }
+
+      return { success: true, data: sessionData, needsProfileCompletion };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.message || "Apple Sign-In failed" };
+    }
+  };
+
   const signup = async (userData, type = 'customer') => {
     try {
       const endpoint = type === 'provider' ? "/provider/register" : type === 'sewak' ? "/provider/register-sewak" : "/auth/register";
@@ -536,6 +567,7 @@ export const AuthProvider = ({ children }) => {
     login,
     loginWithOTP,
     loginWithGoogle,
+    loginWithApple,
     signup,
     logout,
     updateUser,

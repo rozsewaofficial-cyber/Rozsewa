@@ -40,6 +40,13 @@ const userSchema = new mongoose.Schema({
         unique: true,
         sparse: true,
     },
+    // Set once by Sign in with Apple. Apple only reveals the email (and name)
+    // on a person's first sign-in, so this id is what finds them afterwards.
+    appleId: {
+        type: String,
+        unique: true,
+        sparse: true,
+    },
     plainPassword: {
         type: String,
         default: "",

@@ -244,6 +244,97 @@ const googleAuth = async (req, res) => {
     }
 };
 
+// @desc    Sign up or log in a customer with a Sign in with Apple identity token
+// @route   POST /api/auth/apple
+// @access  Public
+const appleAuth = async (req, res) => {
+    const { identityToken, name } = req.body;
+    if (!identityToken) {
+        return res.status(400).json({ message: 'Apple identity token is required' });
+    }
+    if (!process.env.APPLE_CLIENT_ID) {
+        return res.status(500).json({ message: 'Apple Sign-In is not configured on this server' });
+    }
+
+    try {
+        const { verifyAppleIdentityToken } = require('../services/appleAuth');
+        let identity;
+        try {
+            identity = await verifyAppleIdentityToken(identityToken, process.env.APPLE_CLIENT_ID);
+        } catch (verifyErr) {
+            return res.status(401).json({ message: 'Invalid Apple credential' });
+        }
+        const { appleId, email, emailVerified } = identity;
+
+        let user = await User.findOne({ appleId });
+        let isNewUser = false;
+
+        if (!user) {
+            // Apple only sends the email on a person's first sign-in. Without one
+            // (and with no account already tied to this Apple ID) there is nothing
+            // to create or link the account with.
+            if (!email) {
+                return res.status(400).json({ message: 'Apple did not share an email. In Settings > Apple ID > Sign in with Apple, stop using RozSewa, then try again.' });
+            }
+
+            const providerExists = await Provider.findOne({ email });
+            if (providerExists) {
+                return res.status(400).json({ message: 'This email is already registered as a Provider. Please use the Provider login.' });
+            }
+
+            user = await User.findOne({ email });
+            if (user) {
+                // Only attach an Apple ID to an existing account if Apple vouches for the email.
+                if (!emailVerified) {
+                    return res.status(400).json({ message: 'This Apple email is not verified, so it cannot be linked to an existing account.' });
+                }
+                user.appleId = appleId;
+                await user.save();
+            } else {
+                user = await User.create({
+                    name: (name && String(name).trim()) || email.split('@')[0],
+                    email,
+                    appleId,
+                    role: 'customer',
+                    location: { type: 'Point', coordinates: [0, 0] },
+                });
+                await Wallet.create({ userId: user._id, balance: 0 });
+                isNewUser = true;
+            }
+        }
+
+        if (!isNewUser && user.role === 'customer' && user.isActive === false) {
+            return res.status(403).json({ message: 'Your account has been blocked. Please contact support.' });
+        }
+
+        const profileComplete = !!(user.mobile && user.city && user.state);
+
+        res.json({
+            success: true,
+            message: isNewUser ? 'Account created' : 'Login successful',
+            data: {
+                token: generateToken(user._id),
+                needsProfileCompletion: !profileComplete,
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    phone: user.mobile,
+                    mobile: user.mobile,
+                    role: user.role,
+                    city: user.city || "",
+                    state: user.state || "",
+                    address: user.address || "",
+                    avatar: user.avatar,
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Apple Auth Error:', error);
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Auth user with OTP & get token
 // @route   POST /api/auth/login-otp
 // @access  Public
@@ -855,6 +946,7 @@ const sendEmailOtp = async (req, res) => {
 module.exports = {
     registerUser,
     googleAuth,
+    appleAuth,
     sendEmailOtp,
     verifyEmailOtp,
     authUser,

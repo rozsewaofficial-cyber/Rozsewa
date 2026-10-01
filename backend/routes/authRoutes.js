@@ -3,6 +3,7 @@ const router = express.Router();
 const {
     registerUser,
     googleAuth,
+    appleAuth,
     authUser,
     getUserProfile,
     updateUserProfile,
@@ -27,6 +28,7 @@ const { protect } = require('../middleware/authMiddleware');
 
 router.post('/register', registerUser);
 router.post('/google', googleAuth);
+router.post('/apple', appleAuth);
 router.post('/login', authUser);
 router.post('/login-otp', loginWithOTP);
 router.post('/verify-credentials', verifyCredentials);
