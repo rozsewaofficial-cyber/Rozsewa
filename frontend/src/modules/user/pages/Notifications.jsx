@@ -67,6 +67,8 @@ const Notifications = () => {
     try {
       await API.patch("/notifications/read-all");
       setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      window.dispatchEvent(new Event('NOTIFICATIONS_UPDATED'));
       toast({ title: "All Marked as Read" });
     } catch (err) {
       console.error("Failed to mark all as read", err);
@@ -77,6 +79,8 @@ const Notifications = () => {
     try {
       await API.delete("/notifications");
       setNotifications([]);
+      setUnreadCount(0);
+      window.dispatchEvent(new Event('NOTIFICATIONS_UPDATED'));
       toast({ title: "Notifications Cleared!" });
     } catch (err) {
       console.error("Failed to clear notifications", err);

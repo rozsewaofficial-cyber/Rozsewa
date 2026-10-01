@@ -141,13 +141,18 @@ const libraries = ['places'];
     fetchUnread();
 
     const handleNewNotif = () => setUnreadCount(prev => prev + 1);
-    
+
     window.addEventListener('NEW_NOTIFICATION', handleNewNotif);
     window.addEventListener('focus', fetchUnread);
-    
+    // Mark-all-read/clear-all happen without a pathname change or a window
+    // blur/focus cycle, so neither of the listeners above would otherwise
+    // catch them while the user stays on the Notifications page.
+    window.addEventListener('NOTIFICATIONS_UPDATED', fetchUnread);
+
     return () => {
       window.removeEventListener('NEW_NOTIFICATION', handleNewNotif);
       window.removeEventListener('focus', fetchUnread);
+      window.removeEventListener('NOTIFICATIONS_UPDATED', fetchUnread);
     };
   }, [user, location.pathname]);
 
