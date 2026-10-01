@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import CategoryIcon from '@/components/CategoryIcon';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, MapPin, Phone, MessageCircle, X, ArrowLeft, ShoppingBag, Package, Loader2 } from 'lucide-react';
@@ -185,34 +186,36 @@ const RojsewaBazaar = () => {
              ))}
           </div>
 
-          {/* Category Filter */}
+          {/* Category tiles — an illustrated card per category instead of a
+              text-only chip, so the market reads at a glance. */}
           {uniqueCategories.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-               <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-slate-200/70 dark:bg-slate-800 rounded-full">
-                 <Package className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                 <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">Product</span>
-               </div>
-               <button
-                  onClick={() => { setCategoryFilter(''); setSubCategoryFilter(''); }}
-                  className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all shrink-0 border
-                    ${!categoryFilter
-                      ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/20'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                >
-                  All Products
-                </button>
-               {uniqueCategories.map(cat => (
-                 <button
-                    key={cat}
-                    onClick={() => { setCategoryFilter(cat === categoryFilter ? '' : cat); setSubCategoryFilter(''); }}
-                    className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all shrink-0 border
-                      ${categoryFilter === cat
-                        ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/20'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+            <div className="grid grid-cols-2 gap-3">
+              {[{ name: '', label: 'All Products', icon: 'Store' }, ...uniqueCategories.map(cat => ({
+                name: cat,
+                label: cat,
+                icon: categoryDetails.find(c => c.name === cat)?.icon,
+              }))].map((cat, i) => {
+                const active = categoryFilter === cat.name;
+                const tints = [
+                  'bg-rose-50 dark:bg-rose-950/30 text-rose-600',
+                  'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600',
+                  'bg-violet-50 dark:bg-violet-950/30 text-violet-600',
+                  'bg-amber-50 dark:bg-amber-950/30 text-amber-600',
+                  'bg-sky-50 dark:bg-sky-950/30 text-sky-600',
+                ];
+                return (
+                  <button
+                    key={cat.name || 'all'}
+                    onClick={() => { setCategoryFilter(cat.name === categoryFilter ? '' : cat.name); setSubCategoryFilter(''); }}
+                    className={`flex items-center gap-3 rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.98] ${tints[i % tints.length]} ${active ? 'border-orange-500 shadow-md shadow-orange-500/20' : 'border-transparent'}`}
                   >
-                    {cat}
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/70 dark:bg-slate-900/50">
+                      <CategoryIcon icon={cat.icon} label={cat.label} className="h-7 w-7" />
+                    </span>
+                    <span className="text-sm font-black leading-tight text-slate-900 dark:text-white">{cat.label}</span>
                   </button>
-               ))}
+                );
+              })}
             </div>
           )}
 

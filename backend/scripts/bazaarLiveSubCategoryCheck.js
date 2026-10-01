@@ -54,10 +54,10 @@ check('the subcategory row is scoped to the selected category and derived from i
 });
 
 check('picking a different category clears whatever subcategory was selected', () => {
-    assert.ok(/setCategoryFilter\(''\); setSubCategoryFilter\(''\)/.test(ui),
-        'clearing the category should not leave a stale subcategory still filtering');
-    assert.ok(/setCategoryFilter\(cat === categoryFilter \? '' : cat\); setSubCategoryFilter\(''\)/.test(ui),
-        'switching categories should not leave the old category\'s subcategory selected');
+    // Category tiles share one handler for "All Products" (name '') and each
+    // category, so every change goes through the same clear.
+    assert.ok(/setCategoryFilter\(cat\.name === categoryFilter \? '' : cat\.name\); setSubCategoryFilter\(''\)/.test(ui),
+        'switching or clearing the category should not leave the old category's subcategory selected');
 });
 
 check('the selected subcategory is actually sent to the live-ads request', () => {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import CategoryIcon from "@/components/CategoryIcon";
 import { motion } from "framer-motion";
 import {
   Zap, Loader2, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle,
@@ -507,8 +508,8 @@ const InstaWork = () => {
                 onClick={() => pickService(s)}
                 className="rounded-2xl border border-border bg-card p-4 text-left transition hover:border-amber-400"
               >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
-                  <Zap className="h-5 w-5 text-amber-600" />
+                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-600">
+                  <CategoryIcon icon={s.icon} label={s.name} className="h-6 w-6" imgClassName="h-full w-full object-cover" />
                 </div>
                 <p className="mt-3 text-sm font-black text-foreground">{s.name}</p>
                 <p className="mt-0.5 text-xs font-medium text-muted-foreground">{s.description}</p>
