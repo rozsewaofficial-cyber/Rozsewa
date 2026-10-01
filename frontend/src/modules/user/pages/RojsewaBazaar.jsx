@@ -189,7 +189,7 @@ const RojsewaBazaar = () => {
           {/* Category tiles — an illustrated card per category instead of a
               text-only chip, so the market reads at a glance. */}
           {uniqueCategories.length > 0 && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-wrap gap-2">
               {[{ name: '', label: 'All Products', icon: 'Store' }, ...uniqueCategories.map(cat => ({
                 name: cat,
                 label: cat,
@@ -207,12 +207,12 @@ const RojsewaBazaar = () => {
                   <button
                     key={cat.name || 'all'}
                     onClick={() => { setCategoryFilter(cat.name === categoryFilter ? '' : cat.name); setSubCategoryFilter(''); }}
-                    className={`flex items-center gap-3 rounded-2xl border-2 p-3 text-left transition-all active:scale-[0.98] ${tints[i % tints.length]} ${active ? 'border-orange-500 shadow-md shadow-orange-500/20' : 'border-transparent'}`}
+                    className={`flex items-center gap-2 rounded-lg border-2 py-1 pl-1.5 pr-3 text-left transition-all active:scale-[0.98] ${tints[i % tints.length]} ${active ? 'border-orange-500 shadow-md shadow-orange-500/20' : 'border-transparent'}`}
                   >
-                    <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/70 dark:bg-slate-900/50">
-                      <CategoryIcon icon={cat.icon} label={cat.label} className="h-7 w-7" />
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white/70 dark:bg-slate-900/50">
+                      <CategoryIcon icon={cat.icon} label={cat.label} className="h-4 w-4" />
                     </span>
-                    <span className="text-sm font-black leading-tight text-slate-900 dark:text-white">{cat.label}</span>
+                    <span className="text-xs font-black leading-tight text-slate-900 dark:text-white">{cat.label}</span>
                   </button>
                 );
               })}
