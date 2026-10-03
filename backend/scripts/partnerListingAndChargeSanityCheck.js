@@ -22,7 +22,7 @@ const fn = home.slice(home.indexOf('const getPublicProviders'), home.indexOf('co
 
 console.log('\nListing filters');
 check('emergency=true is read and filters on isEmergencyEnabled', () => {
-    assert.ok(/storeVisitOnly, emergency \} = req\.query/.test(fn));
+    assert.ok(/storeVisitOnly, emergency[\w, ]*\} = req\.query/.test(fn));
     assert.ok(/emergency === 'true'[\s\S]{0,80}query\.isEmergencyEnabled = true/.test(fn));
 });
 check('the 24/7 filter matches is24x7 OR isEmergencyEnabled, without clobbering search $or', () => {

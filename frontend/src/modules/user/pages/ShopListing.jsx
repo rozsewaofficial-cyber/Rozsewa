@@ -15,6 +15,8 @@ const ShopListing = () => {
   const { userLocation, userCity } = useAuth();
   const [searchParams] = useSearchParams();
   const category = searchParams.get("category") || "";
+  const serviceId = searchParams.get("serviceId") || "";
+  const serviceName = searchParams.get("serviceName") || "";
   const isEmergency = searchParams.get("emergency") === "true";
   const filterParam = searchParams.get("filter");
   const initialSort = filterParam === 'nearby' ? 'distance' : 'rating';
@@ -54,13 +56,15 @@ const ShopListing = () => {
     } else {
       setLoading(false);
     }
-  }, [category, isEmergency, searchQuery, mode, minRating, homeVisit, storeVisitOnly, is24x7, hasCombo, radius, userCity]);
+  }, [category, serviceId, serviceName, isEmergency, searchQuery, mode, minRating, homeVisit, storeVisitOnly, is24x7, hasCombo, radius, userCity]);
 
   const fetchProviders = async () => {
     setLoading(true);
     try {
       const params = { 
         category, 
+        serviceId,
+        serviceName,
         search: searchQuery, 
         emergency: isEmergency, 
         mode,

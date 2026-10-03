@@ -221,7 +221,7 @@ const getFeaturedProviders = async (req, res) => {
 // @access  Public
 const getPublicProviders = async (req, res) => {
     try {
-        const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo, storeVisitOnly, emergency } = req.query;
+        const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo, storeVisitOnly, emergency, serviceId, serviceName } = req.query;
         let query = { status: 'verified', isOnline: true };
 
         if (mode === 'sewak') {
@@ -248,6 +248,13 @@ const getPublicProviders = async (req, res) => {
             // The Settings "24/7 SERVICE" tile sets isEmergencyEnabled while the
             // Timing screen sets is24x7 — either one means round-the-clock.
             andClauses.push({ $or: [{ is24x7: true }, { isEmergencyEnabled: true }] });
+        }
+        if (serviceId || serviceName) {
+            // A partner who ticked specific services only appears for those (the
+            // list holds catalog ids or plain names); one who never picked any
+            // still shows for the whole category.
+            const wanted = [serviceId, serviceName].filter(Boolean);
+            andClauses.push({ $or: [{ subServices: { $in: wanted } }, { subServices: { $exists: false } }, { subServices: { $size: 0 } }] });
         }
         if (emergency === 'true') {
             query.isEmergencyEnabled = true;
