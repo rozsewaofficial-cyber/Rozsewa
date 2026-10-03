@@ -159,6 +159,13 @@ const bookingSchema = new mongoose.Schema({
         type: Number,
         default: null
     },
+    // What the customer would actually pay if they accept partnerCounterOffer:
+    // that base price plus night charge, GST and platform fee, worked out the
+    // same way as at booking creation. This is the number shown to them.
+    partnerCounterTotal: {
+        type: Number,
+        default: null
+    },
     acceptedPrice: {
         type: Number,
         default: null

@@ -55,6 +55,29 @@ const isNightTime = (timeStr, startStr, endStr) => {
 };
 
 // Helper to check for schedule overlaps (30 mins before to 30 mins after)
+// A bargained booking's offer and a partner's counter are both a *base*
+// service price, the same thing customerOffer means at checkout — the night
+// charge, GST and platform fee are then added on top. This prices a booking at
+// any base price using the proportions the booking was created with, so the
+// total shown for a counter is exactly the total billed if it is accepted.
+const priceAtBase = (booking, base) => {
+    const offerBase = Number(booking.customerOffer) || 0;
+    const scale = (amount) => (offerBase ? Math.round(((amount || 0) / offerBase) * base) : 0);
+    const nightCharge = (booking.extraCharges || []).find(c => c.item && c.item.startsWith('Night Charge'));
+    const oldNight = nightCharge ? (nightCharge.amount || 0) : 0;
+    // A flat rupee night charge doesn't scale with the price the way a
+    // percentage does — it carries over unchanged.
+    const night = booking.nightChargeMode === 'flat' ? oldNight : scale(oldNight);
+    const gst = scale(booking.gstAmount);
+    const fee = booking.platformFee || 0;
+    return { night, gst, fee, total: base + night + gst + fee };
+};
+
+// The customer's un-discounted service price: what they offered plus what
+// they asked to be knocked off. Valid while the offer is still being decided,
+// before an accepted decision overwrites bargainDiscount.
+const originalBasePrice = (booking) => (Number(booking.customerOffer) || 0) + (Number(booking.bargainDiscount) || 0);
+
 const hasOverlap = async (providerId, bookingDate, bookingTime) => {
     try {
         if (!providerId || !bookingDate || !bookingTime) return false;
@@ -1049,28 +1072,22 @@ const updateBooking = async (req, res) => {
                 // Perform atomic update using findOneAndUpdate
                 const updateFields = {};
                 if (counterDecision === 'accept') {
-                    const nightCharge = booking.extraCharges && booking.extraCharges.find(c => c.item && c.item.startsWith('Night Charge'));
-                    const oldAmount = nightCharge ? (nightCharge.amount || 0) : 0;
-                    // A flat rupee night charge doesn't scale with the
-                    // negotiated price the way a percentage does — it carries
-                    // over unchanged rather than being rescaled by ratio.
-                    const newNightChargeAmount = booking.nightChargeMode === 'flat'
-                        ? oldAmount
-                        : Math.round((oldAmount && booking.customerOffer ? (oldAmount / booking.customerOffer) : 0) * booking.partnerCounterOffer);
+                    const priced = priceAtBase(booking, booking.partnerCounterOffer);
                     const newExtraCharges = booking.extraCharges.map(charge => {
                         if (charge.item && charge.item.startsWith('Night Charge')) {
-                            return { item: charge.item, amount: newNightChargeAmount, status: 'approved' };
+                            return { item: charge.item, amount: priced.night, status: 'approved' };
                         }
                         return charge;
                     });
-                    const newTotalAmount = booking.partnerCounterOffer + newNightChargeAmount;
-                    const bargainDiscount = booking.originalFixedPrice - newTotalAmount;
+                    const bargainDiscount = originalBasePrice(booking) - booking.partnerCounterOffer;
                     const totalDiscount = booking.couponDiscount + bargainDiscount;
 
-                    updateFields.totalAmount = newTotalAmount;
+                    updateFields.totalAmount = priced.total;
+                    updateFields.baseServiceAmount = booking.partnerCounterOffer;
+                    updateFields.gstAmount = priced.gst;
                     updateFields.bargainDiscount = bargainDiscount;
                     updateFields.totalDiscount = totalDiscount;
-                    updateFields.acceptedPrice = newTotalAmount;
+                    updateFields.acceptedPrice = priced.total;
                     updateFields.pricingDecision = 'partner_counter_offer';
                     updateFields.status = 'confirmed';
                     updateFields.offerStatus = 'counter_accepted';
@@ -1557,10 +1574,12 @@ const updateBookingStatusByProvider = async (req, res) => {
                         if (counterAmount <= booking.customerOffer) {
                             return res.status(400).json({ message: `Counter offer must be greater than customer's offer of ₹${booking.customerOffer}.` });
                         }
-                        if (counterAmount > booking.originalFixedPrice) {
-                            return res.status(400).json({ message: `Counter offer cannot exceed original fixed price of ₹${booking.originalFixedPrice}.` });
+                        const originalBase = originalBasePrice(booking);
+                        if (counterAmount > originalBase) {
+                            return res.status(400).json({ message: `Counter offer cannot exceed the original service price of ₹${originalBase}.` });
                         }
                         booking.partnerCounterOffer = counterAmount;
+                        booking.partnerCounterTotal = priceAtBase(booking, counterAmount).total;
                         booking.offerStatus = 'countered';
                         booking.counterOfferExpiresAt = new Date(Date.now() + 15 * 60 * 1000);
                     } else {
@@ -1585,6 +1604,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                             totalDiscount: booking.totalDiscount,
                             extraCharges: booking.extraCharges,
                             partnerCounterOffer: booking.partnerCounterOffer,
+                            partnerCounterTotal: booking.partnerCounterTotal,
                             counterOfferExpiresAt: booking.counterOfferExpiresAt,
                             pricingDecision: booking.pricingDecision
                         }
@@ -2023,6 +2043,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                     io.to(`user_${booking.userId}`).emit('COUNTER_OFFER_RECEIVED', {
                         bookingId: booking._id.toString(),
                         partnerCounterOffer: booking.partnerCounterOffer,
+                        partnerCounterTotal: booking.partnerCounterTotal,
                         counterOfferExpiresAt: booking.counterOfferExpiresAt
                     });
 
@@ -2033,7 +2054,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                             userId: booking.userId,
                             userRole: 'user',
                             title: 'New Counter-Offer Proposed!',
-                            message: `A partner has proposed a counter-offer of ₹${booking.partnerCounterOffer} for your request.`,
+                            message: `A partner has proposed a counter-offer of ₹${booking.partnerCounterTotal || booking.partnerCounterOffer} for your request.`,
                             type: 'booking',
                             bookingId: booking._id
                         });

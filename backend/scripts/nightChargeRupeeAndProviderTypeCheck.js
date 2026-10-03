@@ -61,8 +61,12 @@ check('a flat charge is added to originalFixedPrice as-is, not re-percented', ()
 console.log('\nA renegotiated price does not rescale a flat night charge as if it were a percentage');
 
 check('the counter-offer accept path carries a flat charge over unchanged', () => {
+    // The pricing for a counter now lives in one helper shared by the quote
+    // shown to the customer and the bill on accept.
+    const helper = sliceFn(bookingController, 'const priceAtBase', 'const originalBasePrice');
+    assert.ok(/booking\.nightChargeMode === 'flat' \? oldNight : scale\(oldNight\)/.test(helper));
     const fn = sliceFn(bookingController, "if (counterDecision === 'accept')", "} else {");
-    assert.ok(/booking\.nightChargeMode === 'flat'\s*\n\s*\? oldAmount/.test(fn));
+    assert.ok(/priceAtBase\(booking, booking\.partnerCounterOffer\)/.test(fn));
 });
 
 check('reverting to fixed price does the same', () => {

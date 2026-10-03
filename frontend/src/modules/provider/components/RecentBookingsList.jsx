@@ -89,10 +89,13 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
   const [cancelMode, setCancelMode] = useState("cancel");
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const handleCounterSubmit = async (bookingId, originalFixedPrice, customerOffer, extraCharges = []) => {
-    const extraChargesAmount = (extraCharges || []).filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
-    const baseCustomerOffer = Math.max(0, customerOffer - extraChargesAmount);
-    const baseFixedPrice = Math.max(0, originalFixedPrice - extraChargesAmount);
+  // The offer and the counter are both a base service price — the server adds
+  // night charge, GST and platform fee on top — so the allowed range is the
+  // customer's offer up to the original service price, with nothing added to
+  // what is sent.
+  const handleCounterSubmit = async (bookingId, customerOffer, bargainDiscount) => {
+    const baseCustomerOffer = Math.max(0, customerOffer);
+    const baseFixedPrice = Math.max(0, customerOffer + (bargainDiscount || 0));
 
     const amt = Number(counterAmount);
     if (!amt || isNaN(amt) || amt <= 0) {
@@ -113,7 +116,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
       await API.patch(`/bookings/${bookingId}/status`, {
         status: 'pending',
         offerDecision: 'counter',
-        counterAmount: amt + extraChargesAmount
+        counterAmount: amt
       });
       toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
       setCounteringBookingId(null);
@@ -710,11 +713,37 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                     {/* Total collected from customer */}
                     {(req.customerOffer !== undefined && req.customerOffer !== null) || (req.negotiation && req.negotiation.userProposedAmount) ? (
                       <div className="flex flex-col">
-                        <div className="text-sm font-black text-emerald-600/60 dark:text-emerald-400/60 italic line-through">₹{req.originalFixedPrice}</div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{req.customerOffer || req.negotiation.userProposedAmount}</div>
-                          <span className="text-[9px] font-black uppercase bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded">Proposed</span>
-                        </div>
+                        {(() => {
+                          // Both figures are the service price before night charge,
+                          // GST and fee, so they compare like with like. Once the
+                          // bargain is settled the card shows what was settled on,
+                          // not the customer's opening offer.
+                          // baseServiceAmount is the price currently in force and
+                          // bargainDiscount what was knocked off the original, so
+                          // their sum is the original at every stage (the customer's
+                          // offer is not, once a counter has been agreed).
+                          const original = (req.baseServiceAmount || req.customerOffer || 0) + (req.bargainDiscount || 0);
+                          const decided = {
+                            accepted: { price: req.customerOffer, label: 'Accepted' },
+                            counter_accepted: { price: req.baseServiceAmount, label: 'Agreed' },
+                            // Reverting to fixed price clears the discount, so there
+                            // is no struck-through figure to show for it.
+                            rejected_fixed_price: { price: req.totalAmount, label: 'Fixed price', noOriginal: true },
+                          }[req.offerStatus];
+                          const price = decided ? decided.price : (req.customerOffer || req.negotiation?.userProposedAmount);
+                          const tone = decided
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+                          return (
+                            <>
+                              {original > 0 && !decided?.noOriginal && <div className="text-sm font-black text-emerald-600/60 dark:text-emerald-400/60 italic line-through">₹{original}</div>}
+                              <div className="flex items-center gap-2">
+                                <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">₹{price}</div>
+                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${tone}`}>{decided ? decided.label : 'Proposed'}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     ) : req.discountAmount > 0 ? (
                       <div className="flex flex-col">
@@ -802,6 +831,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                       <div>
                         <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Your Counter</p>
                         <p className="font-bold text-xs">₹{req.partnerCounterOffer}</p>
+                        {req.partnerCounterTotal > 0 && <p className="text-[9px] font-bold text-muted-foreground">Customer pays ₹{req.partnerCounterTotal}</p>}
                       </div>
                       <div className="text-right">
                         <p className="text-[9px] text-muted-foreground uppercase font-black tracking-wider">Customer Offer</p>
@@ -815,9 +845,8 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                 {req.status === "pending" && req.offerStatus !== "countered" && (!req.proposedSchedule || req.proposedSchedule.status !== 'pending') && (
                   req.bargainDiscount > 0 ? (
                     counteringBookingId === req._id ? (() => {
-                      const extraChargesAmount = (req.extraCharges || []).filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
-                      const baseCustomerOffer = Math.max(0, req.customerOffer - extraChargesAmount);
-                      const baseFixedPrice = Math.max(0, req.originalFixedPrice - extraChargesAmount);
+                      const baseCustomerOffer = Math.max(0, req.customerOffer);
+                      const baseFixedPrice = Math.max(0, req.customerOffer + (req.bargainDiscount || 0));
                       return (
                         <div className="mt-5 bg-muted/50 rounded-xl p-3 border border-border space-y-3">
                           <p className="text-[10px] font-black uppercase text-purple-700 tracking-wider">Propose Counter Offer</p>
@@ -839,7 +868,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                               Cancel
                             </button>
                             <button
-                              onClick={() => handleCounterSubmit(req._id, req.originalFixedPrice, req.customerOffer, req.extraCharges)}
+                              onClick={() => handleCounterSubmit(req._id, req.customerOffer, req.bargainDiscount)}
                               disabled={isSubmittingCounter}
                               className="rounded-lg bg-purple-600 hover:bg-purple-700 py-1.5 text-xs font-bold text-white shadow-md disabled:opacity-50"
                             >

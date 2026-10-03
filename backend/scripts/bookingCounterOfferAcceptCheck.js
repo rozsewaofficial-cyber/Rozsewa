@@ -53,7 +53,7 @@ check('the real resolution endpoint reads partnerCounterOffer/offerStatus, not t
 console.log('\nThe displayed accept amount comes from the field a real counter-offer actually populates');
 
 check('the quick-action button shows partnerCounterOffer, falling back to the legacy field only if present', () => {
-    assert.ok(/Accept ₹\{booking\.partnerCounterOffer \|\| booking\.negotiation\?\.providerCounterAmount\}/.test(page),
+    assert.ok(/Accept ₹\{booking\.partnerCounterTotal \?\? booking\.partnerCounterOffer \?\? booking\.negotiation\?\.providerCounterAmount\}/.test(page),
         'reading only negotiation.providerCounterAmount shows "Accept ₹undefined" for every real counter-offer');
 });
 

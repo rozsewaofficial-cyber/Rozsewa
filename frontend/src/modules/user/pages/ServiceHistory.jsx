@@ -430,7 +430,7 @@ const ServiceHistory = () => {
                         </motion.button>
                         <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleAcceptCounter(booking.id); }}
                           className="flex-1 rounded-xl border-2 border-blue-600 bg-blue-600 py-3 text-[13px] font-bold text-white hover:bg-blue-700 transition-all">
-                          Accept ₹{booking.partnerCounterOffer || booking.negotiation?.providerCounterAmount}
+                          Accept ₹{booking.partnerCounterTotal ?? booking.partnerCounterOffer ?? booking.negotiation?.providerCounterAmount}
                         </motion.button>
                       </div>
                     )}
@@ -563,17 +563,17 @@ const ServiceHistory = () => {
                             <h5 className="text-xs font-bold text-muted-foreground mb-2">Negotiation Details</h5>
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">You Proposed:</span>
-                                <span>₹{(selectedBooking.customerOffer || selectedBooking.negotiation?.userProposedAmount) - (selectedBooking.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                                <span>₹{selectedBooking.customerOffer || selectedBooking.negotiation?.userProposedAmount}</span>
                             </div>
                             {(selectedBooking.partnerCounterOffer || selectedBooking.negotiation?.providerCounterAmount) && (
                                 <div className="mt-2 bg-purple-50 dark:bg-purple-900/10 p-3 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-1">
                                     <div className="flex justify-between text-sm">
                                         <span className="text-purple-600 font-black">Provider Countered:</span>
-                                        <span className="text-purple-600 font-black">₹{(selectedBooking.partnerCounterOffer || selectedBooking.negotiation?.providerCounterAmount) - (selectedBooking.extraCharges?.filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
+                                        <span className="text-purple-600 font-black">₹{selectedBooking.partnerCounterOffer || selectedBooking.negotiation?.providerCounterAmount}</span>
                                     </div>
                                     <div className="flex justify-between text-xs text-purple-500/80">
-                                        <span>Total with Travel Charge:</span>
-                                        <span>₹{selectedBooking.partnerCounterOffer || selectedBooking.negotiation?.providerCounterAmount}</span>
+                                        <span>Total with taxes &amp; fees:</span>
+                                        <span>₹{selectedBooking.partnerCounterTotal ?? selectedBooking.partnerCounterOffer ?? selectedBooking.negotiation?.providerCounterAmount}</span>
                                     </div>
                                 </div>
                             )}

@@ -161,7 +161,7 @@ export const SocketProvider = ({ children }) => {
             window.dispatchEvent(new CustomEvent('COUNTER_OFFER_RECEIVED', { detail: data }));
             toast({
                 title: "New Counter-Offer!",
-                description: `Provider proposed a counter-offer of ₹${data.partnerCounterOffer}.`,
+                description: `Provider proposed a counter-offer of ₹${data.partnerCounterTotal ?? data.partnerCounterOffer}.`,
                 variant: "default",
             });
         });

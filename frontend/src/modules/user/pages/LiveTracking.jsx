@@ -741,7 +741,7 @@ const LiveTracking = () => {
                       Your Offer
                     </p>
                     <p className="font-bold text-[13px] text-slate-500 mt-0.5">
-                      ₹{bookingDetails.customerOffer}
+                      ₹{bookingDetails.totalAmount}
                     </p>
                   </div>
                   <div className="text-right">
@@ -749,10 +749,14 @@ const LiveTracking = () => {
                       Local Expert Counter
                     </p>
                     <p className="font-black text-lg text-purple-700 dark:text-purple-400 mt-0.5">
-                      ₹{bookingDetails.partnerCounterOffer}
+                      ₹{bookingDetails.partnerCounterTotal ?? bookingDetails.partnerCounterOffer}
                     </p>
                   </div>
                 </div>
+
+                <p className="text-[10px] font-semibold text-slate-400 -mt-1">
+                  All prices include taxes and fees. Accepting charges exactly the counter shown.
+                </p>
 
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs">
                   <span className="font-bold text-slate-500">Expires in:</span>

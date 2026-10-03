@@ -26,11 +26,14 @@ const IncomingRequestModal = ({ request, onAction }) => {
     const [counterAmount, setCounterAmount] = useState('');
     const [isSubmittingCounter, setIsSubmittingCounter] = useState(false);
 
-    const extraChargesAmount = (request.extraCharges || []).filter(c => c.item && (c.item.includes('Travel Charge') || c.item.includes('Night Charge'))).reduce((sum, c) => sum + (c.amount || 0), 0) || 0;
     const totalFixedPrice = request.originalFixedPrice || request.amount || 0;
     const totalCustomerOffer = request.customerOffer || request.amount || 0;
-    const baseCustomerOffer = Math.max(0, totalCustomerOffer - extraChargesAmount);
-    const baseFixedPrice = Math.max(0, totalFixedPrice - extraChargesAmount);
+    // The offer and the counter are both a base service price (night charge,
+    // GST and platform fee are added on top by the server), so the range is
+    // the customer's offer up to the original service price — no extra
+    // charges are subtracted here or added to what is sent.
+    const baseCustomerOffer = Math.max(0, totalCustomerOffer);
+    const baseFixedPrice = Math.max(0, totalCustomerOffer + (request.bargainDiscount || 0));
 
     const travelCharge = request.extraCharges?.find(c => c.item && c.item.includes('Travel Charge'));
     const nightCharge = request.extraCharges?.find(c => c.item && c.item.includes('Night Charge'));
@@ -112,7 +115,7 @@ const IncomingRequestModal = ({ request, onAction }) => {
             await API.patch(`/bookings/${request.bookingId}/status`, {
                 status: 'pending',
                 offerDecision: 'counter',
-                counterAmount: amt + extraChargesAmount
+                counterAmount: amt
             });
             toast({ title: "Counter Offer Sent!", description: `Proposed ₹${amt} to the customer.`, variant: "default" });
 
