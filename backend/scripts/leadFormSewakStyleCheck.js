@@ -80,7 +80,7 @@ console.log(`\n${passed} lead-form sewak-style checks passed.\n`);
         assert.ok(/!locationDetail\.state \? 'your state'/.test(fn));
         assert.ok(/!locationDetail\.city\?\.trim\(\) \? 'your city'/.test(fn));
         assert.ok(/!locationDetail\.street\?\.trim\(\)/.test(fn));
-        assert.ok(/\^\d\{6\}\$/.test(fn));
+        assert.ok(fn.includes('/^\\d{6}$/'));
     });
     console.log(`\n${passed} lead-form checks passed (incl. address).\n`);
 }
