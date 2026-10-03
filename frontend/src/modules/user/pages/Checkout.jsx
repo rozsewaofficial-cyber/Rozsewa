@@ -1608,9 +1608,9 @@ const Checkout = () => {
               <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-2">
                 <Clock className="h-4 w-4 text-emerald-500" /> Preferred Time Slot
               </h2>
-              {availableSlots.length === 0 ? (
+              {!selectedDate || availableSlots.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4 text-center">
-                  <p className="text-xs font-bold text-slate-500">No time slots available for this date.</p>
+                  <p className="text-xs font-bold text-slate-500">{!selectedDate ? "Select a date to see available time slots." : "No time slots available for this date."}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-2.5">

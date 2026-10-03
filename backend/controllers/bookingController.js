@@ -524,6 +524,17 @@ const createBooking = async (req, res) => {
                 }
             }
 
+            // A provider's own Service often carries a free-text category that
+            // matches no catalog Category (e.g. "nyka parlour"), so the customer
+            // saw GST on checkout while the stored booking billed none. Fall
+            // back to the provider's registered category — the one checkout uses.
+            if (!categoryForFee && providerId && mongoose.Types.ObjectId.isValid(providerId)) {
+                const targetProvider = await Provider.findById(providerId).select('vendorType');
+                if (targetProvider?.vendorType) {
+                    categoryForFee = await Category.findById(targetProvider.vendorType);
+                }
+            }
+
             if (categoryForFee) {
                 appliedGstPercent = categoryForFee.gstPercent || 0;
                 platformFee = categoryForFee.platformFee || 0;

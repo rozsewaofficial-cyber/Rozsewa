@@ -955,7 +955,9 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                           disabled={!isReady}
                           className={`flex-1 rounded-xl py-2.5 text-xs font-bold text-white shadow-lg transition-colors ${isReady ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed opacity-70'}`}
                         >
-                          {isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)'}
+                          {req.serviceLocation === 'shop'
+                            ? (isReady ? 'Customer Arriving (Ready to Start)' : 'Ready for Customer (Available 30 mins before)')
+                            : (isReady ? 'Start Journey (On the Way)' : 'Start Journey (Available 30 mins before)')}
                         </button>
                         <button onClick={() => setActiveChatBookingId(req._id)} className="w-12 h-[42px] shrink-0 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
                           <MessageCircle className="h-4 w-4" />
