@@ -574,8 +574,15 @@ const Checkout = () => {
   // Cap couponDiscount to subtotal
   couponDiscount = Math.min(couponDiscount, subtotal);
 
+  // Bargaining is a Local Expert (partner) feature only. Sewak bookings have a
+  // fixed rate, so they never show the offer box and never send an offer.
+  const isSewakBooking =
+    checkoutData.requiredProviderCategory === "sewak" ||
+    providerDetails?.providerCategory === "sewak";
+
   // Parse bargaining customerOffer
-  const hasCustomOffer = customerOffer !== "" && !isNaN(Number(customerOffer));
+  const hasCustomOffer =
+    !isSewakBooking && customerOffer !== "" && !isNaN(Number(customerOffer));
   const parsedCustomerOffer = hasCustomOffer
     ? Number(customerOffer)
     : subtotal - couponDiscount;
@@ -1720,6 +1727,7 @@ const Checkout = () => {
           </section>
 
           {/* Bargain & Save */}
+          {!isSewakBooking && (
           <section className="relative rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -1768,6 +1776,7 @@ const Checkout = () => {
               </div>
             )}
           </section>
+          )}
 
           {/* Price Summary */}
           <section className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3.5">

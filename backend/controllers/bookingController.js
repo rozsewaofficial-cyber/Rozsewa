@@ -151,6 +151,12 @@ const createBooking = async (req, res) => {
         : 0;
 
     try {
+        // Bargaining is a Local Expert (partner) feature; Sewak work is fixed-rate.
+        const hasOffer = customerOffer !== undefined && customerOffer !== null;
+        if (hasOffer && requiredProviderCategory === 'sewak') {
+            return res.status(400).json({ message: 'Bargaining is not available for Sewak bookings.' });
+        }
+
         if (providerId) {
             const specificProvider = await Provider.findById(providerId);
             if (!specificProvider) {
@@ -161,6 +167,9 @@ const createBooking = async (req, res) => {
             }
             if (!specificProvider.isOnline) {
                 return res.status(400).json({ message: 'Provider is currently offline and not accepting bookings.' });
+            }
+            if (hasOffer && specificProvider.providerCategory === 'sewak') {
+                return res.status(400).json({ message: 'Bargaining is not available for Sewak bookings.' });
             }
             // Sewak-category providers have no home-visit toggle of their own.
             if (serviceLocation === 'home' && specificProvider.providerCategory !== 'sewak' && specificProvider.isHomeVisitAvailable === false) {
