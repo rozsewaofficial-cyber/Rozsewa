@@ -94,6 +94,16 @@ const createOrder = async (req, res) => {
     const { currency, purpose, bookingId } = req.body;
 
     try {
+        // Razorpay is switched off for specific partner accounts. Checked before
+        // any order exists, so the checkout window never opens for them.
+        if (req.user && (req.user.role === 'provider' || req.user.role === 'sewak')) {
+            const Provider = require('../models/Provider');
+            const acct = await Provider.findById(req.user._id).select('razorpayDisabled').lean();
+            if (acct?.razorpayDisabled) {
+                return res.status(403).json({ message: 'Online payment is not enabled for this account.' });
+            }
+        }
+
         // What the payment is worth is settled here and written down, because
         // the signature Razorpay returns later says nothing about the amount.
         // For a booking the figure comes off the booking itself, so the caller
