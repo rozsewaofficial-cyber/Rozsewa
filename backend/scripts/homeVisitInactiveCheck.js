@@ -28,7 +28,7 @@ console.log('\nThe flag reaches the customer app');
 
 check('public provider endpoint returns isHomeVisitAvailable', () => {
     const fn = home.slice(home.indexOf('const getPublicProviderById'), home.indexOf('const getPublicProviderById') + 700);
-    assert.ok(/availability is24x7 isEmergencyEnabled isHomeVisitAvailable'\)/.test(fn));
+    assert.ok(/availability is24x7 isEmergencyEnabled isHomeVisitAvailable[\w ]*'\)/.test(fn));
 });
 
 console.log('\nCustomers cannot end up on Home Visit for an inactive provider');

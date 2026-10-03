@@ -31,7 +31,7 @@ check('the 24/7 filter matches is24x7 OR isEmergencyEnabled, without clobbering 
     assert.ok(!/query\.is24x7 = true/.test(fn));
 });
 check('shop detail treats isEmergencyEnabled as 24/7 and the API exposes it', () => {
-    assert.ok(/availability is24x7 isEmergencyEnabled isHomeVisitAvailable'\)/.test(home));
+    assert.ok(/availability is24x7 isEmergencyEnabled isHomeVisitAvailable[\w ]*'\)/.test(home));
     assert.ok(/found\.is24x7 \|\| found\.isEmergencyEnabled/.test(fe('modules/user/pages/ShopDetail.jsx')));
 });
 

@@ -171,6 +171,10 @@ const createBooking = async (req, res) => {
             if (hasOffer && specificProvider.providerCategory === 'sewak') {
                 return res.status(400).json({ message: 'Bargaining is not available for Sewak bookings.' });
             }
+            // Online payment is switched off for this provider: pay-after only.
+            if (specificProvider.razorpayDisabled && paymentMode === 'now') {
+                return res.status(400).json({ message: 'Online payment is not available for this provider. Please choose Pay After Service.' });
+            }
             // Sewak-category providers have no home-visit toggle of their own.
             if (serviceLocation === 'home' && specificProvider.providerCategory !== 'sewak' && specificProvider.isHomeVisitAvailable === false) {
                 return res.status(400).json({ message: 'This provider does not offer home visits. Please choose At-Shop.' });
@@ -1660,6 +1664,12 @@ const updateBookingStatusByProvider = async (req, res) => {
                 // ---- ALLOW USER TO SWITCH TO CASH PAYMENT ----
                 if (req.body.paymentMode && ['now', 'after'].includes(req.body.paymentMode)) {
                     if (booking.paymentStatus !== 'paid') {
+                        if (req.body.paymentMode === 'now' && booking.providerId) {
+                            const payee = await Provider.findById(booking.providerId).select('razorpayDisabled').lean();
+                            if (payee?.razorpayDisabled) {
+                                return res.status(400).json({ message: 'Online payment is not available for this provider.' });
+                            }
+                        }
                         booking.paymentMode = req.body.paymentMode;
                     }
                 }

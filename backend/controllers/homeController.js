@@ -136,7 +136,7 @@ const getPublicCategories = async (req, res) => {
 const getPublicProviderById = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id)
-            .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability is24x7 isEmergencyEnabled isHomeVisitAvailable')
+            .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability is24x7 isEmergencyEnabled isHomeVisitAvailable razorpayDisabled')
             .populate('vendorType', 'name icon hasNightCharge nightChargePercent nightChargeFlatAmount');
 
         if (!provider) {
@@ -169,6 +169,9 @@ const getPublicProviderById = async (req, res) => {
         // Favorites) bypasses that filter entirely. The profile itself still
         // loads; this just tells the frontend whether to show it as closed.
         providerData.isWithinWorkingHours = isProviderWithinWorkingHours(provider);
+        // Customers see only that online payment is off for this provider.
+        providerData.onlinePaymentDisabled = !!provider.razorpayDisabled;
+        delete providerData.razorpayDisabled;
 
         res.json(providerData);
     } catch (error) {

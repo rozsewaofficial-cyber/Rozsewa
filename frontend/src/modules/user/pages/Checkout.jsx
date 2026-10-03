@@ -121,6 +121,8 @@ const Checkout = () => {
           if (data) {
             const pData = data.data || data;
             setProviderDetails(pData);
+            // Online payment switched off for this provider: pay-after only.
+            if (pData.onlinePaymentDisabled) setPaymentMode("after");
             // serviceLocation defaults to "home"; a provider with Home Visit
             // switched off must start on At-Shop, not on a disabled option.
             if (pData.providerCategory !== "sewak" && pData.isHomeVisitAvailable === false) {
@@ -601,7 +603,10 @@ const Checkout = () => {
   let estimatedTravelCharge = distanceChargeConfig?.enabled
     ? Number(distanceChargeConfig.fallbackCharge || 40)
     : 0;
-  let calculatedDistanceKm = travelDistanceKm;
+  // Same sanity cap as DistanceChargeService: a distance no home visit could
+  // cover means a saved location is wrong, so the fallback charge applies.
+  let calculatedDistanceKm =
+    travelDistanceKm !== null && travelDistanceKm > 200 ? null : travelDistanceKm;
   let appliedDistanceConfig = distanceChargeConfig;
 
   if (
@@ -1940,6 +1945,7 @@ const Checkout = () => {
           <section className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm space-y-3.5">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Payment Method</h3>
             <div className="flex flex-col gap-3">
+              {!providerDetails?.onlinePaymentDisabled && (
               <label className={`flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer ${paymentMode === 'now'
                   ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-4 ring-emerald-500/15'
                   : 'border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 bg-slate-50/40 dark:bg-slate-950/40'
@@ -1957,6 +1963,10 @@ const Checkout = () => {
                   <div className="h-5 w-5 rounded-full border-2 border-slate-300 dark:border-slate-700"></div>
                 )}
               </label>
+              )}
+              {providerDetails?.onlinePaymentDisabled && (
+                <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 px-1">Online payment is not available for this provider — you can pay after the service.</p>
+              )}
 
               <label className={`flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer ${paymentMode === 'after'
                   ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30 ring-4 ring-emerald-500/15'

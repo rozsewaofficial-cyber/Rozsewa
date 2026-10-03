@@ -113,9 +113,17 @@ const createOrder = async (req, res) => {
 
         if (bookingId) {
             const Booking = require('../models/Booking');
-            booking = await Booking.findById(bookingId).select('totalAmount welfareFundAmount userId');
+            booking = await Booking.findById(bookingId).select('totalAmount welfareFundAmount userId providerId');
             if (!booking) {
                 return res.status(404).json({ message: 'Booking not found' });
+            }
+            // Paying a provider who has online payment switched off never opens Razorpay.
+            if (booking.providerId) {
+                const Provider = require('../models/Provider');
+                const payee = await Provider.findById(booking.providerId).select('razorpayDisabled').lean();
+                if (payee?.razorpayDisabled) {
+                    return res.status(403).json({ message: 'Online payment is not available for this provider.' });
+                }
             }
             // welfareFundAmount rides along on top of the service total — kept
             // off totalAmount itself so it never inflates provider payout or
