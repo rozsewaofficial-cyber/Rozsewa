@@ -1466,7 +1466,20 @@ const updateBookingStatusByProvider = async (req, res) => {
             }
 
             // Assign provider if accepting
-            if (isAccepting && !booking.providerId) {
+            // A customer who books a specific shop attaches that provider up
+            // front, so a bargained booking's decision (counter / fixed price /
+            // accept) arrives from a provider who is already assigned. This block
+            // used to run only for unassigned broadcast bookings, so for those the
+            // decision was silently dropped: 200 back, nothing saved, and the
+            // customer never saw a counter-offer.
+            const assignedProviderDecidingBargain = req.user.role === 'provider'
+                && booking.providerId
+                && booking.providerId.toString() === req.user._id.toString()
+                && booking.customerOffer !== null && booking.customerOffer !== undefined
+                && booking.status === 'pending'
+                && booking.offerStatus === 'pending';
+
+            if (isAccepting && (!booking.providerId || assignedProviderDecidingBargain)) {
                 // Pre-check for race condition
                 if (booking.status !== 'pending' || booking.offerStatus !== 'pending') {
                     return res.status(409).json({ message: 'This booking request is no longer pending or has already been processed.' });
