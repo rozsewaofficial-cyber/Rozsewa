@@ -14,6 +14,9 @@ import { useJsApiLoader } from "@react-google-maps/api";
 
 const libraries = ["places"];
 
+// Customer mobile numbers for which the "Set Your Location" prompt is skipped.
+const LOCATION_GATE_BYPASS_MOBILES = ["6268455485"];
+
 const LocationGate = () => {
   // ============================================================================
   // SENIOR SDE NOTE: LOCATION GATE BYPASS TOGGLE
@@ -22,7 +25,9 @@ const LocationGate = () => {
   // ============================================================================
   const BYPASS_LOCATION_GATE = false;
 
-  const { userLocation, detectLocation, setUserCity } = useAuth();
+  const { user, userLocation, detectLocation, setUserCity } = useAuth();
+  // Accounts that never see the location prompt (everyone else is unchanged).
+  const skipsGate = LOCATION_GATE_BYPASS_MOBILES.includes(user?.mobile);
   const [status, setStatus] = useState("prompt"); // 'prompt' | 'checking' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState("");
   const [manualCity, setManualCity] = useState("");
@@ -156,7 +161,7 @@ const LocationGate = () => {
     }
   }, []); // Empty dependency array prevents infinite loop
 
-  if (BYPASS_LOCATION_GATE || status === "success") {
+  if (BYPASS_LOCATION_GATE || skipsGate || status === "success") {
     return <Outlet />;
   }
 
