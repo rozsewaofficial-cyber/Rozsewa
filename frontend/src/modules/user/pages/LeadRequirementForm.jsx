@@ -5,7 +5,7 @@ import {
   Paperclip, User, Eye, Loader2, Sparkles, FileText,
   X, Plus, Minus, Shield, Home, Info, Settings,
   ChevronRight, Check, Zap, Lock, Building, Phone,
-  Mail, Hash, HelpCircle, AlertCircle, RefreshCw, Layers
+  Mail, Hash, HelpCircle, AlertCircle, RefreshCw, Layers, Briefcase
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -629,189 +629,71 @@ const LeadRequirementForm = () => {
           </div>
         );
 
-      case 'preferredDate':
+      case 'preferredDate': {
+        const pad = (n) => String(n).padStart(2, '0');
+        const dateChips = Array.from({ length: 14 }, (_, i) => {
+          const d = new Date();
+          d.setDate(d.getDate() + i);
+          return {
+            full: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+            day: d.toLocaleDateString('en', { weekday: 'short' }),
+            date: d.getDate(),
+            month: d.toLocaleDateString('en', { month: 'short' })
+          };
+        });
         return (
-          <CustomDatePicker
-            value={preferredDate}
-            onChange={setPreferredDate}
-            min={(() => {
-              const today = new Date();
-              const yyyy = today.getFullYear();
-              const mm = String(today.getMonth() + 1).padStart(2, '0');
-              const dd = String(today.getDate()).padStart(2, '0');
-              return `${yyyy}-${mm}-${dd}`;
-            })()}
-          />
-        );
-
-      case 'preferredTime':
-        const todayStr = (() => {
-          const today = new Date();
-          const yyyy = today.getFullYear();
-          const mm = String(today.getMonth() + 1).padStart(2, '0');
-          const dd = String(today.getDate()).padStart(2, '0');
-          return `${yyyy}-${mm}-${dd}`;
-        })();
-
-        const TIME_SLOTS = [
-          { id: 'morning', label: 'Morning', sublabel: '6 AM - 12 PM', hourRange: [6, 7, 8, 9, 10, 11], defaultHour: '09', icon: '🌅' },
-          { id: 'afternoon', label: 'Afternoon', sublabel: '12 PM - 4 PM', hourRange: [12, 13, 14, 15], defaultHour: '13', icon: '☀️' },
-          { id: 'evening', label: 'Evening', sublabel: '4 PM - 8 PM', hourRange: [16, 17, 18, 19], defaultHour: '17', icon: '🌆' },
-          { id: 'night', label: 'Night', sublabel: '8 PM - 12 AM', hourRange: [20, 21, 22, 23], defaultHour: '20', icon: '🌙' },
-        ];
-
-        // Determine currently active slot ID based on selectedHour or timeSlotFilter
-        const activeSlotId = (() => {
-          if (selectedHour !== '') {
-            const hNum = Number(selectedHour);
-            const found = TIME_SLOTS.find(s => s.hourRange.includes(hNum));
-            if (found) return found.id;
-          }
-          return timeSlotFilter !== 'all' ? timeSlotFilter : null;
-        })();
-
-        // Hours to display in dropdown based on active slot filter
-        const displayedHours = (() => {
-          if (timeSlotFilter && timeSlotFilter !== 'all') {
-            const activeSlot = TIME_SLOTS.find(s => s.id === timeSlotFilter);
-            if (activeSlot) return activeSlot.hourRange;
-          }
-          return Array.from({ length: 24 }, (_, i) => i);
-        })();
-
-        const handleSlotClick = (slot) => {
-          setTimeSlotFilter(slot.id);
-          let targetHour = slot.defaultHour;
-
-          if (preferredDate && preferredDate === todayStr) {
-            const currentHour = new Date().getHours();
-            const currentMin = new Date().getMinutes();
-            const validHour = slot.hourRange.find(h => h > currentHour || (h === currentHour && currentMin < 45));
-
-            if (validHour !== undefined) {
-              targetHour = String(validHour).padStart(2, '0');
-            } else {
-              toast({
-                title: `${slot.label} slots passed for today`,
-                description: `Please choose an upcoming time slot or change the date.`
-              });
-              return;
-            }
-          }
-
-          setSelectedHour(targetHour);
-          setSelectedMin('00');
-        };
-
-        return (
-          <div className="space-y-3">
-            {/* Slot Filter Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {TIME_SLOTS.map(slot => {
-                const isSelected = activeSlotId === slot.id;
-                return (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    onClick={() => handleSlotClick(slot)}
-                    className={`py-2.5 px-3 rounded-2xl border text-xs font-bold flex flex-col items-center justify-center gap-0.5 transition-all duration-200 active:scale-95 ${isSelected ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-500/30' : 'bg-slate-50/80 dark:bg-slate-900/80 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-emerald-300'}`}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span>{slot.icon}</span>
-                      <span>{slot.label}</span>
-                    </div>
-                    <span className={`text-[10px] font-medium ${isSelected ? 'text-emerald-100' : 'text-slate-400 dark:text-slate-500'}`}>
-                      {slot.sublabel}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Custom Hour/Min Selectors */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="relative">
-                <select
-                  required={field.required}
-                  value={selectedHour}
-                  onChange={e => {
-                    const val = e.target.value;
-                    setSelectedHour(val);
-                    if (val) {
-                      if (!selectedMin) setSelectedMin('00');
-                      const hNum = Number(val);
-                      const matchingSlot = TIME_SLOTS.find(s => s.hourRange.includes(hNum));
-                      if (matchingSlot) {
-                        setTimeSlotFilter(matchingSlot.id);
-                      }
-                    }
-                  }}
-                  className="w-full px-4 py-3.5 bg-slate-50/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-950 focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 outline-none transition-all appearance-none cursor-pointer"
-                >
-                  <option value="">Select Hour</option>
-                  {displayedHours.map(i => {
-                    const h = String(i).padStart(2, '0');
-                    const period = i >= 12 ? 'PM' : 'AM';
-                    const display12 = i === 0 ? 12 : i > 12 ? i - 12 : i;
-                    const formatted12 = `${display12} ${period}`;
-                    const disabled = (() => {
-                      if (preferredDate && preferredDate === todayStr) {
-                        const currentHour = new Date().getHours();
-                        const currentMin = new Date().getMinutes();
-                        if (i < currentHour) return true;
-                        if (i === currentHour && currentMin >= 45) return true;
-                      }
-                      return false;
-                    })();
-                    return <option key={h} value={h} disabled={disabled}>{h}:00 ({formatted12})</option>;
-                  })}
-                </select>
-                <Clock className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-              </div>
-
-              <div className="relative">
-                <select
-                  required={field.required}
-                  value={selectedMin}
-                  onChange={e => setSelectedMin(e.target.value)}
-                  className="w-full px-4 py-3.5 bg-slate-50/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-semibold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-950 focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 outline-none transition-all appearance-none cursor-pointer"
-                >
-                  <option value="">Select Minute</option>
-                  {['00', '15', '30', '45'].map(m => {
-                    const disabled = (() => {
-                      if (preferredDate && preferredDate === todayStr && selectedHour) {
-                        const currentHour = new Date().getHours();
-                        const currentMin = new Date().getMinutes();
-                        if (Number(selectedHour) === currentHour && Number(m) <= currentMin) {
-                          return true;
-                        }
-                      }
-                      return false;
-                    })();
-                    return <option key={m} value={m} disabled={disabled}>{m} mins</option>;
-                  })}
-                </select>
-                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 rotate-90 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Filter Toggle Reset Pill */}
-            {timeSlotFilter !== 'all' && (
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[11px] font-bold text-slate-500">
-                  Filtered by {TIME_SLOTS.find(s => s.id === timeSlotFilter)?.label} ({TIME_SLOTS.find(s => s.id === timeSlotFilter)?.sublabel})
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setTimeSlotFilter('all')}
-                  className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <RefreshCw className="h-3 w-3" /> Show All 24 Hours
-                </button>
-              </div>
-            )}
+          <div className="flex gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+            {dateChips.map(d => (
+              <button
+                key={d.full}
+                type="button"
+                data-testid="lead-date-chip"
+                onClick={() => setPreferredDate(d.full)}
+                className={`flex min-w-[72px] shrink-0 flex-col items-center justify-center rounded-2xl border-2 py-3 transition-all duration-150 ${preferredDate === d.full
+                  ? 'border-emerald-600 bg-emerald-600 shadow-md shadow-emerald-500/25 text-white'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 hover:border-emerald-300'}`}
+              >
+                <span className="text-[10px] font-bold uppercase opacity-80 mb-0.5">{d.day}</span>
+                <span className="text-lg font-black leading-none">{d.date}</span>
+                <span className="text-[10px] font-bold uppercase opacity-70 mt-0.5">{d.month}</span>
+              </button>
+            ))}
           </div>
         );
+      }
+
+      case 'preferredTime': {
+        const pad = (n) => String(n).padStart(2, '0');
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        const slotHours = Array.from({ length: 18 }, (_, i) => i + 6); // 06:00 - 23:00
+        return (
+          <div className="grid grid-cols-3 gap-2.5">
+            {slotHours.map(h => {
+              const hh = pad(h);
+              const label = `${pad(h % 12 || 12)}:00 ${h < 12 ? 'AM' : 'PM'}`;
+              const past = preferredDate === todayKey && (h < now.getHours() || (h === now.getHours() && now.getMinutes() >= 45));
+              const active = selectedHour === hh && selectedMin === '00';
+              return (
+                <button
+                  key={hh}
+                  type="button"
+                  data-testid="lead-time-slot"
+                  disabled={past}
+                  onClick={() => { setSelectedHour(hh); setSelectedMin('00'); }}
+                  className={`rounded-2xl py-3 px-2 text-xs font-bold transition-all border ${active
+                    ? 'border-emerald-600 bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                    : past
+                      ? 'border-slate-100 dark:border-slate-900 bg-slate-50/30 dark:bg-slate-950/30 text-slate-300 dark:text-slate-700 cursor-not-allowed line-through'
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300 hover:border-emerald-300'}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        );
+      }
 
       case 'state':
         return (
@@ -1281,6 +1163,15 @@ const LeadRequirementForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const missing = !selectedCategoryId ? 'a service category'
+      : (subcategories.length > 0 && !selectedSubcategoryId) ? 'a service subcategory'
+      : (subServices.length > 0 && !selectedServiceId) ? 'a specific service'
+      : !preferredTime ? 'a preferred time slot'
+      : null;
+    if (missing) {
+      toast({ title: 'Almost there', description: `Please choose ${missing}.`, variant: 'destructive' });
+      return;
+    }
     if (requirementTitle && requirementTitle.length < 10) {
       toast({ title: 'Requirement title too short', description: 'Minimum length is 10 characters.', variant: 'destructive' });
       return;
@@ -1481,66 +1372,109 @@ const LeadRequirementForm = () => {
           </div>
 
           <div className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Service Category *
-              </label>
-              <CustomSelect
-                required
-                value={selectedCategoryId}
-                onChange={setSelectedCategoryId}
-                placeholder="— Select a Service Category —"
-                options={categories.map(cat => ({ value: cat._id, label: cat.name }))}
-              />
-            </div>
+            {(() => {
+              const selectedCategory = categories.find(c => c._id === selectedCategoryId);
+              const selectedSub = subcategories.find(sub => (sub._id || sub.name) === selectedSubcategoryId);
+              const selectedService = subServices.find(srv => srv._id === selectedServiceId);
 
-            {/* Responsive Subcategory Dropdown Block */}
-            {loadingSubcategories ? (
-              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 text-xs font-bold text-slate-400">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
-                <span>Loading available subcategories...</span>
-              </div>
-            ) : subcategories.length > 0 ? (
-              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Service Subcategory *
-                  </label>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full">
-                    {subcategories.length} Options
-                  </span>
+              const OptionCard = ({ image, title, subtitle, onClick, testId }) => (
+                <button
+                  type="button"
+                  data-testid={testId}
+                  onClick={onClick}
+                  className="flex items-center gap-4 w-full text-left bg-white dark:bg-[#151c2c] rounded-2xl border border-slate-200 dark:border-slate-800/80 p-3 transition-all hover:border-emerald-500/50 active:scale-[0.98] group"
+                >
+                  <div className="h-12 w-16 bg-emerald-50 dark:bg-[#1a2333] rounded-xl flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform">
+                    {image ? <img src={image} alt={title} className="h-full w-full object-cover" /> : <Briefcase className="h-5 w-5 text-emerald-500" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1">{title}</h3>
+                    {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">{subtitle}</p>}
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-emerald-500 shrink-0" />
+                </button>
+              );
+
+              const SelectedChip = ({ label, value, onChange }) => (
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">{label}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{value}</p>
+                  </div>
+                  <button type="button" onClick={onChange} className="text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 hover:underline shrink-0">Change</button>
                 </div>
+              );
 
-                <CustomSelect
-                  required
-                  value={selectedSubcategoryId}
-                  onChange={setSelectedSubcategoryId}
-                  placeholder="— Select Subcategory —"
-                  options={subcategories.map(sub => ({ value: sub._id || sub.name, label: sub.name }))}
-                />
-              </div>
-            ) : null}
+              if (!selectedCategoryId) {
+                return (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Briefcase className="h-4 w-4 text-emerald-500" /> Choose a Category</h4>
+                    <div className="flex flex-col gap-3">
+                      {categories.map(cat => (
+                        <OptionCard key={cat._id} testId="lead-category-card" image={cat.image} title={cat.name} subtitle={cat.description || 'View services'} onClick={() => setSelectedCategoryId(cat._id)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
 
-            {/* Sub-services picker if the selected subcategory has services */}
-            {loadingSubServices ? (
-              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 text-xs font-bold text-slate-400">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
-                <span>Loading available services...</span>
-              </div>
-            ) : subServices.length > 0 ? (
-              <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Select Specific Sub-Service *
-                </label>
-                <CustomSelect
-                  required
-                  value={selectedServiceId}
-                  onChange={setSelectedServiceId}
-                  placeholder="— Select Specific Sub-Service —"
-                  options={subServices.map(srv => ({ value: srv._id, label: srv.name }))}
-                />
-              </div>
-            ) : null}
+              return (
+                <div className="space-y-3">
+                  <SelectedChip label="Service Category" value={selectedCategory?.name || 'Selected'} onChange={() => setSelectedCategoryId('')} />
+
+                  {loadingSubcategories ? (
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                      <span>Loading available subcategories...</span>
+                    </div>
+                  ) : subcategories.length > 0 && !selectedSubcategoryId ? (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Briefcase className="h-4 w-4 text-emerald-500" /> Choose a Subcategory <span className="ml-auto text-[10px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-full">{subcategories.length} Options</span></h4>
+                      <div className="flex flex-col gap-3">
+                        {subcategories.map(sub => (
+                          <OptionCard key={sub._id || sub.name} testId="lead-subcategory-card" image={sub.image} title={sub.name} subtitle={sub.description || 'View services'} onClick={() => setSelectedSubcategoryId(sub._id || sub.name)} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {selectedSubcategoryId && (
+                    <SelectedChip label="Service Subcategory" value={selectedSub?.name || 'Selected'} onChange={() => setSelectedSubcategoryId('')} />
+                  )}
+
+                  {selectedSubcategoryId && (loadingSubServices ? (
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-500" />
+                      <span>Loading available services...</span>
+                    </div>
+                  ) : subServices.length > 0 ? (
+                    selectedServiceId ? (
+                      <SelectedChip label="Specific Service" value={selectedService?.name || 'Selected'} onChange={() => setSelectedServiceId('')} />
+                    ) : (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Layers className="h-4 w-4 text-emerald-500" /> Select Specific Service *</h4>
+                        <div className="flex flex-col gap-3">
+                          {subServices.map(srv => (
+                            <div key={srv._id} className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow-md transition-all">
+                              <div className="p-3.5 flex items-center gap-3.5">
+                                <div className="h-14 w-14 shrink-0 rounded-[14px] overflow-hidden bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
+                                  {srv.image ? <img src={srv.image} alt={srv.name} className="h-full w-full object-cover" /> : <Briefcase className="h-6 w-6 text-slate-300 dark:text-slate-600" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="text-[14px] font-black text-slate-900 dark:text-white leading-tight">{srv.name}</h3>
+                                  {srv.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{srv.description}</p>}
+                                </div>
+                                <button type="button" data-testid="lead-service-select" onClick={() => setSelectedServiceId(srv._id)} className="shrink-0 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-5 py-2 text-xs font-black text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 transition-colors">SELECT</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  ) : null)}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
