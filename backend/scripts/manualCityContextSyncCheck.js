@@ -32,7 +32,7 @@ const gate = feRead('components/LocationGate.jsx');
 console.log('\nManually entering a city updates the AuthContext state that searches actually read, not just sessionStorage');
 
 check('LocationGate pulls setUserCity out of useAuth()', () => {
-    assert.ok(/const \{ userLocation, detectLocation, setUserCity \} = useAuth\(\)/.test(gate));
+    assert.ok(/const \{ (?:user, )?userLocation, detectLocation, setUserCity \} = useAuth\(\)/.test(gate));
 });
 
 check('picking a Nominatim suggestion calls setUserCity, not only sessionStorage', () => {
