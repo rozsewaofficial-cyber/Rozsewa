@@ -70,3 +70,17 @@ console.log(`\n${passed} lead-form sewak-style checks passed.\n`);
     });
     console.log(`\n${passed} lead-form checks passed (incl. header).\n`);
 }
+
+// ---- address validation (found in end-to-end test) ----
+{
+    const text = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'frontend', 'src', 'modules', 'user', 'pages', 'LeadRequirementForm.jsx'), 'utf8');
+    console.log('Address validation');
+    check('submit rejects a missing state, city, street or a non-6-digit pincode (the button is not a native submit, so the * fields were never enforced)', () => {
+        const fn = text.slice(text.indexOf('const handleSubmit'), text.indexOf('const handleSubmit') + 2500);
+        assert.ok(/!locationDetail\.state \? 'your state'/.test(fn));
+        assert.ok(/!locationDetail\.city\?\.trim\(\) \? 'your city'/.test(fn));
+        assert.ok(/!locationDetail\.street\?\.trim\(\)/.test(fn));
+        assert.ok(/\^\d\{6\}\$/.test(fn));
+    });
+    console.log(`\n${passed} lead-form checks passed (incl. address).\n`);
+}

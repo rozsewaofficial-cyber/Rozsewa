@@ -1172,6 +1172,17 @@ const LeadRequirementForm = () => {
       toast({ title: 'Almost there', description: `Please choose ${missing}.`, variant: 'destructive' });
       return;
     }
+    // The submit button is not a native submit, so the * marked address fields
+    // are never checked by the browser — enforce them here.
+    const missingAddress = !locationDetail.state ? 'your state'
+      : !locationDetail.city?.trim() ? 'your city'
+      : !locationDetail.street?.trim() ? 'your street / road address'
+      : !/^\d{6}$/.test((locationDetail.pincode || '').trim()) ? 'a valid 6-digit pincode'
+      : null;
+    if (missingAddress) {
+      toast({ title: 'Address incomplete', description: `Please enter ${missingAddress}.`, variant: 'destructive' });
+      return;
+    }
     if (requirementTitle && requirementTitle.length < 10) {
       toast({ title: 'Requirement title too short', description: 'Minimum length is 10 characters.', variant: 'destructive' });
       return;
