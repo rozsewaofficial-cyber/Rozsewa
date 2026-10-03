@@ -1277,83 +1277,80 @@ const LeadRequirementForm = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#070C18] text-slate-900 dark:text-slate-100 pb-36 font-sans">
 
-      {/* Top Glassmorphic Navigation & Progress Bar */}
-      <div className="sticky top-0 z-50 bg-white/90 dark:bg-[#070C18]/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80 transition-all">
-        {/* Dynamic Completion Bar */}
-        <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5">
-          <div
-            className="bg-gradient-to-r from-emerald-500 via-teal-500 to-amber-400 h-full transition-all duration-500"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-
-        <div className="max-w-3xl mx-auto px-4 py-3.5 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      {/* Top bar: back, title, completion ring */}
+      <div className="sticky top-0 z-50 bg-white/90 dark:bg-[#070C18]/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="p-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+              aria-label="Go back"
+              className="h-10 w-10 shrink-0 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider">
-                  <Sparkles className="h-3 w-3 text-amber-500 fill-amber-500" /> Lead Request
-                </span>
-                <span className="text-xs font-bold text-slate-400 dark:text-slate-500">
-                  {progressPercent}% Complete
-                </span>
-              </div>
-              <h1 className="text-base font-black text-slate-900 dark:text-white leading-tight">Create Service Request</h1>
+            <div className="min-w-0">
+              <h1 className="text-[15px] font-bold text-slate-900 dark:text-white leading-tight truncate">Post a Requirement</h1>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-tight mt-0.5 flex items-center gap-1.5">
+                {savingDraft ? (
+                  <><Loader2 className="h-3 w-3 animate-spin text-amber-500" /> Saving draft…</>
+                ) : draftId ? (
+                  <><Check className="h-3 w-3 text-emerald-500" /> Draft saved</>
+                ) : (
+                  'Get quotes from verified local experts'
+                )}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {savingDraft ? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[11px] font-bold border border-amber-200/50">
-                <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
-                <span>Auto-Saving</span>
-              </div>
-            ) : draftId ? (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold border border-emerald-200/50">
-                <Check className="h-3 w-3" />
-                <span>Draft Saved</span>
-              </div>
-            ) : null}
+          {/* Completion ring */}
+          <div className="relative h-11 w-11 shrink-0" role="progressbar" aria-valuenow={progressPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Form completion">
+            <svg viewBox="0 0 36 36" className="h-11 w-11 -rotate-90">
+              <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" className="stroke-slate-200 dark:stroke-slate-800" />
+              <circle
+                cx="18" cy="18" r="15.5" fill="none" strokeWidth="3" strokeLinecap="round"
+                className="stroke-emerald-500 transition-all duration-500"
+                strokeDasharray={`${(progressPercent / 100) * 97.4} 97.4`}
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-slate-700 dark:text-slate-200">{progressPercent}%</span>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 pt-4 space-y-5 md:space-y-6">
+      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 pt-5 space-y-5 md:space-y-6">
 
-        {/* Hero Banner Header - Sleek Compact Emerald Green & Amber Palette */}
-        <div className="relative overflow-hidden bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-900 rounded-3xl p-5 md:p-6 text-white shadow-xl shadow-emerald-700/15">
-          <div className="relative z-10 space-y-2.5">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-bold border border-white/20">
-              <Zap className="h-3.5 w-3.5 text-amber-300 fill-amber-300" />
-              <span>Fast Verified Provider Matching</span>
+        {/* Intro card */}
+        <div className="relative overflow-hidden rounded-3xl border border-emerald-200/60 dark:border-emerald-900/40 bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-emerald-950/40 dark:via-[#0B1220] dark:to-teal-950/30 p-5 md:p-6 shadow-sm">
+          <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-emerald-400/10 blur-2xl pointer-events-none" />
+          <div className="relative flex items-start gap-4">
+            <div className="h-12 w-12 shrink-0 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-600/25">
+              <Zap className="h-6 w-6" />
             </div>
-            <h2 className="text-lg md:text-xl font-black tracking-tight leading-snug">
-              Tell us what you need, get offers from local experts.
-            </h2>
-            <div className="flex flex-wrap items-center gap-3.5 text-xs font-medium text-emerald-100 pt-0.5">
-              <div className="flex items-center gap-1.5">
-                <Shield className="h-3.5 w-3.5 text-amber-300" />
-                <span>100% Masked Privacy</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-amber-300" />
-                <span>Verified Experts Only</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-amber-300" />
-                <span>Flexible Schedules</span>
-              </div>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">Fast verified matching</p>
+              <h2 className="mt-1 text-lg md:text-xl font-bold tracking-tight text-slate-900 dark:text-white leading-snug">
+                Tell us what you need, get offers from local experts
+              </h2>
+              <p className="mt-1.5 text-[13px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                Describe your requirement once and verified professionals nearby will contact you with quotes.
+              </p>
             </div>
           </div>
-          {/* Subtle background glow circle decor */}
-          <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-amber-400/20 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative mt-5 grid grid-cols-3 gap-2.5">
+            {[
+              { icon: Shield, title: 'Private', sub: 'Number stays masked' },
+              { icon: CheckCircle2, title: 'Verified', sub: 'KYC-checked experts' },
+              { icon: Clock, title: 'Flexible', sub: 'You pick the time' },
+            ].map(({ icon: Icon, title, sub }) => (
+              <div key={title} className="rounded-2xl bg-white/80 dark:bg-slate-900/60 border border-slate-200/70 dark:border-slate-800/70 px-3 py-3 text-center">
+                <Icon className="h-4 w-4 mx-auto text-emerald-600 dark:text-emerald-400" />
+                <p className="mt-1.5 text-xs font-bold text-slate-900 dark:text-white">{title}</p>
+                <p className="mt-0.5 text-[10px] leading-tight text-slate-500 dark:text-slate-400">{sub}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* STEP 1: SERVICE CATEGORY & SUBCATEGORY */}

@@ -53,3 +53,20 @@ check('handleSubmit rejects a missing category, subcategory, service or time', (
 });
 
 console.log(`\n${passed} lead-form sewak-style checks passed.\n`);
+
+// ---- header / intro card refresh ----
+{
+    const fs2 = require('fs');
+    const text = fs2.readFileSync(require('path').join(__dirname, '..', '..', 'frontend', 'src', 'modules', 'user', 'pages', 'LeadRequirementForm.jsx'), 'utf8');
+    console.log('Professional header');
+    check('the top bar shows a titled header with a completion ring instead of badges', () => {
+        assert.ok(/Post a Requirement/.test(text));
+        assert.ok(/role="progressbar"/.test(text) && /aria-valuenow=\{progressPercent\}/.test(text));
+        assert.ok(!/Lead Request\s*\n\s*<\/span>/.test(text.replace(/\r/g, '')), 'the cramped LEAD REQUEST pill + "% Complete" text is gone');
+    });
+    check('the intro card uses equal-width trust tiles', () => {
+        assert.ok(/grid grid-cols-3 gap-2\.5/.test(text));
+        assert.ok(/KYC-checked experts/.test(text));
+    });
+    console.log(`\n${passed} lead-form checks passed (incl. header).\n`);
+}
