@@ -2,6 +2,8 @@ const Setting = require('../models/Setting');
 const Booking = require('../models/Booking');
 const Provider = require('../models/Provider');
 
+const MAX_PLAUSIBLE_DISTANCE_KM = 200;
+
 class DistanceChargeService {
     // Haversine formula to calculate distance between two coordinates in KM
     static calculateDistance(lat1, lon1, lat2, lon2) {
@@ -114,6 +116,13 @@ class DistanceChargeService {
             }
 
             let resultCharge = 0;
+
+            // A distance no home visit could ever cover means one of the two saved
+            // locations is wrong (e.g. a shop pinned on another continent) — bill
+            // the fallback charge instead of thousands of rupees of travel.
+            if (distanceKm !== null && distanceKm > MAX_PLAUSIBLE_DISTANCE_KM) {
+                distanceKm = null;
+            }
 
             if (distanceKm !== null && !isNaN(distanceKm)) {
                 if (config.maximumDistance && distanceKm > config.maximumDistance) {

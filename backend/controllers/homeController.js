@@ -136,7 +136,7 @@ const getPublicCategories = async (req, res) => {
 const getPublicProviderById = async (req, res) => {
     try {
         const provider = await Provider.findById(req.params.id)
-            .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability is24x7 isHomeVisitAvailable')
+            .select('name shopName ownerName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location about qualifications warranty isOnline openingTime closingTime availability is24x7 isEmergencyEnabled isHomeVisitAvailable')
             .populate('vendorType', 'name icon hasNightCharge nightChargePercent nightChargeFlatAmount');
 
         if (!provider) {
@@ -221,7 +221,7 @@ const getFeaturedProviders = async (req, res) => {
 // @access  Public
 const getPublicProviders = async (req, res) => {
     try {
-        const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo, storeVisitOnly } = req.query;
+        const { category, search, lat, lng, city, radius = 15, mode, minRating, homeVisit, is24x7, hasCombo, storeVisitOnly, emergency } = req.query;
         let query = { status: 'verified', isOnline: true };
 
         if (mode === 'sewak') {
@@ -243,9 +243,16 @@ const getPublicProviders = async (req, res) => {
             // who come to their shop — that's what "Store Visit Only" means.
             query.isHomeVisitAvailable = { $ne: true };
         }
+        const andClauses = [];
         if (is24x7 === 'true') {
-            query.is24x7 = true;
+            // The Settings "24/7 SERVICE" tile sets isEmergencyEnabled while the
+            // Timing screen sets is24x7 — either one means round-the-clock.
+            andClauses.push({ $or: [{ is24x7: true }, { isEmergencyEnabled: true }] });
         }
+        if (emergency === 'true') {
+            query.isEmergencyEnabled = true;
+        }
+        if (andClauses.length) query.$and = andClauses;
 
         // Geolocation filtering
         if (lat && lng) {

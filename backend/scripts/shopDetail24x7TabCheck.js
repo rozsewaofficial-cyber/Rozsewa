@@ -41,7 +41,7 @@ check('getPublicProviderById selects is24x7', () => {
 console.log('\nShopDetail.jsx treats a 24/7-available provider as offering every service round the clock');
 
 check('the provider object carries is24x7 through from the API response', () => {
-    assert.ok(/is24x7: found\.is24x7 \|\| false/.test(page));
+    assert.ok(/is24x7: found\.is24x7 \|\| found\.isEmergencyEnabled \|\| false/.test(page));
 });
 
 check('the 24x7 tab filter is bypassed (shows everything) when the provider is 24/7-available', () => {

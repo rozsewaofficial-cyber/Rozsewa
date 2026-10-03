@@ -101,7 +101,7 @@ const ShopDetail = () => {
           warranty: found.warranty || defaultProviderFallback.warranty,
           isOnline: found.isOnline !== undefined ? found.isOnline : true,
           isWithinWorkingHours: found.isWithinWorkingHours !== undefined ? found.isWithinWorkingHours : true,
-          is24x7: found.is24x7 || false,
+          is24x7: found.is24x7 || found.isEmergencyEnabled || false,
           isHomeVisitAvailable: found.providerCategory === 'sewak' ? true : found.isHomeVisitAvailable !== false,
           portfolio: found.portfolio || [],
           openingTime: found.openingTime || "09:00 AM",

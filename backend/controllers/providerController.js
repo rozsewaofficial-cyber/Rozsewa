@@ -680,6 +680,13 @@ const updateProviderProfile = async (req, res) => {
             provider.closingTime = req.body.closingTime || provider.closingTime;
 
             if (req.body.availability) {
+                const badDay = Array.isArray(req.body.availability) && req.body.availability.find(
+                    a => a && a.isActive !== false && a.startTime && a.endTime && a.endTime <= a.startTime);
+                if (badDay) {
+                    return res.status(400).json({
+                        message: `${badDay.day}: closing time (${badDay.endTime}) must be after opening time (${badDay.startTime}).`
+                    });
+                }
                 provider.availability = req.body.availability;
             }
             if (req.body.is24x7 !== undefined) {
