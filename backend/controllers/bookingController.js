@@ -1142,6 +1142,7 @@ const updateBooking = async (req, res) => {
                 } else {
                     updateFields.status = 'cancelled';
                     updateFields.offerStatus = 'counter_rejected';
+                    updateFields.cancelledBy = 'user';
                 }
 
                 const updatedBooking = await Booking.findOneAndUpdate(
@@ -1205,6 +1206,11 @@ const updateBooking = async (req, res) => {
             }
 
             booking.status = status || booking.status;
+            // Recorded so the customer's screen says they cancelled it, not
+            // that no provider accepted it.
+            if (status === 'cancelled' && booking.userId && booking.userId.toString() === req.user._id.toString()) {
+                booking.cancelledBy = 'user';
+            }
             booking.bookingDate = bookingDate || booking.bookingDate;
             booking.bookingTime = bookingTime || booking.bookingTime;
 

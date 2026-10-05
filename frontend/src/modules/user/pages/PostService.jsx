@@ -14,7 +14,8 @@ import {
   AlertCircle,
   Heart,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { RECENT_COMPLETION_MINUTES } from "@/lib/trackedBooking";
 import TopNav from "@/modules/user/components/TopNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -34,6 +35,8 @@ const tags = [
 
 const PostService = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const bookingId = searchParams.get("bookingId");
   const { toast } = useToast();
   const { user } = useAuth();
   const { socket } = useSocket();
@@ -62,11 +65,18 @@ const PostService = () => {
   const fetchBooking = async () => {
     try {
       const { data } = await API.get("/bookings");
-      const active = data.find(
-        (b) =>
-          ["completed", "started"].includes(b.status) &&
-          (!b.rating || b.rating === 0),
-      );
+      // The bill of the booking we were sent here for. Without one, only a
+      // job in progress or one finished in the last hour — never some old
+      // unrated booking, which is what opened after cancelling a booking.
+      const active = bookingId
+        ? data.find((b) => b._id === bookingId)
+        : data.find(
+            (b) =>
+              (!b.rating || b.rating === 0) &&
+              (b.status === "started" ||
+                (b.status === "completed" &&
+                  (Date.now() - new Date(b.completedAt || b.updatedAt || 0).getTime()) / 60000 <= RECENT_COMPLETION_MINUTES)),
+          );
       if (active) {
         setBooking(active);
         setPaymentDone(active.paymentStatus === "paid");

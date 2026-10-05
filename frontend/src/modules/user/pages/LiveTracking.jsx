@@ -22,6 +22,7 @@ import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 import ChatModal from "@/components/ChatModal";
 import { canChatOnBooking } from "@/lib/bookingChat";
+import { pickTrackedBooking } from "@/lib/trackedBooking";
 
 const LiveTracking = () => {
   const navigate = useNavigate();
@@ -197,43 +198,14 @@ const LiveTracking = () => {
   const fetchBookingStatus = async () => {
     try {
       const { data } = await API.get("/bookings");
-      // Find the most recent active booking prioritizing non-cancelled ones
-      let active = data.find((b) =>
-        ["pending", "confirmed", "on_the_way", "started"].includes(b.status),
-      );
-      if (!active) {
-        active = data.find(
-          (b) => b.status === "completed" && (!b.rating || b.rating === 0),
-        );
-      }
-
-      // If we are currently tracking a booking, see if it is in the data list and is cancelled
-      if (!active && bookingDetailsRef.current?._id) {
-        active = data.find(
-          (b) =>
-            b._id === bookingDetailsRef.current._id && b.status === "cancelled",
-        );
-      }
-
-      if (!active) {
-        active = data.find((b) => {
-          if (b.status !== "cancelled") return false;
-          let dl = [];
-          try {
-            dl = JSON.parse(
-              localStorage.getItem("rozsewa_dismissed_bookings") || "[]",
-            );
-          } catch (e) {}
-          if (dl.includes(b._id)) return false;
-          const timeToCheck = b.updatedAt || b.createdAt;
-          if (timeToCheck) {
-            const diffMinutes =
-              Math.abs(new Date() - new Date(timeToCheck)) / (1000 * 60);
-            if (diffMinutes > 15) return false;
-          }
-          return true;
-        });
-      }
+      let dismissed = [];
+      try {
+        dismissed = JSON.parse(localStorage.getItem("rozsewa_dismissed_bookings") || "[]");
+      } catch (e) {}
+      const active = pickTrackedBooking(data, {
+        trackedId: bookingDetailsRef.current?._id,
+        dismissed,
+      });
       if (active) {
         const current = active.status;
         updateBookingDetails(active);
@@ -255,7 +227,7 @@ const LiveTracking = () => {
         else if (active.status === "cancelled") setCurrentStep(-1);
         else if (active.status === "completed") {
           setCurrentStep(4);
-          navigate("/post-service");
+          navigate(`/post-service?bookingId=${active._id}`);
         }
 
         // Calculate cancel timer (5 mins from creation)
@@ -619,12 +591,16 @@ const LiveTracking = () => {
               <h3 className="text-xl font-black text-rose-700 dark:text-rose-500">
                 {bookingDetails.cancelledBy === "provider"
                   ? "Cancelled by Provider"
-                  : "Request Not Accepted"}
+                  : bookingDetails.cancelledBy === "user"
+                    ? "Booking Cancelled"
+                    : "Request Not Accepted"}
               </h3>
               <p className="text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-2">
                 {bookingDetails.cancellationReason
                   ? `Reason: "${bookingDetails.cancellationReason}"`
-                  : "Unfortunately, no providers accepted your request. Please try booking again."}
+                  : bookingDetails.cancelledBy === "user"
+                    ? "You cancelled this booking."
+                    : "Unfortunately, no providers accepted your request. Please try booking again."}
               </p>
             </div>
             <button
@@ -1137,7 +1113,7 @@ const LiveTracking = () => {
                       {i === currentStep && i === 4 && (
                         <motion.button
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => navigate("/post-service")}
+                          onClick={() => navigate(`/post-service?bookingId=${bookingDetails?._id}`)}
                           className="mt-2 rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground"
                         >
                           View Bill & Review →
