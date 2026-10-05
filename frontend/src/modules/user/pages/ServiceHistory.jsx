@@ -605,14 +605,6 @@ const ServiceHistory = () => {
                     </div>
                   )}
 
-                  {selectedBooking.status === "pending" && (
-                    <div className="grid grid-cols-1 gap-3">
-                      <button onClick={() => setIsChatOpen(true)} className="flex items-center justify-center gap-2 rounded-xl border border-blue-600 bg-blue-50 py-3 text-xs font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50">
-                        <MessageCircle className="h-4 w-4" /> Chat
-                      </button>
-                    </div>
-                  )}
-
                   <button onClick={() => navigate("/complaint")} className="w-full rounded-xl border border-border py-3 text-xs font-bold hover:bg-muted flex items-center justify-center gap-2 mt-3">
                     <AlertTriangle className="h-4 w-4 text-amber-500" /> Report an Issue
                   </button>

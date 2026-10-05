@@ -1,7 +1,31 @@
+const mongoose = require('mongoose');
 const { pageParams, paginate } = require('../utils/pagination');
 const Message = require('../models/Message');
 const Booking = require('../models/Booking');
 const { getIO } = require('../config/socket');
+
+// Chat opens only once the partner has accepted the booking, and closes when
+// the job is over. Before acceptance there is no agreed partner to talk to —
+// and a direct (specific-shop) booking already carries a providerId while it is
+// still pending, so "has a provider" is not the same as "was accepted".
+const CHAT_OPEN_STATUSES = ['confirmed', 'on_the_way', 'started'];
+
+// The booking's own customer and partner are the only parties to its chat.
+// Returns { booking } or { status, message } for the caller to send back.
+const loadChatBooking = async (req, bookingId) => {
+    if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+        return { status: 404, message: 'Booking not found' };
+    }
+    const booking = await Booking.findById(bookingId).select('userId providerId status');
+    if (!booking) return { status: 404, message: 'Booking not found' };
+
+    const isParty = req.provider
+        ? booking.providerId && booking.providerId.toString() === req.provider._id.toString()
+        : req.user && booking.userId && booking.userId.toString() === req.user._id.toString();
+    if (!isParty) return { status: 403, message: 'You are not part of this booking' };
+
+    return { booking };
+};
 
 // @desc    Get messages for a booking
 // @route   GET /api/chat/:bookingId
@@ -9,6 +33,14 @@ const { getIO } = require('../config/socket');
 const getMessages = async (req, res) => {
     try {
         const { bookingId } = req.params;
+        const found = await loadChatBooking(req, bookingId);
+        if (!found.booking) return res.status(found.status).json({ message: found.message });
+        // Before the partner accepts there is no conversation to show.
+        if (found.booking.status === 'pending') {
+            res.set('X-Total-Count', '0');
+            return res.status(200).json([]);
+        }
+
         // A conversation only grows, so the most recent stretch of it is what
         // loads. Newest first to take the last page, then flipped back into
         // reading order.
@@ -68,6 +100,16 @@ const sendMessage = async (req, res) => {
             senderName = req.user.name;
         } else {
             return res.status(401).json({ message: 'Unauthorized' });
+        }
+
+        const found = await loadChatBooking(req, bookingId);
+        if (!found.booking) return res.status(found.status).json({ message: found.message });
+        if (!CHAT_OPEN_STATUSES.includes(found.booking.status)) {
+            return res.status(400).json({
+                message: found.booking.status === 'pending'
+                    ? 'Chat opens once the partner accepts your booking.'
+                    : 'Chat is closed for this booking.'
+            });
         }
 
         const message = new Message({

@@ -109,7 +109,11 @@ const ChatModal = ({ isOpen, onClose, bookingId, userType, recipientName }) => {
             setOfferAmount('');
             setShowOfferInput(false);
         } catch (error) {
-            toast({ title: "Failed to send message", variant: "destructive" });
+            toast({
+                title: "Failed to send message",
+                description: error.response?.data?.message,
+                variant: "destructive"
+            });
         }
     };
 

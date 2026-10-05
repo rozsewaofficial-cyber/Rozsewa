@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 import ChatModal from "@/components/ChatModal";
+import { canChatOnBooking } from "@/lib/bookingChat";
 
 const LiveTracking = () => {
   const navigate = useNavigate();
@@ -979,12 +980,14 @@ const LiveTracking = () => {
                     >
                       <Phone className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => setIsChatOpen(true)}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </button>
+                    {canChatOnBooking(bookingDetails?.status) && (
+                      <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
