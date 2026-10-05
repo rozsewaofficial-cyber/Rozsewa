@@ -6,6 +6,7 @@ import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { useEffect } from "react";
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -18,6 +19,7 @@ const getDefault = () => days.reduce((acc, d) => ({
 const ProviderAvailability = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { updateUser } = useAuth();
   const [schedule, setSchedule] = useState(() => getDefault());
   const [is24x7, setIs24x7] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -37,9 +39,9 @@ const ProviderAvailability = () => {
         });
         setSchedule(newSchedule);
       }
-      if (data.is24x7 !== undefined) {
-        setIs24x7(data.is24x7);
-      }
+      // Same setting as the Settings "24/7 Service" tile and the dashboard
+      // Emergency button, which store it as isEmergencyEnabled.
+      setIs24x7(!!(data.is24x7 || data.isEmergencyEnabled));
     } catch (err) {
       console.error("Failed to fetch availability:", err);
     } finally {
@@ -111,6 +113,7 @@ const ProviderAvailability = () => {
       }));
 
       await API.put("/provider/profile", { availability: availabilityArray, is24x7 });
+      updateUser({ is24x7, isEmergencyEnabled: is24x7 }); // dashboard Emergency button reads this
       toast({ title: "Schedule Saved ✓", description: "Your availability has been updated." });
     } catch (err) {
       toast({ title: "Error", description: "Failed to save schedule.", variant: "destructive" });

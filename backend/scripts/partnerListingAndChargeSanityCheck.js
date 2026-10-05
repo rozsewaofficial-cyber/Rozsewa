@@ -21,9 +21,9 @@ const home = be('controllers/homeController.js');
 const fn = home.slice(home.indexOf('const getPublicProviders'), home.indexOf('const getPublicProviders') + 2500);
 
 console.log('\nListing filters');
-check('emergency=true is read and filters on isEmergencyEnabled', () => {
+check('emergency=true is read and filters on is24x7 OR isEmergencyEnabled', () => {
     assert.ok(/storeVisitOnly, emergency[\w, ]*\} = req\.query/.test(fn));
-    assert.ok(/emergency === 'true'[\s\S]{0,80}query\.isEmergencyEnabled = true/.test(fn));
+    assert.ok(/emergency === 'true'[\s\S]{0,80}andClauses\.push\(\{ \$or: \[\{ is24x7: true \}, \{ isEmergencyEnabled: true \}\] \}\)/.test(fn));
 });
 check('the 24/7 filter matches is24x7 OR isEmergencyEnabled, without clobbering search $or', () => {
     assert.ok(/\$or: \[\{ is24x7: true \}, \{ isEmergencyEnabled: true \}\]/.test(fn));

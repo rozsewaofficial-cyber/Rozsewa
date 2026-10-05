@@ -125,7 +125,7 @@ const ShopListing = () => {
       price: p.startingPrice || 199,
       image: p.profileImage || `https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop`,
       verified: p.status === "verified",
-      emergency: p.isEmergencyEnabled || false
+      emergency: !!(p.isEmergencyEnabled || p.is24x7)
     };
   });
 

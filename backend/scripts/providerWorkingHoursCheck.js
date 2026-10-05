@@ -51,9 +51,10 @@ check('the clock is read in Asia/Kolkata, not the server\'s own timezone', () =>
         'provider hours are entered in IST via ProviderAvailability.jsx — a server running in UTC must not compare against its own local hour');
 });
 
-check('is24x7 always wins, and a provider who never set hours is never hidden', () => {
+check('24/7 (is24x7 or isEmergencyEnabled) always wins, and a provider who never set hours is never hidden', () => {
     const fn = sliceFn(controller, 'const isProviderWithinWorkingHours', '// @desc    Get all active zones');
-    assert.ok(/if \(provider\.is24x7\) return true;/.test(fn));
+    assert.ok(/if \(provider\.is24x7 \|\| provider\.isEmergencyEnabled\) return true;/.test(fn),
+        'the Settings tile / dashboard Emergency button store 24/7 as isEmergencyEnabled — that partner must not show Closed at night');
     assert.ok(/if \(!provider\.availability \|\| provider\.availability\.length === 0\) return true;/.test(fn),
         'an empty array means the provider never touched the Availability screen — must default to showing, not hiding everyone');
 });

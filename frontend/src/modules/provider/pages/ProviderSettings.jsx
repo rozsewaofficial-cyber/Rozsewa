@@ -33,13 +33,17 @@ const ProviderSettings = () => {
     }
   };
 
+  // One 24/7 setting, two fields: this tile writes isEmergencyEnabled, the
+  // Timing screen writes is24x7. Either one means the partner is on 24/7.
+  const roundTheClock = !!(provider?.isEmergencyEnabled || provider?.is24x7);
+
   const handleToggleStatus = async (type) => {
     setStatusLoading(true);
     try {
       const payload = type === 'online'
         ? { isOnline: !provider.isOnline }
         : type === 'emergency'
-        ? { isEmergencyEnabled: !provider.isEmergencyEnabled }
+        ? { isEmergencyEnabled: !roundTheClock }
         : { isHomeVisitAvailable: !provider.isHomeVisitAvailable };
 
       const { data } = await API.patch("/provider/status", payload);
@@ -110,14 +114,14 @@ const ProviderSettings = () => {
           <button
             disabled={statusLoading}
             onClick={() => handleToggleStatus('emergency')}
-            className={`rounded-2xl p-3 sm:p-4 border text-left transition-all cursor-pointer ${provider?.isEmergencyEnabled ? 'bg-amber-50 border-amber-200/80 dark:bg-amber-950/40 dark:border-amber-800/40' : 'bg-muted/30 border-border opacity-70'}`}
+            className={`rounded-2xl p-3 sm:p-4 border text-left transition-all cursor-pointer ${roundTheClock ? 'bg-amber-50 border-amber-200/80 dark:bg-amber-950/40 dark:border-amber-800/40' : 'bg-muted/30 border-border opacity-70'}`}
           >
-            <div className={`h-8 w-8 rounded-xl flex items-center justify-center mb-2 ${provider?.isEmergencyEnabled ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 'bg-muted text-muted-foreground'}`}>
+            <div className={`h-8 w-8 rounded-xl flex items-center justify-center mb-2 ${roundTheClock ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 'bg-muted text-muted-foreground'}`}>
               <Zap className="h-4 w-4" />
             </div>
             <p className="text-[9px] font-black uppercase tracking-wider text-muted-foreground truncate">24/7 Service</p>
-            <h4 className={`text-xs sm:text-sm font-black mt-0.5 ${provider?.isEmergencyEnabled ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'}`}>
-              {provider?.isEmergencyEnabled ? 'ACTIVE' : 'INACTIVE'}
+            <h4 className={`text-xs sm:text-sm font-black mt-0.5 ${roundTheClock ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'}`}>
+              {roundTheClock ? 'ACTIVE' : 'INACTIVE'}
             </h4>
           </button>
 

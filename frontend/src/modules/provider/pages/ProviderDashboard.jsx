@@ -48,7 +48,8 @@ const ProviderDashboard = () => {
   const { user, updateUser, syncFCMToken } = useAuth();
   const { socket, incomingRequest, setIncomingRequest } = useSocket();
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? true);
-  const [isEmergencyActive, setIsEmergencyActive] = useState(user?.isEmergencyEnabled ?? false);
+  // The Timing screen's "24/7 Emergency" switch (is24x7) is the same setting.
+  const [isEmergencyActive, setIsEmergencyActive] = useState(!!(user?.isEmergencyEnabled || user?.is24x7));
   const [showEmergencyMenu, setShowEmergencyMenu] = useState(false);
   const emergencyMenuRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -204,7 +205,7 @@ const ProviderDashboard = () => {
   useEffect(() => {
     if (user) {
       setIsOnline(user.isOnline);
-      setIsEmergencyActive(user.isEmergencyEnabled);
+      setIsEmergencyActive(!!(user.isEmergencyEnabled || user.is24x7));
     }
   }, [user]);
 
@@ -323,7 +324,7 @@ const ProviderDashboard = () => {
     setIsEmergencyActive(newState); // Optimistic update
     try {
       await API.patch("/provider/status", { isEmergencyEnabled: newState });
-      updateUser({ isEmergencyEnabled: newState }); // Sync global auth context
+      updateUser({ isEmergencyEnabled: newState, is24x7: newState }); // Sync global auth context
       toast({ title: newState ? "Emergency Mode ON" : "Emergency Mode OFF" });
     } catch (err) {
       setIsEmergencyActive(!newState); // Revert on failure

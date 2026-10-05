@@ -36,8 +36,13 @@ const getIstDayAndTime = () => {
 // A provider who has never opened the Availability screen has an empty
 // availability array — that must still show them (today's default), not
 // hide every provider who never touched the setting.
+//
+// Round-the-clock is one setting stored in two fields: the Timing screen's
+// "24/7 Emergency" switch writes is24x7, while the Settings "24/7 Service"
+// tile and the dashboard Emergency button write isEmergencyEnabled. Older
+// partners may have only one of them set, so either one counts.
 const isProviderWithinWorkingHours = (provider) => {
-    if (provider.is24x7) return true;
+    if (provider.is24x7 || provider.isEmergencyEnabled) return true;
     if (!provider.availability || provider.availability.length === 0) return true;
 
     const { day, time } = getIstDayAndTime();
@@ -202,7 +207,7 @@ const getFeaturedProviders = async (req, res) => {
         }
 
         let providersQuery = Provider.find(query)
-            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joinedDate reviewCount location availability is24x7')
+            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joinedDate reviewCount location availability is24x7 isEmergencyEnabled')
             .populate('vendorType', 'name icon')
             .limit(40);
 
@@ -260,7 +265,7 @@ const getPublicProviders = async (req, res) => {
             andClauses.push({ $or: [{ subServices: { $in: wanted } }, { subServices: { $exists: false } }, { subServices: { $size: 0 } }] });
         }
         if (emergency === 'true') {
-            query.isEmergencyEnabled = true;
+            andClauses.push({ $or: [{ is24x7: true }, { isEmergencyEnabled: true }] });
         }
         if (andClauses.length) query.$and = andClauses;
 

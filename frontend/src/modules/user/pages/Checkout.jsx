@@ -41,13 +41,19 @@ import CoinRedeemCard from "@/components/CoinRedeemCard";
 const mapContainerStyle = { width: "100%", height: "200px" };
 const center = { lat: 28.6139, lng: 77.209 }; // Delhi
 
+// YYYY-MM-DD of the customer's own calendar day. toISOString() is the UTC day,
+// which between 00:00 and 05:30 IST is still yesterday — a night booking for
+// a 24/7 partner went out dated the day before.
+const localDateKey = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 const dates = Array.from({ length: 7 }, (_, i) => {
   const d = new Date();
   d.setDate(d.getDate() + i);
   return {
     day: d.toLocaleDateString("en", { weekday: "short" }),
     date: d.getDate(),
-    full: d.toISOString().split("T")[0],
+    full: localDateKey(d),
   };
 });
 
@@ -87,6 +93,7 @@ const Checkout = () => {
     closingTime: "06:00 PM",
     availability: [],
     bookedSlots: [],
+    roundTheClock: false,
   });
   const [providerDetails, setProviderDetails] = useState(null);
   const [userProposedAmount, setUserProposedAmount] = useState("");
@@ -133,6 +140,9 @@ const Checkout = () => {
               closingTime: pData.closingTime || "06:00 PM",
               availability: pData.availability || [],
               bookedSlots: pData.bookedSlots || [],
+              // 24/7 partner: every hour of every day is bookable, whatever
+              // the weekly schedule says (either field means 24/7).
+              roundTheClock: !!(pData.is24x7 || pData.isEmergencyEnabled),
             });
           }
         } catch (error) {
@@ -178,6 +188,13 @@ const Checkout = () => {
   ];
 
   const generateTimeSlots = () => {
+    if (providerHours.roundTheClock) {
+      return Array.from({ length: 24 }, (_, i) => {
+        const hour = i % 12 || 12;
+        return `${hour.toString().padStart(2, "0")}:00 ${i < 12 ? "AM" : "PM"}`;
+      });
+    }
+
     let startStr = providerHours.openingTime;
     let endStr = providerHours.closingTime;
 
@@ -244,7 +261,7 @@ const Checkout = () => {
     const slotStartMins = toMinutes(t);
 
     // 1. Filter out past times for today
-    if (selectedDate === new Date().toISOString().split("T")[0]) {
+    if (selectedDate === localDateKey(new Date())) {
       const now = new Date();
       const currentMins = now.getHours() * 60 + now.getMinutes();
       // Only allow slots that are in the future
