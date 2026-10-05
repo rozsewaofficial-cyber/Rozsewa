@@ -472,6 +472,8 @@ const updateAdminService = async (req, res) => {
         }
 
         const { name, description, price, duration, visible, image, subcategoryId, categoryId } = req.body;
+        const previousCategoryId = service.categoryId ? String(service.categoryId) : null;
+        const previousName = service.name;
         if (name) service.name = name;
         if (description !== undefined) service.description = description;
         if (price !== undefined) service.price = price;
@@ -489,11 +491,37 @@ const updateAdminService = async (req, res) => {
 
         const updated = await service.save();
 
+        // Sewak screens and Sewak booking prices read the copy embedded in
+        // Category.services. A service moved to another category used to stay
+        // in the old category's copy and never reach the new one, and a service
+        // missing from the copy was never added back — so it showed to partners
+        // but not in Sewak mode.
+        if (previousCategoryId && previousCategoryId !== String(updated.categoryId || '')) {
+            await Category.updateOne(
+                { _id: previousCategoryId },
+                { $pull: { services: { $or: [{ _id: updated._id }, { name: previousName }] } } }
+            );
+        }
+
         if (updated.categoryId) {
             const cat = await Category.findById(updated.categoryId);
             if (cat) {
-                const idx = cat.services.findIndex(s => (s._id && s._id.toString() === updated._id.toString()) || s.name === updated.name);
-                if (idx !== -1) {
+                const idx = cat.services.findIndex(s => (s._id && s._id.toString() === updated._id.toString()) || s.name === updated.name || s.name === previousName);
+                if (idx === -1) {
+                    cat.services.push({
+                        _id: updated._id,
+                        name: updated.name,
+                        basePrice: updated.price || 0,
+                        description: updated.description || '',
+                        image: updated.image || '',
+                        skillSessionRequired: updated.skillSessionRequired,
+                        sessionDurationMinutes: updated.sessionDurationMinutes,
+                        sessionMode: updated.sessionMode,
+                        skillSessionActive: updated.skillSessionActive,
+                        visibleTo: updated.visibleTo
+                    });
+                    await cat.save();
+                } else {
                     cat.services[idx].name = updated.name;
                     cat.services[idx].basePrice = updated.price;
                     cat.services[idx].description = updated.description || "";

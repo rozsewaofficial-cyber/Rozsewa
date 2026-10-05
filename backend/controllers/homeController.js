@@ -53,6 +53,58 @@ const isProviderWithinWorkingHours = (provider) => {
     return time >= todayEntry.startTime && time <= todayEntry.endTime;
 };
 
+/** Escapes a string so it can be used as a literal inside a RegExp. */
+const escapeRegex = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// The services a customer can book from a category in Sewak mode.
+//
+// Sewak screens read the copy embedded in Category.services, while the admin
+// catalog (and Local Expert mode) is the standalone Service documents. The copy
+// drifts: a service moved to another category, or one that never made it into
+// the embedded list, shows to partners but is missing for Sewak customers. So
+// the catalog rows of this category are merged in, and each entry carries its
+// subcategory so the page can group services by it. A Sewak booking prices a
+// catalog-only row from Service.price (bookingController's fallback lookup).
+//
+// Only priced rows are bookable at a fixed Sewak rate, and a row the admin
+// marked Partner-only stays out of Sewak mode.
+const sewakCatalogServices = async (cat) => {
+    const forSewak = (s) => s.visibleTo !== 'partner';
+    const catalog = await Service.find({ categoryId: cat._id, providerId: null })
+        .select('name description price image subcategoryId subcategory visibleTo visible')
+        .lean();
+    const catalogById = new Map(catalog.map(s => [String(s._id), s]));
+    const key = (name) => String(name || '').trim().toLowerCase();
+
+    const embedded = (cat.services || [])
+        .filter(s => (Number(s.basePrice) > 0 || Number(s.price) > 0) && forSewak(s))
+        .map(s => {
+            const doc = catalogById.get(String(s._id));
+            // An image uploaded on the catalog row may never have reached the copy.
+            return doc
+                ? { ...s, image: s.image || doc.image || '', subcategoryId: doc.subcategoryId, subcategory: doc.subcategory }
+                : s;
+        });
+
+    const seenIds = new Set((cat.services || []).map(s => String(s._id)));
+    const seenNames = new Set((cat.services || []).map(s => key(s.name)));
+    const missing = catalog
+        .filter(s => !seenIds.has(String(s._id)) && !seenNames.has(key(s.name)))
+        .filter(s => Number(s.price) > 0 && s.visible !== false && forSewak(s))
+        .map(s => ({
+            _id: s._id,
+            name: s.name,
+            basePrice: Number(s.price),
+            description: s.description || '',
+            image: s.image || '',
+            subcategoryId: s.subcategoryId,
+            subcategory: s.subcategory,
+            visibleTo: s.visibleTo || 'both'
+        }));
+
+    return [...embedded, ...missing];
+};
+
 // @desc    Get all active zones/cities
 // @route   GET /api/public/zones
 // @access  Public
@@ -82,19 +134,19 @@ const getPublicBanners = async (req, res) => {
 // @access  Public
 const getPublicCategoryByName = async (req, res) => {
     try {
-        console.log(`[getPublicCategoryByName] Requested: "${req.params.name}"`);
-        // Use regex for case-insensitive match and to handle potential trailing/leading spaces in the DB
-        const safeName = req.params.name.trim().replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');
+        // Case-insensitive, tolerant of stray spaces in the stored name. The old
+        // escape was itself mis-escaped and never escaped anything, so a name
+        // with "(", ")" or "+" (e.g. "Cook + Maid") built a regex that could
+        // not match its own category — the Sewak page got a 404 and no services.
         const category = await Category.findOne({
-            name: { $regex: new RegExp(`^\\s*${safeName}\\s*$`, 'i') }
+            name: { $regex: new RegExp(`^\\s*${escapeRegex(req.params.name.trim())}\\s*$`, 'i') }
         });
 
         if (!category) {
-            console.log(`[getPublicCategoryByName] Not found: "${req.params.name}"`);
             return res.status(404).json({ message: 'Category not found' });
         }
         const catObj = category.toObject();
-        catObj.services = (catObj.services || []).filter(s => Number(s.basePrice) > 0 || Number(s.price) > 0);
+        catObj.services = await sewakCatalogServices(catObj);
         res.json(catObj);
     } catch (error) {
         console.error(`[getPublicCategoryByName] Error:`, error);
