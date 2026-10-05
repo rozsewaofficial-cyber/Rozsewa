@@ -8,6 +8,7 @@ const Zone = require('../models/Zone');
 const Combo = require('../models/Combo');
 const Subcategory = require('../models/Subcategory');
 const ProviderBanner = require('../models/ProviderBanner');
+const { serviceScopeFor, comboInScope } = require('../utils/providerServiceScope');
 
 // A provider's working hours (Provider.availability, set from
 // ProviderAvailability.jsx) are entered in IST regardless of where the
@@ -377,7 +378,7 @@ const getPublicProviders = async (req, res) => {
         }
 
         let providersQuery = Provider.find(query)
-            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled availability')
+            .select('name shopName providerCategory mobile profileImage vendorType vendorCode rating joins reviews status joinedDate reviewCount address location isHomeVisitAvailable is24x7 isEmergencyEnabled availability subServices')
             .populate('vendorType', 'name icon services');
 
         if (!(lat && lng)) {
@@ -405,7 +406,9 @@ const getPublicProviders = async (req, res) => {
                     startingPrice = Math.min(...categoryServices.map(s => s.basePrice || 299));
                 }
             } else {
-                const services = await Service.find({ providerId: p._id, visible: true }).select('price');
+                const offers = serviceScopeFor(p, p.vendorType?.services);
+                const services = (await Service.find({ providerId: p._id, visible: true }).select('name price'))
+                    .filter(s => !offers || offers(s));
                 if (services.length > 0) {
                     startingPrice = Math.min(...services.map(s => s.price));
                 } else {
@@ -555,6 +558,14 @@ const getPublicServiceByProvider = async (req, res) => {
                 isActive: true,
                 $or: [{ status: 'approved' }, { status: { $exists: false } }]
             }).populate('services');
+
+            // Only what the partner chose to offer — picking one service must
+            // not put the rest of the category on its shop page.
+            const offers = serviceScopeFor(provider, provider.vendorType?.services);
+            if (offers) {
+                services = services.filter(offers);
+                combos = combos.filter(c => comboInScope(offers, c));
+            }
         }
 
         res.json({ services, combos });

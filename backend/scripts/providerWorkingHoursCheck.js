@@ -80,7 +80,7 @@ check('getPublicProviders skips an out-of-hours provider in its enrichment loop'
     const fn = sliceFn(controller, 'const getPublicProviders', 'module.exports');
     assert.ok(/if \(!isProviderWithinWorkingHours\(p\)\) \{/.test(fn));
     const providerSelectLine = fn.split('\n').find(l => l.includes('.select(') && l.includes('isEmergencyEnabled'));
-    assert.ok(providerSelectLine && /availability'\)/.test(providerSelectLine),
+    assert.ok(providerSelectLine && /\bavailability\b[^']*'\)/.test(providerSelectLine),
         'the main Provider .select() projection must include availability, or the filter always sees it as empty');
 });
 

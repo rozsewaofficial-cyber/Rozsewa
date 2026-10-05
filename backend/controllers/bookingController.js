@@ -16,6 +16,7 @@ const DistanceChargeService = require('../services/DistanceChargeService');
 const CashSettlementService = require('../services/CashSettlementService');
 const { sendEmail } = require('../utils/emailService');
 const { adminRecipients } = require('../utils/adminRecipients');
+const { serviceScopeFor, comboInScope } = require('../utils/providerServiceScope');
 
 // How many workers one booking may be offered to at once. A dispatch is a
 // race to accept, not a broadcast to the whole platform, and the candidates
@@ -178,6 +179,28 @@ const createBooking = async (req, res) => {
             // Sewak-category providers have no home-visit toggle of their own.
             if (serviceLocation === 'home' && specificProvider.providerCategory !== 'sewak' && specificProvider.isHomeVisitAvailable === false) {
                 return res.status(400).json({ message: 'This provider does not offer home visits. Please choose At-Shop.' });
+            }
+            // A partner who chose specific services can only be booked for those.
+            if (specificProvider.providerCategory !== 'sewak') {
+                const cat = specificProvider.vendorType
+                    ? await Category.findById(specificProvider.vendorType).select('services').lean()
+                    : null;
+                const offers = serviceScopeFor(specificProvider, cat?.services);
+                if (offers) {
+                    const ids = ((items && items.length > 0) ? items.map(i => i.id) : [serviceId])
+                        .filter(id => mongoose.Types.ObjectId.isValid(id));
+                    const [svcs, combos] = await Promise.all([
+                        Service.find({ _id: { $in: ids }, providerId: { $in: [specificProvider._id, null] } }).select('name'),
+                        Combo.find({ _id: { $in: ids }, providerId: specificProvider._id }).populate('services', 'name')
+                    ]);
+                    const notOffered = [
+                        ...svcs.filter(s => !offers(s)).map(s => s.name),
+                        ...combos.filter(c => !comboInScope(offers, c)).map(c => c.name)
+                    ];
+                    if (notOffered.length > 0) {
+                        return res.status(400).json({ message: `This provider does not offer: ${notOffered.join(', ')}.` });
+                    }
+                }
             }
         }
 

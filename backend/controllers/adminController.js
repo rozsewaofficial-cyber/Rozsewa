@@ -358,14 +358,9 @@ const updateProviderCategory = async (req, res) => {
         }
         if (req.body.vendorType !== undefined && req.body.vendorType !== (provider.vendorType ? provider.vendorType.toString() : '')) {
             provider.vendorType = req.body.vendorType;
-            // Retrieve subservices of the new category and assign them to the provider
-            const Category = require('../models/Category');
-            const newCat = await Category.findById(req.body.vendorType);
-            if (newCat && newCat.services) {
-                provider.subServices = newCat.services.map(s => s._id.toString());
-            } else {
-                provider.subServices = [];
-            }
+            // Selections from the old category mean nothing in the new one; an
+            // empty selection is "the whole category" until the provider picks.
+            provider.subServices = [];
         }
         const updatedProvider = await provider.save();
         res.json(updatedProvider);
@@ -898,6 +893,8 @@ const updateCategory = async (req, res) => {
         if (req.body.gstPercent !== undefined) category.gstPercent = req.body.gstPercent;
         if (req.body.platformFee !== undefined) category.platformFee = req.body.platformFee;
 
+        // Catalog services renamed by this edit, so selections stored by name follow.
+        const renamedServices = [];
         if (req.body.services) {
             // Removing an entry here only edits the embedded catalog copy — the
             // public listing is driven primarily by standalone Service documents
@@ -934,6 +931,7 @@ const updateCategory = async (req, res) => {
 
             category.services = req.body.services.map(s => {
                 const existing = category.services.find(sub => (sub._id && s._id && sub._id.toString() === s._id.toString()) || sub.name === s.name);
+                if (existing && existing.name !== s.name) renamedServices.push({ from: existing.name, to: s.name });
                 const pick = (key, fallback) => (s[key] !== undefined ? s[key] : (existing?.[key] !== undefined ? existing[key] : fallback));
                 return {
                     _id: existing?._id || s._id || new mongoose.Types.ObjectId(),
@@ -992,17 +990,21 @@ const updateCategory = async (req, res) => {
         }
         const updated = await category.save();
 
-        // Synchronize provider subServices for all providers in this category
-        if (req.body.services) {
+        // Providers' own service selections (Provider.subServices) are theirs:
+        // this used to overwrite every provider in the category with the whole
+        // list, so a partner who offered one service was suddenly listed for
+        // all of them and Sewak skill-session checks (which match by name) saw
+        // ids. Removed services are already cleaned out by
+        // cascadeServiceRemoval above; a renamed one is renamed in place.
+        for (const { from, to } of renamedServices) {
             try {
-                const serviceIds = updated.services.map(s => s._id.toString());
                 await Provider.updateMany(
-                    { vendorType: updated._id },
-                    { $set: { subServices: serviceIds } }
+                    { vendorType: updated._id, subServices: from },
+                    { $set: { 'subServices.$[picked]': to } },
+                    { arrayFilters: [{ picked: from }] }
                 );
-                console.log(`[AdminController] Auto-synchronized subServices for providers in category ${updated.name}`);
             } catch (err) {
-                console.error('[AdminController] Failed to sync provider subServices:', err);
+                console.error('[AdminController] Failed to rename provider service selection:', err);
             }
         }
 
