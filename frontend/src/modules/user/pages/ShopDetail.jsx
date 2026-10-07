@@ -26,6 +26,7 @@ const defaultProviderFallback = {
 import API from "@/lib/api";
 import { useEffect, useCallback } from "react";
 import { Loader2 } from "lucide-react";
+import ServiceVisual from "@/components/ServiceVisual";
 
 const ShopDetail = () => {
   const navigate = useNavigate();
@@ -343,11 +344,9 @@ const ShopDetail = () => {
                       <motion.div key={combo.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                         className="relative rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all">
                         <div className="p-3.5 flex gap-3.5">
-                          {combo.image && (
-                            <div className="h-20 w-20 shrink-0 rounded-[14px] overflow-hidden bg-slate-100 dark:bg-slate-900">
-                              <img src={combo.image} className="h-full w-full object-cover" alt={combo.name} />
-                            </div>
-                          )}
+                          <div className="h-20 w-20 shrink-0 rounded-[14px] overflow-hidden bg-slate-100 dark:bg-slate-900">
+                            <ServiceVisual src={combo.image} name={combo.name} combo iconClassName="h-8 w-8" />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-[14px] font-black text-slate-900 dark:text-white leading-tight truncate">{combo.name}</h3>
                             {combo.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{combo.description}</p>}
@@ -421,9 +420,11 @@ const ShopDetail = () => {
                       <div className="p-3.5" onClick={() => setExpandedPlan(expandedPlan === service.id ? null : service.id)}>
                         <div className="flex items-start justify-between gap-3 cursor-pointer">
                           <div className="flex gap-3 flex-1 min-w-0">
-                            {(service.image || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=100&h=100&fit=crop") && (
-                              <img src={service.image || "https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=100&h=100&fit=crop"} alt={service.name} className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-[14px] object-cover shadow-sm bg-slate-100 dark:bg-slate-900" />
-                            )}
+                            {/* Its own photo, or an icon for the service — every
+                                service without one showed the same stock spa photo. */}
+                            <div className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 overflow-hidden rounded-[14px] shadow-sm bg-slate-100 dark:bg-slate-900">
+                              <ServiceVisual src={service.image} name={service.name} hint={`${service.description || ""} ${provider?.category || ""}`} iconClassName="h-7 w-7" />
+                            </div>
                             <div className="flex-1 min-w-0">
                               <h3 className="text-[14px] font-bold text-slate-900 dark:text-white truncate">
                                 {service.name}

@@ -6,15 +6,7 @@ import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import API from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-
-// A picture, or the icon when there is none or the link is broken (a broken
-// link used to leave an empty box).
-const Thumb = ({ src, alt, Icon, iconClassName }) => {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  if (!src || failed) return <Icon className={iconClassName} />;
-  return <img src={src} alt={alt} className="h-full w-full object-cover" onError={() => setFailed(true)} />;
-};
+import ServiceVisual from "@/components/ServiceVisual";
 
 const SewakServices = () => {
   const navigate = useNavigate();
@@ -183,13 +175,6 @@ const SewakServices = () => {
 
   const activeSubObj = selectedSubcategory === 'all' ? null : subcategories.find(s => s._id === selectedSubcategory);
 
-  // A service with no picture of its own shows its subcategory's, then the
-  // category's, instead of a blank icon tile.
-  const imageFor = (item) => {
-    if (item.image) return item.image;
-    const sub = (item.subcategoryId && subcategories.find(s => String(s._id) === String(item.subcategoryId))) || activeSubObj;
-    return sub?.image || categoryData?.image || "";
-  };
 
   // Try to filter by subcategory; if nothing matches (services don't have subcategory info), show all
   const subcategoryFilteredServices = (selectedSubcategory === 'all' || !activeSubObj)
@@ -367,7 +352,9 @@ const SewakServices = () => {
                   className="relative rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all">
                   <div className="p-3.5 flex gap-3.5">
                     <div className="h-20 w-20 shrink-0 rounded-[14px] overflow-hidden bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
-                      <Thumb src={imageFor(combo)} alt={combo.name} Icon={Package} iconClassName="h-7 w-7 text-slate-300 dark:text-slate-600" />
+                      {/* Its own photo, or an icon — borrowing the category's
+                          photo made every card on the page look the same. */}
+                      <ServiceVisual src={combo.image} name={combo.name} combo iconClassName="h-8 w-8" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-[14px] font-black text-slate-900 dark:text-white leading-tight truncate">{combo.name}</h3>
@@ -416,7 +403,7 @@ const SewakServices = () => {
                 <div key={service.id} className="rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm transition-all hover:border-blue-500/30">
                   <div className="p-4 flex flex-row items-center justify-between gap-4">
                     <div className="h-16 w-16 shrink-0 rounded-[12px] overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                      <Thumb src={imageFor(service)} alt={service.name} Icon={Briefcase} iconClassName="h-6 w-6 text-slate-300 dark:text-slate-600" />
+                      <ServiceVisual src={service.image} name={service.name} hint={`${service.description || ""} ${categoryName || ""}`} iconClassName="h-7 w-7" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-[14px] font-bold text-slate-900 dark:text-white truncate">{service.name}</h4>
