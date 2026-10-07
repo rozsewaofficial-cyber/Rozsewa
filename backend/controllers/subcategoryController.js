@@ -73,7 +73,13 @@ const getPublicServicesBySubcategory = async (req, res) => {
                 });
             }
 
-            let categoryQuery = { visible: true };
+            // Only the admin catalog (rows with no providerId). Every partner also
+            // has their own copy of each service they offer, plus any custom
+            // service they typed in themselves, under the same category name —
+            // listing those put partners' own titles, descriptions and photos,
+            // and copies left behind by removed services and old partners, into
+            // the customer catalog the admin never sees or manages.
+            let categoryQuery = { visible: true, providerId: null };
             if (excludeZeroPrice) {
                 categoryQuery.price = { $gt: 0 };
             }
@@ -100,13 +106,21 @@ const getPublicServicesBySubcategory = async (req, res) => {
 
             let services = await Service.find(categoryQuery).sort({ createdAt: -1 });
 
-            // If no individual Service docs found, fallback to Category's pre-defined services array
-            if ((!services || services.length === 0) && catObj && catObj.services && catObj.services.length > 0) {
-                let fallbackServices = catObj.services;
+            // The admin catalog is these rows plus the list kept on the Category
+            // itself (services added from the category editor live only there).
+            // Merge in every entry not already present by name, so customers see
+            // the same catalog the admin panel shows.
+            if (catObj && catObj.services && catObj.services.length > 0) {
+                // Every catalog row counts, hidden or not: a service the admin
+                // hid must not come back through its embedded copy.
+                const { visible: _v, price: _p, ...anyVisibility } = categoryQuery;
+                const catalogNames = await Service.distinct('name', anyVisibility);
+                const listed = new Set(catalogNames.map(n => (n || '').trim().toLowerCase()));
+                let fallbackServices = catObj.services.filter(s => s._id && !listed.has((s.name || '').trim().toLowerCase()));
                 if (excludeZeroPrice) {
                     fallbackServices = fallbackServices.filter(s => Number(s.basePrice) > 0);
                 }
-                services = fallbackServices.map(s => ({
+                services = (services || []).concat(fallbackServices.map(s => ({
                     _id: s._id || new mongoose.Types.ObjectId(),
                     name: s.name,
                     description: s.description || `Professional ${s.name} service`,
@@ -116,8 +130,9 @@ const getPublicServicesBySubcategory = async (req, res) => {
                     visible: true,
                     category: catObj.name,
                     subcategoryId: s.subcategoryId || null,
-                    subcategory: s.subcategory || ""
-                }));
+                    subcategory: s.subcategory || "",
+                    image: s.image || ""
+                })));
             }
 
             // Collapse duplicates. Every provider offering a service has their own
@@ -171,7 +186,8 @@ const getPublicServicesBySubcategory = async (req, res) => {
             });
         }
 
-        let query = { visible: true };
+        // Admin catalog rows only — see the category listing above.
+        let query = { visible: true, providerId: null };
         if (excludeZeroPrice) {
             query.price = { $gt: 0 };
         }
