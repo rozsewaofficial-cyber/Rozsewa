@@ -19,7 +19,11 @@ import {
 // truncates "Continue with Google" in a half-width cell). So draw a tile that
 // matches the Apple one, and lay Google's real, invisible button over it — the
 // click still goes to Google's sign-in, which hands back the same credential.
-const GoogleSignInTile = ({ onSuccess, onError }) => {
+//
+// `redirect` ({ loginUri, nonce }) switches Google to redirect mode — see
+// useGoogleRedirect below. Google only reads its settings when the button is
+// first drawn, so the button is redrawn (keyed) whenever the nonce changes.
+const GoogleSignInTile = ({ onSuccess, onError, redirect }) => {
   const ref = useRef(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -35,13 +39,79 @@ const GoogleSignInTile = ({ onSuccess, onError }) => {
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
       Google
-      {width > 0 && (
+      {width > 0 && (!redirect || redirect.nonce) && (
         <div className="absolute inset-0 flex items-center justify-center opacity-0 [&>div]:!w-full">
-          <GoogleLogin onSuccess={onSuccess} onError={onError} theme="outline" size="large" text="continue_with" width={String(width)} />
+          <GoogleLogin
+            key={redirect?.nonce || "popup"}
+            onSuccess={onSuccess}
+            onError={onError}
+            theme="outline"
+            size="large"
+            text="continue_with"
+            width={String(width)}
+            {...(redirect ? { ux_mode: "redirect", login_uri: redirect.loginUri, nonce: redirect.nonce } : {})}
+          />
         </div>
       )}
     </div>
   );
+};
+
+// On iPhone/iPad (and in the app added to a home screen) Google's sign-in
+// popup never hands its result back to the page, so the sign-in went nowhere.
+// There the whole page goes to Google instead; Google posts the result to our
+// server, which sends the browser back here with a one-time code.
+const GOOGLE_NONCE_KEY = "rozsewa_google_nonce";
+const GOOGLE_FROM_KEY = "rozsewa_google_from";
+const NONCE_REFRESH_MS = 8 * 60 * 1000; // the server keeps a nonce for 10 minutes
+
+const needsGoogleRedirect = () => {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const iOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone =
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    navigator.standalone === true;
+  return iOS || standalone;
+};
+
+const storageGet = (key) => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+const storageSet = (key, value) => {
+  try {
+    if (value == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch { /* storage blocked: the sign-in just has to be retried */ }
+};
+
+const useGoogleRedirect = (enabled, from) => {
+  const [nonce, setNonce] = useState(null);
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    const start = async () => {
+      try {
+        const { data } = await API.post("/auth/google/start", { returnOrigin: window.location.origin });
+        if (cancelled || !data?.nonce) return;
+        storageSet(GOOGLE_NONCE_KEY, data.nonce);
+        setNonce(data.nonce);
+      } catch {
+        if (!cancelled) setNonce(null);
+      }
+    };
+    start();
+    const timer = setInterval(start, NONCE_REFRESH_MS);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [enabled]);
+  // Where to go after signing in, kept across the trip to Google.
+  useEffect(() => {
+    if (enabled && nonce) storageSet(GOOGLE_FROM_KEY, from);
+  }, [enabled, nonce, from]);
+  if (!enabled) return null;
+  return { nonce, loginUri: `${API.defaults.baseURL.replace(/\/$/, "")}/auth/google/redirect` };
 };
 
 const CustomerLogin = () => {
@@ -50,7 +120,7 @@ const CustomerLogin = () => {
   const from =
     (location.state?.from?.pathname || "/") +
     (location.state?.from?.search || "");
-  const { login, signup, loginWithOTP, loginWithGoogle, loginWithApple, detectLocation, isAuthenticated, updateUser } =
+  const { login, signup, loginWithOTP, loginWithGoogle, loginWithGoogleCode, loginWithApple, detectLocation, isAuthenticated, updateUser } =
     useAuth();
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -113,10 +183,52 @@ const CustomerLogin = () => {
     );
   }, [mode, loginMethod, name, phone, email, address, city, state]);
 
-  const clearDraftAndNavigate = () => {
+  const clearDraftAndNavigate = (to = from) => {
     sessionStorage.removeItem("customer-signup-draft");
-    navigate(from, { replace: true });
+    navigate(to, { replace: true });
   };
+
+  const googleRedirect = useGoogleRedirect(!!googleClientId && needsGoogleRedirect(), from);
+
+  // Back from Google in redirect mode: swap the one-time code for the session.
+  const googleReturnHandled = useRef(false);
+  useEffect(() => {
+    if (googleReturnHandled.current) return;
+    const params = new URLSearchParams(location.search);
+    const code = params.get("google_code");
+    const failure = params.get("google_error");
+    if (!code && !failure) return;
+    googleReturnHandled.current = true;
+    navigate({ pathname: location.pathname, search: "" }, { replace: true, state: location.state });
+    if (failure) {
+      setError(failure);
+      return;
+    }
+    const nonce = storageGet(GOOGLE_NONCE_KEY);
+    const target = storageGet(GOOGLE_FROM_KEY) || from;
+    storageSet(GOOGLE_NONCE_KEY, null);
+    storageSet(GOOGLE_FROM_KEY, null);
+    if (!nonce) {
+      setError("Google Sign-In could not be completed. Please try again.");
+      return;
+    }
+    (async () => {
+      setIsVerifying(true);
+      setError("");
+      const result = await loginWithGoogleCode(code, nonce);
+      setIsVerifying(false);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      if (result.needsProfileCompletion) {
+        setNeedsProfileCompletion(true);
+      } else {
+        clearDraftAndNavigate(target.startsWith("/") ? target : "/");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   const handleResendOtp = async () => {
     const mobileNo = mode === "signup" ? phone : email;
@@ -956,6 +1068,7 @@ const CustomerLogin = () => {
                 {googleClientId ? (
                   <GoogleOAuthProvider clientId={googleClientId}>
                     <GoogleSignInTile
+                      redirect={googleRedirect}
                       onSuccess={handleGoogleSuccess}
                       onError={() => setError("Google Sign-In failed. Please try again.")}
                     />

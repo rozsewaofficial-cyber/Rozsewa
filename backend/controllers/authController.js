@@ -151,74 +151,87 @@ const registerUser = async (req, res) => {
 // @desc    Sign up or log in a customer with a Google ID token
 // @route   POST /api/auth/google
 // @access  Public
-const googleAuth = async (req, res) => {
-    const { credential } = req.body;
-    if (!credential) {
-        return res.status(400).json({ message: 'Google credential is required' });
-    }
+/**
+ * Signs a customer in (or up) from a Google ID token. Shared by the popup
+ * flow (POST /auth/google) and the redirect flow used on iPhone. Returns
+ * { status, body } for the caller to send or hand off.
+ *
+ * `expectNonce`, when given, must match the nonce Google signed into the
+ * token — that is what ties a redirect-mode sign-in to the page that began it.
+ */
+const googleSignIn = async (credential, { expectNonce } = {}) => {
+    if (!credential) return { status: 400, body: { message: 'Google credential is required' } };
     if (!process.env.GOOGLE_CLIENT_ID) {
-        return res.status(500).json({ message: 'Google Sign-In is not configured on this server' });
+        return { status: 500, body: { message: 'Google Sign-In is not configured on this server' } };
     }
 
+    const { OAuth2Client } = require('google-auth-library');
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+    let payload;
     try {
-        const { OAuth2Client } = require('google-auth-library');
-        const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        payload = ticket.getPayload();
+    } catch (verifyErr) {
+        return { status: 401, body: { message: 'Invalid Google credential' } };
+    }
+    if (expectNonce !== undefined && payload.nonce !== expectNonce) {
+        return { status: 401, body: { message: 'This Google sign-in was not started here. Please try again.' } };
+    }
 
-        let payload;
-        try {
-            const ticket = await client.verifyIdToken({
-                idToken: credential,
-                audience: process.env.GOOGLE_CLIENT_ID,
+    const { sub: googleId, email, name, picture } = payload;
+    if (!email) {
+        return { status: 400, body: { message: 'This Google account has no email to sign in with' } };
+    }
+    // Only an address Google has verified may claim an account by email.
+    if (payload.email_verified === false) {
+        return { status: 400, body: { message: 'Please verify this email with Google first, then sign in again.' } };
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // A mobile-registered Provider owning this email is a different account
+    // type entirely — Google sign-in on the customer app shouldn't merge into it.
+    const providerExists = await Provider.findOne({ email: normalizedEmail });
+    if (providerExists) {
+        return { status: 400, body: { message: 'This email is already registered as a Provider. Please use the Provider login.' } };
+    }
+
+    let user = await User.findOne({ googleId });
+    let isNewUser = false;
+
+    if (!user) {
+        // Link onto an existing password-based account with the same email.
+        user = await User.findOne({ email: normalizedEmail });
+        if (user) {
+            user.googleId = googleId;
+            if (!user.avatar && picture) user.avatar = picture;
+            await user.save();
+        } else {
+            user = await User.create({
+                name: name || normalizedEmail.split('@')[0],
+                email: normalizedEmail,
+                googleId,
+                avatar: picture || null,
+                role: 'customer',
+                location: { type: 'Point', coordinates: [0, 0] },
             });
-            payload = ticket.getPayload();
-        } catch (verifyErr) {
-            return res.status(401).json({ message: 'Invalid Google credential' });
+            await Wallet.create({ userId: user._id, balance: 0 });
+            isNewUser = true;
         }
+    }
 
-        const { sub: googleId, email, name, picture } = payload;
-        if (!email) {
-            return res.status(400).json({ message: 'This Google account has no email to sign in with' });
-        }
-        const normalizedEmail = email.trim().toLowerCase();
+    if (!isNewUser && user.role === 'customer' && user.isActive === false) {
+        return { status: 403, body: { message: 'Your account has been blocked. Please contact support.' } };
+    }
 
-        // A mobile-registered Provider owning this email is a different account
-        // type entirely — Google sign-in on the customer app shouldn't merge into it.
-        const providerExists = await Provider.findOne({ email: normalizedEmail });
-        if (providerExists) {
-            return res.status(400).json({ message: 'This email is already registered as a Provider. Please use the Provider login.' });
-        }
+    const profileComplete = !!(user.mobile && user.city && user.state);
 
-        let user = await User.findOne({ googleId });
-        let isNewUser = false;
-
-        if (!user) {
-            // Link onto an existing password-based account with the same email.
-            user = await User.findOne({ email: normalizedEmail });
-            if (user) {
-                user.googleId = googleId;
-                if (!user.avatar && picture) user.avatar = picture;
-                await user.save();
-            } else {
-                user = await User.create({
-                    name: name || normalizedEmail.split('@')[0],
-                    email: normalizedEmail,
-                    googleId,
-                    avatar: picture || null,
-                    role: 'customer',
-                    location: { type: 'Point', coordinates: [0, 0] },
-                });
-                await Wallet.create({ userId: user._id, balance: 0 });
-                isNewUser = true;
-            }
-        }
-
-        if (!isNewUser && user.role === 'customer' && user.isActive === false) {
-            return res.status(403).json({ message: 'Your account has been blocked. Please contact support.' });
-        }
-
-        const profileComplete = !!(user.mobile && user.city && user.state);
-
-        res.json({
+    return {
+        status: 200,
+        body: {
             success: true,
             message: isNewUser ? 'Account created' : 'Login successful',
             data: {
@@ -237,10 +250,116 @@ const googleAuth = async (req, res) => {
                     avatar: user.avatar,
                 }
             }
-        });
+        }
+    };
+};
+
+// @desc    Sign up or log in a customer with a Google ID token (popup flow)
+// @route   POST /api/auth/google
+// @access  Public
+const googleAuth = async (req, res) => {
+    try {
+        const { status, body } = await googleSignIn(req.body.credential);
+        res.status(status).json(body);
     } catch (error) {
         console.error('Google Auth Error:', error);
         res.status(500).json({ message: error.message });
+    }
+};
+
+/*
+ * Redirect-mode Google sign-in, for iPhone. A Google popup opened from the app
+ * added to the home screen (and often from Safari itself) never hands its
+ * result back to the page, so the sign-in silently goes nowhere. In redirect
+ * mode the whole page goes to Google, which posts the credential here; the
+ * server signs the customer in and sends the browser back to the app with a
+ * one-time code.
+ */
+const crypto = require('crypto');
+const AuthHandoff = require('../models/AuthHandoff');
+const allowedOrigins = require('../config/allowedOrigins');
+const sha256 = (v) => crypto.createHash('sha256').update(String(v)).digest('hex');
+const HANDOFF_MINUTES = 10;
+
+// @desc    Begin a redirect-mode Google sign-in: returns the nonce to sign into the token
+// @route   POST /api/auth/google/start
+// @access  Public
+const googleRedirectStart = async (req, res) => {
+    try {
+        const returnOrigin = String(req.body.returnOrigin || '');
+        if (!allowedOrigins.includes(returnOrigin)) {
+            return res.status(400).json({ message: 'Sign-in is not available from this site.' });
+        }
+        const nonce = crypto.randomBytes(24).toString('base64url');
+        await AuthHandoff.create({
+            kind: 'google',
+            nonce,
+            returnOrigin,
+            expiresAt: new Date(Date.now() + HANDOFF_MINUTES * 60000)
+        });
+        res.json({ nonce });
+    } catch (error) {
+        console.error('Google redirect start error:', error);
+        res.status(500).json({ message: 'Could not start Google Sign-In' });
+    }
+};
+
+// @desc    Google posts the credential here in redirect mode
+// @route   POST /api/auth/google/redirect   (form-encoded, from Google)
+// @access  Public
+const googleRedirectCallback = async (req, res) => {
+    const fallbackOrigin = allowedOrigins[0] || '/';
+    const back = (origin, params) => res.redirect(303, `${origin}/login?${new URLSearchParams(params).toString()}`);
+    try {
+        const credential = req.body?.credential;
+        // Read the nonce Google signed into the token, to find the hand-off;
+        // googleSignIn then verifies the token and that nonce properly.
+        let nonce = null;
+        try {
+            const part = String(credential || '').split('.')[1];
+            nonce = JSON.parse(Buffer.from(part, 'base64url').toString('utf8')).nonce || null;
+        } catch (_) { /* malformed token: handled below */ }
+        const handoff = nonce
+            ? await AuthHandoff.findOne({ kind: 'google', nonce, codeHash: null, usedAt: null, expiresAt: { $gt: new Date() } })
+            : null;
+        if (!handoff) return back(fallbackOrigin, { google_error: 'Your Google sign-in expired. Please try again.' });
+
+        const { status, body } = await googleSignIn(credential, { expectNonce: handoff.nonce });
+        if (status !== 200) return back(handoff.returnOrigin, { google_error: body.message || 'Google Sign-In failed' });
+
+        const code = crypto.randomBytes(32).toString('base64url');
+        const saved = await AuthHandoff.findOneAndUpdate(
+            { _id: handoff._id, codeHash: null },
+            { $set: { codeHash: sha256(code), result: body, expiresAt: new Date(Date.now() + 5 * 60000) } },
+            { returnDocument: 'after' }
+        );
+        if (!saved) return back(handoff.returnOrigin, { google_error: 'This Google sign-in was already used. Please try again.' });
+        return back(handoff.returnOrigin, { google_code: code });
+    } catch (error) {
+        console.error('Google redirect callback error:', error);
+        return back(fallbackOrigin, { google_error: 'Google Sign-In failed. Please try again.' });
+    }
+};
+
+// @desc    Swap the one-time code (plus the page's nonce) for the session
+// @route   POST /api/auth/google/exchange
+// @access  Public
+const googleRedirectExchange = async (req, res) => {
+    try {
+        const { code, nonce } = req.body || {};
+        if (!code || !nonce) return res.status(400).json({ message: 'Google sign-in details are missing. Please try again.' });
+        const handoff = await AuthHandoff.findOneAndUpdate(
+            { kind: 'google', codeHash: sha256(code), nonce: String(nonce), usedAt: null, expiresAt: { $gt: new Date() } },
+            { $set: { usedAt: new Date() } },
+            { returnDocument: 'after' }
+        );
+        if (!handoff || !handoff.result) {
+            return res.status(400).json({ message: 'This Google sign-in has expired or was already used. Please try again.' });
+        }
+        res.json(handoff.result);
+    } catch (error) {
+        console.error('Google exchange error:', error);
+        res.status(500).json({ message: 'Google Sign-In failed' });
     }
 };
 
@@ -944,6 +1063,9 @@ const sendEmailOtp = async (req, res) => {
 };
 
 module.exports = {
+    googleRedirectStart,
+    googleRedirectCallback,
+    googleRedirectExchange,
     registerUser,
     googleAuth,
     appleAuth,

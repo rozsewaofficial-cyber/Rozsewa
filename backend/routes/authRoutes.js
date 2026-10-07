@@ -3,6 +3,9 @@ const router = express.Router();
 const {
     registerUser,
     googleAuth,
+    googleRedirectStart,
+    googleRedirectCallback,
+    googleRedirectExchange,
     appleAuth,
     authUser,
     getUserProfile,
@@ -28,6 +31,10 @@ const { protect } = require('../middleware/authMiddleware');
 
 router.post('/register', registerUser);
 router.post('/google', googleAuth);
+// Redirect-mode Google sign-in (iPhone). Google posts the callback as a form.
+router.post('/google/start', googleRedirectStart);
+router.post('/google/redirect', express.urlencoded({ extended: false, limit: '20kb' }), googleRedirectCallback);
+router.post('/google/exchange', googleRedirectExchange);
 router.post('/apple', appleAuth);
 router.post('/login', authUser);
 router.post('/login-otp', loginWithOTP);

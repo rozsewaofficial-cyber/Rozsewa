@@ -19,12 +19,16 @@ const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`);
 
 check('Google tile wraps the real GoogleLogin, invisible, in a pixel width', () => {
     const comp = page.slice(page.indexOf('const GoogleSignInTile'), page.indexOf('const CustomerLogin'));
-    assert.ok(/opacity-0/.test(comp) && /<GoogleLogin /.test(comp));
+    assert.ok(/opacity-0/.test(comp) && /<GoogleLogin\s/.test(comp));
     assert.ok(/width=\{String\(width\)\}/.test(comp), 'GoogleLogin needs a pixel width, not "100%"');
     assert.ok(/offsetWidth/.test(comp));
 });
 check('the credential still reaches the existing handler', () => {
-    assert.ok(/<GoogleSignInTile\s+onSuccess=\{handleGoogleSuccess\}/.test(page));
+    assert.ok(/<GoogleSignInTile\s+redirect=\{googleRedirect\}\s+onSuccess=\{handleGoogleSuccess\}/.test(page));
+    // iPhone: Google's popup never reports back, so redirect mode with a nonce
+    assert.ok(/ux_mode: \"redirect\", login_uri: redirect\.loginUri, nonce: redirect\.nonce/.test(page));
+    assert.ok(/key=\{redirect\?\.nonce/.test(page), 'button must be redrawn when the nonce changes');
+    assert.ok(/\/auth\/google\/start/.test(page) && /loginWithGoogleCode\(code, nonce\)/.test(page));
     assert.ok(/loginWithGoogle\(credentialResponse\.credential\)/.test(page));
 });
 check('Google and Apple tiles share one fixed height', () => {

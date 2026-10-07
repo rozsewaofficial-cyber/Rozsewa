@@ -51,18 +51,11 @@ const server = http.createServer(app);
 initSocket(server);
 
 // Middleware
-const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    'http://localhost:8080',
-    'http://localhost:5173',
-    'https://rozsewa.in',
-    'https://www.rozsewa.in',
-    'https://rozsewa.vercel.app'
-].filter(Boolean);
+const allowedOrigins = require('./config/allowedOrigins');
 
 console.log('CORS Allowed Origins:', allowedOrigins);
 
-app.use(cors({
+const corsMiddleware = cors({
     origin: function (origin, callback) {
         // allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
@@ -82,7 +75,12 @@ app.use(cors({
     // A custom response header the browser cannot see is the same as one that
     // was never sent, so every header a screen reads is listed here.
     exposedHeaders: ['X-Total-Count', 'X-Total-Value', 'X-Pending-Count', 'X-Active-Count', 'X-OnHold-Count']
-}));
+});
+// Google posts the redirect-mode sign-in result here as a plain form from
+// accounts.google.com. That is a page navigation, not a cross-origin read, so
+// the origin check would only break it; the sign-in is bound by its nonce.
+const CORS_EXEMPT_PATHS = new Set(['/api/auth/google/redirect']);
+app.use((req, res, next) => (CORS_EXEMPT_PATHS.has(req.path) ? next() : corsMiddleware(req, res, next)));
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds
 

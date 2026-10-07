@@ -434,17 +434,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async (credential) => {
-    try {
-      const { data: apiResponse } = await API.post("/auth/google", { credential });
+  // The session from a signed-in Google response — shared by the popup flow
+  // and the redirect flow used on iPhone.
+  const finishGoogleSession = async (apiResponse) => {
+    const authData = apiResponse.data?.user || apiResponse;
+    const token = apiResponse.data?.token || apiResponse.token;
+    const needsProfileCompletion = !!apiResponse.data?.needsProfileCompletion;
 
-      const authData = apiResponse.data?.user || apiResponse;
-      const token = apiResponse.data?.token || apiResponse.token;
-      const needsProfileCompletion = !!apiResponse.data?.needsProfileCompletion;
+    const sessionData = { ...authData, token, role: 'customer' };
+    setAuth(sessionData);
 
-      const sessionData = { ...authData, token, role: 'customer' };
-      setAuth(sessionData);
-
+    // Push registration runs in the background. Sign-in used to wait for it,
+    // which on iPhone meant waiting on a notification prompt (or on a browser
+    // that has no push support at all) before the customer got in.
+    (async () => {
       try {
         const { requestForToken } = await import("@/lib/firebase");
         const fcmToken = await requestForToken();
@@ -458,8 +461,26 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         console.error("Error saving FCM token on Google login", err);
       }
+    })();
 
-      return { success: true, data: sessionData, needsProfileCompletion };
+    return { success: true, data: sessionData, needsProfileCompletion };
+  };
+
+  const loginWithGoogle = async (credential) => {
+    try {
+      const { data: apiResponse } = await API.post("/auth/google", { credential });
+      return await finishGoogleSession(apiResponse);
+    } catch (error) {
+      return { success: false, error: error.response?.data?.message || "Google Sign-In failed" };
+    }
+  };
+
+  // Redirect-mode Google sign-in (iPhone): swap the one-time code the server
+  // sent back, with this page's nonce, for the session.
+  const loginWithGoogleCode = async (code, nonce) => {
+    try {
+      const { data: apiResponse } = await API.post("/auth/google/exchange", { code, nonce });
+      return await finishGoogleSession(apiResponse);
     } catch (error) {
       return { success: false, error: error.response?.data?.message || "Google Sign-In failed" };
     }
@@ -567,6 +588,7 @@ export const AuthProvider = ({ children }) => {
     login,
     loginWithOTP,
     loginWithGoogle,
+    loginWithGoogleCode,
     loginWithApple,
     signup,
     logout,
