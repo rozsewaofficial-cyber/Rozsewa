@@ -60,7 +60,11 @@ Provider.find = () => {
 Service.find = (q) => ({ select: async () => ownServices.get(String(q.providerId)) || [] });
 Service.findById = () => ({ select: () => ({ lean: async () => null }) });
 Combo.find = () => ({ select: async () => [] });
-ProviderBanner.find = () => ({ select: () => ({ lean: async () => [] }) });
+// Chainable either way the banner boost reads it (with or without .limit()).
+ProviderBanner.find = () => {
+    const chain = { select: () => chain, limit: () => chain, lean: async () => [] };
+    return chain;
+};
 
 const list = (query) => new Promise((resolve, reject) => {
     const res = { status() { return this; }, json: resolve };
