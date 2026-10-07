@@ -78,7 +78,7 @@ const SubcategoryPage = () => {
   };
 
   const handleBookNow = (service) => {
-    navigate(`/shops?category=${encodeURIComponent(categoryName)}&serviceName=${encodeURIComponent(service.name)}&serviceId=${service._id || service.id}&mode=${mode}`);
+    navigate(`/shops?category=${encodeURIComponent(categoryName)}&categoryId=${encodeURIComponent(categoryId)}&serviceName=${encodeURIComponent(service.name)}&serviceId=${service._id || service.id}&mode=${mode}`);
   };
 
   // Smart subcategory matcher to handle acronyms (AC, RO, TV), brand variations, and descriptions

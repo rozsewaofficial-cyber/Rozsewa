@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
 
-const ServiceCard = ({ id, name, category, rating, reviews, distance, price, image, verified, emergency }) => {
+const ServiceCard = ({ id, name, category, rating, reviews, distance, price, priceLabel = "From", image, verified, emergency }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isFavorite, setIsFavorite] = useState(false);
@@ -72,7 +72,7 @@ const ServiceCard = ({ id, name, category, rating, reviews, distance, price, ima
           <div className="flex items-center justify-between gap-2 mb-0.5">
             <div className="flex items-center gap-1 min-w-0 text-[10px] font-bold text-slate-600 dark:text-slate-300">
               <Zap className="h-3 w-3 shrink-0 text-slate-500 dark:text-slate-400" />
-              <span className="truncate">From ₹{price}</span>
+              <span className="truncate">{priceLabel ? `${priceLabel} ` : ""}₹{price}</span>
             </div>
             {rating > 0 && (
               <div className="flex items-center gap-0.5 shrink-0">

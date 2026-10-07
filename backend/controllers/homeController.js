@@ -8,7 +8,8 @@ const Zone = require('../models/Zone');
 const Combo = require('../models/Combo');
 const Subcategory = require('../models/Subcategory');
 const ProviderBanner = require('../models/ProviderBanner');
-const { serviceScopeFor, comboInScope } = require('../utils/providerServiceScope');
+const { serviceScopeFor, comboInScope, serviceNameKey } = require('../utils/providerServiceScope');
+const mongoose = require('mongoose');
 
 // A provider's working hours (Provider.availability, set from
 // ProviderAvailability.jsx) are entered in IST regardless of where the
@@ -310,12 +311,26 @@ const getPublicProviders = async (req, res) => {
             // Timing screen sets is24x7 — either one means round-the-clock.
             andClauses.push({ $or: [{ is24x7: true }, { isEmergencyEnabled: true }] });
         }
+        // The service the customer picked (category -> subcategory -> service).
+        // Sewaks are matched on their picked list; a partner further down by
+        // the services it actually offers.
+        let wantedService = null;
         if (serviceId || serviceName) {
-            // A partner who ticked specific services only appears for those (the
-            // list holds catalog ids or plain names); one who never picked any
-            // still shows for the whole category.
-            const wanted = [serviceId, serviceName].filter(Boolean);
-            andClauses.push({ $or: [{ subServices: { $in: wanted } }, { subServices: { $exists: false } }, { subServices: { $size: 0 } }] });
+            if (mode === 'sewak') {
+                const wanted = [serviceId, serviceName].filter(Boolean);
+                andClauses.push({ $or: [{ subServices: { $in: wanted } }, { subServices: { $exists: false } }, { subServices: { $size: 0 } }] });
+            } else {
+                let name = serviceName;
+                if (!name && mongoose.Types.ObjectId.isValid(serviceId)) {
+                    // A catalog row, or an entry kept on the category itself.
+                    name = (await Service.findById(serviceId).select('name').lean())?.name;
+                    if (!name) {
+                        const owner = await Category.findOne({ 'services._id': serviceId }).select('services').lean();
+                        name = owner?.services?.find(s => String(s._id) === String(serviceId))?.name;
+                    }
+                }
+                wantedService = { id: serviceId ? String(serviceId) : null, key: serviceNameKey(name) };
+            }
         }
         if (emergency === 'true') {
             andClauses.push({ $or: [{ is24x7: true }, { isEmergencyEnabled: true }] });
@@ -409,7 +424,21 @@ const getPublicProviders = async (req, res) => {
                 const offers = serviceScopeFor(p, p.vendorType?.services);
                 const services = (await Service.find({ providerId: p._id, visible: true }).select('name price'))
                     .filter(s => !offers || offers(s));
-                if (services.length > 0) {
+
+                if (wantedService) {
+                    // Listed for a service only when the partner offers it: a
+                    // priced service of its own with that name. Going by the
+                    // picked list alone listed every partner under every
+                    // service — an empty list means "the whole category", and
+                    // old admin category edits had filled every partner's list
+                    // with all of the category's services.
+                    const offered = services.find(s =>
+                        String(s._id) === wantedService.id
+                        || (wantedService.key && serviceNameKey(s.name) === wantedService.key));
+                    if (!offered) continue;
+                    startingPrice = Number(offered.price) || startingPrice;
+                    providerObj.matchedService = { _id: offered._id, name: offered.name, price: offered.price };
+                } else if (services.length > 0) {
                     startingPrice = Math.min(...services.map(s => s.price));
                 } else {
                     hasAnyServices = false;
@@ -602,7 +631,7 @@ const validateCoupon = async (req, res) => {
         // A coupon scoped to Partner-only or Sewak-only must match the provider
         // this checkout is actually with, the same rule createBooking enforces
         // as the trusted final check.
-        const mongoose = require('mongoose');
+
         if (coupon.applicableTo && coupon.applicableTo !== 'both' && providerId && mongoose.Types.ObjectId.isValid(providerId)) {
             const provider = await Provider.findById(providerId).select('providerCategory');
             const isSewakBooking = provider?.providerCategory === 'sewak';

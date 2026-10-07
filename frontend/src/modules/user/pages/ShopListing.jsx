@@ -17,6 +17,7 @@ const ShopListing = () => {
   const category = searchParams.get("category") || "";
   const serviceId = searchParams.get("serviceId") || "";
   const serviceName = searchParams.get("serviceName") || "";
+  const categoryId = searchParams.get("categoryId") || "";
   const isEmergency = searchParams.get("emergency") === "true";
   const filterParam = searchParams.get("filter");
   const initialSort = filterParam === 'nearby' ? 'distance' : 'rating';
@@ -122,7 +123,9 @@ const ShopListing = () => {
       reviews: p.reviewCount || 0,
       distance: distanceStr,
       numericDistance,
-      price: p.startingPrice || 199,
+      // Listed for one service: that partner's price for it, not "from".
+      price: p.matchedService?.price ?? (p.startingPrice || 199),
+      priceLabel: p.matchedService ? "" : "From",
       image: p.profileImage || `https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop`,
       verified: p.status === "verified",
       emergency: !!(p.isEmergencyEnabled || p.is24x7)
@@ -172,10 +175,14 @@ const ShopListing = () => {
               </motion.button>
               <div>
                 <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white line-clamp-1">
-                  {mode === "sewak" ? "Select a Service Category" : (isEmergency ? "🚨 Emergency Providers" : (searchQuery ? `Search: "${searchQuery}"` : (category || "All Services")))}
+                  {mode === "sewak" ? "Select a Service Category" : (isEmergency ? "🚨 Emergency Providers" : (searchQuery ? `Search: "${searchQuery}"` : (serviceName || category || "All Services")))}
                 </h1>
                 {mode !== "sewak" && (
-                  <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{sorted.length} providers found</p>
+                  <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                    {serviceName && !searchQuery && !isEmergency
+                      ? `${category ? `${category.trim()} · ` : ""}${sorted.length} ${sorted.length === 1 ? "partner offers" : "partners offer"} this service`
+                      : `${sorted.length} providers found`}
+                  </p>
                 )}
               </div>
             </div>
@@ -260,8 +267,23 @@ const ShopListing = () => {
                 <div className="h-16 w-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
                   <Filter className="h-8 w-8 text-slate-400" />
                 </div>
-                <p className="text-slate-500 dark:text-slate-400 font-medium">No providers match your exact filters.</p>
-                <button onClick={clearFilters} className="mt-4 text-blue-600 font-bold hover:underline">Clear all filters</button>
+                {serviceName && activeFiltersCount === 0 ? (
+                  <>
+                    <p className="text-slate-700 dark:text-slate-200 font-semibold text-center">No partner offers {serviceName} near you yet.</p>
+                    <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 text-center">Post your requirement and nearby experts will get back to you.</p>
+                    <button
+                      onClick={() => navigate(categoryId ? `/submit-lead?category=${encodeURIComponent(categoryId)}` : "/submit-lead")}
+                      className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700"
+                    >
+                      Post your requirement
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">No providers match your exact filters.</p>
+                    <button onClick={clearFilters} className="mt-4 text-blue-600 font-bold hover:underline">Clear all filters</button>
+                  </>
+                )}
               </div>
             )}
           </div>

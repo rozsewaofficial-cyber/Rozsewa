@@ -18,7 +18,7 @@ let passed = 0;
 const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`); };
 
 const home = be('controllers/homeController.js');
-const fn = home.slice(home.indexOf('const getPublicProviders'), home.indexOf('const getPublicProviders') + 2500);
+const fn = home.slice(home.indexOf('const getPublicProviders'), home.indexOf('const getPublicProviders') + 4000);
 
 console.log('\nListing filters');
 check('emergency=true is read and filters on is24x7 OR isEmergencyEnabled', () => {

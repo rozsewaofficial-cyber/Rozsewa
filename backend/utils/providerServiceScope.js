@@ -31,8 +31,16 @@ const serviceScopeFor = (provider, categoryServices = []) => {
     return (service) => !!service && (ids.has(String(service._id)) || names.has(key(service.name)));
 };
 
+/**
+ * A service name reduced to letters and digits, so a partner's own copy
+ * ("✨ Highlights", "Hair  Cut") matches the catalog entry it was made from
+ * ("Highlights", "Hair cut") — the copy is linked to the catalog by name only.
+ */
+const serviceNameKey = (name) =>
+    String(name || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, ' ').trim();
+
 /** A combo is on offer only when every service in it is. */
 const comboInScope = (offers, combo) =>
     !offers || (combo.services || []).every(s => s && offers(s));
 
-module.exports = { serviceScopeFor, comboInScope };
+module.exports = { serviceScopeFor, comboInScope, serviceNameKey };
