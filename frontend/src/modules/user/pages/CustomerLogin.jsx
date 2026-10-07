@@ -6,6 +6,7 @@ import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import { appleClientId, signInWithApple } from "@/lib/appleSignIn";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import { getPendingReferral, savePendingReferral } from "@/lib/referral";
 import { toast } from "sonner";
 import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
@@ -128,7 +129,10 @@ const CustomerLogin = () => {
     sessionStorage.getItem("customer-signup-draft") || "{}",
   );
 
-  const [mode, setMode] = useState(draft.mode || "email"); // email | signup
+  // An invite link (?ref=CODE) opens straight on Sign Up with the code filled in.
+  const invitedWith = new URLSearchParams(location.search).get("ref");
+  const [mode, setMode] = useState(invitedWith ? "signup" : (draft.mode || "email")); // email | signup
+  const [referralCode, setReferralCode] = useState(() => getPendingReferral());
   const [loginMethod, setLoginMethod] = useState(
     draft.loginMethod || "password",
   ); // password | otp
@@ -895,6 +899,20 @@ const CustomerLogin = () => {
                         placeholder="Building, Area, Landmark..."
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider mb-2">
+                      Referral Code <span className="font-semibold normal-case text-muted-foreground">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(savePendingReferral(e.target.value))}
+                      maxLength={20}
+                      autoCapitalize="characters"
+                      className="w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-sm font-bold uppercase tracking-wider focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground placeholder:normal-case placeholder:tracking-normal placeholder:font-semibold"
+                      placeholder="Friend's code, if you were invited"
+                    />
                   </div>
                   {error && (
                     <p className="text-xs font-semibold text-destructive">

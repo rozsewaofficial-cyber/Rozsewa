@@ -225,8 +225,14 @@ const getMyReferral = async (req, res) => {
         // existing accounts pick one up without a migration.
         if (!user.referralCode) {
             user.referralCode = await generateReferralCode(user);
-            await user.save();
         }
+        // Remember the device the referrer uses, so the same-device check can
+        // tell a customer referring themselves from a second phone. It only
+        // ever saw the referred side before, so it never matched anything.
+        if (!user.signupDeviceId && req.query.deviceId) {
+            user.signupDeviceId = String(req.query.deviceId).slice(0, 128);
+        }
+        if (user.isModified()) await user.save();
 
         const config = await CoinService.getConfig();
         // A good referrer keeps referring, so the list they are shown is a page
@@ -234,7 +240,7 @@ const getMyReferral = async (req, res) => {
         const referredScope = { referredBy: user.referralCode };
         const referred = await paginate(
             User.find(referredScope)
-                .select('name createdAt referralRewarded')
+                .select('name createdAt referralRewarded referralBlockedReason')
                 .sort({ createdAt: -1 })
                 .lean(),
             pageParams(req)
@@ -247,7 +253,14 @@ const getMyReferral = async (req, res) => {
                     $group: {
                         _id: null,
                         total: { $sum: 1 },
-                        rewarded: { $sum: { $cond: [{ $eq: ['$referralRewarded', true] }, 1, 0] } }
+                        // A referral the anti-fraud checks stopped is settled
+                        // but paid nothing; it used to be counted (and shown) as
+                        // rewarded.
+                        rewarded: { $sum: { $cond: [{ $and: [
+                            { $eq: ['$referralRewarded', true] },
+                            { $not: [{ $ifNull: ['$referralBlockedReason', false] }] }
+                        ] }, 1, 0] } },
+                        blocked: { $sum: { $cond: [{ $ifNull: ['$referralBlockedReason', false] }, 1, 0] } }
                     }
                 }
             ]),
@@ -260,6 +273,7 @@ const getMyReferral = async (req, res) => {
 
         const totalReferred = referralTotals[0]?.total || 0;
         const totalRewarded = referralTotals[0]?.rewarded || 0;
+        const totalBlocked = referralTotals[0]?.blocked || 0;
         const coinsEarned = earned[0]?.coins || 0;
 
         res.json({
@@ -273,13 +287,19 @@ const getMyReferral = async (req, res) => {
             condition: 'Your reward is credited once your friend completes their first order.',
             totalReferred,
             totalRewarded,
-            pending: totalReferred - totalRewarded,
+            pending: totalReferred - totalRewarded - totalBlocked,
+            notEligible: totalBlocked,
             coinsEarned,
-            referrals: referred.map(r => ({
-                name: r.name,
-                joinedAt: r.createdAt,
-                rewarded: r.referralRewarded
-            }))
+            referrals: referred.map(r => {
+                const blocked = !!r.referralBlockedReason;
+                return {
+                    name: r.name,
+                    joinedAt: r.createdAt,
+                    rewarded: !!r.referralRewarded && !blocked,
+                    status: blocked ? 'blocked' : (r.referralRewarded ? 'rewarded' : 'pending'),
+                    blockedReason: blocked ? r.referralBlockedReason : undefined
+                };
+            })
         });
     } catch (error) {
         console.error('[Coins] getMyReferral failed:', error);
@@ -333,7 +353,11 @@ const applyReferralCode = async (req, res) => {
         // Record the signup fingerprint now if we never captured one, so the
         // anti-fraud checks have something to compare at payout time.
         if (!user.signupIp) {
-            user.signupIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
+            // x-forwarded-for is "client, proxy1, proxy2" behind a proxy; the
+            // whole chain never equals another customer's, so the same-IP check
+            // could not match. The client is the first entry.
+            const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+            user.signupIp = forwarded || req.socket.remoteAddress || null;
         }
         if (!user.signupDeviceId && req.body.deviceId) {
             user.signupDeviceId = String(req.body.deviceId).slice(0, 128);

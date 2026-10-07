@@ -26,6 +26,12 @@ import Wallet from "./modules/user/pages/Wallet";
 import Favorites from "./modules/user/pages/Favorites";
 import Addresses from "./modules/user/pages/Addresses";
 import ReferEarn from "./modules/user/pages/ReferEarn";
+import ReferralAutoApply from "./components/ReferralAutoApply";
+import { captureReferralFromUrl } from "./lib/referral";
+
+// An invite link (?ref=CODE) can open any page; keep the code before routing
+// drops the query string.
+captureReferralFromUrl();
 import RozSewaCoins from "./modules/user/pages/RozSewaCoins";
 import InstaWork from "./modules/user/pages/InstaWork";
 import Notifications from "./modules/user/pages/Notifications";
@@ -185,6 +191,7 @@ const App = () => (
                   <Toaster />
                   <Sonner position="bottom-right" expand={true} richColors />
                   <GlobalAlarm />
+                  <ReferralAutoApply />
                   <AnimatePresence mode="wait">
                     <Routes>
                       {/* User Panel as Default */}
