@@ -93,6 +93,9 @@ const openNow = async (flags) => {
         const avail = read('frontend', 'src', 'modules', 'provider', 'pages', 'ProviderAvailability.jsx');
         assert.ok(/setIs24x7\(!!\(data\.is24x7 \|\| data\.isEmergencyEnabled\)\)/.test(avail));
         assert.ok(/updateUser\(\{ is24x7, isEmergencyEnabled: is24x7 \}\)/.test(avail));
+        // The Timing switch saves the moment it is flipped, not on "Save Schedule".
+        assert.ok(/onClick=\{toggle24x7\}/.test(avail));
+        assert.ok(/const toggle24x7 = async[\s\S]{0,400}API\.patch\("\/provider\/status", \{ isEmergencyEnabled: next \}\)/.test(avail));
         const settings = read('frontend', 'src', 'modules', 'provider', 'pages', 'ProviderSettings.jsx');
         assert.ok(/const roundTheClock = !!\(provider\?\.isEmergencyEnabled \|\| provider\?\.is24x7\)/.test(settings));
         assert.ok(!/provider\?\.isEmergencyEnabled \?/.test(settings));

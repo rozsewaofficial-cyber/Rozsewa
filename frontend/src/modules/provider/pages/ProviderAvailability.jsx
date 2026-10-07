@@ -24,6 +24,7 @@ const ProviderAvailability = () => {
   const [is24x7, setIs24x7] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saving24x7, setSaving24x7] = useState(false);
 
   useEffect(() => {
     fetchAvailability();
@@ -86,6 +87,33 @@ const ProviderAvailability = () => {
         [day]: { ...current, start: newStart, end: newEnd }
       };
     });
+  };
+
+  // The 24/7 switch saves the moment it is flipped. It used to wait for
+  // "Save Schedule" at the bottom of the page, below all seven days, so a
+  // partner who switched it on and left was still closed after hours.
+  const toggle24x7 = async () => {
+    if (saving24x7) return;
+    const next = !is24x7;
+    setIs24x7(next);
+    setSaving24x7(true);
+    try {
+      // Writes is24x7 and isEmergencyEnabled together (same setting as the
+      // dashboard Emergency button and the Settings 24/7 tile).
+      await API.patch("/provider/status", { isEmergencyEnabled: next });
+      updateUser({ is24x7: next, isEmergencyEnabled: next });
+      toast({
+        title: next ? "24/7 is ON ✓" : "24/7 is OFF",
+        description: next
+          ? "Customers see you as open at all hours, day and night."
+          : "Customers see you as open only in your weekly hours."
+      });
+    } catch (err) {
+      setIs24x7(!next);
+      toast({ title: "Error", description: "Could not change 24/7. Please try again.", variant: "destructive" });
+    } finally {
+      setSaving24x7(false);
+    }
   };
 
   const handleSave = async () => {
@@ -151,8 +179,10 @@ const ProviderAvailability = () => {
                 <p className="text-[10px] font-medium text-muted-foreground mt-0.5">I am available round the clock for emergencies</p>
               </div>
               <button 
-                onClick={() => setIs24x7(!is24x7)} 
-                className="p-3 -mr-3 rounded-full hover:bg-muted transition-colors select-none"
+                onClick={toggle24x7}
+                disabled={saving24x7}
+                aria-pressed={is24x7}
+                className={`p-3 -mr-3 rounded-full hover:bg-muted transition-colors select-none ${saving24x7 ? "opacity-60" : ""}`}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
                 {is24x7 ? (
@@ -162,6 +192,11 @@ const ProviderAvailability = () => {
                 )}
               </button>
             </div>
+            {is24x7 && (
+              <p className="mt-2 rounded-lg bg-rose-500/10 px-3 py-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                You show as open at all hours, including night. The weekly hours below apply only when 24/7 is off.
+              </p>
+            )}
           </div>
           
           <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Weekly Schedule</h3>
