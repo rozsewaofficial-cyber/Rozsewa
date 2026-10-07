@@ -8,7 +8,11 @@ const bannerSchema = mongoose.Schema({
     ctaLink: { type: String, default: '/shops' },
     ctaText: { type: String, default: 'Book Now' },
     active: { type: Boolean, default: true },
-    priority: { type: Number, default: 0 }
+    // Higher shows first.
+    priority: { type: Number, default: 0 },
+    // Optional schedule; an empty end runs until switched off.
+    startDate: { type: Date, default: null },
+    endDate: { type: Date, default: null }
 }, {
     timestamps: true
 });

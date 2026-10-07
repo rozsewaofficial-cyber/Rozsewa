@@ -13,8 +13,11 @@
  * The hardcoded defaultBanners array only remains as the last resort if the
  * admin hasn't created a banner either.
  *
- * Net effect: partner banners always outrank admin banners (a free banner
- * never displaces a paid one), but the slot is never empty.
+ * Then (2026-10-07) the owner set the split explicitly: the TOP carousel is
+ * managed from /admin/banners (admin promotional banners) and the LOWER one,
+ * above Bazaar Chats, from /admin/provider-banners (paid partner banners).
+ * Each carousel has its own source, so neither can displace the other; the
+ * top one still falls back to the hardcoded defaults so it is never empty.
  *
  *   node scripts/partnerBannerSlotCheck.js
  */
@@ -30,7 +33,7 @@ const check = (label, fn) => { fn(); passed += 1; console.log(`  ok  ${label}`);
 
 const page = feRead('modules/user/pages/Index.jsx');
 
-console.log('\nPartner banners outrank admin banners, which outrank the hardcoded default');
+console.log('\nTop carousel = admin banners, lower carousel = paid partner banners');
 
 check('partner banners and admin banners are kept in separate state', () => {
     assert.ok(/const \[partnerBanners, setPartnerBanners\] = useState\(\[\]\)/.test(page));
@@ -43,21 +46,22 @@ check('admin banners are fetched from the admin-managed endpoint, not hardcoded'
     assert.ok(/API\.get\("\/public\/banners"\)/.test(page));
 });
 
-check('the fallback cascade is partner → admin → hardcoded default, in that order', () => {
-    assert.ok(/const displayBanners = partnerBanners\.length > 0\s*\n?\s*\? partnerBanners\s*\n?\s*: \(adminBanners\.length > 0 \? adminBanners : defaultBanners\)/.test(page),
-        'a free admin banner must never be able to outrank a paid partner banner, but the slot must never be fully empty either');
+check('the top slot is admin banners, falling back to the hardcoded default only when there are none', () => {
+    assert.ok(/const topBanners = adminBanners\.length > 0 \? adminBanners : defaultBanners;/.test(page));
+    assert.ok(!/displayBanners/.test(page), 'no merged list that lets one source displace the other');
 });
 
-check('the top carousel reads displayBanners, not partnerBanners or adminBanners directly', () => {
+check('the top carousel reads topBanners (admin), never partner banners', () => {
     const firstIdx = page.indexOf('<PromoBannerCarousel');
     const firstTag = page.slice(firstIdx, page.indexOf('/>', firstIdx) + 2);
-    assert.ok(/banners=\{displayBanners\}/.test(firstTag));
+    assert.ok(/banners=\{topBanners\}/.test(firstTag));
 });
 
-check('the second carousel (above Bazaar Chats) also reads displayBanners', () => {
+check('the lower carousel (above Bazaar Chats) reads partnerBanners only', () => {
     const secondIdx = page.lastIndexOf('<PromoBannerCarousel');
     const secondTag = page.slice(secondIdx, page.indexOf('/>', secondIdx) + 2);
-    assert.ok(/banners=\{displayBanners\}/.test(secondTag));
+    assert.ok(/banners=\{partnerBanners\}/.test(secondTag));
+    assert.ok(/onBannerSeen=\{handleBannerSeen\}/.test(secondTag), 'partner views are counted where partner banners show');
 });
 
 console.log(`\n${passed} partner-banner-slot checks passed.\n`);

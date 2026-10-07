@@ -722,6 +722,12 @@ const createBooking = async (req, res) => {
 
         let booking = await newBooking.save();
 
+        // A booking that came from tapping a partner's banner counts towards
+        // that banner's "orders" — only for the partner the banner belongs to.
+        if (req.body.bannerId && providerId) {
+            await require('./providerBannerController').creditOrderToBanner(req.body.bannerId, providerId);
+        }
+
         if (booking) {
             console.log(`Booking Created: ID=${booking._id}, User=${req.user._id}`);
 

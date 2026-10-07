@@ -30,4 +30,15 @@ const uploadVideo = multer({
     }
 });
 
-module.exports = { cloudinary, upload, uploadVideo };
+// Banner videos are capped at 10MB while they are being received, not after
+// the whole file has been buffered.
+const uploadBannerVideoFile = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('video/')) cb(null, true);
+        else cb(new Error('Only video files are allowed!'), false);
+    }
+});
+
+module.exports = { cloudinary, upload, uploadVideo, uploadBannerVideoFile };

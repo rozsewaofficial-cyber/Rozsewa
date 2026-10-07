@@ -3,9 +3,16 @@ import { useState, useRef, useEffect } from "react";
 // Self-contained so it can be rendered more than once on the same page
 // (e.g. once at the top of Home, once above Bazaar Chats) without two
 // instances fighting over one scroll ref/currentBanner index.
-const PromoBannerCarousel = ({ banners, defaultBanners, onBannerClick }) => {
+const PromoBannerCarousel = ({ banners, defaultBanners, onBannerClick, onBannerSeen }) => {
   const [currentBanner, setCurrentBanner] = useState(0);
   const scrollRef = useRef(null);
+
+  // Tell the page which banner is actually on screen, so a partner's views
+  // count banners seen rather than banners fetched.
+  useEffect(() => {
+    const shown = banners[currentBanner];
+    if (shown && onBannerSeen) onBannerSeen(shown);
+  }, [currentBanner, banners, onBannerSeen]);
 
   useEffect(() => {
     if (banners.length <= 1) return;
@@ -69,11 +76,14 @@ const PromoBannerCarousel = ({ banners, defaultBanners, onBannerClick }) => {
                 alt="Promo Banner"
                 onError={(e) => {
                   e.target.onerror = null;
-                  e.target.src = defaultBanners[idx % defaultBanners.length].image;
+                  // A partner paid for this slot: never fill it with a stock
+                  // RozSewa ad. Admin/default banners may fall back.
+                  if (banner.isProviderBanner) e.target.style.visibility = "hidden";
+                  else e.target.src = defaultBanners[idx % defaultBanners.length].image;
                 }}
               />
             )}
-            {(banner.title || banner.subtitle) && (
+            {(banner.title || banner.subtitle || banner.ctaText) && (
               <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 bg-gradient-to-t from-black/80 via-black/40 to-transparent flex flex-col justify-end pointer-events-none">
                 {banner.title && (
                   <h2 className="text-white text-base sm:text-xl font-black max-w-[80%] leading-tight drop-shadow-md">
@@ -84,6 +94,11 @@ const PromoBannerCarousel = ({ banners, defaultBanners, onBannerClick }) => {
                   <p className="text-white/90 text-[10px] sm:text-sm font-semibold mt-0.5 max-w-[80%] leading-snug drop-shadow-md">
                     {banner.subtitle}
                   </p>
+                )}
+                {banner.ctaText && (
+                  <span className="mt-2 inline-flex w-fit rounded-full bg-white px-3 py-1 text-[10px] sm:text-xs font-black text-slate-900 shadow">
+                    {banner.ctaText}
+                  </span>
                 )}
               </div>
             )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, ArrowRight, Loader2, Image as ImageIcon, Briefcase, Heart, ShoppingBag, Recycle, MessageCircle, Gift } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -13,6 +13,7 @@ import ServiceCard from "@/modules/user/components/ServiceCard";
 import RecentBookingTracker from "@/modules/user/components/RecentBookingTracker";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import { mediaUrl, reportBannerSeen, rememberBannerClick } from "@/lib/bannerTracking";
 import { UserCircle, ShieldCheck, Tag, Clock, Siren, Truck, Zap } from "lucide-react";
 
 // Last-resort fallback if even the admin hasn't created a promotional banner
@@ -27,15 +28,12 @@ const Index = () => {
   const navigate = useNavigate();
   const { userLocation, userCity, userState, userDistrict, userPincode, detectLocation, serviceMode, setServiceMode, user } = useAuth();
   const [showAllCategories, setShowAllCategories] = useState(false);
-  // The paid partner promotions (1/7/30-day plans, ProviderBanner model) —
-  // shown at the top and repeated above Bazaar Chats, taking priority over
-  // adminBanners below since a paying partner shouldn't be displaced by a
-  // free admin one.
+  // Two carousels, each with its own source:
+  //  - TOP: admin promotional banners (Banner model, managed at /admin/banners).
+  //  - LOWER (above Bazaar Chats): paid partner banners (ProviderBanner model,
+  //    managed at /admin/provider-banners).
+  // Neither ever displaces the other.
   const [partnerBanners, setPartnerBanners] = useState([]);
-  // Admin-managed promotional banners (Banner model, edited from
-  // AdminBanners.jsx) — shown only when no partner banner is active for this
-  // location, so the slot is never empty but a free banner never bumps a
-  // paid one.
   const [adminBanners, setAdminBanners] = useState([]);
   // Live offer cards for the home carousel. Failing to load them must never
   // block the rest of the home page, so this is fetched on its own.
@@ -105,37 +103,38 @@ const Index = () => {
 
       const providersEndpoint = `/public/featured-providers?${params.toString()}`;
 
-      const [bannersRes, providerBannersRes, providersRes] = await Promise.all([
+      // Each section loads on its own: a failing banner request must not
+      // empty the featured providers (or the other way round).
+      const [bannersRes, providerBannersRes, providersRes] = await Promise.allSettled([
         API.get("/public/banners"),
         API.get(`/public/provider-banners/active?${params.toString()}`),
         API.get(providersEndpoint)
       ]);
+      const ok = (r) => (r.status === "fulfilled" ? r.value : { data: null });
 
-      const aBanners = bannersRes.data?.map((b, i) => {
-        let imageUrl = b.imageUrl || b.image;
-        if (imageUrl && !imageUrl.startsWith("http") && !imageUrl.startsWith("data:")) {
-          imageUrl = `http://localhost:5000/${imageUrl.replace(/^\//, '')}`;
-        }
-        return {
-          id: b._id || b.id || i,
-          title: b.title || "",
-          subtitle: b.description || b.subtitle || "",
-          link: b.ctaLink || b.link || "/shops",
-          image: imageUrl || defaultBanners[i % defaultBanners.length].image,
-          video: b.videoUrl || null
-        };
-      }) || [];
+      const aBanners = (ok(bannersRes).data || []).map((b, i) => ({
+        id: b._id || b.id || i,
+        title: b.title || "",
+        subtitle: b.description || b.subtitle || "",
+        ctaText: b.ctaText || "",
+        link: b.ctaLink || b.link || "/shops",
+        image: mediaUrl(b.imageUrl || b.image) || defaultBanners[i % defaultBanners.length].image,
+        video: b.videoUrl ? mediaUrl(b.videoUrl) : null
+      }));
       setAdminBanners(aBanners);
 
-      // Add provider banners
-      const pBanners = providerBannersRes.data?.banners?.map((b) => ({
-        id: b._id,
-        isProviderBanner: true,
-        title: "",
-        subtitle: "",
-        link: `/shop/${b.provider?._id || b.provider}`,
-        image: b.imageUrl
-      })) || [];
+      // Paid partner banners, already ranked and capped by the server.
+      const pBanners = (ok(providerBannersRes).data?.banners || [])
+        .filter((b) => b.imageUrl)
+        .map((b) => ({
+          id: b._id,
+          isProviderBanner: true,
+          providerId: b.provider?._id || b.provider,
+          title: "",
+          subtitle: "",
+          link: `/shop/${b.provider?._id || b.provider}`,
+          image: mediaUrl(b.imageUrl)
+        }));
 
       setPartnerBanners(pBanners);
 
@@ -150,7 +149,7 @@ const Index = () => {
         }
       }
 
-      let providersData = providersRes.data;
+      let providersData = Array.isArray(ok(providersRes).data) ? ok(providersRes).data : [];
 
       const mappedProviders = providersData.map(p => ({
         id: p._id,
@@ -214,11 +213,8 @@ const Index = () => {
 
   const handleBannerClick = async (banner) => {
     if (banner.isProviderBanner) {
-      try {
-        await API.post(`/public/provider-banners/${banner.id}/click`);
-      } catch (e) {
-        console.error("Failed to track banner click", e);
-      }
+      rememberBannerClick(banner.id, banner.providerId);
+      API.post(`/public/provider-banners/${banner.id}/click`).catch(() => {});
     }
     const link = banner.link;
     if (!link) return;
@@ -241,9 +237,14 @@ const Index = () => {
   // admin-managed promotional banners when none are active for this
   // location, and only to the hardcoded defaults if the admin hasn't made
   // one either — the slot is never just blank.
-  const displayBanners = partnerBanners.length > 0
-    ? partnerBanners
-    : (adminBanners.length > 0 ? adminBanners : defaultBanners);
+  // Views count only partner banners that were actually on screen.
+  const handleBannerSeen = useCallback((banner) => {
+    if (banner?.isProviderBanner) reportBannerSeen(banner.id);
+  }, []);
+
+  // Top carousel: admin banners only; the built-in two only if the admin has
+  // none, so the slot is never empty.
+  const topBanners = adminBanners.length > 0 ? adminBanners : defaultBanners;
 
   const quickLinksGrid = (
     <section className="grid grid-cols-2 gap-3 pt-2 pb-4">
@@ -371,7 +372,7 @@ const Index = () => {
         <RecentBookingTracker />
 
         {/* Banner Section */}
-        <PromoBannerCarousel banners={displayBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
+        <PromoBannerCarousel banners={topBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
 
         {/* Global Service Mode Toggle */}
         <div className="flex flex-col items-center justify-center mt-6 mb-8 px-4">
@@ -441,8 +442,8 @@ const Index = () => {
               </section>
             )}
 
-            {/* Partner-promoted banners (1/7/30-day plans), repeated above Bazaar Chats for extra visibility — same list as the top carousel */}
-            <PromoBannerCarousel banners={displayBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} />
+            {/* Paid partner banners (managed at /admin/provider-banners); hidden when none are running here */}
+            <PromoBannerCarousel banners={partnerBanners} defaultBanners={defaultBanners} onBannerClick={handleBannerClick} onBannerSeen={handleBannerSeen} />
 
             {/* Active Bazaar Chats (If any) */}
             {bazaarChats.length > 0 && (

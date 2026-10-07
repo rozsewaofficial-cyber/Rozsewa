@@ -183,7 +183,14 @@ router.post('/banners', protect, admin, addBanner);
 router.put('/banners/:id', protect, admin, updateBanner);
 router.delete('/banners/:id', protect, admin, deleteBanner);
 router.patch('/banners/:id/status', protect, admin, toggleBannerStatus);
-router.post('/banners/upload-video', protect, admin, uploadVideo.single('video'), uploadBannerVideo);
+router.post('/banners/upload-video', protect, admin, (req, res, next) => {
+    const { uploadBannerVideoFile } = require('../config/cloudinary');
+    uploadBannerVideoFile.single('video')(req, res, (err) => {
+        if (!err) return next();
+        const tooBig = err.code === 'LIMIT_FILE_SIZE';
+        return res.status(400).json({ message: tooBig ? 'Video file size must be less than 10MB' : err.message });
+    });
+}, uploadBannerVideo);
 
 // Provider Banner management
 const providerBannerController = require('../controllers/providerBannerController');

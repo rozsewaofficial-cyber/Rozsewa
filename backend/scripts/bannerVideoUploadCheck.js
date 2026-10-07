@@ -69,9 +69,11 @@ check('it streams to Cloudinary as resource_type video, in its own banners folde
     assert.ok(/folder: 'rojsewa\/banners', resource_type: 'video'/.test(fn));
 });
 
-check('the route reuses the existing uploadVideo multer config (memoryStorage, video-only filter), not a new one', () => {
-    assert.ok(/const \{ uploadVideo \} = require\('\.\.\/config\/cloudinary'\)/.test(routes));
-    assert.ok(/router\.post\('\/banners\/upload-video', protect, admin, uploadVideo\.single\('video'\), uploadBannerVideo\)/.test(routes));
+check('the route uses a 10MB video-only multer, so an oversized file is refused while it is received (not after buffering 25MB)', () => {
+    const cfg = fs.readFileSync(path.join(__dirname, '..', 'config', 'cloudinary.js'), 'utf8');
+    assert.ok(/const uploadBannerVideoFile = multer\(\{\s*storage: multer\.memoryStorage\(\),\s*limits: \{ fileSize: 10 \* 1024 \* 1024 \}/.test(cfg));
+    assert.ok(/router\.post\('\/banners\/upload-video', protect, admin, \(req, res, next\) => \{[\s\S]{0,200}uploadBannerVideoFile\.single\('video'\)/.test(routes));
+    assert.ok(/LIMIT_FILE_SIZE[\s\S]{0,120}Video file size must be less than 10MB/.test(routes));
 });
 
 console.log('\nThe admin form offers a video picker with its own client-side size guard');
@@ -91,7 +93,7 @@ check('a chosen video is uploaded to the new endpoint and stored on the form', (
 console.log('\nThe customer home page carries the video through, and the carousel plays it');
 
 check('the admin banner mapping carries the video through from the API response', () => {
-    assert.ok(/video: b\.videoUrl \|\| null/.test(customerUi));
+    assert.ok(/video: b\.videoUrl \? mediaUrl\(b\.videoUrl\) : null/.test(customerUi));
 });
 
 check('a <video> renders (autoplay, muted, loop) in place of the <img> when banner.video is set', () => {

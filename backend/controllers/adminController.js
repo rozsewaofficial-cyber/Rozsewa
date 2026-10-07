@@ -1257,6 +1257,41 @@ const deleteUser = async (req, res) => {
 
 const Banner = require('../models/Banner');
 
+/**
+ * The admin banner form, read field by field — the whole request body used
+ * to be written into the document. A link must be an in-app path or a web
+ * address, and a schedule must end after it starts.
+ */
+const readBannerForm = (body, { partial = false } = {}) => {
+    const out = {};
+    const has = (k) => body[k] !== undefined;
+    const isUrl = (v) => /^https?:\/\/\S+$/i.test(v);
+    // Older banners may store an uploaded file as a server-relative path.
+    const isMedia = (v) => isUrl(v) || /^(?!\/\/)\/?[\w\-./]+\.[a-z0-9]{2,5}$/i.test(v);
+    if (!partial || has('title')) out.title = String(body.title || '').trim().slice(0, 120);
+    if (has('description')) out.description = String(body.description || '').trim().slice(0, 500);
+    if (!partial || has('imageUrl')) out.imageUrl = String(body.imageUrl || '').trim();
+    if (has('videoUrl')) out.videoUrl = String(body.videoUrl || '').trim();
+    if (has('ctaLink')) out.ctaLink = String(body.ctaLink || '').trim() || '/shops';
+    if (has('ctaText')) out.ctaText = String(body.ctaText || '').trim().slice(0, 30);
+    if (has('active')) out.active = body.active === true || body.active === 'true';
+    if (has('priority')) out.priority = Math.max(-1000, Math.min(1000, Math.round(Number(body.priority) || 0)));
+    for (const k of ['startDate', 'endDate']) {
+        if (!has(k)) continue;
+        const d = body[k] ? new Date(body[k]) : null;
+        if (d && isNaN(d)) return { error: `Invalid ${k === 'startDate' ? 'start' : 'end'} date.` };
+        out[k] = d;
+    }
+    if ((!partial || has('title')) && !out.title) return { error: 'Title is required.' };
+    if ((!partial || has('imageUrl')) && !isMedia(out.imageUrl)) return { error: 'A banner image is required.' };
+    if (out.videoUrl && !isMedia(out.videoUrl)) return { error: 'Invalid video link.' };
+    if (out.ctaLink && !(out.ctaLink.startsWith('/') && !out.ctaLink.startsWith('//')) && !isUrl(out.ctaLink)) {
+        return { error: 'Link must be an app path like /shops or a full https:// address.' };
+    }
+    if (out.startDate && out.endDate && out.endDate <= out.startDate) return { error: 'End date must be after the start date.' };
+    return { data: out };
+};
+
 // @desc    Get all banners
 // @route   GET /api/admin/banners
 // @access  Private/Admin
@@ -1274,7 +1309,9 @@ const getBanners = async (req, res) => {
 // @access  Private/Admin
 const addBanner = async (req, res) => {
     try {
-        const banner = await Banner.create(req.body);
+        const { data, error } = readBannerForm(req.body);
+        if (error) return res.status(400).json({ message: error });
+        const banner = await Banner.create(data);
         res.status(201).json(banner);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -1298,7 +1335,10 @@ const deleteBanner = async (req, res) => {
 // @access  Private/Admin
 const updateBanner = async (req, res) => {
     try {
-        const banner = await Banner.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const { data, error } = readBannerForm(req.body, { partial: true });
+        if (error) return res.status(400).json({ message: error });
+        const banner = await Banner.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true });
+        if (!banner) return res.status(404).json({ message: 'Banner not found' });
         res.json(banner);
     } catch (error) {
         res.status(500).json({ message: error.message });

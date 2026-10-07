@@ -25,7 +25,7 @@ const paymentOrderSchema = mongoose.Schema({
     // another.
     purpose: {
         type: String,
-        enum: ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'other'],
+        enum: ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'banner', 'other'],
         default: 'other'
     },
 
@@ -37,6 +37,11 @@ const paymentOrderSchema = mongoose.Schema({
     // For a booking payment, the booking it settles. Verification refuses to
     // mark any other booking paid with it.
     bookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking' },
+
+    // What the order was priced for, where the purpose needs more than an
+    // amount (a banner order records its plan and duration here, so the
+    // banner bought is the one that was priced).
+    meta: { type: mongoose.Schema.Types.Mixed },
 
     // Set once, when the payment is accepted. Its presence is what makes a
     // second attempt fail.

@@ -21,7 +21,7 @@ const ProviderBannerPromotion = () => {
   const [loading, setLoading] = useState(false);
   const [banners, setBanners] = useState([]);
   const [plans, setPlans] = useState([]);
-  const [availableDurations, setAvailableDurations] = useState([7, 15, 30]);
+  const [availableDurations, setAvailableDurations] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   
@@ -146,14 +146,14 @@ const ProviderBannerPromotion = () => {
     try {
       const res = await API.get('/provider/banner-plans');
       const { data } = res;
+      // Plans arrive with the server's price for every offered duration.
       setPlans(data.plans || []);
-      setAvailableDurations(data.durations && data.durations.length > 0 ? data.durations : [7]);
-      
+      const durations = data.durations && data.durations.length > 0 ? data.durations : [7];
+      setAvailableDurations(durations);
       if (data.plans && data.plans.length > 0) {
         setPlanType(data.plans[0].id);
       }
-      const durations = data.durations || [7];
-      if (durations.length > 0 && !durations.includes(durationDays)) {
+      if (!durations.includes(durationDays)) {
         setDurationDays(durations[0]);
       }
     } catch (error) {
@@ -191,16 +191,29 @@ const ProviderBannerPromotion = () => {
     }
   };
 
-  const calculatePrice = () => {
-    const basePlan = plans.find(p => p.id === planType);
-    return basePlan ? basePlan.price : 0;
-  };
+  // The server's figures for the chosen plan and duration — shown here, but
+  // the server prices the order itself; nothing below is sent as a price.
+  const quote = () => plans.find(p => p.id === planType)?.prices?.[durationDays] || null;
+  const totalDue = () => quote()?.total ?? 0;
+
+  // What the server needs to know about the request (never a price).
+  const requestBody = () => ({
+    planType,
+    durationDays,
+    targetState,
+    targetDistrict,
+    targetCity,
+    targetPincode,
+    designDescription,
+    imageUrl
+  });
 
   const isFormValid = () => {
     if (planType === 'State' && !targetState.trim()) return false;
     if (planType === 'District' && !targetDistrict.trim()) return false;
     if (planType === 'City' && !targetCity.trim()) return false;
-    if (planType === 'Local' && !targetPincode.trim()) return false;
+    if (planType === 'Local' && !/^\d{6}$/.test(targetPincode.trim())) return false;
+    if (!quote()) return false;
     
     if (!imageUrl && !designDescription.trim()) return false;
     return true;
@@ -242,9 +255,6 @@ const ProviderBannerPromotion = () => {
       return toast({ variant: 'destructive', title: 'Details Missing', description: `Please either upload a banner image or write a design description.` });
     }
 
-    const finalBannerSource = imageUrl ? 'Upload Own Banner' : 'Create Banner by RozSewa';
-    const totalAmount = Math.round(calculatePrice() * 1.18);
-
     const res = await loadRazorpay();
     if (!res) {
       setLoading(false);
@@ -252,13 +262,12 @@ const ProviderBannerPromotion = () => {
     }
 
     try {
-      // 1. Create order
-      const { data: order } = await API.post("/payment/order", {
-        amount: totalAmount,
-        currency: "INR",
-      });
+      // 1. The server prices the plan and opens the order for that amount.
+      const { data } = await API.post("/provider/banners/order", requestBody());
+      const order = data.order;
 
-      // 2. Setup Razorpay
+      // 2. Pay, then hand the signed payment back; the banner is created only
+      //    once the server has verified it.
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
         amount: order.amount,
@@ -268,33 +277,21 @@ const ProviderBannerPromotion = () => {
         order_id: order.id,
         handler: async function (response) {
           try {
-            let locVal = 'ALL';
-            if (planType === 'State') locVal = targetState;
-            if (planType === 'District') locVal = targetDistrict;
-            if (planType === 'City') locVal = targetCity;
-            if (planType === 'Local') locVal = targetPincode;
-
-            const payload = {
-              planType,
-              locationValue: locVal,
-              targetState,
-              targetDistrict,
-              targetCity,
-              targetPincode,
-              durationDays,
-              bannerSource,
-              designDescription,
-              imageUrl,
-              pricePaid: calculatePrice(),
-              paymentId: response.razorpay_payment_id
-            };
-
-            await API.post('/provider/banners', payload);
+            await API.post('/provider/banners', {
+              ...requestBody(),
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
             toast({ title: 'Success', description: 'Banner promotion request submitted!' });
             setShowForm(false);
             fetchBanners();
           } catch (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Payment succeeded but banner request failed. Contact Support.' });
+            toast({
+              variant: 'destructive',
+              title: 'Banner request failed',
+              description: `${error.response?.data?.message || 'Please try again.'} Payment id: ${response.razorpay_payment_id}`
+            });
           }
         },
         prefill: {
@@ -311,7 +308,7 @@ const ProviderBannerPromotion = () => {
       });
       paymentObject.open();
     } catch (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to initiate payment.' });
+      toast({ variant: 'destructive', title: 'Error', description: error.response?.data?.message || 'Failed to initiate payment.' });
     } finally {
       setLoading(false);
     }
@@ -338,19 +335,8 @@ const ProviderBannerPromotion = () => {
       return toast({ variant: 'destructive', title: 'Details Missing', description: `Please either upload a banner image or write a design description.` });
     }
 
-    const finalBannerSource = imageUrl ? 'Upload Own Banner' : 'Create Banner by RozSewa';
-    const totalAmount = Math.round(calculatePrice() * 1.18);
-
     try {
-      await API.post("/provider/banners/wallet", {
-        planType,
-        locationValue,
-        durationDays,
-        bannerSource: finalBannerSource,
-        designDescription,
-        imageUrl,
-        pricePaid: totalAmount
-      });
+      await API.post("/provider/banners/wallet", requestBody());
       
       toast({ title: 'Success', description: 'Banner promotion request submitted using wallet!' });
       setShowForm(false);
@@ -362,6 +348,55 @@ const ProviderBannerPromotion = () => {
       setLoading(false);
     }
   };
+
+  const PAST = ['Expired', 'Rejected', 'Stopped'];
+  const currentBanners = banners.filter(b => !PAST.includes(b.status));
+  const pastBanners = banners.filter(b => PAST.includes(b.status));
+  const statusClass = (status) => (
+    status === 'Active' ? 'bg-emerald-100 text-emerald-700'
+      : PAST.includes(status) ? 'bg-rose-100 text-rose-700'
+        : 'bg-amber-100 text-amber-700'
+  );
+
+  const renderBanner = (banner) => (
+    <div key={banner._id} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
+      <div className="flex justify-between items-start mb-2">
+        <span className="font-black text-sm">{banner.planType} Plan</span>
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${statusClass(banner.status)}`}>
+          {banner.status}
+        </span>
+      </div>
+      <p className="text-xs text-slate-500">{banner.durationDays} Days • {banner.locationValue} • Paid ₹{banner.pricePaid}</p>
+      {banner.status === 'Active' && banner.endDate && (
+        <p className="text-[11px] text-emerald-700 font-bold mt-1">Live until {new Date(banner.endDate).toLocaleDateString('en-IN')}</p>
+      )}
+      {banner.status === 'Rejected' && (
+        <p className="text-[11px] text-rose-600 font-bold mt-1">
+          {banner.rejectionReason ? `Reason: ${banner.rejectionReason}. ` : ''}
+          {banner.refund?.status === 'refunded' ? `₹${banner.refund.amount} refunded to your wallet.` : banner.refund?.status === 'manual' ? 'Our team will review your payment for a refund.' : ''}
+        </p>
+      )}
+      <div className="grid grid-cols-3 gap-2 border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
+        <div className="text-center">
+          <p className="text-[10px] uppercase text-slate-400 font-bold">Views</p>
+          <p className="font-black text-sm">{banner.analytics?.views || 0}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] uppercase text-slate-400 font-bold">Clicks</p>
+          <p className="font-black text-sm">{banner.analytics?.clicks || 0}</p>
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] uppercase text-slate-400 font-bold">Orders</p>
+          <p className="font-black text-sm">{banner.analytics?.orders || 0}</p>
+        </div>
+      </div>
+      {PAST.includes(banner.status) && (
+        <button onClick={() => setShowForm(true)} className="w-full mt-3 bg-blue-50 text-blue-600 font-bold py-2 rounded-xl text-xs">
+          {banner.status === 'Rejected' ? 'Submit a New Request' : 'Renew Banner'}
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
@@ -380,46 +415,22 @@ const ProviderBannerPromotion = () => {
 
             <div>
               <h3 className="font-black text-slate-800 dark:text-slate-200 mb-3 uppercase tracking-widest text-xs">My Promotions</h3>
-              {banners.length === 0 ? (
+              {currentBanners.length === 0 ? (
                 <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 text-center border border-slate-200 dark:border-slate-800">
                   <Target className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-slate-500">No active promotions</p>
+                  <p className="text-sm font-bold text-slate-500">No running or pending promotions</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {banners.map(banner => (
-                    <div key={banner._id} className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="font-black text-sm">{banner.planType} Plan</span>
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${banner.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : banner.status === 'Expired' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {banner.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 mb-3">{banner.durationDays} Days • {banner.locationValue}</p>
-                      <div className="grid grid-cols-3 gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
-                        <div className="text-center">
-                          <p className="text-[10px] uppercase text-slate-400 font-bold">Views</p>
-                          <p className="font-black text-sm">{banner.analytics?.views || 0}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] uppercase text-slate-400 font-bold">Clicks</p>
-                          <p className="font-black text-sm">{banner.analytics?.clicks || 0}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] uppercase text-slate-400 font-bold">Orders</p>
-                          <p className="font-black text-sm">{banner.analytics?.orders || 0}</p>
-                        </div>
-                      </div>
-                      {banner.status === 'Expired' && (
-                        <button onClick={() => setShowForm(true)} className="w-full mt-3 bg-blue-50 text-blue-600 font-bold py-2 rounded-xl text-xs">
-                          Renew Banner
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <div className="space-y-3">{currentBanners.map(renderBanner)}</div>
               )}
             </div>
+
+            {pastBanners.length > 0 && (
+              <div>
+                <h3 className="font-black text-slate-800 dark:text-slate-200 mb-3 uppercase tracking-widest text-xs">Past Promotions</h3>
+                <div className="space-y-3">{pastBanners.map(renderBanner)}</div>
+              </div>
+            )}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -437,8 +448,8 @@ const ProviderBannerPromotion = () => {
                       <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{plan.desc}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-blue-600 dark:text-blue-400">₹{plan.price}</p>
-                      <p className="text-[9px] text-slate-400 uppercase">/{availableDurations[0] || 7} Days</p>
+                      <p className="font-black text-blue-600 dark:text-blue-400">₹{plan.prices?.[durationDays]?.basePrice ?? plan.price}</p>
+                      <p className="text-[9px] text-slate-400 uppercase">/{durationDays} Days + GST</p>
                     </div>
                   </label>
                 ))}
@@ -548,15 +559,15 @@ const ProviderBannerPromotion = () => {
             <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-2 shadow-xl">
               <div className="flex justify-between text-xs font-medium opacity-80">
                 <span>{planType} Plan ({durationDays} Days)</span>
-                <span>₹{calculatePrice()}</span>
+                <span>₹{quote()?.basePrice ?? 0}</span>
               </div>
               <div className="flex justify-between text-xs font-medium opacity-80">
                 <span>GST (18%)</span>
-                <span>₹{Math.round(calculatePrice() * 0.18)}</span>
+                <span>₹{quote()?.gstAmount ?? 0}</span>
               </div>
               <div className="border-t border-slate-700 my-2 pt-2 flex justify-between font-black text-lg">
-                <span>Total Payload</span>
-                <span className="text-emerald-400">₹{Math.round(calculatePrice() * 1.18)}</span>
+                <span>Total Payable</span>
+                <span className="text-emerald-400">₹{totalDue()}</span>
               </div>
               <button type="submit" disabled={loading || !isFormValid()} className="w-full bg-emerald-500 text-white font-black py-4 rounded-xl mt-4 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : 'Pay & Submit Request'}
@@ -565,11 +576,11 @@ const ProviderBannerPromotion = () => {
               <button 
                 type="button" 
                 onClick={handleWalletSubmit} 
-                disabled={loading || !isFormValid() || walletBalance < Math.round(calculatePrice() * 1.18)} 
-                className={`w-full text-white font-black py-4 rounded-xl mt-2 flex items-center justify-center gap-2 transition-all ${walletBalance >= Math.round(calculatePrice() * 1.18) ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-400 cursor-not-allowed opacity-80'}`}
+                disabled={loading || !isFormValid() || walletBalance < totalDue()} 
+                className={`w-full text-white font-black py-4 rounded-xl mt-2 flex items-center justify-center gap-2 transition-all ${walletBalance >= totalDue() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-400 cursor-not-allowed opacity-80'}`}
               >
                 {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
-                  walletBalance >= Math.round(calculatePrice() * 1.18) 
+                  walletBalance >= totalDue() 
                     ? `Pay with Wallet (Bal: ₹${walletBalance})` 
                     : `Insufficient Wallet Balance (₹${walletBalance})`
                 )}

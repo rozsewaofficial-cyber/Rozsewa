@@ -27,15 +27,11 @@ const AdminBanners = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [isUploadingVideo, setIsUploadingVideo] = useState(false);
     const MAX_VIDEO_SIZE = 10 * 1024 * 1024; // 10MB
-    const [form, setForm] = useState({
-        title: "",
-        description: "",
-        imageUrl: "",
-        videoUrl: "",
-        ctaLink: "/shops",
-        ctaText: "Book Now",
-        active: true
-    });
+    const emptyForm = () => ({ title: "", description: "", imageUrl: "", videoUrl: "", ctaLink: "/shops", ctaText: "", active: true, priority: 0, startDate: "", endDate: "" });
+    const [form, setForm] = useState(emptyForm);
+    // Dates travel as yyyy-mm-dd for the date inputs; an empty one means
+    // "no limit" on that side.
+    const toDateInput = (d) => (d ? new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : "");
 
     useEffect(() => {
         setTitle("Banner Management");
@@ -61,24 +57,39 @@ const AdminBanners = () => {
             return;
         }
 
+        const payload = {
+            title: form.title,
+            description: form.description,
+            imageUrl: form.imageUrl,
+            videoUrl: form.videoUrl,
+            ctaLink: form.ctaLink,
+            ctaText: form.ctaText,
+            active: form.active,
+            priority: Number(form.priority) || 0,
+            // Whole days on Indian time: from the start of the first day to
+            // the end of the last.
+            startDate: form.startDate ? `${form.startDate}T00:00:00+05:30` : null,
+            endDate: form.endDate ? `${form.endDate}T23:59:59+05:30` : null
+        };
+
         try {
             if (editId) {
-                const { data } = await API.put(`/admin/banners/${editId}`, form);
+                const { data } = await API.put(`/admin/banners/${editId}`, payload);
                 setBanners(banners.map(b => b._id === editId ? data : b));
                 toast({ title: "Banner Updated Successfully" });
             } else {
-                const { data } = await API.post("/admin/banners", form);
+                const { data } = await API.post("/admin/banners", payload);
                 setBanners([data, ...banners]);
                 toast({ title: "Banner Created Successfully" });
             }
             resetForm();
         } catch (err) {
-            toast({ title: "Operation Failed", variant: "destructive" });
+            toast({ title: "Operation Failed", description: err.response?.data?.message, variant: "destructive" });
         }
     };
 
     const resetForm = () => {
-        setForm({ title: "", description: "", imageUrl: "", videoUrl: "", ctaLink: "/shops", ctaText: "Book Now", active: true });
+        setForm(emptyForm());
         setShowForm(false);
         setEditId(null);
     };
@@ -263,7 +274,7 @@ const AdminBanners = () => {
                                 <div className="flex items-center gap-2 pt-4 border-t border-gray-100 mt-4">
                                     <button
                                         onClick={() => {
-                                            setForm({ ...b });
+                                            setForm({ ...emptyForm(), ...b, startDate: toDateInput(b.startDate), endDate: toDateInput(b.endDate) });
                                             setEditId(b._id);
                                             setShowForm(true);
                                         }}
@@ -372,6 +383,20 @@ const AdminBanners = () => {
                                             <InputField label="Link (URL)">
                                                 <input type="text" value={form.ctaLink} onChange={e => setForm({ ...form, ctaLink: e.target.value })} className={inputCls} placeholder="e.g. /shops or https://example.com" />
                                             </InputField>
+                                            <InputField label="Button Text (optional)">
+                                                <input type="text" maxLength={30} value={form.ctaText || ""} onChange={e => setForm({ ...form, ctaText: e.target.value })} className={inputCls} placeholder="e.g. Book Now — leave empty for no button" />
+                                            </InputField>
+                                            <InputField label="Priority (higher shows first)">
+                                                <input type="number" value={form.priority ?? 0} onChange={e => setForm({ ...form, priority: e.target.value })} className={inputCls} />
+                                            </InputField>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <InputField label="Show From (optional)">
+                                                    <input type="date" value={form.startDate || ""} onChange={e => setForm({ ...form, startDate: e.target.value })} className={inputCls} />
+                                                </InputField>
+                                                <InputField label="Show Until (optional)">
+                                                    <input type="date" value={form.endDate || ""} min={form.startDate || undefined} onChange={e => setForm({ ...form, endDate: e.target.value })} className={inputCls} />
+                                                </InputField>
+                                            </div>
                                             <InputField label="Promo Text">
                                                 <textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className={`${inputCls} resize-y min-h-[80px]`} placeholder="Describe the offer or campaign..." />
                                             </InputField>

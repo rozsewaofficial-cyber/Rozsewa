@@ -37,6 +37,7 @@ import {
 } from "@react-google-maps/api";
 import API from "@/lib/api";
 import CoinRedeemCard from "@/components/CoinRedeemCard";
+import { bannerIdForBooking } from "@/lib/bannerTracking";
 
 const mapContainerStyle = { width: "100%", height: "200px" };
 const center = { lat: 28.6139, lng: 77.209 }; // Delhi
@@ -971,6 +972,8 @@ const Checkout = () => {
           checkoutData.serviceId || checkoutData.items?.[0]?.id || "DEMO-ID",
         serviceName: serviceNames,
         providerId: checkoutData.providerId || null,
+        // Credits the partner's banner if the customer came from tapping it.
+        bannerId: bannerIdForBooking(checkoutData.providerId),
         requiredProviderCategory:
           checkoutData.requiredProviderCategory || "partner",
         bookingDate: isExpress ? "ASAP" : selectedDate,

@@ -27,6 +27,7 @@ router.get('/subcategories/:subcategoryId/services', require('../controllers/sub
 
 const providerBannerController = require('../controllers/providerBannerController');
 router.get('/provider-banners/active', providerBannerController.getActiveBannersByLocation);
+router.post('/provider-banners/impressions', providerBannerController.trackImpressions);
 router.post('/provider-banners/:id/click', providerBannerController.trackClick);
 
 // Live offer cards for the customer app (Offers tab + home carousel).

@@ -9,7 +9,7 @@ const razorpay = new Razorpay({
 
 const PaymentOrder = require('../models/PaymentOrder');
 
-const PURPOSES = ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'other'];
+const PURPOSES = ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'banner', 'other'];
 
 /**
  * Accepting a payment without a gateway.
@@ -85,6 +85,30 @@ const claimPayment = async (req, { purpose, principal } = {}) => {
     }
 
     return { order };
+};
+
+/**
+ * Opens a Razorpay order for an amount the SERVER has already priced, and
+ * records it so the payment can later be claimed exactly once, for exactly
+ * this purpose and account. For callers that price their own goods (e.g.
+ * banner promotions) instead of taking an amount from the request.
+ */
+const createRecordedOrder = async ({ amount, purpose, providerId, userId, meta }) => {
+    const order = await razorpay.orders.create({
+        amount: Math.round(Number(amount) * 100),
+        currency: 'INR',
+        receipt: `${purpose}_${Date.now()}`
+    });
+    await PaymentOrder.create({
+        orderId: order.id,
+        amount: Number(amount),
+        currency: 'INR',
+        purpose,
+        providerId,
+        userId,
+        meta
+    });
+    return order;
 };
 
 // @desc    Create Razorpay Order
@@ -602,6 +626,8 @@ const verifyLeadPayment = async (req, res) => {
 };
 
 module.exports = {
+    claimPayment,
+    createRecordedOrder,
     createOrder,
     verifyPayment,
     verifySubscriptionPayment,

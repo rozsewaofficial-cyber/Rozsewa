@@ -124,7 +124,15 @@ const getPublicZones = async (req, res) => {
 // @access  Public
 const getPublicBanners = async (req, res) => {
     try {
-        const banners = await Banner.find({ active: true }).sort({ priority: -1 });
+        // Switched on, and inside its schedule when it has one.
+        const now = new Date();
+        const banners = await Banner.find({
+            active: true,
+            $and: [
+                { $or: [{ startDate: null }, { startDate: { $lte: now } }] },
+                { $or: [{ endDate: null }, { endDate: { $gte: now } }] }
+            ]
+        }).sort({ priority: -1, createdAt: -1 });
         res.json(banners);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -461,27 +469,26 @@ const getPublicProviders = async (req, res) => {
             enrichedProviders.push(providerObj);
         }
 
-        // Fetch active banners for this location to boost those providers
-        // Only the plan and who it belongs to are read off each banner, and
-        // the list is capped: this decides which providers to boost, not what
-        // to draw.
-        const activeBanners = await ProviderBanner.find({ status: 'Active' })
-            .select('provider planType locationValue')
-            .limit(2000)
-            .lean();
-        // Create a Set of provider IDs that have an active banner in this location
-        // Here we could filter banners by location (like in getActiveBannersByLocation)
-        const boostedProviderIds = new Set();
-        for (const banner of activeBanners) {
-            if (banner.planType === 'Premium Top') {
-                boostedProviderIds.add(banner.provider.toString());
-            } else if (city && banner.locationValue && city.toLowerCase().includes(banner.locationValue.toLowerCase())) {
-                boostedProviderIds.add(banner.provider.toString());
-            } else if (lat && lng) {
-                // If we have precise lat/lng, we could check pin code, but for now just boost if any match
-                boostedProviderIds.add(banner.provider.toString());
-            }
-        }
+        // Partners with a banner running for THIS customer's location are
+        // listed first. Only banners of the partners in this result are read,
+        // and only ones inside their dates: a banner bought for another city
+        // or state no longer boosts anyone here.
+        const BannerService = require('../services/BannerService');
+        const place = BannerService.customerPlace({
+            pincode: req.query.pincode,
+            city,
+            district: req.query.district,
+            state: req.query.state
+        });
+        const runningBanners = enrichedProviders.length
+            ? await ProviderBanner.find({
+                ...BannerService.liveFilter(),
+                provider: { $in: enrichedProviders.map(p => p._id) }
+            }).select('provider planType locationValue locationKey').lean()
+            : [];
+        const boostedProviderIds = new Set(
+            runningBanners.filter(b => BannerService.bannerTargets(b, place)).map(b => b.provider.toString())
+        );
 
         enrichedProviders.sort((a, b) => {
             const aBoosted = boostedProviderIds.has(a._id.toString()) ? 1 : 0;

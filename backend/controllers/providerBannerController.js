@@ -1,135 +1,213 @@
+const mongoose = require('mongoose');
 const { pageParams, paginate } = require('../utils/pagination');
 const ProviderBanner = require('../models/ProviderBanner');
-const Provider = require('../models/Provider');
+const Banners = require('../services/BannerService');
+
+const { STATUS, AWAITING_REVIEW } = Banners;
+
+const fail = (res, err) => {
+    if (err && err.status) return res.status(err.status).json({ success: false, message: err.message });
+    if (err && err.code === 11000) return res.status(409).json({ success: false, message: 'This payment has already been used for a banner.' });
+    console.error('[Banners]', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+};
+
+const requirePartner = (req) => {
+    if (req.user?.role !== 'provider') throw Banners.httpError(403, 'Only partner accounts can buy banner promotions.');
+};
+
+const isHttpUrl = (v) => /^https?:\/\/\S+$/i.test(String(v || '').trim());
+
+/**
+ * What the partner asked for, checked before any money moves: where it shows
+ * and what it shows. The banner's source follows from what was supplied — an
+ * uploaded image is used as is, a description alone asks RozSewa to design it.
+ */
+const readRequest = (body) => {
+    const target = Banners.resolveTarget(body.planType, body);
+    const imageUrl = String(body.imageUrl || '').trim();
+    const designDescription = String(body.designDescription || '').trim().slice(0, 1000);
+    if (imageUrl && !isHttpUrl(imageUrl)) throw Banners.httpError(400, 'The banner image link is not valid.');
+    if (!imageUrl && !designDescription) throw Banners.httpError(400, 'Upload a banner image or describe the banner you want.');
+    return {
+        ...target,
+        imageUrl: imageUrl || undefined,
+        designDescription,
+        bannerSource: imageUrl ? 'Upload Own Banner' : 'Create Banner by RozSewa',
+        status: imageUrl ? STATUS.PENDING : STATUS.DESIGN
+    };
+};
 
 // --- Provider Routes ---
 
+// @route GET /api/provider/banner-plans
+// @desc  Plans with the server's price for every offered duration (GST shown separately)
+exports.getPlans = async (req, res) => {
+    try {
+        res.json(await Banners.listPlansWithPrices());
+    } catch (err) { fail(res, err); }
+};
+
+// @route POST /api/provider/banners/order
+// @desc  Opens a Razorpay order priced by the server for this plan and duration
+exports.createBannerOrder = async (req, res) => {
+    try {
+        requirePartner(req);
+        const Provider = require('../models/Provider');
+        const acct = await Provider.findById(req.user._id).select('razorpayDisabled').lean();
+        if (acct?.razorpayDisabled) throw Banners.httpError(403, 'Online payment is not enabled for this account. Pay from your wallet instead.');
+
+        const q = await Banners.quote(req.body.planType, req.body.durationDays);
+        readRequest(req.body); // reject a bad request before the partner pays for it
+        const { createRecordedOrder } = require('./paymentController');
+        const order = await createRecordedOrder({
+            amount: q.total,
+            purpose: 'banner',
+            providerId: req.user._id,
+            meta: { planType: q.planType, durationDays: q.durationDays, basePrice: q.basePrice, gstAmount: q.gstAmount }
+        });
+        res.json({ success: true, order, quote: q });
+    } catch (err) { fail(res, err); }
+};
+
 // @route POST /api/provider/banners
-// @desc Create a new banner request
+// @desc  Creates the banner request for a VERIFIED Razorpay payment
 exports.createBannerRequest = async (req, res) => {
     try {
-        const { planType, locationValue, durationDays, bannerSource, designDescription, imageUrl, pricePaid, paymentId } = req.body;
-        
-        let status = 'Pending Approval';
-        if (bannerSource === 'Create Banner by RozSewa') {
-            status = 'Banner Design Required';
+        requirePartner(req);
+        // Validate everything first, so a mistake can be corrected and the
+        // same payment presented again — it is only consumed once it is good.
+        const details = readRequest(req.body);
+        if (!req.body.razorpay_order_id || !req.body.razorpay_payment_id || !req.body.razorpay_signature) {
+            throw Banners.httpError(400, 'Payment details are missing.');
         }
 
-        const banner = new ProviderBanner({
-            provider: req.user.id,
-            planType,
-            locationValue,
-            durationDays,
-            bannerSource,
-            designDescription,
-            imageUrl,
-            pricePaid,
-            paymentId,
-            status
-        });
+        const { claimPayment } = require('./paymentController');
+        const claim = await claimPayment(req, { purpose: 'banner', principal: req.user._id });
+        if (claim.error) throw Banners.httpError(claim.status, claim.error);
 
-        await banner.save();
+        // Plan, duration and price come off the order that was paid, never
+        // off this request.
+        // The order was priced by createBannerOrder, so its meta is trusted
+        // even if the admin has changed the plans since the partner paid.
+        // An order opened through the generic /payment/order has no meta and
+        // buys nothing here.
+        const meta = claim.order.meta || {};
+        const metaOk = Banners.PLAN_TYPES.includes(meta.planType) && Number(meta.durationDays) > 0
+            && Math.abs(Number(claim.order.amount) - Number(meta.basePrice) - Number(meta.gstAmount)) <= 0.01;
+        if (!metaOk) {
+            throw Banners.httpError(400, 'This payment was not made for a banner plan. Contact support with your payment id.');
+        }
+        if (meta.planType !== req.body.planType) {
+            // The location fields were validated for the plan the app sent;
+            // re-read them for the plan that was actually paid for.
+            Object.assign(details, readRequest({ ...req.body, planType: meta.planType }));
+        }
+
+        let banner;
+        try {
+            banner = await ProviderBanner.create({
+                provider: req.user._id,
+                planType: meta.planType,
+                durationDays: meta.durationDays,
+                ...details,
+                pricePaid: Number(claim.order.amount),
+                basePrice: meta.basePrice,
+                gstAmount: meta.gstAmount,
+                paidVia: 'razorpay',
+                paymentId: req.body.razorpay_payment_id
+            });
+        } catch (createErr) {
+            // The money was taken but no banner exists: release the payment
+            // so the same (genuine, signed) payment can be submitted again.
+            const PaymentOrder = require('../models/PaymentOrder');
+            await PaymentOrder.updateOne(
+                { orderId: claim.order.orderId, consumedBy: req.body.razorpay_payment_id },
+                { $set: { consumedBy: null, consumedAt: null } }
+            ).catch(() => {});
+            throw createErr;
+        }
         res.status(201).json({ success: true, banner });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
+    } catch (err) { fail(res, err); }
 };
+
 // @route POST /api/provider/banners/wallet
-// @desc Create a new banner request paying via Wallet
+// @desc  Pays for a banner from the wallet's withdrawable balance
 exports.createBannerWithWallet = async (req, res) => {
     try {
-        const { planType, locationValue, durationDays, bannerSource, designDescription, imageUrl, pricePaid } = req.body;
-        
+        requirePartner(req);
+        const q = await Banners.quote(req.body.planType, req.body.durationDays);
+        const details = readRequest(req.body);
         const { Wallet, Transaction } = require('../models/Wallet');
-        
-        // 1. Check wallet availableBalance
-        const wallet = await Wallet.findOne({ providerId: req.user.id });
-        if (!wallet || wallet.availableBalance < pricePaid) {
-            return res.status(400).json({ success: false, message: 'Insufficient wallet available balance.' });
+
+        // Debit, ledger entry and banner succeed or fail together; the debit
+        // is matched on the balance still covering the price, so two requests
+        // sent at once cannot both spend the same money.
+        const session = await mongoose.startSession();
+        let banner = null;
+        let wallet = null;
+        try {
+            await session.withTransaction(async () => {
+                wallet = await Wallet.findOneAndUpdate(
+                    { providerId: req.user._id, availableBalance: { $gte: q.total } },
+                    { $inc: { availableBalance: -q.total }, $set: { updatedAt: Date.now() } },
+                    { new: true, session }
+                );
+                if (!wallet) throw Banners.httpError(400, 'Insufficient wallet available balance.');
+                const [txn] = await Transaction.create([{
+                    providerId: req.user._id,
+                    title: 'Banner Promotion Purchase',
+                    amount: q.total,
+                    type: 'debit',
+                    status: 'completed',
+                    description: `Purchased ${q.planType} banner for ${q.durationDays} days (₹${q.basePrice} + ₹${q.gstAmount} GST).`
+                }], { session });
+                [banner] = await ProviderBanner.create([{
+                    provider: req.user._id,
+                    planType: q.planType,
+                    durationDays: q.durationDays,
+                    ...details,
+                    pricePaid: q.total,
+                    basePrice: q.basePrice,
+                    gstAmount: q.gstAmount,
+                    paidVia: 'wallet',
+                    paymentId: `WALLET_${txn._id}`
+                }], { session });
+            });
+        } finally {
+            session.endSession();
         }
-
-        // 2. Deduct from wallet availableBalance
-        wallet.availableBalance -= pricePaid;
-        await wallet.save();
-
-        // 3. Create Transaction record
-        const transaction = new Transaction({
-            providerId: req.user.id,
-            title: 'Banner Promotion Purchase',
-            amount: pricePaid,
-            type: 'debit',
-            status: 'completed',
-            description: `Purchased ${planType} banner for ${durationDays} days.`
-        });
-        await transaction.save();
-
-        // 4. Create Banner Request
-        let status = 'Pending Approval';
-        if (bannerSource === 'Create Banner by RozSewa') {
-            status = 'Banner Design Required';
-        }
-
-        const banner = new ProviderBanner({
-            provider: req.user.id,
-            planType,
-            locationValue,
-            durationDays,
-            bannerSource,
-            designDescription,
-            imageUrl,
-            pricePaid,
-            paymentId: `WALLET_${transaction._id}`,
-            status
-        });
-
-        await banner.save();
-        res.status(201).json({ success: true, banner, balance: wallet.balance });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
+        res.status(201).json({ success: true, banner, availableBalance: wallet.availableBalance });
+    } catch (err) { fail(res, err); }
 };
+
 // @route GET /api/provider/banners
-// @desc Get all banners for logged in provider
+// @desc  The partner's banners — running and pending first, then past ones
 exports.getMyBanners = async (req, res) => {
     try {
-        // A banner expires because of the clock, not because someone looked at
-        // it. One write for all of them, rather than a save per banner followed
-        // by reading the whole list a second time.
         await ProviderBanner.updateMany(
-            { provider: req.user.id, status: 'Active', endDate: { $lt: new Date() } },
-            { $set: { status: 'Expired' } }
+            { provider: req.user._id, status: STATUS.ACTIVE, endDate: { $lt: new Date() } },
+            { $set: { status: STATUS.EXPIRED } }
         );
-
-        // Expired banners are excluded by the query rather than by filtering
-        // them back out of what was loaded.
-        const scope = { provider: req.user.id, status: { $ne: 'Expired' } };
+        const scope = { provider: req.user._id };
         const [total, banners] = await Promise.all([
             ProviderBanner.countDocuments(scope),
             paginate(ProviderBanner.find(scope).sort({ createdAt: -1 }), pageParams(req))
         ]);
-
         res.json({ success: true, total, banners });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
+    } catch (err) { fail(res, err); }
 };
 
 // --- Admin Routes ---
 
-// @route GET /api/admin/banners
-// @desc Get all provider banners for admin review
+// @route GET /api/admin/provider-banners
 exports.getAllBanners = async (req, res) => {
     try {
-        // Same as above: expiry is a single write, not a save per row.
         await ProviderBanner.updateMany(
-            { status: 'Active', endDate: { $lt: new Date() } },
-            { $set: { status: 'Expired' } }
+            { status: STATUS.ACTIVE, endDate: { $lt: new Date() } },
+            { $set: { status: STATUS.EXPIRED } }
         );
-
-        const scope = req.query.status ? { status: req.query.status } : {};
+        const scope = req.query.status ? { status: String(req.query.status) } : {};
         const [total, banners] = await Promise.all([
             ProviderBanner.countDocuments(scope),
             paginate(
@@ -139,119 +217,140 @@ exports.getAllBanners = async (req, res) => {
                 pageParams(req)
             )
         ]);
-
         res.json({ success: true, total, banners });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
+    } catch (err) { fail(res, err); }
 };
 
-// @route PUT /api/admin/banners/:id/status
-// @desc Update banner status and optionally attach design URL
+const ACTIONS = { Approved: 'approve', Active: 'approve', Rejected: 'reject', Stopped: 'stop', Expired: 'stop' };
+
+// @route PUT /api/admin/provider-banners/:id/status
+// @desc  approve (goes live now; needs an image) | reject (refunds) | stop (ends a running banner)
 exports.updateBannerStatus = async (req, res) => {
     try {
-        const { status, imageUrl } = req.body;
-        const banner = await ProviderBanner.findById(req.params.id);
-        
-        if (!banner) return res.status(404).json({ success: false, message: 'Banner not found' });
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) throw Banners.httpError(404, 'Banner not found');
+        const action = req.body.action || ACTIONS[req.body.status];
+        const current = await ProviderBanner.findById(req.params.id);
+        if (!current) throw Banners.httpError(404, 'Banner not found');
 
-        banner.status = status;
-        if (imageUrl) banner.imageUrl = imageUrl;
-
-        // If approved and no startDate is set, start immediately (or based on some logic)
-        if (status === 'Approved' && !banner.startDate) {
-            banner.startDate = new Date();
-            // Calculate end date based on duration
-            const endDate = new Date(banner.startDate);
-            endDate.setDate(endDate.getDate() + banner.durationDays);
-            banner.endDate = endDate;
-            banner.status = 'Active'; // Automatically active if startDate is today
+        if (action === 'approve') {
+            const imageUrl = String(req.body.imageUrl || current.imageUrl || '').trim();
+            if (!isHttpUrl(imageUrl)) throw Banners.httpError(400, 'Add the banner design (image) before approving it.');
+            const start = new Date();
+            const end = new Date(start.getTime() + current.durationDays * 24 * 60 * 60 * 1000);
+            const banner = await ProviderBanner.findOneAndUpdate(
+                { _id: current._id, status: { $in: AWAITING_REVIEW } },
+                { $set: { status: STATUS.ACTIVE, imageUrl, startDate: start, endDate: end } },
+                { new: true }
+            );
+            if (!banner) throw Banners.httpError(409, `This banner is already ${current.status}.`);
+            await Banners.notifyProvider(banner.provider, 'Banner Approved',
+                `Your ${banner.planType} banner is now live until ${end.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}.`);
+            return res.json({ success: true, banner });
         }
 
-        await banner.save();
-        res.json({ success: true, banner });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
+        if (action === 'reject') {
+            const banner = await Banners.rejectAndRefund(current._id, { reason: req.body.reason });
+            if (!banner) throw Banners.httpError(409, `Only a request awaiting review can be rejected; this one is ${current.status}.`);
+            return res.json({ success: true, banner });
+        }
+
+        if (action === 'stop') {
+            const banner = await ProviderBanner.findOneAndUpdate(
+                { _id: current._id, status: STATUS.ACTIVE },
+                { $set: { status: STATUS.STOPPED, stoppedAt: new Date(), endDate: new Date() } },
+                { new: true }
+            );
+            if (!banner) throw Banners.httpError(409, 'Only a running banner can be stopped.');
+            await Banners.notifyProvider(banner.provider, 'Banner Stopped', `Your ${banner.planType} banner was stopped by RozSewa. Contact support for details.`);
+            return res.json({ success: true, banner });
+        }
+
+        throw Banners.httpError(400, 'Unknown action.');
+    } catch (err) { fail(res, err); }
+};
+
+// @route DELETE /api/admin/provider-banners/:id
+// @desc  Removes a finished request. A paid one awaiting review must be
+//        rejected (which refunds it) and a running one stopped first, so no
+//        paid banner disappears without its money being accounted for.
+exports.deleteBanner = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) throw Banners.httpError(404, 'Banner not found');
+        const banner = await ProviderBanner.findById(req.params.id);
+        if (!banner) throw Banners.httpError(404, 'Banner not found');
+        const paid = Number(banner.pricePaid) > 0;
+        if (paid && (AWAITING_REVIEW.includes(banner.status) || banner.status === STATUS.ACTIVE)) {
+            throw Banners.httpError(400, banner.status === STATUS.ACTIVE
+                ? 'Stop this running banner before deleting it.'
+                : 'Reject this request first — that refunds the partner — then delete it.');
+        }
+        await ProviderBanner.deleteOne({ _id: banner._id });
+        res.json({ success: true, message: 'Banner deleted successfully' });
+    } catch (err) { fail(res, err); }
 };
 
 // --- Public / User Routes ---
 
-// @route GET /api/banners/active
-// @desc Get active banners based on location
+// @route GET /api/public/provider-banners/active
+// @desc  Live banners for the customer's location, best plan first, a few at a time
 exports.getActiveBannersByLocation = async (req, res) => {
     try {
-        const { pincode, city, district, state } = req.query;
+        const place = Banners.customerPlace(req.query);
+        const banners = await ProviderBanner.find({
+            ...Banners.liveFilter(),
+            imageUrl: { $regex: /^https?:\/\//i },
+            $or: Banners.locationConditions(place)
+        })
+            .select('provider planType imageUrl locationValue')
+            .populate('provider', 'shopName ownerName profileImage rating')
+            .limit(200)
+            .lean();
 
-        // Base match for Active banners
-        let query = {
-            status: 'Active',
-            startDate: { $lte: new Date() },
-            endDate: { $gte: new Date() }
-        };
-
-        // If location is provided, find banners that match the criteria OR are Premium Top
-        let locationConditions = [
-            { planType: 'Premium Top' }
-        ];
-
-        if (pincode) locationConditions.push({ planType: 'Local', locationValue: pincode });
-        if (city) locationConditions.push({ planType: 'City', locationValue: { $regex: new RegExp(`^${city}$`, 'i') } });
-        if (district) locationConditions.push({ planType: 'District', locationValue: { $regex: new RegExp(`^${district}$`, 'i') } });
-        if (state) locationConditions.push({ planType: 'State', locationValue: { $regex: new RegExp(`^${state}$`, 'i') } });
-
-        query.$or = locationConditions;
-
-        // A carousel shows a handful; there is no reason to load every banner
-        // running in a city to fill it.
-        const banners = await ProviderBanner.find(query)
-            .populate('provider', 'name businessName profileImage rating')
-            .sort({ planType: -1 }) // Priority to Premium Top, etc.
-            .limit(Math.min(100, Math.max(1, Number(req.query.limit) || 50)));
-
-        // Increment views for these banners
-        if (banners.length > 0) {
-            const bannerIds = banners.map(b => b._id);
-            await ProviderBanner.updateMany(
-                { _id: { $in: bannerIds } },
-                { $inc: { 'analytics.views': 1 } }
-            );
-        }
-
-        res.json({ success: true, banners });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Server error' });
-    }
+        const limit = Math.min(Banners.CAROUSEL_SLOTS, Math.max(1, Number(req.query.limit) || Banners.CAROUSEL_SLOTS));
+        res.json({ success: true, banners: Banners.rankBanners(banners).slice(0, limit) });
+    } catch (err) { fail(res, err); }
 };
 
-// @route POST /api/banners/:id/click
-// @desc Track banner click
+const liveIds = async (ids) => {
+    const valid = [...new Set((Array.isArray(ids) ? ids : [ids]).map(String))]
+        .filter(id => mongoose.Types.ObjectId.isValid(id))
+        .slice(0, Banners.CAROUSEL_SLOTS * 2);
+    if (!valid.length) return [];
+    const live = await ProviderBanner.find({ _id: { $in: valid }, ...Banners.liveFilter() }).select('_id').lean();
+    return live.map(b => b._id);
+};
+
+// @route POST /api/public/provider-banners/impressions
+// @desc  Counts banners the customer actually saw (the app reports each once per visit)
+exports.trackImpressions = async (req, res) => {
+    try {
+        const ids = await liveIds(req.body?.ids);
+        if (ids.length) await ProviderBanner.updateMany({ _id: { $in: ids } }, { $inc: { 'analytics.views': 1 } });
+        res.json({ success: true, counted: ids.length });
+    } catch (err) { fail(res, err); }
+};
+
+// @route POST /api/public/provider-banners/:id/click
 exports.trackClick = async (req, res) => {
     try {
-        await ProviderBanner.findByIdAndUpdate(req.params.id, {
-            $inc: { 'analytics.clicks': 1 }
-        });
+        const [id] = await liveIds(req.params.id);
+        if (id) await ProviderBanner.updateOne({ _id: id }, { $inc: { 'analytics.clicks': 1 } });
         res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ success: false });
-    }
+    } catch (err) { fail(res, err); }
 };
 
-// @route DELETE /api/admin/provider-banners/:id
-// @desc Delete a provider banner request
-exports.deleteBanner = async (req, res) => {
+/**
+ * Credits an order to the banner the customer tapped before booking — only
+ * when that banner is running and belongs to the partner booked.
+ */
+exports.creditOrderToBanner = async (bannerId, providerId) => {
     try {
-        const banner = await ProviderBanner.findById(req.params.id);
-        if (!banner) {
-            return res.status(404).json({ success: false, message: 'Banner not found' });
-        }
-        await ProviderBanner.findByIdAndDelete(req.params.id);
-        res.json({ success: true, message: 'Banner deleted successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        if (!bannerId || !providerId || !mongoose.Types.ObjectId.isValid(bannerId)) return;
+        await ProviderBanner.updateOne(
+            { _id: bannerId, provider: providerId, ...Banners.liveFilter() },
+            { $inc: { 'analytics.orders': 1 } }
+        );
+    } catch (err) {
+        console.error('[Banners] Could not credit order to banner:', err.message);
     }
 };

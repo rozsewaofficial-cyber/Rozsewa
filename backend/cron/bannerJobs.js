@@ -1,88 +1,83 @@
 const cron = require('node-cron');
 const ProviderBanner = require('../models/ProviderBanner');
-const Notification = require('../models/Notification'); // Assuming there's a Notification model
-const { getIO } = require('../config/socket'); // Assuming there's a socket config
+const Banners = require('../services/BannerService');
+
+const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * One pass of banner housekeeping. Each banner is handled on its own, so one
+ * failure (a deleted provider, a push error) never stops the rest — the old
+ * job built its notification with the wrong fields, threw on the first
+ * expired banner and skipped every expiry notice and reminder after it.
+ */
+const runBannerHousekeeping = async (now = new Date()) => {
+    const summary = { activated: 0, expired: 0, reminded: 0, failed: 0 };
+
+    // 1. Rows approved under the old flow (status 'Approved') go live once
+    //    their start date arrives. New approvals are Active immediately.
+    const activated = await ProviderBanner.updateMany(
+        { status: 'Approved', startDate: { $lte: now }, endDate: { $gte: now } },
+        { $set: { status: Banners.STATUS.ACTIVE } }
+    );
+    summary.activated = activated.modifiedCount || 0;
+
+    // 2. Expire banners whose end has passed, telling each partner once.
+    const ending = await ProviderBanner.find({ status: { $in: [Banners.STATUS.ACTIVE, 'Approved'] }, endDate: { $lt: now } })
+        .select('_id provider planType')
+        .lean();
+    for (const b of ending) {
+        try {
+            const res = await ProviderBanner.updateOne(
+                { _id: b._id, status: { $in: [Banners.STATUS.ACTIVE, 'Approved'] } },
+                { $set: { status: Banners.STATUS.EXPIRED } }
+            );
+            if (res.modifiedCount) {
+                summary.expired += 1;
+                await Banners.notifyProvider(b.provider, 'Banner Expired',
+                    `Your ${b.planType} promotion banner has expired. Renew it now to maintain your visibility!`);
+            }
+        } catch (err) {
+            summary.failed += 1;
+            console.error('[CRON] Banner expiry failed for', String(b._id), err.message);
+        }
+    }
+
+    // 3. One reminder per banner, when it has 3 days or less to run.
+    const soon = await ProviderBanner.find({
+        status: Banners.STATUS.ACTIVE,
+        endDate: { $gte: now, $lte: new Date(now.getTime() + 3 * DAY) },
+        reminderSentAt: null
+    }).select('_id provider planType endDate').lean();
+    for (const b of soon) {
+        try {
+            const res = await ProviderBanner.updateOne({ _id: b._id, reminderSentAt: null }, { $set: { reminderSentAt: now } });
+            if (res.modifiedCount) {
+                summary.reminded += 1;
+                const ends = new Date(b.endDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+                await Banners.notifyProvider(b.provider, 'Banner Expiring Soon',
+                    `Your ${b.planType} promotion banner ends on ${ends}. Renew it to keep getting more orders!`);
+            }
+        } catch (err) {
+            summary.failed += 1;
+            console.error('[CRON] Banner reminder failed for', String(b._id), err.message);
+        }
+    }
+
+    return summary;
+};
 
 const startBannerCronJobs = () => {
-    // Run daily at midnight
-    cron.schedule('0 0 * * *', async () => {
-        console.log('[CRON] Running daily banner status check...');
+    // Every hour, on Indian time, so a banner ends close to when it was due
+    // and reminders do not depend on the server's own timezone.
+    cron.schedule('5 * * * *', async () => {
         try {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            // 1. Activate approved banners whose start date has arrived
-            const toActivate = await ProviderBanner.updateMany(
-                { status: 'Approved', startDate: { $lte: today } },
-                { $set: { status: 'Active' } }
-            );
-            if (toActivate.modifiedCount > 0) {
-                console.log(`[CRON] Activated ${toActivate.modifiedCount} banners.`);
-            }
-
-            // 2. Expire active banners whose end date has passed
-            const toExpire = await ProviderBanner.find({ status: 'Active', endDate: { $lt: today } });
-            
-            for (let banner of toExpire) {
-                banner.status = 'Expired';
-                await banner.save();
-                
-                // Notify provider
-                const notif = new Notification({
-                    recipient: banner.provider,
-                    recipientModel: 'Provider',
-                    title: 'Banner Expired',
-                    message: `Your ${banner.planType} promotion banner has expired. Renew it now to maintain your visibility!`
-                });
-                await notif.save();
-                
-                const io = getIO();
-                if (io) {
-                    io.to(banner.provider.toString()).emit('newNotification', notif);
-                }
-            }
-            if (toExpire.length > 0) {
-                console.log(`[CRON] Expired ${toExpire.length} banners.`);
-            }
-
-            // 3. Send reminders for banners expiring in 3 days
-            const threeDaysFromNow = new Date(today);
-            threeDaysFromNow.setDate(today.getDate() + 3);
-            const tomorrow = new Date(today);
-            tomorrow.setDate(today.getDate() + 1);
-
-            const toRemind = await ProviderBanner.find({
-                status: 'Active',
-                endDate: { $gte: today, $lte: threeDaysFromNow }
-            });
-
-            // Note: We might want a flag like 'reminderSent' so we don't spam them every day, 
-            // but for now we'll just send it if it's exactly 3 days away
-            for (let banner of toRemind) {
-                // If it's exactly 3 days away
-                const endStr = banner.endDate.toISOString().split('T')[0];
-                const threeStr = threeDaysFromNow.toISOString().split('T')[0];
-                
-                if (endStr === threeStr) {
-                    const notif = new Notification({
-                        recipient: banner.provider,
-                        recipientModel: 'Provider',
-                        title: 'Banner Expiring Soon',
-                        message: `Your ${banner.planType} promotion banner will expire in 3 days. Prepare to renew it to keep getting more orders!`
-                    });
-                    await notif.save();
-                    
-                    const io = getIO();
-                    if (io) {
-                        io.to(banner.provider.toString()).emit('newNotification', notif);
-                    }
-                }
-            }
-            
+            const s = await runBannerHousekeeping();
+            if (s.activated || s.expired || s.reminded || s.failed) console.log('[CRON] Banners:', JSON.stringify(s));
         } catch (error) {
             console.error('[CRON] Error in banner status check:', error);
         }
-    });
+    }, { timezone: 'Asia/Kolkata' });
 };
 
 module.exports = startBannerCronJobs;
+module.exports.runBannerHousekeeping = runBannerHousekeeping;
