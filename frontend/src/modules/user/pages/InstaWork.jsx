@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import CategoryIcon from "@/components/CategoryIcon";
 import { motion } from "framer-motion";
 import {
-  Zap, Loader2, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle,
+  Zap, Loader2, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, CalendarDays, Repeat,
 } from "lucide-react";
+import InstaLocationPicker, { EMPTY_PLACE, formatAddress } from "@/modules/user/components/InstaLocationPicker";
 import { useNavigate } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
@@ -39,24 +40,46 @@ const STATUS_COPY = {
   CUSTOMER_CONFIRMED: "Awaiting payment",
 };
 
+// Statuses before the worker sets off — a scheduled job waits in these.
+const NOT_STARTED = ["REQUESTED", "MATCHING", "ASSIGNED", "PARTNER_SELECTED", "ACCEPTED"];
+
+const istLabel = (d, opts) => new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", ...opts });
+
+/** IST yyyy-mm-dd of a moment. */
+const istDay = (d) => new Date(d).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+/**
+ * A scheduled job is "upcoming" until shortly before its time; after that,
+ * and for NOW help, it is the live job tracked on this screen.
+ */
+const isUpcoming = (j, now = Date.now()) =>
+  j.bookingMode === "scheduled" && NOT_STARTED.includes(j.status) && j.scheduledFor &&
+  new Date(j.scheduledFor).getTime() - now > 2 * 60 * 60 * 1000;
+
 const InstaWork = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { userLocation, userCity } = useAuth();
+  const { userCity, user } = useAuth();
 
   const [services, setServices] = useState([]);
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  const [step, setStep] = useState("browse");
+  // Step 1 (spec §2): how the customer needs help.
+  const [mode, setMode] = useState(null);
+  const [scheduling, setScheduling] = useState({ enabled: true, minLeadMinutes: 60, maxAdvanceDays: 7, slotMinutes: 30 });
+  const [schedDay, setSchedDay] = useState("");
+  const [schedTime, setSchedTime] = useState("");
+  const [place, setPlace] = useState(EMPTY_PLACE);
+  const [upcoming, setUpcoming] = useState([]);
+  const [step, setStep] = useState("mode");
   const [service, setService] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [supply, setSupply] = useState(null);
   const [partners, setPartners] = useState([]);
   const [partnersMsg, setPartnersMsg] = useState("");
   const [chosenPartner, setChosenPartner] = useState(null);
-  const [address, setAddress] = useState("");
   // Insta Work is post-paid either way: the bill is only known when the timer
   // stops. This chooses how it gets settled then — cash in the worker's hand,
   // or through the gateway.
@@ -67,15 +90,39 @@ const InstaWork = () => {
   const [activeJob, setActiveJob] = useState(null);
   const [live, setLive] = useState(null);
 
-  const location = userLocation
-    ? { type: "Point", coordinates: [userLocation.lng, userLocation.lat] }
+  // Where the worker comes: the location the customer picked and confirmed.
+  const location = place.lat !== null
+    ? { type: "Point", coordinates: [place.lng, place.lat] }
     : { type: "Point", coordinates: [0, 0] };
+
+  // The chosen start time as an exact moment (IST), or null for NOW help.
+  const scheduledFor = mode === "scheduled" && schedDay && schedTime ? `${schedDay}T${schedTime}:00+05:30` : null;
+  const timing = { bookingMode: mode === "scheduled" ? "scheduled" : "now", scheduledFor };
+
+  // Bookable days and start times, from the admin's scheduling rules.
+  const scheduleDays = Array.from({ length: Math.max(1, Number(scheduling.maxAdvanceDays) || 7) }, (_, i) => {
+    const d = new Date(Date.now() + i * 86400000);
+    return { key: istDay(d), label: i === 0 ? "Today" : i === 1 ? "Tomorrow" : istLabel(d, { weekday: "short", day: "numeric", month: "short" }) };
+  });
+  const slotsFor = (day) => {
+    const step = Number(scheduling.slotMinutes) || 30;
+    const earliest = Date.now() + (Number(scheduling.minLeadMinutes) || 0) * 60000;
+    const out = [];
+    for (let m = 6 * 60; m <= 21 * 60; m += step) {
+      const hh = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(m % 60).padStart(2, "0");
+      const at = new Date(`${day}T${hh}:${mm}:00+05:30`).getTime();
+      if (at >= earliest) out.push(`${hh}:${mm}`);
+    }
+    return out;
+  };
 
   const loadServices = useCallback(async () => {
     try {
       const { data } = await API.get(`/insta/services${userCity ? `?city=${encodeURIComponent(userCity)}` : ""}`);
       setEnabled(data.enabled !== false);
       setServices(data.services || []);
+      if (data.scheduling) setScheduling((s) => ({ ...s, ...data.scheduling }));
     } catch (err) {
       toast({ title: "Could not load Insta Work", variant: "destructive" });
     } finally {
@@ -87,7 +134,11 @@ const InstaWork = () => {
   const loadActiveJob = useCallback(async () => {
     try {
       const { data } = await API.get("/insta/jobs");
-      const running = (data.jobs || []).find((j) => ACTIVE.includes(j.status));
+      const jobs = data.jobs || [];
+      // Scheduled help still some way off is listed under Upcoming; it does
+      // not take over the screen or stop the customer booking something else.
+      setUpcoming(jobs.filter((j) => isUpcoming(j)).sort((a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor)));
+      const running = jobs.find((j) => ACTIVE.includes(j.status) && !isUpcoming(j));
       if (!running) {
         setActiveJob(null);
         return;
@@ -124,12 +175,21 @@ const InstaWork = () => {
     return () => events.forEach((e) => socket.off(e, refresh));
   }, [socket]);
 
+  // A different place or time can change who is free, so the worker choice
+  // starts again whenever either changes.
   useEffect(() => {
-    if (userLocation && !address) {
-      setAddress(userCity ? `Current location, ${userCity}` : "Current location");
-    }
+    setSupply((s) => (service && service.availableFor.length === 1 ? s : null));
+    setChosenPartner(null);
+    setPartners([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userLocation, userCity]);
+  }, [place.lat, place.lng, scheduledFor]);
+
+  const pickMode = (m) => {
+    setMode(m);
+    setSchedDay("");
+    setSchedTime("");
+    setStep("browse");
+  };
 
   const pickService = (svc) => {
     setService(svc);
@@ -163,11 +223,11 @@ const InstaWork = () => {
     }
     setBusy(true);
     try {
-      const { data } = await API.post("/insta/partners", { serviceId: service._id, location });
+      const { data } = await API.post("/insta/partners", { serviceId: service._id, location, quantity, ...timing });
       setPartners(data.partners || []);
       setPartnersMsg(data.emptyReason || "");
     } catch (err) {
-      toast({ title: "Could not load Partners", variant: "destructive" });
+      toast({ title: "Could not load Partners", description: err.response?.data?.message, variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -186,13 +246,23 @@ const InstaWork = () => {
         quantity,
         supplyModel: supply,
         providerId: chosenPartner?.providerId,
-        address,
+        address: formatAddress(place.details),
+        addressDetails: place.details,
+        contactName: place.contactName,
+        contactMobile: place.contactMobile,
         location,
-        city: userCity,
+        city: place.details.city || userCity,
         paymentMode,
+        ...timing,
       });
-      toast({ title: "Insta Work booked", description: `Job ${data.job.jobCode} created.` });
-      setStep("browse");
+      toast({
+        title: data.job.bookingMode === "scheduled" ? "Scheduled help booked" : "Insta Work booked",
+        description: data.job.bookingMode === "scheduled"
+          ? `Job ${data.job.jobCode} for ${istLabel(data.job.scheduledFor, { dateStyle: "medium", timeStyle: "short" })}.`
+          : `Job ${data.job.jobCode} created.`,
+      });
+      setStep("mode");
+      setMode(null);
       setService(null);
       await loadActiveJob();
     } catch (err) {
@@ -206,10 +276,10 @@ const InstaWork = () => {
     }
   };
 
-  const jobAction = async (path, body, title) => {
+  const jobAction = async (path, body, title, jobId = activeJob?._id) => {
     setBusy(true);
     try {
-      await API.patch(`/insta/jobs/${activeJob._id}/${path}`, body || {});
+      await API.patch(`/insta/jobs/${jobId}/${path}`, body || {});
       if (title) toast({ title });
       await loadActiveJob();
     } catch (err) {
@@ -317,7 +387,7 @@ const InstaWork = () => {
         <div className="flex items-center gap-3">
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => (step === "browse" ? navigate("/") : setStep("browse"))}
+            onClick={() => (step === "mode" ? navigate("/") : setStep(step === "configure" ? "browse" : "mode"))}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-border hover:bg-muted"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -352,6 +422,12 @@ const InstaWork = () => {
               {STATUS_COPY[activeJob.status] || activeJob.status}
             </p>
             <h3 className="mt-1 text-lg font-black text-foreground">{activeJob.serviceName}</h3>
+            {activeJob.bookingMode === "scheduled" && activeJob.scheduledFor && (
+              <p className="flex items-center gap-1 text-xs font-bold text-amber-700">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Scheduled for {istLabel(activeJob.scheduledFor, { dateStyle: "medium", timeStyle: "short" })}
+              </p>
+            )}
             <p className="text-xs font-semibold text-muted-foreground">
               {activeJob.jobCode} · {activeJob.bookedQuantity} {activeJob.unitLabel}
               {activeJob.bookedQuantity === 1 ? "" : "s"} · ₹{activeJob.rate}/{activeJob.unitLabel}
@@ -494,15 +570,84 @@ const InstaWork = () => {
           </motion.div>
         )}
 
+        {/* ------------------------- Upcoming scheduled ------------------------ */}
+        {upcoming.length > 0 && (
+          <div className="rounded-2xl border border-border bg-card p-4">
+            <p className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+              <CalendarDays className="h-3.5 w-3.5" /> Upcoming
+            </p>
+            <div className="mt-2 space-y-2">
+              {upcoming.map((j) => (
+                <div key={j._id} className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-foreground">{j.serviceName}</p>
+                    <p className="text-[11px] font-semibold text-muted-foreground">
+                      {istLabel(j.scheduledFor, { dateStyle: "medium", timeStyle: "short" })} · {j.jobCode}
+                    </p>
+                    <p className="text-[11px] font-bold text-amber-600">
+                      {j.status === "ACCEPTED" ? "Confirmed" : STATUS_COPY[j.status] || j.status}
+                      {j.providerId?.ownerName ? ` · ${j.providerId.ownerName}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => jobAction("cancel", { reason: "Cancelled by customer" }, "Booking cancelled", j._id)}
+                    disabled={busy}
+                    className="shrink-0 rounded-lg bg-card px-3 py-2 text-[11px] font-black uppercase text-muted-foreground disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------- Step 1: how do you need help? ------------------- */}
+        {enabled && step === "mode" && !activeJob && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-black text-foreground">How do you need help?</h2>
+            {[
+              { id: "now", Icon: Zap, title: "NOW HELP", desc: "Help right away — the nearest available worker comes over." },
+              { id: "scheduled", Icon: CalendarDays, title: "SCHEDULED HELP", desc: "Pick a date and time that suits you.", off: scheduling.enabled === false },
+              { id: "monthly", Icon: Repeat, title: "MONTHLY HOMEHELP", desc: "Regular help with fixed monthly hours or visits.", soon: true },
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => !m.soon && !m.off && pickMode(m.id)}
+                disabled={m.soon || m.off}
+                className="flex w-full items-center gap-4 rounded-2xl border-2 border-border bg-card p-4 text-left transition hover:border-amber-400 disabled:opacity-60"
+              >
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-900/30">
+                  <m.Icon className="h-6 w-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-foreground">
+                    {m.title}
+                    {(m.soon || m.off) && (
+                      <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[9px] font-black uppercase text-muted-foreground">
+                        {m.soon ? "Coming soon" : "Unavailable"}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs font-medium text-muted-foreground">{m.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* --------------------------- Service list --------------------------- */}
         {enabled && step === "browse" && !activeJob && (
           <div className="grid gap-3 sm:grid-cols-2">
-            {services.length === 0 && (
+            <p className="col-span-full text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+              {mode === "scheduled" ? "Scheduled help" : "Now help"} · Select a service
+            </p>
+            {services.filter((s) => s.modes?.[mode] !== false).length === 0 && (
               <p className="col-span-full py-10 text-center text-sm font-semibold text-muted-foreground">
                 No Insta Work services available in your area yet.
               </p>
             )}
-            {services.map((s) => (
+            {services.filter((s) => s.modes?.[mode] !== false).map((s) => (
               <button
                 key={s._id}
                 onClick={() => pickService(s)}
@@ -567,20 +712,50 @@ const InstaWork = () => {
                 </div>
               )}
 
-              <div className="mt-4">
-                <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
-                  Service address
-                </p>
-                <input
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Where should the worker come?"
-                  className="mt-2 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm font-medium outline-none focus:border-amber-500"
-                />
-              </div>
             </div>
 
-            {/* Supply choice */}
+            {/* Where (spec §6) */}
+            <div className="rounded-2xl border border-border bg-card p-5">
+              <h3 className="mb-3 text-sm font-black uppercase tracking-wider text-foreground">Where do you need help?</h3>
+              <InstaLocationPicker value={place} onChange={setPlace} user={user} />
+            </div>
+
+            {/* When (spec §10) */}
+            {mode === "scheduled" && (
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <h3 className="text-sm font-black uppercase tracking-wider text-foreground">Date &amp; time</h3>
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                  {scheduleDays.map((d) => (
+                    <button
+                      key={d.key}
+                      onClick={() => { setSchedDay(d.key); setSchedTime(""); }}
+                      className={`shrink-0 rounded-xl border-2 px-3 py-2 text-xs font-black ${schedDay === d.key ? "border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-950/30" : "border-border"}`}
+                    >
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                {schedDay && (
+                  <div className="mt-3 grid grid-cols-4 gap-2">
+                    {slotsFor(schedDay).length === 0 && (
+                      <p className="col-span-4 text-xs font-semibold text-muted-foreground">No times left on this day. Choose another day.</p>
+                    )}
+                    {slotsFor(schedDay).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setSchedTime(t)}
+                        className={`rounded-lg border px-2 py-2 text-xs font-bold tabular-nums ${schedTime === t ? "border-amber-500 bg-amber-500 text-white" : "border-border"}`}
+                      >
+                        {new Date(`2000-01-01T${t}:00`).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Supply choice — once we know where and when */}
+            {place.confirmed && (mode !== "scheduled" || scheduledFor) && (
             <div className="rounded-2xl border border-border bg-card p-5">
               <h3 className="text-sm font-black uppercase tracking-wider text-foreground">
                 Who should do this job?
@@ -620,6 +795,7 @@ const InstaWork = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Partner list */}
             {supply === "partner" && (
@@ -760,15 +936,21 @@ const InstaWork = () => {
 
             <button
               onClick={book}
-              disabled={busy || !supply || !address || (supply === "partner" && !chosenPartner)}
+              disabled={busy || !supply || !place.confirmed || (mode === "scheduled" && !scheduledFor) || (supply === "partner" && !chosenPartner)}
               className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 text-sm font-black uppercase tracking-widest text-white shadow-lg disabled:opacity-50"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {!supply
-                ? "Choose who should do this job"
-                : supply === "sewak"
-                  ? "Book a Sewak now"
-                  : "Book this Partner"}
+              {!place.confirmed
+                ? "Confirm the location first"
+                : mode === "scheduled" && !scheduledFor
+                  ? "Choose a date & time"
+                  : !supply
+                    ? "Choose who should do this job"
+                    : mode === "scheduled"
+                      ? `Book for ${istLabel(scheduledFor, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
+                      : supply === "sewak"
+                        ? "Book a Sewak now"
+                        : "Book this Partner"}
             </button>
           </div>
         )}

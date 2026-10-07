@@ -44,6 +44,8 @@ const emptyService = {
   maxQuantity: 12,
   availableFor: ["sewak", "partner"],
   isActive: true,
+  // Booking modes the service is offered in (spec §36). Monthly is not built yet.
+  modes: { now: true, scheduled: true, monthly: false },
 };
 
 const Field = ({ label, hint, children }) => (
@@ -156,6 +158,7 @@ const AdminInstaWork = () => {
       maxQuantity: svc.maxQuantity,
       availableFor: svc.availableFor || ["sewak", "partner"],
       isActive: svc.isActive,
+      modes: { now: svc.modes?.now !== false, scheduled: svc.modes?.scheduled !== false, monthly: false },
     });
     setShowModal(true);
   };
@@ -528,6 +531,52 @@ const AdminInstaWork = () => {
           </div>
 
           <h3 className="pt-2 text-xs font-black uppercase tracking-wider text-gray-700">
+            Scheduled help
+          </h3>
+          <div className="grid gap-5 sm:grid-cols-3">
+            <Field label="Scheduled help" hint="Lets customers book a date and time.">
+              <button
+                type="button"
+                onClick={() => setCfg("scheduling.scheduledEnabled", config.scheduling?.scheduledEnabled === false)}
+                className={`mt-1.5 h-11 w-full rounded-xl text-xs font-black uppercase tracking-wider ${
+                  config.scheduling?.scheduledEnabled !== false ? "bg-emerald-500 text-white" : "bg-gray-100 text-gray-500"
+                }`}
+              >
+                {config.scheduling?.scheduledEnabled !== false ? "Enabled" : "Disabled"}
+              </button>
+            </Field>
+            {[
+              ["minLeadMinutes", "Earliest start (minutes from now)"],
+              ["maxAdvanceDays", "Book up to (days ahead)"],
+              ["travelBufferMinutes", "Gap between a worker's jobs (min)"],
+              ["defaultJobMinutes", "Length of non-hourly jobs (min)"],
+              ["reminderMinutesBefore", "Reminder before start (min)"],
+              ["startJourneyMinutesBefore", "Worker may set off before start (min)"],
+              ["stopMatchingMinutesBefore", "Stop looking for a worker (min before)"],
+              ["freeCancelMinutesBefore", "Free cancellation until (min before)"],
+            ].map(([key, label]) => (
+              <Field key={key} label={label}>
+                <input
+                  type="number"
+                  min={0}
+                  value={config.scheduling?.[key] ?? ""}
+                  onChange={(e) => setCfg(`scheduling.${key}`, Number(e.target.value))}
+                  className={inputCls}
+                />
+              </Field>
+            ))}
+            <Field label="Time slots">
+              <select
+                value={config.scheduling?.slotMinutes ?? 30}
+                onChange={(e) => setCfg("scheduling.slotMinutes", Number(e.target.value))}
+                className={inputCls}
+              >
+                {[15, 30, 60].map((m) => <option key={m} value={m}>Every {m} minutes</option>)}
+              </select>
+            </Field>
+          </div>
+
+          <h3 className="pt-2 text-xs font-black uppercase tracking-wider text-gray-700">
             Cancellation fees (₹)
           </h3>
           <div className="grid gap-5 sm:grid-cols-4">
@@ -707,6 +756,29 @@ const AdminInstaWork = () => {
                       }`}
                     >
                       {m === "sewak" ? "Sewak (auto-assign)" : "Partner (customer picks)"}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <Field label="Booking modes *" hint="How customers can book this service. Monthly HomeHelp is coming soon.">
+                <div className="mt-1.5 flex gap-2">
+                  {[["now", "NOW help"], ["scheduled", "Scheduled"], ["monthly", "Monthly (soon)"]].map(([m, label]) => (
+                    <button
+                      key={m}
+                      type="button"
+                      disabled={m === "monthly"}
+                      onClick={() => setForm((f) => {
+                        const next = { ...f.modes, [m]: !f.modes?.[m] };
+                        // At least one of NOW / Scheduled stays on.
+                        if (!next.now && !next.scheduled) return f;
+                        return { ...f, modes: next };
+                      })}
+                      className={`h-11 flex-1 rounded-xl text-xs font-black uppercase tracking-wider transition disabled:opacity-50 ${
+                        form.modes?.[m] ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-500"
+                      }`}
+                    >
+                      {label}
                     </button>
                   ))}
                 </div>

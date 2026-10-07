@@ -127,6 +127,36 @@ const instaJobSchema = new mongoose.Schema({
         coordinates: { type: [Number], default: [0, 0] }
     },
     city: { type: String, default: '' },
+    // The confirmed address, field by field (spec §6). `address` above is the
+    // one-line form shown everywhere else.
+    addressDetails: {
+        house: { type: String, default: '' },
+        building: { type: String, default: '' },
+        landmark: { type: String, default: '' },
+        area: { type: String, default: '' },
+        city: { type: String, default: '' },
+        state: { type: String, default: '' },
+        pincode: { type: String, default: '' }
+    },
+    contactName: { type: String, default: '' },
+    contactMobile: { type: String, default: '' },
+
+    /* ------------------------------ timing ------------------------------- */
+
+    /**
+     * NOW help starts as soon as a worker can come; SCHEDULED help at the
+     * date and time the customer chose (spec §2, §10).
+     */
+    bookingMode: { type: String, enum: ['now', 'scheduled'], default: 'now', index: true },
+    scheduledFor: { type: Date, default: null },
+    // How long the job is expected to take, and the stretch of the worker's
+    // time it reserves: start .. start + expected + travel buffer. Matching
+    // only offers a worker jobs whose windows do not overlap ones they hold.
+    expectedMinutes: { type: Number, default: 60 },
+    windowStart: { type: Date, default: null },
+    windowEnd: { type: Date, default: null },
+    // Set when the "starting soon" reminder for a scheduled job goes out.
+    reminderSentAt: { type: Date, default: null },
     // Straight-line distance and rough ETA captured when the worker was matched.
     /**
      * When this job laid claim to its worker.
@@ -233,6 +263,8 @@ instaJobSchema.index({ status: 1, createdAt: -1 });
 // Finding what a customer still owes, on every bill they are shown.
 instaJobSchema.index({ customerId: 1, cancellationFeeStatus: 1 });
 instaJobSchema.index({ location: '2dsphere' });
+instaJobSchema.index({ providerId: 1, status: 1, windowStart: 1 });
+instaJobSchema.index({ bookingMode: 1, status: 1, scheduledFor: 1 });
 
 /**
  * A captured payment may settle exactly one job. Partial rather than sparse,
@@ -254,7 +286,16 @@ instaJobSchema.methods.isPreAcceptance = function () {
  * derived ad hoc at each call site so the customer, the provider and the admin
  * all read the same stage.
  */
-instaJobSchema.methods.cancellationStageNow = function () {
+instaJobSchema.methods.cancellationStageNow = function (options = {}) {
+    // Scheduled help called off well ahead of its time costs nothing: the
+    // worker has not set off, and has hours to take other work. Only once it
+    // is closer than the free window do the normal stage fees apply.
+    const freeMinutes = Number(options.freeCancelMinutesBefore);
+    if (this.bookingMode === 'scheduled' && this.scheduledFor && freeMinutes >= 0
+        && ['REQUESTED', 'MATCHING', 'ASSIGNED', 'PARTNER_SELECTED', 'ACCEPTED'].includes(this.status)
+        && new Date(this.scheduledFor).getTime() - (options.now || Date.now()) >= freeMinutes * 60000) {
+        return 'scheduledInAdvance';
+    }
     // Listed explicitly rather than by fallthrough. WORK_COMPLETED and
     // CUSTOMER_CONFIRMED used to land in the default, which is the FREE band —
     // so a customer could let the worker finish the entire job and then cancel

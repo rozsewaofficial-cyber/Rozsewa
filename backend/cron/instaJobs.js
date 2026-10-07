@@ -83,7 +83,10 @@ const cancelUnmatchedJobs = async () => {
     const jobs = await InstaJob.find({
         status: { $in: ['REQUESTED', 'MATCHING'] },
         providerId: null,
-        createdAt: { $lte: cutoff }
+        createdAt: { $lte: cutoff },
+        // Scheduled help keeps looking until close to its time — see
+        // matchScheduledJobs — instead of giving up after 15 minutes.
+        bookingMode: { $ne: 'scheduled' }
     }).limit(200);
 
     for (const job of jobs) {
@@ -190,16 +193,112 @@ const autoConfirmAbandonedJobs = async () => {
     return confirmed;
 };
 
+const whenText = (job) => new Date(job.scheduledFor).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short'
+});
+
+/**
+ * Scheduled help with nobody assigned (every Sewak declined, or a Partner
+ * dropped out) keeps looking for a worker on each sweep until shortly before
+ * its time, then is cancelled free of charge.
+ */
+const matchScheduledJobs = async (now = new Date()) => {
+    const config = await InstaConfig.getConfig();
+    const Assignment = require('../services/InstaAssignmentService');
+    const Schedule = require('../services/InstaScheduleService');
+    const InstaService = require('../models/InstaService');
+    const stopBefore = Math.max(0, Number(config.scheduling?.stopMatchingMinutesBefore) || 0);
+    const cutoff = new Date(now.getTime() + stopBefore * 60000);
+
+    const jobs = await InstaJob.find({
+        bookingMode: 'scheduled',
+        status: { $in: ['REQUESTED', 'MATCHING'] },
+        providerId: null
+    }).limit(200);
+
+    let matched = 0;
+    let cancelled = 0;
+    for (const job of jobs) {
+        try {
+            if (!job.scheduledFor || job.scheduledFor <= cutoff) {
+                job.cancelledBy = 'system';
+                job.cancellationReason = 'No worker was available for the scheduled time';
+                job.cancellationFee = 0;
+                job.cancellationStage = 'beforeAcceptance';
+                job.pushStatus('CANCELLED', 'system', 'Cancelled automatically — no worker for the scheduled time');
+                await job.save();
+                cancelled += 1;
+                notify(job.customerId, 'user', 'No worker available',
+                    `We could not find anyone for ${job.jobCode} at ${whenText(job)}. You have not been charged.`);
+                emitJob(job, 'INSTA_JOB_CANCELLED');
+                continue;
+            }
+            // A Partner job waits for the customer to choose someone else.
+            if (job.supplyModel !== 'sewak') continue;
+
+            const service = await InstaService.findById(job.serviceId);
+            if (!service || !service.isActive) continue;
+            const next = await Assignment.autoAssignSewak({
+                service, location: job.location, config,
+                excludeIds: job.rejectedProviders || [],
+                window: Schedule.windowOfJob(job, config, now)
+            });
+            if (!next) continue;
+            job.matchedDistanceKm = next.distanceKm;
+            const claim = await Assignment.claimWorker({ job, providerId: next.providerId, config });
+            if (!claim.ok) continue;
+            job.pushStatus('ASSIGNED', 'system', 'Assigned while waiting for the scheduled time');
+            await job.save();
+            matched += 1;
+            notify(next.providerId, 'provider', '📅 New scheduled Insta Work job',
+                `${job.serviceName} at ${job.address} on ${whenText(job)}. Accept now.`);
+            emitJob(job, 'INSTA_JOB_REASSIGNED');
+        } catch (err) {
+            console.error(`[InstaWork] scheduled matching failed for ${job.jobCode}:`, err.message);
+        }
+    }
+    return { matched, cancelled };
+};
+
+/** One "starting soon" reminder per scheduled job, to the customer and the worker. */
+const remindScheduledJobs = async (now = new Date()) => {
+    const config = await InstaConfig.getConfig();
+    const before = Math.max(0, Number(config.scheduling?.reminderMinutesBefore) || 0);
+    if (!before) return 0;
+    const jobs = await InstaJob.find({
+        bookingMode: 'scheduled',
+        status: { $in: ['ASSIGNED', 'PARTNER_SELECTED', 'ACCEPTED'] },
+        reminderSentAt: null,
+        scheduledFor: { $gt: now, $lte: new Date(now.getTime() + before * 60000) }
+    }).limit(200);
+
+    let sent = 0;
+    for (const job of jobs) {
+        const res = await InstaJob.updateOne({ _id: job._id, reminderSentAt: null }, { $set: { reminderSentAt: now } });
+        if (!res.modifiedCount) continue;
+        sent += 1;
+        notify(job.customerId, 'user', 'Your Insta Work is coming up',
+            `${job.serviceName} (${job.jobCode}) is scheduled for ${whenText(job)}.`);
+        notify(job.providerId, 'provider', 'Upcoming scheduled job',
+            job.status === 'ACCEPTED'
+                ? `${job.serviceName} at ${job.address} — ${whenText(job)}. Start your journey in time.`
+                : `${job.serviceName} at ${job.address} — ${whenText(job)}. Please accept it now.`);
+    }
+    return sent;
+};
+
 const sweep = async () => {
-    const [expired, cancelled, confirmed] = await Promise.all([
+    const [expired, cancelled, confirmed, scheduled, reminded] = await Promise.all([
         expirePendingExtensions(),
         cancelUnmatchedJobs(),
-        autoConfirmAbandonedJobs()
+        autoConfirmAbandonedJobs(),
+        matchScheduledJobs(),
+        remindScheduledJobs()
     ]);
-    if (expired || cancelled || confirmed) {
-        console.log(`[InstaWork] Sweep: ${expired} extension(s) expired, ${cancelled} unmatched job(s) cancelled, ${confirmed} finished job(s) auto-confirmed`);
+    if (expired || cancelled || confirmed || scheduled.matched || scheduled.cancelled || reminded) {
+        console.log(`[InstaWork] Sweep: ${expired} extension(s) expired, ${cancelled} unmatched job(s) cancelled, ${confirmed} finished job(s) auto-confirmed, ${scheduled.matched} scheduled job(s) matched, ${scheduled.cancelled} scheduled job(s) cancelled, ${reminded} reminder(s) sent`);
     }
-    return { expired, cancelled, confirmed };
+    return { expired, cancelled, confirmed, scheduled, reminded };
 };
 
 const startInstaCron = () => {
@@ -219,4 +318,4 @@ const startInstaCron = () => {
     console.log('RozSewa Insta Work cron jobs initialized.');
 };
 
-module.exports = { startInstaCron, sweep, expirePendingExtensions, cancelUnmatchedJobs, autoConfirmAbandonedJobs };
+module.exports = { startInstaCron, sweep, expirePendingExtensions, cancelUnmatchedJobs, autoConfirmAbandonedJobs, matchScheduledJobs, remindScheduledJobs };

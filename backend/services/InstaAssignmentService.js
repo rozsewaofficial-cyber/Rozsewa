@@ -1,6 +1,7 @@
 const Provider = require('../models/Provider');
 const InstaJob = require('../models/InstaJob');
 const DistanceChargeService = require('./DistanceChargeService');
+const Schedule = require('./InstaScheduleService');
 
 /**
  * Worker matching for Insta Work.
@@ -47,24 +48,16 @@ const positionOf = (provider, freshnessMinutes) => {
     return null;
 };
 
-/** Is the worker inside their declared working hours right now? */
-const withinWorkingHours = (provider, now = new Date()) => {
-    const wh = provider?.instaWork?.workingHours;
-    if (!wh || !wh.start || !wh.end) return true;   // unset means always available
-
-    const toMinutes = (hhmm) => {
-        const [h, m] = String(hhmm).split(':').map(Number);
-        if (Number.isNaN(h)) return null;
-        return h * 60 + (m || 0);
-    };
-    const start = toMinutes(wh.start);
-    const end = toMinutes(wh.end);
-    if (start === null || end === null) return true;
-
-    const cur = now.getHours() * 60 + now.getMinutes();
-    // An end before the start means the window runs past midnight.
-    return end >= start ? (cur >= start && cur <= end) : (cur >= start || cur <= end);
+/** The worker's last known position at any age, for jobs booked ahead. */
+const lastKnownPosition = (provider) => {
+    const c = provider?.instaWork?.lastPing?.coordinates;
+    if (Array.isArray(c) && c.length === 2 && (c[0] !== 0 || c[1] !== 0)) return { lng: c[0], lat: c[1], live: false };
+    return null;
 };
+
+/** Is the worker inside their declared working hours right now (Indian time)? */
+const withinWorkingHours = (provider, now = new Date()) =>
+    Schedule.withinHoursNow(provider?.instaWork?.workingHours, now);
 
 /** Is this worker currently barred from Insta Work? */
 const isRestricted = (provider, now = new Date()) => {
@@ -79,8 +72,14 @@ const isRestricted = (provider, now = new Date()) => {
  * The shared eligibility filter, applied before either supply model ranks
  * anyone. Returns the candidates with their distance and ETA attached.
  */
-const findCandidates = async ({ service, supplyModel, location, config, excludeIds = [] }) => {
+const findCandidates = async ({ service, supplyModel, location, config, excludeIds = [], window = null }) => {
     const now = new Date();
+    // The stretch of time being asked for. NOW help: from now for the default
+    // length. SCHEDULED help: the chosen slot (spec 10, 38).
+    const want = window || Schedule.buildWindow({
+        mode: 'now', expectedMinutes: Schedule.expectedMinutesFor(service, null, config), config, now
+    });
+    const scheduled = want.mode === 'scheduled';
 
     const query = {
         providerCategory: supplyModel,
@@ -94,21 +93,21 @@ const findCandidates = async ({ service, supplyModel, location, config, excludeI
         .select('ownerName shopName rating reviewCount completedBookingsCount profileImage mobile location instaWork providerCategory city')
         .lean();
 
-    // How many jobs each candidate is already holding, in one query rather than
-    // one per worker.
+    // How many of each candidate's jobs overlap the requested window, in one
+    // query rather than one per worker. A job booked for another time of day
+    // no longer counts against them.
     const ids = raw.map(p => p._id);
     const activeCounts = new Map();
     if (ids.length) {
-        const rows = await InstaJob.aggregate([
-            {
-                $match: {
-                    providerId: { $in: ids },
-                    status: { $in: InstaJob.OCCUPIES_WORKER }
-                }
-            },
-            { $group: { _id: '$providerId', n: { $sum: 1 } } }
-        ]);
-        rows.forEach(r => activeCounts.set(String(r._id), r.n));
+        const held = await InstaJob.find({
+            providerId: { $in: ids },
+            status: { $in: InstaJob.OCCUPIES_WORKER }
+        }).select('providerId status bookingMode windowStart windowEnd expectedMinutes assignedAt createdAt').lean();
+        for (const j of held) {
+            if (!Schedule.overlaps(Schedule.occupiedWindow(j, config, now), want)) continue;
+            const k = String(j.providerId);
+            activeCounts.set(k, (activeCounts.get(k) || 0) + 1);
+        }
     }
 
     const jobLat = location?.coordinates?.[1];
@@ -118,12 +117,22 @@ const findCandidates = async ({ service, supplyModel, location, config, excludeI
     const eligible = [];
     for (const p of raw) {
         if (isRestricted(p, now)) continue;
-        if (!withinWorkingHours(p, now)) continue;
-        // A stale ping means the app is closed — the worker is not really available.
-        if (!hasFreshPing(p, config.pingFreshnessMinutes)) continue;
+        if (scheduled) {
+            // Booked ahead: what matters is the worker's hours at that time,
+            // not whether their app happens to be open right now.
+            if (!Schedule.coversWindow(p.instaWork?.workingHours, want)) continue;
+        } else {
+            if (!withinWorkingHours(p, now)) continue;
+            // A stale ping means the app is closed — the worker is not really available.
+            if (!hasFreshPing(p, config.pingFreshnessMinutes)) continue;
+        }
         if ((activeCounts.get(String(p._id)) || 0) >= maxJobs) continue;
 
-        const pos = positionOf(p, config.pingFreshnessMinutes);
+        // NOW: where they are. SCHEDULED: their base location, else their
+        // last known position — they will travel from wherever they are then.
+        const pos = scheduled
+            ? (positionOf(p, 0) || lastKnownPosition(p))
+            : positionOf(p, config.pingFreshnessMinutes);
         if (!pos) continue;
 
         let distanceKm = null;
@@ -144,7 +153,8 @@ const findCandidates = async ({ service, supplyModel, location, config, excludeI
             completedJobs: p.completedBookingsCount || 0,
             providerCategory: p.providerCategory,
             distanceKm: distanceKm === null ? null : Math.round(distanceKm * 10) / 10,
-            etaMinutes: etaFromDistance(distanceKm, config.etaSpeedKmph),
+            // An ETA only means something for someone setting off now.
+            etaMinutes: scheduled ? null : etaFromDistance(distanceKm, config.etaSpeedKmph),
             rate: Number(entry?.rate) || 0,
             activeJobs: activeCounts.get(String(p._id)) || 0,
             liveLocation: pos.live
@@ -172,9 +182,9 @@ const sewakScore = (c) => {
  * Picks the single Sewak to auto-assign, or null when nobody is eligible.
  * The customer never sees this list — that is the whole point of managed supply.
  */
-const autoAssignSewak = async ({ service, location, config, excludeIds = [] }) => {
+const autoAssignSewak = async ({ service, location, config, excludeIds = [], window = null }) => {
     const candidates = await findCandidates({
-        service, supplyModel: 'sewak', location, config, excludeIds
+        service, supplyModel: 'sewak', location, config, excludeIds, window
     });
     if (candidates.length === 0) return null;
     candidates.sort((a, b) => sewakScore(a) - sewakScore(b));
@@ -185,9 +195,9 @@ const autoAssignSewak = async ({ service, location, config, excludeIds = [] }) =
  * The ranked Partner list the customer chooses from. Ordered nearest-first,
  * which is what someone booking instant work is actually optimising for.
  */
-const listPartners = async ({ service, location, config }) => {
+const listPartners = async ({ service, location, config, window = null }) => {
     const candidates = await findCandidates({
-        service, supplyModel: 'partner', location, config
+        service, supplyModel: 'partner', location, config, window
     });
     candidates.sort((a, b) => {
         const da = a.distanceKm === null ? 999 : a.distanceKm;
@@ -219,14 +229,17 @@ const claimWorker = async ({ job, providerId, config }) => {
     job.assignedAt = new Date();
     await job.save();
 
-    const aheadOfThis = await InstaJob.countDocuments({
+    // Only jobs whose time overlaps this one compete for the worker.
+    const mine = Schedule.occupiedWindow(job, config);
+    const others = await InstaJob.find({
         providerId,
         status: { $in: InstaJob.OCCUPIES_WORKER },
         _id: { $ne: job._id },
         // Jobs from before this field existed are treated as already holding
         // the worker, so an unknown claim time never wins by default.
         $or: [{ assignedAt: null }, { assignedAt: { $lte: job.assignedAt } }]
-    });
+    }).select('status bookingMode windowStart windowEnd expectedMinutes assignedAt createdAt').lean();
+    const aheadOfThis = others.filter(o => Schedule.overlaps(Schedule.occupiedWindow(o, config), mine)).length;
 
     if (aheadOfThis < max) return { ok: true };
 

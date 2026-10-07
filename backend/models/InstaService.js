@@ -67,6 +67,13 @@ const instaServiceSchema = new mongoose.Schema({
     cities: { type: [String], default: [] },
 
     isActive: { type: Boolean, default: true },
+    // Which booking modes this service is offered in (spec §36). Monthly
+    // HomeHelp is not built yet, so it stays off.
+    modes: {
+        now: { type: Boolean, default: true },
+        scheduled: { type: Boolean, default: true },
+        monthly: { type: Boolean, default: false }
+    },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
 }, { timestamps: true });

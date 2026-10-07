@@ -7,6 +7,46 @@ const InstaConfig = require('../services/InstaConfigService');
 const Pricing = require('../services/InstaPricingService');
 const Assignment = require('../services/InstaAssignmentService');
 const Settlement = require('../services/InstaSettlementService');
+const Schedule = require('../services/InstaScheduleService');
+
+/**
+ * NOW or SCHEDULED help, checked against the service's offered modes and the
+ * admin's scheduling rules, with the stretch of time the job will reserve.
+ * Throws a 400-style error the caller returns as is.
+ */
+const readTiming = ({ bookingMode, scheduledFor }, service, quantity, config) => {
+    const mode = bookingMode === 'scheduled' ? 'scheduled' : 'now';
+    const modes = service.modes || {};
+    if (mode === 'now' && modes.now === false) throw Schedule.httpError(400, `${service.name} is available as Scheduled help only.`);
+    if (mode === 'scheduled' && modes.scheduled === false) throw Schedule.httpError(400, `${service.name} is available as NOW help only.`);
+    const at = mode === 'scheduled' ? Schedule.validateScheduledTime(scheduledFor, config) : null;
+    const expectedMinutes = Schedule.expectedMinutesFor(service, quantity, config);
+    const window = Schedule.buildWindow({ mode, scheduledFor: at, expectedMinutes, config });
+    return { mode, scheduledFor: at, expectedMinutes, window };
+};
+
+/** Whether a chosen Partner can take a job at that time (NOW: online now; SCHEDULED: working then). */
+const partnerAvailable = (partner, window, config) => (window.mode === 'scheduled'
+    ? Schedule.coversWindow(partner.instaWork?.workingHours, window)
+    : Assignment.hasFreshPing(partner, config.pingFreshnessMinutes));
+
+/** The address the customer confirmed, field by field (spec 6). */
+const readAddress = (body) => {
+    const d = body.addressDetails || {};
+    const clean = (v, n = 120) => String(v || '').trim().slice(0, n);
+    const details = {
+        house: clean(d.house), building: clean(d.building), landmark: clean(d.landmark),
+        area: clean(d.area), city: clean(d.city, 60), state: clean(d.state, 60), pincode: clean(d.pincode, 6)
+    };
+    if (details.pincode && !/^\d{6}$/.test(details.pincode)) throw Schedule.httpError(400, 'Enter a valid 6-digit PIN code.');
+    const contactMobile = clean(body.contactMobile, 15).replace(/\D/g, '');
+    if (contactMobile && !/^\d{10}$/.test(contactMobile)) throw Schedule.httpError(400, 'Enter a valid 10-digit contact mobile number.');
+    return { details, contactName: clean(body.contactName, 80), contactMobile };
+};
+
+const whenText = (job) => (job.bookingMode === 'scheduled' && job.scheduledFor
+    ? ` on ${new Date(job.scheduledFor).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}`
+    : '');
 
 /** Short, human-quotable job reference. */
 const makeJobCode = () =>
@@ -69,8 +109,21 @@ const getServices = async (req, res) => {
                 minQuantity: s.minQuantity,
                 maxQuantity: s.maxQuantity,
                 availableFor: s.availableFor,
-                timed: Pricing.isTimed(s.pricingType)
-            }))
+                timed: Pricing.isTimed(s.pricingType),
+                // Which of NOW / SCHEDULED help this service is offered as.
+                modes: {
+                    now: s.modes?.now !== false,
+                    scheduled: config.scheduling?.scheduledEnabled !== false && s.modes?.scheduled !== false,
+                    monthly: false
+                }
+            })),
+            // The rules the date & time picker follows; the server checks them again.
+            scheduling: {
+                enabled: config.scheduling?.scheduledEnabled !== false,
+                minLeadMinutes: config.scheduling?.minLeadMinutes,
+                maxAdvanceDays: config.scheduling?.maxAdvanceDays,
+                slotMinutes: config.scheduling?.slotMinutes
+            }
         });
     } catch (error) {
         console.error('[InstaWork] getServices failed:', error);
@@ -144,17 +197,21 @@ const getAvailablePartners = async (req, res) => {
         }
 
         const config = await InstaConfig.getConfig();
-        const partners = await Assignment.listPartners({ service, location, config });
+        const timing = readTiming(req.body, service, req.body.quantity, config);
+        const partners = await Assignment.listPartners({ service, location, config, window: timing.window });
 
         res.json({
             partners,
             searchRadiusKm: config.matchRadiusKm,
             // Shown so a customer with no results understands why.
             emptyReason: partners.length === 0
-                ? `No Partners are online for this service within ${config.matchRadiusKm} km right now.`
+                ? (timing.mode === 'scheduled'
+                    ? `No Partners are free for this service within ${config.matchRadiusKm} km at that time. Try another time.`
+                    : `No Partners are online for this service within ${config.matchRadiusKm} km right now.`)
                 : null
         });
     } catch (error) {
+        if (error.status) return res.status(error.status).json({ message: error.message });
         console.error('[InstaWork] getAvailablePartners failed:', error);
         res.status(500).json({ message: error.message });
     }
@@ -178,7 +235,7 @@ const createJob = async (req, res) => {
         if (!service.availableFor.includes(supplyModel)) {
             return res.status(400).json({ message: `This service is not offered by ${supplyModel}s.` });
         }
-        if (!address) return res.status(400).json({ message: 'A service address is required.' });
+        if (!address || !String(address).trim()) return res.status(400).json({ message: 'A service address is required.' });
 
         // Coordinates are not optional for Insta Work. Without them the
         // matcher cannot apply its radius, so it falls back to "anyone who is
@@ -201,6 +258,10 @@ const createJob = async (req, res) => {
             }
         }
 
+        // When: NOW or a chosen slot, and the time it will hold its worker.
+        const timing = readTiming(req.body, service, qty, config);
+        const addr = readAddress(req.body);
+
         let assignedProviderId = null;
         let rate = 0;
         let status = 'REQUESTED';
@@ -210,10 +271,12 @@ const createJob = async (req, res) => {
         if (supplyModel === 'sewak') {
             // Managed supply: the system chooses, the customer does not.
             status = 'MATCHING';
-            const match = await Assignment.autoAssignSewak({ service, location, config });
+            const match = await Assignment.autoAssignSewak({ service, location, config, window: timing.window });
             if (!match) {
                 return res.status(409).json({
-                    message: `No Sewak is available for ${service.name} near you right now. Please try again shortly.`,
+                    message: timing.mode === 'scheduled'
+                        ? `No Sewak is free for ${service.name} near you at that time. Please choose another time.`
+                        : `No Sewak is available for ${service.name} near you right now. Please try again shortly.`,
                     code: 'NO_SEWAK_AVAILABLE'
                 });
             }
@@ -236,8 +299,12 @@ const createJob = async (req, res) => {
             if (!partner.instaWork?.enabled || !entry) {
                 return res.status(409).json({ message: 'That Partner is no longer available for this service.' });
             }
-            if (!Assignment.hasFreshPing(partner, config.pingFreshnessMinutes)) {
-                return res.status(409).json({ message: 'That Partner has just gone offline. Please choose another.' });
+            if (!partnerAvailable(partner, timing.window, config)) {
+                return res.status(409).json({
+                    message: timing.mode === 'scheduled'
+                        ? 'That Partner does not work at that time. Please choose another Partner or time.'
+                        : 'That Partner has just gone offline. Please choose another.'
+                });
             }
 
             assignedProviderId = partner._id;
@@ -281,9 +348,17 @@ const createJob = async (req, res) => {
             isTimed: quote.timed,
             billingIntervalMinutes: config.billingIntervalMinutes,
             idleChargePerMinute: config.idleChargePerMinute,
-            address,
+            address: String(address).trim().slice(0, 300),
             location: location || { type: 'Point', coordinates: [0, 0] },
-            city: city || '',
+            city: city || addr.details.city || '',
+            addressDetails: addr.details,
+            contactName: addr.contactName || req.user.name || '',
+            contactMobile: addr.contactMobile || req.user.mobile || '',
+            bookingMode: timing.mode,
+            scheduledFor: timing.scheduledFor,
+            expectedMinutes: timing.expectedMinutes,
+            windowStart: timing.window.start,
+            windowEnd: timing.window.end,
             matchedDistanceKm,
             matchedEtaMinutes,
             status,
@@ -311,13 +386,14 @@ const createJob = async (req, res) => {
 
         notify(
             assignedProviderId, 'provider',
-            '⚡ New Insta Work job',
-            `${service.name} — ${qty} ${Pricing.UNIT_LABELS[service.pricingType]}${qty === 1 ? '' : 's'} at ${address}. Accept now.`
+            job.bookingMode === 'scheduled' ? '📅 New scheduled Insta Work job' : '⚡ New Insta Work job',
+            `${service.name} — ${qty} ${Pricing.UNIT_LABELS[service.pricingType]}${qty === 1 ? '' : 's'} at ${job.address}${whenText(job)}. Accept now.`
         );
         emitJob(job, 'INSTA_JOB_CREATED', { estimateAmount: job.estimateAmount, serviceName: job.serviceName });
 
         res.status(201).json({ job });
     } catch (error) {
+        if (error.status) return res.status(error.status).json({ message: error.message });
         console.error('[InstaWork] createJob failed:', error);
         res.status(400).json({ message: error.message });
     }
@@ -642,8 +718,9 @@ const cancelJob = async (req, res) => {
         }
 
         const config = await InstaConfig.getConfig();
-        const stage = job.cancellationStageNow();
-        const fee = Number(config.cancellationFees[stage]) || 0;
+        const stage = job.cancellationStageNow({ freeCancelMinutesBefore: config.scheduling?.freeCancelMinutesBefore });
+        // 'scheduledInAdvance' has no fee entry: it is free by design.
+        const fee = stage === 'scheduledInAdvance' ? 0 : (Number(config.cancellationFees[stage]) || 0);
 
         // A job being cancelled may itself have been carrying someone
         // else's fee. Hand those back to pending, or a customer could
@@ -712,8 +789,13 @@ const selectPartner = async (req, res) => {
         if (!partner.instaWork?.enabled || !entry) {
             return res.status(409).json({ message: 'That Partner is no longer available for this service.' });
         }
-        if (!Assignment.hasFreshPing(partner, config.pingFreshnessMinutes)) {
-            return res.status(409).json({ message: 'That Partner has just gone offline. Please choose another.' });
+        const jobWindow = Schedule.windowOfJob(job, config);
+        if (!partnerAvailable(partner, jobWindow, config)) {
+            return res.status(409).json({
+                message: jobWindow.mode === 'scheduled'
+                    ? 'That Partner does not work at that time. Please choose another.'
+                    : 'That Partner has just gone offline. Please choose another.'
+            });
         }
 
         // Re-validated against the guardrail rather than trusted.
@@ -741,8 +823,8 @@ const selectPartner = async (req, res) => {
         job.pushStatus('PARTNER_SELECTED', 'customer', 'Customer chose a replacement Partner');
         await job.save();
 
-        notify(partner._id, 'provider', '⚡ New Insta Work job',
-            `${job.serviceName} at ${job.address}. Accept now.`);
+        notify(partner._id, 'provider', job.bookingMode === 'scheduled' ? '📅 New scheduled Insta Work job' : '⚡ New Insta Work job',
+            `${job.serviceName} at ${job.address}${whenText(job)}. Accept now.`);
         emitJob(job, 'INSTA_PARTNER_RESELECTED');
 
         res.json({ job });

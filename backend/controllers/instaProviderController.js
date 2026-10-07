@@ -4,6 +4,21 @@ const InstaJob = require('../models/InstaJob');
 const Provider = require('../models/Provider');
 const InstaConfig = require('../services/InstaConfigService');
 const Pricing = require('../services/InstaPricingService');
+const Schedule = require('../services/InstaScheduleService');
+
+const whenText = (job) => (job.bookingMode === 'scheduled' && job.scheduledFor
+    ? ` on ${new Date(job.scheduledFor).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })}`
+    : '');
+
+/** Refuses a journey/arrival long before a scheduled job's time. */
+const refuseIfTooEarly = (job, config, res) => {
+    const earliest = Schedule.tooEarlyToStart(job, config);
+    if (!earliest) return false;
+    res.status(400).json({
+        message: `This job is scheduled${whenText(job)}. You can start your journey from ${earliest.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })}.`
+    });
+    return true;
+};
 
 const notify = (userId, userRole, title, message) => {
     try {
@@ -295,8 +310,8 @@ const acceptJob = async (req, res) => {
         job.pushStatus('ACCEPTED', 'provider', 'Worker accepted the job');
         await job.save();
 
-        notify(job.customerId, 'user', 'Worker on the way soon',
-            `Your ${job.serviceName} job ${job.jobCode} has been accepted.`);
+        notify(job.customerId, 'user', job.bookingMode === 'scheduled' ? 'Booking confirmed' : 'Worker on the way soon',
+            `Your ${job.serviceName} job ${job.jobCode}${whenText(job)} has been accepted.`);
         emitJob(job, 'INSTA_JOB_ACCEPTED');
         res.json({ job: forWorker(job) });
     } catch (error) {
@@ -327,7 +342,8 @@ const rejectJob = async (req, res) => {
                 service,
                 location: job.location,
                 config,
-                excludeIds: job.rejectedProviders
+                excludeIds: job.rejectedProviders,
+                window: Schedule.windowOfJob(job, config)
             });
 
             // Matching filtered on capacity a moment ago, but two workers
@@ -341,8 +357,8 @@ const rejectJob = async (req, res) => {
                 if (claim.ok) {
                     job.pushStatus('ASSIGNED', 'system', 'Re-assigned after decline');
                     await job.save();
-                    notify(next.providerId, 'provider', '⚡ New Insta Work job',
-                        `${job.serviceName} at ${job.address}. Accept now.`);
+                    notify(next.providerId, 'provider', job.bookingMode === 'scheduled' ? '📅 New scheduled Insta Work job' : '⚡ New Insta Work job',
+                        `${job.serviceName} at ${job.address}${whenText(job)}. Accept now.`);
                     emitJob(job, 'INSTA_JOB_REASSIGNED');
                     return res.json({ job: forWorker(job), reassigned: true });
                 }
@@ -383,6 +399,7 @@ const markOnTheWay = async (req, res) => {
         if (job.status !== 'ACCEPTED') {
             return res.status(400).json({ message: 'Accept the job before starting your journey.' });
         }
+        if (refuseIfTooEarly(job, await InstaConfig.getConfig(), res)) return;
 
         job.pushStatus('ON_THE_WAY', 'provider', 'Worker is travelling to site');
         await job.save();
@@ -408,6 +425,7 @@ const markArrived = async (req, res) => {
         }
 
         const config = await InstaConfig.getConfig();
+        if (job.status === 'ACCEPTED' && refuseIfTooEarly(job, config, res)) return;
         job.arrivedAt = new Date();
         // The start OTP is generated on arrival and given to the customer, so
         // work can only begin with the customer physically present.

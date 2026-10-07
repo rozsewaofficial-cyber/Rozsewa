@@ -45,6 +45,34 @@ const DEFAULT_CONFIG = {
     maxConcurrentJobs: 1,
 
     /**
+     * NOW vs SCHEDULED help. A job occupies its worker for a time window —
+     * start to start + expected duration + travel buffer — and a worker is
+     * only offered a job whose window does not overlap one they already hold.
+     */
+    scheduling: {
+        scheduledEnabled: true,
+        // Earliest a scheduled job may start, from the moment of booking.
+        minLeadMinutes: 60,
+        // How far ahead a customer may book.
+        maxAdvanceDays: 7,
+        // Bookable start times fall on this grid (e.g. 10:00, 10:30, ...).
+        slotMinutes: 30,
+        // Gap kept between one job's end and the next one's start.
+        travelBufferMinutes: 30,
+        // Expected length of a job that is not booked by the hour.
+        defaultJobMinutes: 60,
+        // Reminder to customer and worker before a scheduled job.
+        reminderMinutesBefore: 60,
+        // How early a worker may set off for a scheduled job.
+        startJourneyMinutesBefore: 120,
+        // Keep re-matching an unassigned scheduled job until this close to it.
+        stopMatchingMinutesBefore: 30,
+        // A customer may cancel scheduled help free of charge until this close
+        // to its start; after that the normal stage fees apply.
+        freeCancelMinutesBefore: 120
+    },
+
+    /**
      * Cancellation fees by how far the job had progressed. A flat rupee amount
      * per stage keeps it predictable for the customer.
      */
@@ -117,6 +145,20 @@ const saveConfig = async (partial) => {
         throw new Error('Auto-confirm must give the customer at least an hour, or be 0 to switch it off.');
     }
     next.autoConfirmHours = autoConfirm;
+
+    const sch = next.scheduling;
+    for (const k of ['minLeadMinutes', 'travelBufferMinutes', 'reminderMinutesBefore', 'startJourneyMinutesBefore', 'stopMatchingMinutesBefore', 'freeCancelMinutesBefore']) {
+        const v = Number(sch[k]);
+        if (!Number.isFinite(v) || v < 0) throw new Error(`Scheduling: ${k} cannot be negative.`);
+        sch[k] = v;
+    }
+    sch.maxAdvanceDays = Number(sch.maxAdvanceDays);
+    if (!(sch.maxAdvanceDays >= 1 && sch.maxAdvanceDays <= 60)) throw new Error('Scheduling: customers must be able to book between 1 and 60 days ahead.');
+    sch.slotMinutes = Number(sch.slotMinutes);
+    if (![15, 30, 60].includes(sch.slotMinutes)) throw new Error('Scheduling: time slots must be 15, 30 or 60 minutes.');
+    sch.defaultJobMinutes = Number(sch.defaultJobMinutes);
+    if (!(sch.defaultJobMinutes >= 15)) throw new Error('Scheduling: default job length must be at least 15 minutes.');
+    sch.scheduledEnabled = sch.scheduledEnabled !== false;
 
     await Setting.findOneAndUpdate(
         { key: CONFIG_KEY },

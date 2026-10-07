@@ -769,8 +769,11 @@ check('the assignment is settled after the write, not trusted before it', () => 
     // The guard lives in the assignment service now, because three routes need
     // it and only one of them had it.
     const guard = read('services/InstaAssignmentService.js');
-    assert.ok(/const aheadOfThis = await InstaJob\.countDocuments\(/.test(guard),
-        'the claim must be checked against what already existed');
+    // Since NOW/SCHEDULED help, only jobs whose time window overlaps this one
+    // compete for the worker — a job booked for tomorrow does not block today.
+    assert.ok(/const others = await InstaJob\.find\(/.test(guard) &&
+        /const aheadOfThis = others\.filter\(o => Schedule\.overlaps\(Schedule\.occupiedWindow\(o, config\), mine\)\)\.length;/.test(guard),
+        'the claim must be checked against what already existed (that overlaps it)');
     assert.ok(/aheadOfThis < max/.test(guard),
         'settled by age, so the earlier claim always wins');
     assert.ok(/WORKER_JUST_TAKEN/.test(read('controllers/instaCustomerController.js')),

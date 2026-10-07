@@ -68,6 +68,9 @@ const validateServicePayload = (body) => {
     } = body;
 
     if (!name || !String(name).trim()) throw new Error('Service name is required.');
+    if (body.modes && body.modes.now === false && body.modes.scheduled === false) {
+        throw new Error('Offer the service as NOW help, SCHEDULED help, or both.');
+    }
     if (!Pricing.PRICING_TYPES.includes(pricingType)) throw new Error('Choose a valid pricing type.');
 
     const models = Array.isArray(availableFor) && availableFor.length ? availableFor : ['sewak', 'partner'];
@@ -111,7 +114,12 @@ const validateServicePayload = (body) => {
         maxQuantity: pricingType === 'custom' ? 1 : maxQ,
         availableFor: models,
         cities: Array.isArray(body.cities) ? body.cities : [],
-        isActive: body.isActive !== undefined ? !!body.isActive : true
+        isActive: body.isActive !== undefined ? !!body.isActive : true,
+        modes: {
+            now: body.modes?.now !== false,
+            scheduled: body.modes?.scheduled !== false,
+            monthly: false
+        }
     };
 };
 

@@ -34,6 +34,16 @@ const STATUS_COPY = {
   CUSTOMER_CONFIRMED: "Awaiting payment",
 };
 
+const istWhen = (d) => new Date(d).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+
+/**
+ * An accepted scheduled job that is still hours away waits in the Upcoming
+ * list; it is not the job being worked right now.
+ */
+const isLaterScheduled = (j, now = Date.now()) =>
+  j.bookingMode === "scheduled" && j.status === "ACCEPTED" && j.scheduledFor &&
+  new Date(j.scheduledFor).getTime() - now > 2 * 60 * 60 * 1000;
+
 const ProviderInstaWork = () => {
   const { toast } = useToast();
   const [profile, setProfile] = useState(null);
@@ -140,7 +150,15 @@ const ProviderInstaWork = () => {
     return stop;
   }, [profile?.enabled]);
 
-  const activeJob = jobs.find((j) => ACTIVE_STATUSES.includes(j.status));
+  const activeJob = jobs.find((j) => ACTIVE_STATUSES.includes(j.status) && !isLaterScheduled(j));
+  const upcomingJobs = jobs
+    .filter((j) => isLaterScheduled(j))
+    .sort((a, b) => new Date(a.scheduledFor) - new Date(b.scheduledFor));
+  // With scheduled help a worker can hold several jobs at different times.
+  // Offers beyond the one on the live card still need an answer.
+  const pendingOffers = jobs.filter(
+    (j) => ["ASSIGNED", "PARTNER_SELECTED"].includes(j.status) && j._id !== activeJob?._id
+  );
   // Custom work is quoted on site rather than measured, so the controls below
   // ask for an amount instead of a quantity.
   const isCustomJob = activeJob?.pricingType === 'custom';
@@ -192,9 +210,9 @@ const ProviderInstaWork = () => {
       });
     }, "Rate updated");
 
-  const jobAction = (path, body, title) =>
+  const jobAction = (path, body, title, jobId = activeJob?._id) =>
     act(async () => {
-      await API.patch(`/insta/provider/jobs/${activeJob._id}/${path}`, body || {});
+      await API.patch(`/insta/provider/jobs/${jobId}/${path}`, body || {});
     }, title);
 
   /** Live elapsed minutes on a running job. */
@@ -304,11 +322,19 @@ const ProviderInstaWork = () => {
                   {STATUS_COPY[activeJob.status] || activeJob.status}
                 </p>
                 <h3 className="mt-1 text-lg font-black text-foreground">{activeJob.serviceName}</h3>
+                {activeJob.bookingMode === "scheduled" && activeJob.scheduledFor && (
+                  <p className="text-xs font-black text-amber-700">📅 Scheduled for {istWhen(activeJob.scheduledFor)}</p>
+                )}
                 <p className="text-xs font-semibold text-muted-foreground">
                   {activeJob.jobCode} · {activeJob.bookedQuantity} {activeJob.unitLabel}
                   {activeJob.bookedQuantity === 1 ? "" : "s"} · ₹{activeJob.rate}/{activeJob.unitLabel}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">{activeJob.address}</p>
+                {(activeJob.contactName || activeJob.contactMobile) && (
+                  <p className="text-[11px] font-semibold text-muted-foreground">
+                    Contact: {activeJob.contactName} {activeJob.contactMobile ? `· ${activeJob.contactMobile}` : ""}
+                  </p>
+                )}
               </div>
               <div className="shrink-0 text-right">
                 <p className="text-[10px] font-black uppercase text-muted-foreground">Estimate</p>
@@ -587,7 +613,59 @@ const ProviderInstaWork = () => {
         )}
 
         {/* History */}
+        {pendingOffers.length > 0 && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-sm font-black uppercase tracking-wider text-foreground">New job offers</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {pendingOffers.map((j) => (
+              <div key={j._id} className="px-5 py-4">
+                <p className="text-sm font-bold text-foreground">{j.serviceName} · {j.jobCode}</p>
+                {j.bookingMode === "scheduled" && j.scheduledFor
+                  ? <p className="text-xs font-black text-amber-700">📅 {istWhen(j.scheduledFor)}</p>
+                  : <p className="text-xs font-black text-amber-700">⚡ Now</p>}
+                <p className="text-[11px] font-semibold text-muted-foreground">{j.address} · ₹{j.estimateAmount}</p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={() => jobAction("accept", null, "Job accepted", j._id)}
+                    disabled={busy}
+                    className="h-9 flex-1 rounded-xl bg-emerald-500 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => jobAction("reject", null, "Job declined", j._id)}
+                    disabled={busy}
+                    className="h-9 flex-1 rounded-xl bg-muted text-xs font-black uppercase tracking-wider text-muted-foreground disabled:opacity-50"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {upcomingJobs.length > 0 && (
         <div className="rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Upcoming scheduled jobs</h2>
+          </div>
+          <div className="divide-y divide-border">
+            {upcomingJobs.map((j) => (
+              <div key={j._id} className="px-5 py-4">
+                <p className="text-sm font-bold text-foreground">{j.serviceName} · {j.jobCode}</p>
+                <p className="text-xs font-black text-amber-700">📅 {istWhen(j.scheduledFor)}</p>
+                <p className="text-[11px] font-semibold text-muted-foreground">{j.address}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-border bg-card">
           <div className="border-b border-border px-5 py-4">
             <h2 className="text-sm font-black uppercase tracking-wider text-foreground">
               Recent Insta jobs
@@ -604,7 +682,7 @@ const ProviderInstaWork = () => {
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-foreground">{j.serviceName}</p>
                     <p className="text-[11px] font-semibold text-muted-foreground">
-                      {j.jobCode} · {new Date(j.createdAt).toLocaleDateString("en-IN")}
+                      {j.jobCode} · {j.bookingMode === "scheduled" && j.scheduledFor ? `📅 ${istWhen(j.scheduledFor)}` : new Date(j.createdAt).toLocaleDateString("en-IN")}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
