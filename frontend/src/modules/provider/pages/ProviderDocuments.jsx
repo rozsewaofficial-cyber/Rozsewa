@@ -10,6 +10,7 @@ import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import { useScrollLock } from "@/lib/scrollLock";
+import { documentLabel as docLabel } from "@/lib/documentStatus";
 
 // Aadhaar and PAN are already collected during registration, so they aren't
 // re-asked here — only the optional extras and Live Video (below) remain.
@@ -43,6 +44,12 @@ const ProviderDocuments = () => {
   const docTypes = provider?.accountType === "individual"
     ? allDocTypes.filter(d => !d.businessOnly)
     : allDocTypes;
+  // Documents given at registration (Aadhaar, PAN, ...) are listed with
+  // their status, so one admin rejected can be re-uploaded from here.
+  const registrationDocTypes = (provider?.documents || [])
+    .filter(d => d.id !== "live_video" && !docTypes.some(t => t.id === d.id))
+    .map(d => ({ id: d.id, label: docLabel(d.id), required: true }));
+  const listedDocTypes = [...registrationDocTypes, ...docTypes];
   const [uploading, setUploading] = useState(null); // ID of document being uploaded
 
   const fileInputRef = useRef(null);
@@ -110,6 +117,10 @@ const ProviderDocuments = () => {
     } else if (docId === 'gst') {
       setDocNumberInput(provider?.gst || "");
       setIsVerified(provider?.gst ? true : false);
+    } else if (docId === 'aadhaar_front' || docId === 'aadhaar_back') {
+      // A new photo of the Aadhaar given at registration.
+      setDocNumberInput(provider?.kycAadhaar || "");
+      setIsVerified(true);
     } else {
       setDocNumberInput("");
       setIsVerified(true);
@@ -282,7 +293,7 @@ const ProviderDocuments = () => {
       }
 
       setProvider({ ...provider, documents: updatedDocs });
-      toast({ title: "Details Saved", description: `${docTypes.find(d => d.id === activeDocType)?.label} details verified and saved successfully.` });
+      toast({ title: "Details Saved", description: `${docLabel(activeDocType)} submitted. Our team will review it shortly.` });
     } catch (err) {
       const errorMessage = err.response?.data?.message || "Could not save document details.";
       toast({ title: "Save Failed", description: errorMessage, variant: "destructive" });
@@ -769,7 +780,7 @@ const ProviderDocuments = () => {
 
         {/* Documents List */}
         <div className="space-y-3">
-          {docTypes.map((doc, i) => {
+          {listedDocTypes.map((doc, i) => {
             const uploaded = getDocStatus(doc.id);
             const StatusIcon = uploaded ? statusConfig[uploaded.status]?.icon || Clock : null;
             const isUploading = uploading === doc.id;

@@ -3,18 +3,10 @@
 // documents. These badges show both, so an approval can never look done
 // while a document is still waiting.
 
-export const documentVerification = (provider) => {
-  const docs = provider?.documents || [];
-  if (docs.length === 0) return { key: "none", label: "No documents", tone: "bg-gray-100 text-gray-500" };
-  if (docs.some((d) => d.status === "rejected")) return { key: "rejected", label: "Rejected", tone: "bg-red-50 text-red-600" };
-  if (docs.every((d) => d.status === "verified")) return { key: "verified", label: "Verified", tone: "bg-emerald-50 text-emerald-700" };
-  const done = docs.filter((d) => d.status === "verified").length;
-  return {
-    key: "pending",
-    label: done > 0 ? `In progress ${done}/${docs.length}` : "Pending",
-    tone: "bg-amber-50 text-amber-700",
-  };
-};
+import { documentVerification } from "@/lib/documentStatus";
+
+// Shared with the partner's Home page (lib/documentStatus).
+export { documentVerification };
 
 export const partnerApproval = (provider) => {
   switch (provider?.status) {

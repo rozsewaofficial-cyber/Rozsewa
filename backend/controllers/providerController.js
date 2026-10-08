@@ -1027,10 +1027,15 @@ const uploadDocument = async (req, res) => {
         // Check if document of this type already exists
         const docIndex = provider.documents.findIndex(d => d.id === docId);
 
+        // An uploaded file waits for admin review. It used to be saved as
+        // verified on upload, so a new or re-uploaded document (including one
+        // admin had rejected) skipped review and never showed as pending.
+        // Only a number checked by the verification API, with no file, is
+        // recorded as verified.
         const newDoc = {
             id: docId,
             url: req.file ? req.file.path : 'API_Verified',
-            status: 'verified', // Backend trusts the frontend API validation check
+            status: req.file ? 'pending' : 'verified',
             fileName: req.file ? req.file.originalname : `Verified_${docId}`,
             uploadedAt: Date.now()
         };

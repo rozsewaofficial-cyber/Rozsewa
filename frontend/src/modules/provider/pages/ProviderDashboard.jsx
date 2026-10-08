@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
+import DocumentStatusCard from "@/modules/provider/components/DocumentStatusCard";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
@@ -668,9 +669,11 @@ const ProviderDashboard = () => {
                 ? "Your account has been suspended due to policy violations. Please contact support."
                 : user?.status === 'rejected'
                 ? "Your KYC documents were rejected. Please re-apply with valid documents."
-                : "Great! Your registration and payment are complete. Our team is currently verifying your documents."}
+                : "Great! Your registration and payment are complete. Your account goes live once your documents are verified and approved."}
             </p>
           </div>
+
+          {user?.status !== 'suspended' && <DocumentStatusCard showVerified />}
 
           <div className="w-full bg-card border-2 border-dashed border-border p-6 rounded-3xl space-y-4">
             <div className="flex justify-between items-center text-[10px] font-black uppercase opacity-60">
@@ -733,6 +736,9 @@ const ProviderDashboard = () => {
     <div className="min-h-[100dvh] bg-background pb-20 md:pb-8 relative transition-colors duration-500">
       <ProviderTopNav />
       <main className="container max-w-6xl px-4 py-6 md:py-10 space-y-8 md:space-y-12 animate-in fade-in duration-700">
+
+        {/* Pending, under-review or rejected documents (hidden once all are verified) */}
+        <DocumentStatusCard />
 
         {/* Superior Welcome Bar */}
         <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
