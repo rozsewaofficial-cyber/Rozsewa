@@ -19,6 +19,10 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 
+// The server enforces the same bounds (paymentController).
+const RECHARGE_MIN = 1;
+const RECHARGE_MAX = 100000;
+
 const ProviderWallet = () => {
   const { toast } = useToast();
   const [balance, setBalance] = useState(0);
@@ -47,7 +51,26 @@ const ProviderWallet = () => {
   useEffect(() => {
     fetchProfile();
     fetchWithdrawals();
+    reconcileRecharges();
   }, []);
+
+  // Any recharge Razorpay took money for that the app never got to confirm.
+  const reconcileRecharges = async ({ quiet = true } = {}) => {
+    try {
+      const { data } = await API.post("/payment/wallet/reconcile");
+      const credited = data?.credited || [];
+      if (credited.length) {
+        const total = credited.reduce((sum, c) => sum + Number(c.amount || 0), 0);
+        toast({ title: "Recharge added", description: `₹${total} from an earlier payment was added to your wallet.` });
+        fetchWallet(1);
+        window.dispatchEvent(new CustomEvent("WALLET_UPDATED"));
+      }
+      return credited;
+    } catch {
+      if (!quiet) toast({ title: "Couldn't confirm the payment yet", description: "If money was deducted, it will be added to your wallet automatically.", variant: "destructive" });
+      return [];
+    }
+  };
 
   // The statement is paged by the server, so turning a page is a request.
   useEffect(() => {
@@ -193,12 +216,17 @@ const ProviderWallet = () => {
       });
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        // The key the order was created under (a different build-time key
+        // made Razorpay fail the order).
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa Admin Settlement",
         description: "Clearing outstanding debt limits",
         order_id: order.id,
+        modal: {
+          ondismiss: () => toast({ title: "Payment cancelled", description: "No money was taken. Your wallet is unchanged." }),
+        },
         handler: async function (response) {
           try {
             // No amount: the server credits what the order was paid for.
@@ -226,8 +254,8 @@ const ProviderWallet = () => {
       const paymentObject = new window.Razorpay(options);
       paymentObject.on("payment.failed", function (response) {
         toast({
-          title: "Payment Failed",
-          description: response.error.description,
+          title: "Payment failed",
+          description: `${response.error?.description || "The payment didn't go through."} Your wallet balance is unchanged.`,
           variant: "destructive",
         });
       });
@@ -245,9 +273,13 @@ const ProviderWallet = () => {
 
   const handleRecharge = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(rechargeAmount);
+    const amount = Math.round(parseFloat(rechargeAmount) * 100) / 100;
     if (isNaN(amount) || amount <= 0) {
       setRechargeError("Please enter a valid amount.");
+      return;
+    }
+    if (amount < RECHARGE_MIN || amount > RECHARGE_MAX) {
+      setRechargeError(`Enter an amount between ₹${RECHARGE_MIN} and ₹${RECHARGE_MAX.toLocaleString("en-IN")}.`);
       return;
     }
     setRechargeError("");
@@ -272,24 +304,41 @@ const ProviderWallet = () => {
       });
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        // The key the order was created under (a different build-time key
+        // made Razorpay fail the order).
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa Wallet Recharge",
         description: "Add money to wallet",
         order_id: order.id,
+        modal: {
+          // Closed without paying: nothing taken, nothing added.
+          ondismiss: () => toast({ title: "Payment cancelled", description: "No money was taken. Your wallet balance is unchanged." }),
+        },
         handler: async function (response) {
           try {
-            await API.post("/payment/verify-wallet", response);
-            toast({ title: "Wallet recharged successfully!", variant: "default" });
-            fetchWallet();
+            // The server credits what the order was paid for, once.
+            const { data } = await API.post("/payment/verify-wallet", response);
+            toast({
+              title: "Wallet recharged",
+              description: data?.balance !== undefined
+                ? `₹${data.amount} added. New balance ₹${Number(data.balance).toLocaleString("en-IN")}.`
+                : "Money added to your wallet.",
+            });
+            setCurrentPage(1);
+            fetchWallet(1);
             closeRechargeModal();
             window.dispatchEvent(new CustomEvent("WALLET_UPDATED"));
           } catch (error) {
+            // Paid, but the confirmation didn't go through: check with the
+            // gateway, which credits it if Razorpay captured the money.
+            const credited = await reconcileRecharges({ quiet: true });
+            if (credited.length) { closeRechargeModal(); return; }
             toast({
-              title: "Payment verification failed",
+              title: "Payment not confirmed yet",
               description:
-                error.response?.data?.message || "Please contact support.",
+                error.response?.data?.message || "If money was deducted, it will be added to your wallet automatically.",
               variant: "destructive",
             });
           }
@@ -305,8 +354,8 @@ const ProviderWallet = () => {
       const paymentObject = new window.Razorpay(options);
       paymentObject.on("payment.failed", function (response) {
         toast({
-          title: "Payment Failed",
-          description: response.error.description,
+          title: "Payment failed",
+          description: `${response.error?.description || "The payment didn't go through."} Your wallet balance is unchanged.`,
           variant: "destructive",
         });
       });
@@ -530,12 +579,15 @@ const ProviderWallet = () => {
             >
               <div className="absolute top-0 right-0 h-32 w-32 -mr-10 -mt-10 rounded-full bg-white/5 blur-2xl"></div>
               <div className="relative z-10 flex-1 flex flex-col">
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-[0.2em] mb-0.5">
-                  Cash Commission Dues
+                {/* The prepaid wallet a recharge adds to. It was only ever shown
+                    when negative (as dues), so a recharge changed nothing on
+                    screen and looked like it had failed. */}
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-[0.2em] mb-0.5" data-wallet-balance={balance}>
+                  {balance < 0 ? "Cash Commission Dues" : "Wallet Balance"}
                 </p>
                 <div className="flex items-baseline gap-1 mb-1">
                   <span className="text-3xl font-black tracking-tighter">
-                    ₹{balance < 0 ? Math.abs(balance).toLocaleString() : "0"}
+                    ₹{Math.abs(balance || 0).toLocaleString("en-IN")}
                   </span>
                   <span className="text-white/40 text-xs font-bold">.00</span>
                 </div>
@@ -549,7 +601,7 @@ const ProviderWallet = () => {
                   ) : (
                     <>
                       <CheckCircle className="h-3 w-3 text-emerald-400" />
-                      <span className="text-emerald-400">No dues pending</span>
+                      <span className="text-emerald-400">No dues pending · used for commission & leads</span>
                     </>
                   )}
                 </div>
@@ -566,19 +618,19 @@ const ProviderWallet = () => {
                 )}
                 <div className="mt-auto">
                   <button
-                    onClick={balance < 0 ? handlePayAdmin : undefined}
-                    disabled={balance >= 0 || isProcessing}
+                    onClick={balance < 0 ? handlePayAdmin : () => openRechargeModal()}
+                    disabled={isProcessing}
                     className={`w-full py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${
                       balance < 0
                         ? "bg-white text-rose-700 shadow-md hover:bg-rose-50 active:scale-95"
-                        : "bg-white/10 text-white/30 cursor-not-allowed"
+                        : "bg-white/15 text-white hover:bg-white/25 active:scale-95"
                     }`}
                   >
                     {isProcessing
                       ? "Processing..."
                       : balance < 0
                         ? "Pay Admin Now"
-                        : "All Clear"}
+                        : "Recharge Wallet"}
                   </button>
                 </div>
               </div>
@@ -834,7 +886,14 @@ const ProviderWallet = () => {
                               {new Date(txn.createdAt).toLocaleDateString()} •{" "}
                               {txn._id.slice(-6).toUpperCase()}
                             </p>
-                            {txn.description && (
+                            {txn.paymentId ? (
+                              <p className="text-[9px] text-muted-foreground mt-1">
+                                {txn.paymentMethod || "Razorpay"} · Txn {txn.paymentId}
+                                {txn.balanceAfter !== undefined && txn.balanceAfter !== null && (
+                                  <> · Balance after ₹{Number(txn.balanceAfter).toLocaleString("en-IN")}</>
+                                )}
+                              </p>
+                            ) : txn.description && (
                               <p className="text-[9px] text-muted-foreground mt-1 italic">
                                 {txn.description}
                               </p>
@@ -1105,8 +1164,11 @@ const ProviderWallet = () => {
             <h2 className="text-2xl font-black tracking-tighter mb-1">
               Recharge Wallet
             </h2>
-            <p className="text-sm text-muted-foreground mb-8">
+            <p className="text-sm text-muted-foreground mb-2">
               Add money to your wallet to pay for commission dues or leads.
+            </p>
+            <p className="text-xs font-bold text-muted-foreground mb-6">
+              Current wallet balance: <span className="text-foreground">₹{Number(balance || 0).toLocaleString("en-IN")}</span>
             </p>
 
             <form onSubmit={handleRecharge} className="space-y-4">
@@ -1117,7 +1179,10 @@ const ProviderWallet = () => {
                 <input
                   required
                   type="number"
-                  min="1"
+                  min={RECHARGE_MIN}
+                  max={RECHARGE_MAX}
+                  step="0.01"
+                  inputMode="decimal"
                   value={rechargeAmount}
                   onChange={(e) => {
                     const v = e.target.value;

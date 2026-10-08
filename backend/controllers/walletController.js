@@ -50,6 +50,13 @@ const getWallet = async (req, res) => {
 const addMoney = async (req, res) => {
     const { amount, title, type = 'credit' } = req.body;
 
+    // Any signed-in account could credit its own wallet any sum here, with no
+    // payment behind it. Nothing in the app calls this; a recharge goes
+    // through Razorpay (/payment/order, then /payment/verify-wallet).
+    if (!['admin', 'superadmin'].includes(req.user?.role)) {
+        return res.status(403).json({ message: 'Add money through Recharge Wallet.' });
+    }
+
     try {
         const query = req.user.role === 'provider' ? { providerId: req.user._id } : { userId: req.user._id };
         let wallet = await Wallet.findOne(query);

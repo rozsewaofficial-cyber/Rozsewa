@@ -14,6 +14,8 @@ router.post('/order', noteWhoIfSignedIn, createOrder);
 router.post('/verify', verifyPayment);
 router.post('/verify-subscription', protect, verifySubscriptionPayment);
 router.post('/verify-wallet', protect, verifyWalletRecharge);
+// Paid but never confirmed (app closed, network dropped): credited once here.
+router.post('/wallet/reconcile', protect, require('../controllers/paymentController').reconcileWalletRecharges);
 router.post('/verify-user-wallet', protect, verifyUserWalletRecharge);
 router.post('/verify-lead-payment', protect, verifyLeadPayment);
 router.post('/verify-bazaar', protect, verifyBazaarPayment);

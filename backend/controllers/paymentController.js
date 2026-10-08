@@ -165,6 +165,15 @@ const createOrder = async (req, res) => {
             receipt: `receipt_${Date.now()}`,
         };
 
+        // A wallet recharge has sane bounds (Razorpay's minimum is ₹1).
+        if (purpose === 'wallet' && !bookingId) {
+            amount = Math.round(amount * 100) / 100;
+            if (amount < WALLET_RECHARGE_MIN || amount > WALLET_RECHARGE_MAX) {
+                return res.status(400).json({ message: `Recharge between ₹${WALLET_RECHARGE_MIN} and ₹${WALLET_RECHARGE_MAX.toLocaleString('en-IN')}` });
+            }
+            options.amount = Math.round(amount * 100);
+        }
+
         const order = await razorpay.orders.create(options);
 
         await PaymentOrder.create({
@@ -179,7 +188,11 @@ const createOrder = async (req, res) => {
             providerId: (req.user?.role === 'provider' || req.user?.role === 'sewak') ? req.user._id : undefined
         });
 
-        res.json(order);
+        // The (public) key this order was created under. The app opened the
+        // checkout with its own build-time key, falling back to a test key, so
+        // a site and server on different keys or modes got "order failed"
+        // from Razorpay: the order did not exist under the key it was opened with.
+        res.json({ ...order, key: process.env.RAZORPAY_KEY_ID });
     } catch (error) {
         console.error("Razorpay Error:", error);
         res.status(500).json({ message: error.message, details: error });
@@ -440,52 +453,142 @@ const verifySubscriptionPayment = async (req, res) => {
     }
 };
 
+const WALLET_RECHARGE_MIN = 1;
+const WALLET_RECHARGE_MAX = 100000;
+
+const PAYMENT_METHODS = { upi: 'UPI', card: 'Card', netbanking: 'Net Banking', wallet: 'Wallet', emi: 'EMI', paylater: 'Pay Later' };
+/** How it was paid ("UPI", "Card"...), for the statement. Never blocks the credit. */
+const paymentMethodOf = async (paymentId) => {
+    try {
+        const p = await razorpay.payments.fetch(paymentId);
+        return PAYMENT_METHODS[p?.method] || (p?.method ? String(p.method).toUpperCase() : 'Razorpay');
+    } catch {
+        return 'Razorpay';
+    }
+};
+
+/**
+ * Credit a partner's wallet for a wallet order that has just been claimed
+ * (PaymentOrder.consume), so it runs once per payment however it is reached:
+ * the app's verify call, or reconcile after the app never got to make it.
+ */
+const creditWalletRecharge = async (order, paymentId, method) => {
+    const { Wallet, Transaction } = require('../models/Wallet');
+    const Provider = require('../models/Provider');
+    const providerId = order.providerId;
+    // What was actually paid, off the order raised for it — the amount is no
+    // part of what Razorpay signs, so it never comes from the request.
+    const amount = Number(order.amount);
+
+    let wallet, isDebtSettlement;
+    try {
+        await Wallet.updateOne({ providerId }, { $setOnInsert: { providerId, balance: 0 } }, { upsert: true });
+        const before = await Wallet.findOne({ providerId }).select('balance').lean();
+        isDebtSettlement = (before?.balance || 0) < 0;
+        // One atomic increment, so two credits arriving together both count.
+        wallet = await Wallet.findOneAndUpdate({ providerId }, { $inc: { balance: amount } }, { new: true });
+        if (!wallet) throw new Error('Wallet not found');
+    } catch (err) {
+        // Nothing was added: give the claim back, so the payment is credited
+        // on the next try (or by reconcile) instead of being lost.
+        await PaymentOrder.updateOne({ orderId: order.orderId, consumedBy: paymentId }, { consumedBy: null, consumedAt: null }).catch(() => {});
+        throw err;
+    }
+    wallet.cashCommissionDues = Math.max(0, (wallet.cashCommissionDues || 0) - amount);
+    await wallet.save();
+
+    const transaction = await Transaction.create({
+        providerId,
+        title: isDebtSettlement ? 'Debt Settlement' : 'Wallet Recharge',
+        amount,
+        type: 'credit',
+        status: 'completed',
+        description: `Paid via Razorpay${method ? ` (${method})` : ''} · Payment ID ${paymentId}`,
+        paymentId,
+        orderId: order.orderId,
+        paymentMethod: method || 'Razorpay',
+        balanceAfter: wallet.balance
+    });
+
+    await Provider.updateOne({ _id: providerId }, { $set: { walletBalance: wallet.balance } });
+    return { wallet, transaction, isDebtSettlement };
+};
+
 // @desc    Verify Razorpay Payment for Wallet Recharge / Debt Settlement
 // @route   POST /api/payment/verify-wallet
 // @access  Private (Provider)
 const verifyWalletRecharge = async (req, res) => {
     const { razorpay_payment_id } = req.body;
 
+    // Signature checked and the order claimed once (a second claim of the
+    // same payment is refused with 409), before anything is credited.
     const claim = await claimPayment(req, { purpose: 'wallet', principal: req.user._id });
     if (claim.error) {
+        // Already credited for this very payment (reconcile got there first,
+        // or the app retried): that is a success, not a failure to show.
+        if (claim.status === 409) {
+            const done = await PaymentOrder.findOne({
+                orderId: req.body.razorpay_order_id, consumedBy: razorpay_payment_id, providerId: req.user._id, purpose: 'wallet'
+            }).lean();
+            if (done) {
+                const { Wallet } = require('../models/Wallet');
+                const w = await Wallet.findOne({ providerId: req.user._id }).select('balance').lean();
+                return res.json({ success: true, alreadyCredited: true, message: `₹${done.amount} added to your wallet.`, amount: done.amount, balance: w?.balance ?? 0 });
+            }
+        }
         return res.status(claim.status).json({ message: claim.error, success: false });
     }
 
-    {
-        const { Wallet, Transaction } = require('../models/Wallet');
-        const Provider = require('../models/Provider');
-
-        let wallet = await Wallet.findOne({ providerId: req.user._id });
-        if (!wallet) {
-            wallet = await Wallet.create({ providerId: req.user._id, balance: 0 });
-        }
-
-        const isDebtSettlement = wallet.balance < 0;
-        // What was actually paid, off the order raised for it. Taking this from
-        // the request meant a rupee could be paid and any sum credited, because
-        // the amount is no part of what Razorpay signs.
-        const rechargeAmount = claim.order.amount;
-        wallet.balance += rechargeAmount;
-        wallet.cashCommissionDues = Math.max(0, (wallet.cashCommissionDues || 0) - rechargeAmount);
-        await wallet.save();
-
-        await Transaction.create({
-            providerId: req.user._id,
-            title: isDebtSettlement ? 'Debt Settlement' : 'Wallet Recharge',
-            amount: rechargeAmount,
-            type: 'credit',
-            status: 'completed',
-            description: `Paid admin via Razorpay (ID: ${razorpay_payment_id})`
+    try {
+        const method = await paymentMethodOf(razorpay_payment_id);
+        const { wallet, transaction, isDebtSettlement } = await creditWalletRecharge(claim.order, razorpay_payment_id, method);
+        res.json({
+            success: true,
+            message: isDebtSettlement ? 'Dues cleared successfully!' : `₹${claim.order.amount} added to your wallet.`,
+            amount: claim.order.amount,
+            balance: wallet.balance,
+            transaction
         });
+    } catch (error) {
+        console.error('Wallet credit failed after a verified payment:', claim.order.orderId, error.message);
+        res.status(500).json({ success: false, message: 'Payment received but the wallet update failed. Our team has been alerted; it will be added.' });
+    }
+};
 
-        // Update provider wallet reference
-        const provider = await Provider.findById(req.user._id);
-        if (provider) {
-            provider.walletBalance = wallet.balance;
-            await provider.save();
+// @desc    Credit any wallet recharge that was paid but never confirmed
+//          (the app closed, or the network dropped, after paying)
+// @route   POST /api/payment/wallet/reconcile
+// @access  Private (Provider)
+const reconcileWalletRecharges = async (req, res) => {
+    try {
+        const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        // Orders a minute old or more: one still being paid is left to the
+        // app's own confirmation.
+        const settled = new Date(Date.now() - 60 * 1000);
+        const open = await PaymentOrder.find({
+            providerId: req.user._id, purpose: 'wallet', consumedBy: null, createdAt: { $gte: since, $lte: settled }
+        }).sort({ createdAt: -1 }).limit(5).lean();
+
+        const credited = [];
+        for (const o of open) {
+            let payments;
+            try {
+                payments = await razorpay.orders.fetchPayments(o.orderId);
+            } catch (err) {
+                continue; // gateway unreachable: try again next time
+            }
+            // Only money Razorpay has actually captured.
+            const paid = (payments?.items || []).find(p => p.status === 'captured');
+            if (!paid) continue;
+            // The same once-only claim the verify call uses.
+            const order = await PaymentOrder.consume(o.orderId, paid.id);
+            if (!order) continue;
+            const { wallet } = await creditWalletRecharge(order, paid.id, PAYMENT_METHODS[paid.method] || 'Razorpay');
+            credited.push({ amount: order.amount, paymentId: paid.id, balance: wallet.balance });
         }
-
-        res.json({ message: "Debt settled successfully!", success: true });
+        res.json({ credited });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -626,6 +729,8 @@ const verifyLeadPayment = async (req, res) => {
 };
 
 module.exports = {
+    reconcileWalletRecharges,
+    creditWalletRecharge,
     claimPayment,
     createRecordedOrder,
     createOrder,
@@ -733,3 +838,5 @@ module.exports.verifyKitOrderPayment = verifyKitOrderPayment;
 // action in the app is charged (an order can only ever be spent once, and
 // only by the account that raised it).
 module.exports.claimPayment = claimPayment;
+// The gateway client, so checks can stand in for Razorpay.
+module.exports.razorpay = razorpay;

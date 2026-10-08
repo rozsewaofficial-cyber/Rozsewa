@@ -34,6 +34,12 @@ const transactionSchema = new mongoose.Schema({
     description: {
         type: String
     },
+    // Online payments (wallet recharge): the gateway's ids, how it was paid,
+    // and the balance it left, for the statement.
+    paymentId: { type: String },
+    orderId: { type: String },
+    paymentMethod: { type: String },
+    balanceAfter: { type: Number },
     createdAt: {
         type: Date,
         default: Date.now,
