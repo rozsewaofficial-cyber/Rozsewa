@@ -12,6 +12,11 @@ import {
 } from "lucide-react";
 
 import API from "@/lib/api";
+import VerificationStatus, { canApprove, documentVerification } from "@/modules/admin/components/VerificationStatus";
+
+// Bank details are added at registration or skipped ("Skip for Now") and
+// added later from Profile / Wallet; an account number means they are in.
+const hasBank = (p) => !!p?.bankDetails?.accountNumber;
 
 const statusStyles = {
     verified: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -40,6 +45,22 @@ const AdminProviders = () => {
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
     const [selectedProvider, setSelectedProvider] = useState(null);
+    // The provider's commission as billing charges it, from the same rule
+    // engine (free trial, waiver, override, subscription, then Partner
+    // Program -> Commission Slab for its category). Re-read whenever the
+    // open provider changes (category, override, waiver, trial...).
+    const [commissionPreview, setCommissionPreview] = useState(null);
+    const [commissionLoading, setCommissionLoading] = useState(false);
+    useEffect(() => {
+        if (!selectedProvider?._id) { setCommissionPreview(null); return undefined; }
+        let cancelled = false;
+        setCommissionLoading(true);
+        API.get(`/v2/admin/providers/${selectedProvider._id}/commission-preview`, { params: { bookingAmount: 1000 } })
+            .then(({ data }) => { if (!cancelled) setCommissionPreview(data); })
+            .catch(() => { if (!cancelled) setCommissionPreview(null); })
+            .finally(() => { if (!cancelled) setCommissionLoading(false); });
+        return () => { cancelled = true; };
+    }, [selectedProvider]);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [categories, setCategories] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
@@ -291,7 +312,8 @@ const AdminProviders = () => {
             if (selectedProvider?._id === id) setSelectedProvider((prev) => ({ ...prev, ...data }));
             toast({ title: "Status Updated", description: `Provider is now ${newStatus}.` });
         } catch (err) {
-            toast({ title: "Update Failed", variant: "destructive" });
+            // Approval is refused until every document is verified; say which.
+            toast({ title: "Update Failed", description: err.response?.data?.message, variant: "destructive" });
         }
     };
 
@@ -612,6 +634,17 @@ const AdminProviders = () => {
                                                         <span className="text-gray-300">•</span>
                                                         <p className="text-[9px] font-mono text-gray-400 uppercase tracking-widest">{provider.vendorCode}</p>
                                                     </div>
+                                                    <p className="mt-0.5 text-[10px] font-bold text-gray-600 tabular-nums">{provider.mobile}</p>
+                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                        {provider.accountType && (
+                                                            <span className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider bg-slate-100 text-slate-600">
+                                                                {provider.accountType === 'business' ? 'Business' : 'Individual'}
+                                                            </span>
+                                                        )}
+                                                        <span className={`rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${hasBank(provider) ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                                            {hasBank(provider) ? 'Bank added' : 'Bank skipped'}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>
@@ -681,6 +714,7 @@ const AdminProviders = () => {
                                                         }`}></span>
                                                     {provider.status}
                                                 </span>
+                                                <VerificationStatus provider={provider} className="mt-2" />
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right align-middle">
@@ -688,9 +722,11 @@ const AdminProviders = () => {
                                                 {provider.status === "pending" && (
                                                     <>
                                                         <button
-                                                            onClick={() => handleUpdateStatus(provider._id, "verified")}
-                                                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
-                                                            title="Approve"
+                                                            onClick={() => canApprove(provider)
+                                                                ? handleUpdateStatus(provider._id, "verified")
+                                                                : toast({ title: "Documents first", description: `Document verification is ${documentVerification(provider).label.toLowerCase()}. Verify every document, then approve.`, variant: "destructive" })}
+                                                            className={`h-8 w-8 flex items-center justify-center rounded-lg transition-colors ${canApprove(provider) ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100" : "bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+                                                            title={canApprove(provider) ? "Approve" : "Verify all documents before approving"}
                                                         >
                                                             <CheckCircle2 className="h-4 w-4" />
                                                         </button>
@@ -809,7 +845,12 @@ const AdminProviders = () => {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bank Information</h4>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Bank Information</h4>
+                                        <span className={`rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${hasBank(selectedProvider) ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                            {hasBank(selectedProvider) ? 'Completed' : 'Skipped — not added yet'}
+                                        </span>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
                                         <div>
                                             <span className="text-[9px] block font-black uppercase text-gray-500 mb-1">A/C Holder</span>
@@ -834,22 +875,58 @@ const AdminProviders = () => {
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Commission & Billing Settings</h4>
                                     <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-5">
                                         
-                                        {/* Row 1: Current status display */}
-                                        <div className="grid grid-cols-2 gap-3 border-b border-gray-200/60 pb-3.5">
+                                        {/* Row 1: what billing charges now, from the commission engine */}
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div>
                                                 <span className="text-[8px] font-black uppercase text-gray-400">Active Rule</span>
                                                 <p className="text-xs font-black text-slate-800 uppercase mt-0.5">
-                                                    {selectedProvider.commissionOverride?.enabled ? 'Override' : 
-                                                     (selectedProvider.commissionWaiver?.enabled ? 'Waiver' : 
-                                                      (selectedProvider.isSubscribed ? 'Subscription' : 'Category Slabs'))}
+                                                    {commissionLoading ? '…' : (commissionPreview?.currentRule || '—')}
                                                 </p>
                                             </div>
                                             <div>
                                                 <span className="text-[8px] font-black uppercase text-gray-400">Effective Rate</span>
                                                 <p className="text-xs font-black text-emerald-600 mt-0.5">
-                                                    {selectedProvider.commissionWaiver?.enabled ? '0%' : (selectedProvider.commissionRate ? `${selectedProvider.commissionRate}%` : 'Standard')}
+                                                    {commissionLoading ? '…' : (commissionPreview ? `${commissionPreview.currentCommissionPercentage}%` : '—')}
                                                 </p>
+                                                {commissionPreview && (
+                                                    <p className="text-[9px] font-bold text-gray-400">on a ₹{commissionPreview.sampleBookingAmount} booking</p>
+                                                )}
                                             </div>
+                                        </div>
+
+                                        {/* Row 2: the category's slabs (Partner Program -> Commission Slab) */}
+                                        <div className="space-y-2 border-b border-gray-200/60 pb-3.5">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <span className="text-[8px] font-black uppercase text-gray-400">Category</span>
+                                                    <p className="text-xs font-black text-slate-800 mt-0.5">{commissionPreview?.categoryCommission?.categoryName || selectedProvider.vendorType?.name || 'Not set'}</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[8px] font-black uppercase text-gray-400">Commission Slab</span>
+                                                    <p className="text-xs font-black text-slate-800 mt-0.5">
+                                                        {commissionPreview?.categoryCommission?.slabSource === 'CATEGORY_SLAB' ? 'Category slab' : 'Global default (no slab for this category)'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {commissionPreview?.categoryCommission?.slabs?.length > 0 ? (
+                                                <div className="rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
+                                                    {commissionPreview.categoryCommission.slabs.map((sl, i) => (
+                                                        <div key={i} className="flex items-center justify-between px-3 py-1.5 text-[11px]">
+                                                            <span className="font-bold text-gray-600">₹{sl.minAmount} – ₹{sl.maxAmount}</span>
+                                                            <span className="font-black text-slate-800">{sl.commissionRate}%</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : commissionPreview && (
+                                                <p className="text-[10px] font-bold text-amber-600">
+                                                    No slabs configured. Billing uses the platform default ({commissionPreview.categoryCommission?.categoryRate}%). Add slabs in Partner Program → Commission Slab.
+                                                </p>
+                                            )}
+                                            {commissionPreview && commissionPreview.appliedSource !== commissionPreview.categoryCommission?.categoryRateSource && (
+                                                <p className="text-[10px] font-bold text-gray-500">
+                                                    Category rate once {String(commissionPreview.currentRule || '').toLowerCase()} no longer applies: <span className="text-slate-800">{commissionPreview.categoryCommission?.categoryRate}%</span>
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Section: Free Trial Adjustments */}

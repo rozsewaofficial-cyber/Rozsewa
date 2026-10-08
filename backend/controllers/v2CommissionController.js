@@ -9,6 +9,9 @@ const FinancialLedger = require('../models/FinancialLedger');
 const AuditLog = require('../models/AuditLog');
 const CommissionRuleEngine = require('../services/CommissionRuleEngine');
 const CommissionService = require('../services/CommissionService');
+const CommissionSlab = require('../models/CommissionSlab');
+const CategorySlabStrategy = require('../services/strategies/CategorySlabStrategy');
+const GlobalFallbackStrategy = require('../services/strategies/GlobalFallbackStrategy');
 const mongoose = require('mongoose');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 const { Wallet, Transaction } = require('../models/Wallet');
@@ -336,62 +339,124 @@ exports.getCommissionAnalytics = async (req, res) => {
 // @desc    Get real-time commission preview for provider
 // @route   GET /api/v2/provider/commission-preview
 // @access  Private (Provider)
+/**
+ * A provider's commission as billing will charge it: the same rule engine
+ * the booking completion and Insta settlement run (free trial, waiver,
+ * override, subscription, then the admin's Category Commission Slabs, then
+ * the global default), for a sample booking amount. Also the category's slab
+ * table and the category rate on its own, i.e. what applies once a free
+ * trial / waiver / override no longer does.
+ *
+ * Shared by the partner's own screens and the admin's provider profile, so
+ * no screen works the rate out for itself (the admin profile used to show
+ * Provider.commissionRate, a stored copy that defaulted to 10).
+ */
+const buildCommissionPreview = async (provider, amount) => {
+    const matchedRule = await CommissionRuleEngine.selectRule(amount, provider, provider.vendorType);
+    const calculation = CommissionService.calculate(amount, matchedRule);
+
+    // Fetch active slab range if category slab is evaluated
+    let activeSlabRange = "N/A";
+    if (matchedRule.ruleId === 'CATEGORY_SLAB' && matchedRule.metadata?.slabRange) {
+        activeSlabRange = matchedRule.metadata.slabRange;
+    } else if (matchedRule.ruleId === 'GLOBAL_DEFAULT' && matchedRule.metadata?.slabRange) {
+        activeSlabRange = matchedRule.metadata.slabRange;
+    }
+
+    // Days remaining calculation
+    let daysRemaining = 0;
+    if (provider.isSubscribed && provider.subscriptionExpiry) {
+        const diff = new Date(provider.subscriptionExpiry) - new Date();
+        daysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+    }
+
+    // Active subscription plan benefits
+    let subscriptionBenefits = [];
+    let planId = null;
+    if (provider.isSubscribed) {
+        const activeSub = await ProviderSubscription.findOne({ provider: provider._id, status: 'active' }).populate('subscription');
+        if (activeSub && activeSub.subscription) {
+            subscriptionBenefits = activeSub.subscription.features || [];
+            planId = activeSub.subscription._id;
+        }
+    }
+
+    // The slabs admin set for this category and provider role (Partner
+    // Program -> Commission Slab), or the global default slabs when the
+    // category has none — the same lookup the engine's strategies make.
+    const role = provider.providerCategory || 'partner';
+    const category = provider.vendorType || null;
+    const categoryId = category ? (category._id || category) : null;
+    const forRole = (cat) => ({
+        category: cat,
+        $or: [
+            { providerCategory: { $in: ['all', role] } },
+            { providerCategory: { $exists: false } },
+            { providerCategory: null }
+        ]
+    });
+    let slabs = categoryId ? await CommissionSlab.find(forRole(categoryId)).sort({ minAmount: 1 }).lean() : [];
+    const slabSource = slabs.length ? 'CATEGORY_SLAB' : 'GLOBAL_DEFAULT';
+    if (!slabs.length) slabs = await CommissionSlab.find(forRole(null)).sort({ minAmount: 1 }).lean();
+
+    const categoryMatch = (categoryId && await new CategorySlabStrategy().evaluate(amount, provider, category))
+        || await new GlobalFallbackStrategy().evaluate(amount, provider, category);
+
+    return {
+        currentRule: calculation.ruleApplied,
+        appliedSource: calculation.source, // 'FREE_TRIAL', 'WAIVER', 'PROVIDER_OVERRIDE', 'SUBSCRIPTION', 'CATEGORY_SLAB', 'GLOBAL_DEFAULT'
+        currentCommissionPercentage: calculation.commissionRate,
+        remainingFreeServices: provider.freeServicesLeft,
+        sampleBookingAmount: amount,
+        activeSubscription: provider.isSubscribed ? {
+            planId: planId,
+            planName: provider.planType || 'Elite Pro',
+            expiry: provider.subscriptionExpiry,
+            rate: provider.subscriptionRate,
+            daysRemaining,
+            benefits: subscriptionBenefits
+        } : null,
+        categoryCommission: {
+            categoryId,
+            categoryName: category && category.name ? category.name : 'Global Fallback',
+            commissionPercentage: calculation.commissionRate,
+            activeSlabRange,
+            // The category's own rate for this amount, and where it comes from.
+            categoryRate: categoryMatch.rate,
+            categoryRateSource: categoryMatch.source,
+            slabSource,
+            slabs: slabs.map(sl => ({
+                minAmount: sl.minAmount,
+                maxAmount: sl.maxAmount,
+                commissionRate: sl.commissionRate,
+                providerCategory: sl.providerCategory || 'all'
+            }))
+        },
+        estimatedCommission: calculation.commissionAmount,
+        estimatedEarnings: calculation.providerAmount
+    };
+};
+
 exports.getCommissionPreview = async (req, res) => {
     try {
         const amount = Number(req.query.bookingAmount) || 1000;
         const provider = await Provider.findById(req.user._id).populate('vendorType');
         if (!provider) return res.status(404).json({ message: "Provider not found" });
+        res.json(await buildCommissionPreview(provider, amount));
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-        const matchedRule = await CommissionRuleEngine.selectRule(amount, provider, provider.vendorType);
-        const calculation = CommissionService.calculate(amount, matchedRule);
-
-        // Fetch active slab range if category slab is evaluated
-        let activeSlabRange = "N/A";
-        if (matchedRule.ruleId === 'CATEGORY_SLAB' && matchedRule.metadata?.slabRange) {
-            activeSlabRange = matchedRule.metadata.slabRange;
-        } else if (matchedRule.ruleId === 'GLOBAL_DEFAULT' && matchedRule.metadata?.slabRange) {
-            activeSlabRange = matchedRule.metadata.slabRange;
-        }
-
-        // Days remaining calculation
-        let daysRemaining = 0;
-        if (provider.isSubscribed && provider.subscriptionExpiry) {
-            const diff = new Date(provider.subscriptionExpiry) - new Date();
-            daysRemaining = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-        }
-
-        // Active subscription plan benefits
-        let subscriptionBenefits = [];
-        let planId = null;
-        if (provider.isSubscribed) {
-            const activeSub = await ProviderSubscription.findOne({ provider: provider._id, status: 'active' }).populate('subscription');
-            if (activeSub && activeSub.subscription) {
-                subscriptionBenefits = activeSub.subscription.features || [];
-                planId = activeSub.subscription._id;
-            }
-        }
-
-        res.json({
-            currentRule: calculation.ruleApplied,
-            appliedSource: calculation.source, // 'FREE_TRIAL', 'WAIVER', 'PROVIDER_OVERRIDE', 'SUBSCRIPTION', 'CATEGORY_SLAB', 'GLOBAL_DEFAULT'
-            currentCommissionPercentage: calculation.commissionRate,
-            remainingFreeServices: provider.freeServicesLeft,
-            activeSubscription: provider.isSubscribed ? {
-                planId: planId,
-                planName: provider.planType || 'Elite Pro',
-                expiry: provider.subscriptionExpiry,
-                rate: provider.subscriptionRate,
-                daysRemaining,
-                benefits: subscriptionBenefits
-            } : null,
-            categoryCommission: {
-                categoryName: provider.vendorType ? provider.vendorType.name : 'Global Fallback',
-                commissionPercentage: calculation.commissionRate,
-                activeSlabRange
-            },
-            estimatedCommission: calculation.commissionAmount,
-            estimatedEarnings: calculation.providerAmount
-        });
+// @desc    The same commission preview, for admin viewing a provider's profile
+// @route   GET /api/v2/admin/providers/:id/commission-preview?bookingAmount=
+// @access  Admin
+exports.getProviderCommissionPreview = async (req, res) => {
+    try {
+        const amount = Number(req.query.bookingAmount) || 1000;
+        const provider = await Provider.findById(req.params.id).populate('vendorType');
+        if (!provider) return res.status(404).json({ message: "Provider not found" });
+        res.json(await buildCommissionPreview(provider, amount));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

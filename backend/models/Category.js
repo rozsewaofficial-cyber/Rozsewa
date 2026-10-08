@@ -44,6 +44,10 @@ const categorySchema = mongoose.Schema({
     services: [subServiceSchema], // Pre-defined services in this category
     combos: [comboTemplateSchema], // Pre-defined combos in this category
     businessModel: { type: String, enum: ['commission', 'lead'], default: 'commission' },
+    // The partner registration cards ("how do you work": shop, taxi, hotel...)
+    // this category is listed under; see config/partnerModels.js. Empty means
+    // every card, so a category shows everywhere until admin tags it.
+    partnerModels: [{ type: String }],
     // Which provider type can register into / pick this category.
     visibleTo: { type: String, enum: ['sewak', 'partner', 'both'], default: 'both' },
     defaultLeadPrice: { type: Number, default: 0 },

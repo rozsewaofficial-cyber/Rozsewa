@@ -7,6 +7,7 @@ const Booking = require('../models/Booking');
 const Setting = require('../models/Setting');
 const SubscriptionPlan = require('../models/SubscriptionPlan');
 const Category = require('../models/Category');
+const { cleanModelIds } = require('../config/partnerModels');
 const Subcategory = require('../models/Subcategory');
 const AuditLog = require('../models/AuditLog');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
@@ -85,6 +86,8 @@ const adminProviderScope = (params, { includeSearch = true } = {}) => {
 
 // A provider document carries its KYC documents, its Insta service list and
 // its push tokens. None of that belongs in a table of providers.
+// The provider list leaves the documents' file links out; their id and
+// status stay, so the admin list can show document verification.
 const PROVIDER_LIST_FIELDS = '-password -documents -fcmTokens -fcmTokenMobile -subServices -instaWork.services';
 
 const getProviders = async (req, res) => {
@@ -92,7 +95,7 @@ const getProviders = async (req, res) => {
         const query = adminProviderScope(req.query);
         const providers = await paginate(
             Provider.find(query)
-                .select(PROVIDER_LIST_FIELDS)
+                .select(PROVIDER_LIST_FIELDS.replace('-documents', '-documents.url -documents.adminNotes -documents.rejectionReason'))
                 .sort({ createdAt: -1 }),
             pageParams(req)
         );
@@ -252,16 +255,35 @@ const updateProviderStatus = async (req, res) => {
             return res.status(404).json({ message: 'Provider not found' });
         }
 
+        // Approval comes after document verification, never instead of it.
+        // Approving used to mark every pending document verified on the spot,
+        // so a partner whose documents nobody had looked at went live.
+        if (req.body.status === 'verified') {
+            const docs = provider.documents || [];
+            const unverified = docs.filter(d => d.status !== 'verified');
+            if (docs.length === 0 || unverified.length > 0) {
+                return res.status(400).json({
+                    code: 'DOCUMENTS_NOT_VERIFIED',
+                    message: docs.length === 0
+                        ? 'This partner has not submitted any documents yet.'
+                        : `Verify every document first: ${unverified.map(d => `${d.fileName || d.id} (${d.status})`).join(', ')}.`,
+                    documents: docs.map(d => ({ id: d.id, fileName: d.fileName, status: d.status }))
+                });
+            }
+            provider.kycVerified = true;
+            provider.kycStatus = 'verified';
+        }
+
         provider.status = req.body.status || provider.status;
 
-        // If admin verifies the provider, auto-verify current documents as well
-        if (req.body.status === 'verified' && provider.documents) {
-            provider.documents.forEach(doc => {
-                if (doc.status === 'pending') {
-                    doc.status = 'verified';
-                }
-            });
-            provider.kycVerified = true;
+        // A Sewak goes live only after training (D2): approving one with
+        // training outstanding leaves it pending, as the Sewak verify does.
+        if (req.body.status === 'verified') {
+            const gate = await requiresTrainingBeforeGoLive(provider);
+            if (gate.blocked) {
+                provider.status = 'pending';
+                provider.isOnline = false;
+            }
         }
 
         const updatedProvider = await provider.save();
@@ -866,7 +888,10 @@ const getCategories = async (req, res) => {
 // @access  Private/Admin
 const addCategory = async (req, res) => {
     try {
-        const category = await Category.create(req.body);
+        const category = await Category.create({
+            ...req.body,
+            partnerModels: cleanModelIds(req.body.partnerModels)
+        });
         res.status(201).json(category);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -889,6 +914,7 @@ const updateCategory = async (req, res) => {
         if (req.body.isComingSoon !== undefined) category.isComingSoon = req.body.isComingSoon;
         if (req.body.businessModel !== undefined) category.businessModel = req.body.businessModel;
         if (['sewak', 'partner', 'both'].includes(req.body.visibleTo)) category.visibleTo = req.body.visibleTo;
+        if (Array.isArray(req.body.partnerModels)) category.partnerModels = cleanModelIds(req.body.partnerModels);
         if (req.body.defaultLeadPrice !== undefined) category.defaultLeadPrice = req.body.defaultLeadPrice;
         if (req.body.gstPercent !== undefined) category.gstPercent = req.body.gstPercent;
         if (req.body.platformFee !== undefined) category.platformFee = req.body.platformFee;
@@ -2786,10 +2812,36 @@ const requiresTrainingBeforeGoLive = async (provider) => {
     }
 };
 
+// The documents a Sewak must have verified before approval (the same list
+// the per-document review completes KYC on).
+const SEWAK_REQUIRED_DOCS = ['aadhaar', 'pan', 'live_video'];
+
+/** What still stops a Sewak's approval: required documents not verified, or any rejected. */
+const sewakDocumentsBlockingApproval = (sewak) => {
+    const docs = sewak.documents || [];
+    const notVerified = SEWAK_REQUIRED_DOCS
+        .filter(id => !docs.some(d => d.id === id && d.status === 'verified'))
+        .map(id => `${id} (${(docs.find(d => d.id === id) || {}).status || 'missing'})`);
+    const rejected = docs
+        .filter(d => d.status === 'rejected' && !SEWAK_REQUIRED_DOCS.includes(d.id))
+        .map(d => `${d.id} (rejected)`);
+    return [...notVerified, ...rejected];
+};
+
 const verifySewak = async (req, res) => {
     try {
         const sewak = await Provider.findById(req.params.id);
         if (!sewak) return res.status(404).json({ message: 'Sewak not found' });
+
+        // Approval comes after document verification, never instead of it:
+        // this used to mark every document verified in the same click.
+        const blocking = sewakDocumentsBlockingApproval(sewak);
+        if (blocking.length > 0) {
+            return res.status(400).json({
+                code: 'DOCUMENTS_NOT_VERIFIED',
+                message: `Verify every document first: ${blocking.join(', ')}.`
+            });
+        }
 
         sewak.kycVerified = true;
         sewak.kycStatus = 'verified';
@@ -2805,14 +2857,6 @@ const verifySewak = async (req, res) => {
         } else {
             sewak.status = 'verified';
             sewak.isOnline = true;
-        }
-
-        // Verify all documents
-        if (sewak.documents) {
-            sewak.documents.forEach(doc => {
-                doc.status = 'verified';
-                doc.reviewedAt = new Date();
-            });
         }
 
         await sewak.save();
@@ -3019,21 +3063,18 @@ const verifySewakDocument = async (req, res) => {
                 sewak.kycStatus = 'verified';
                 sewak.kycVerified = true;
 
-                // Go-live is owned by the Training Panel — see D2.
-                const docGate = await requiresTrainingBeforeGoLive(sewak);
-                if (docGate.blocked) {
+                // Documents are done; approval is the supervisor's separate
+                // Verify step (which also applies the training gate, D2). The
+                // last document no longer approves the Sewak by itself.
+                if (sewak.status !== 'verified' && sewak.status !== 'suspended') {
                     sewak.status = 'pending';
-                    sewak.isOnline = false;
-                } else {
-                    sewak.status = 'verified';
-                    sewak.isOnline = true;
                 }
 
-                // Notify Sewak: Overall KYC approved
+                // Notify Sewak: documents verified, approval next
                 try {
                     await sendNotificationToUser(sewak._id, 'provider', {
-                        title: 'KYC Approved',
-                        body: 'Your identity verification is complete. Next step: visit your training centre to verify your starter kit items and complete basic training — your profile goes live right after.',
+                        title: 'Documents Verified',
+                        body: 'All your documents are verified. Your application is now with our team for final approval.',
                         data: { type: 'kyc', id: sewak._id.toString() }
                     });
                 } catch (err) {
@@ -3160,23 +3201,19 @@ const verifyProviderDocument = async (req, res) => {
                 provider.kycVerified = true;
                 provider.kycStatus = 'verified';
 
-                // Sewaks stop here until the Training Panel clears them; a
-                // Partner has no such gate and this already no-ops for one.
-                const docGate = await requiresTrainingBeforeGoLive(provider);
-                if (docGate.blocked) {
+                // Document verification is complete. The partner is not
+                // approved here: that is admin's separate step (Approve), so a
+                // partner never goes live just because the last document was
+                // ticked. A rejected partner's documents being fixed brings it
+                // back to pending; a suspended one stays suspended.
+                if (provider.status !== 'verified' && provider.status !== 'suspended') {
                     provider.status = 'pending';
-                    provider.isOnline = false;
-                } else {
-                    provider.status = 'verified';
-                    provider.isOnline = true;
                 }
 
                 try {
                     await sendNotificationToUser(provider._id, 'provider', {
-                        title: 'KYC Approved',
-                        body: docGate.blocked
-                            ? 'Your identity verification is complete. Next step: visit your training centre to verify your starter kit items and complete basic training — your profile goes live right after.'
-                            : 'Your identity verification is complete and your profile is now live.',
+                        title: 'Documents Verified',
+                        body: 'All your documents are verified. Your application is now with our team for final approval.',
                         data: { type: 'kyc', id: provider._id.toString() }
                     });
                 } catch (err) {

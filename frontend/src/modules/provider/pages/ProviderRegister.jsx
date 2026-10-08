@@ -15,18 +15,8 @@ import API from "@/lib/api";
 import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
+import { ACCOUNT_TYPES, partnerModelsFor, isModelFor, categoryFitsModel } from "../data/partnerModels";
 
-const businessModels = [
-  { id: 'shop', label: 'Retail & Shops', icon: Store, description: 'Traditional brick & mortar outlets' },
-  { id: 'service_provider', label: 'Service Expert', icon: Sparkles, description: 'Independent professionals' },
-  { id: 'taxi', label: 'Logistics / Taxi', icon: Car, description: 'Fleet and transport services' },
-  { id: 'hotel', label: 'Hospitality', icon: Building, description: 'Hotels, PG and long stays' },
-  { id: 'tutor_doc', label: 'Medical / Tutor', icon: GraduationCap, description: 'Professional consultations' },
-  { id: 'property_dealer', label: 'Real Estate', icon: Home, description: 'Brokers and dealers' },
-  { id: 'food', label: 'Dining / Food', icon: Utensils, description: 'Cafes and home kitchens' },
-  { id: 'labour', label: 'Skilled Labour', icon: HardHat, description: 'Contractors and teams' },
-  { id: 'delivery', label: 'Direct Delivery', icon: Truck, description: 'Local courier experts' },
-];
 
 const ProviderRegister = () => {
   const navigate = useNavigate();
@@ -36,6 +26,13 @@ const ProviderRegister = () => {
     const saved = sessionStorage.getItem("providerRegStep");
     return saved ? parseInt(saved, 10) : 1;
   });
+
+  useEffect(() => {
+    if (step >= 3 && step < 10 && (!formData.type || !formData.businessType)) {
+      setStep(2);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (step === 10) {
@@ -80,6 +77,7 @@ const ProviderRegister = () => {
     return {
       mobile: "",
       otp: "",
+      type: "", // Account type: "individual" | "business"
       businessType: "",
       vendorType: "", // Category ID
       subServices: [],
@@ -139,10 +137,16 @@ const ProviderRegister = () => {
   const [emailOtp, setEmailOtp] = useState("");
   const [showEmailOtpField, setShowEmailOtpField] = useState(false);
   const [verifying, setVerifying] = useState({ aadhaar: false, pan: false, gst: false, bank: false, email: false });
+  // Bank step: a message under each field, plus one under the buttons.
+  const [bankErrors, setBankErrors] = useState({});
   const [aadhaarSessionId, setAadhaarSessionId] = useState("");
   const [aadhaarOtp, setAadhaarOtp] = useState("");
 
   const formDataRef = useRef(formData);
+  // The final submit runs once: a second tap (or a tap during a slow reply)
+  // used to send the registration twice, and the second one came back
+  // "Mobile number is already registered" though the first had worked.
+  const submittingRef = useRef(false);
   const coordsRef = useRef(coords);
 
   useEffect(() => {
@@ -379,7 +383,7 @@ const ProviderRegister = () => {
 
       if (data.success) {
         setStep(2);
-        toast({ title: "Mobile Verified", description: "You can now proceed with business details." });
+        toast({ title: "Mobile Verified", description: "You can now continue with your details." });
       }
     } catch (err) {
       toast({ title: "Invalid OTP", description: "Please enter the correct verification code.", variant: "destructive" });
@@ -389,6 +393,37 @@ const ProviderRegister = () => {
   };
 
   const currentCategory = categories.find(c => c._id === formData.vendorType);
+  const isBusiness = formData.type === "business";
+  const currentModel = formData.type
+    ? partnerModelsFor(formData.type).find(m => m.id === formData.businessType)
+    : null;
+  // Only the categories admin put under the chosen card (untagged ones show
+  // under every card).
+  const visibleCategories = categories.filter(c => categoryFitsModel(c, formData.businessType));
+
+  // Switching account type keeps the chosen card only if that type offers it;
+  // an individual has no business name or GST.
+  const chooseAccountType = (type) => {
+    setFormData(prev => {
+      const keepModel = !!prev.businessType && isModelFor(prev.businessType, type);
+      return {
+        ...prev,
+        type,
+        ...(keepModel ? {} : { businessType: "", vendorType: "", subServices: [] }),
+        ...(type === "individual" ? { shopName: "", gst: "" } : {}),
+      };
+    });
+    if (type === "individual") setVerificationStatus(prev => ({ ...prev, gst: false }));
+  };
+
+  // A different card means a different set of categories, so the category
+  // and services picked under the old one are cleared.
+  const chooseModel = (modelId) => {
+    setFormData(prev => prev.businessType === modelId
+      ? prev
+      : { ...prev, businessType: modelId, vendorType: "", subServices: [] });
+    setStep(3);
+  };
   const partnerVisibleServices = (currentCategory?.services || []).filter(
     s => !s.visibleTo || s.visibleTo === 'both' || s.visibleTo === 'partner'
   );
@@ -486,16 +521,51 @@ const ProviderRegister = () => {
     }
   };
 
+  // The bank rules, checked by both Verify Account and Save & Continue, with
+  // each problem shown under its own field instead of in a toast. 9-18
+  // digits, as Profile and Wallet accept: Indian account numbers vary in
+  // length, and 11-17 here turned real 9, 10 and 18 digit accounts away.
+  const validateBankFields = () => {
+    const { accountNumber, ifscCode, bankName, accountHolderName } = formData.bankDetails;
+    const errors = {};
+    const holder = sanitizeName(accountHolderName || "");
+    const nameCheck = validateName(holder);
+    if (!holder) errors.accountHolderName = "Enter the name on the bank account.";
+    else if (!nameCheck.isValid) errors.accountHolderName = nameCheck.message;
+    else if (holder.length < 3) errors.accountHolderName = "Name must be at least 3 characters.";
+    if (!accountNumber) errors.accountNumber = "Enter the account number.";
+    else if (!/^\d{9,18}$/.test(accountNumber)) errors.accountNumber = "Account number must be 9 to 18 digits.";
+    if (!ifscCode) errors.ifscCode = "Enter the IFSC code.";
+    else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) errors.ifscCode = "IFSC has 11 characters, e.g. SBIN0001234.";
+    if (!String(bankName || "").trim()) errors.bankName = "Enter the bank name.";
+    setBankErrors(errors);
+    return { ok: Object.keys(errors).length === 0, holder };
+  };
+
+  const setBankField = (field, value) => {
+    setFormData(prev => ({ ...prev, bankDetails: { ...prev.bankDetails, [field]: value } }));
+    setBankErrors(prev => ({ ...prev, [field]: undefined, form: undefined }));
+  };
+
+  // Skip for Now: carry on without bank details. Anything typed but not
+  // verified is dropped, so nothing half-entered is saved and bank details
+  // stay "not added" until the partner adds them from Profile or Wallet.
+  const handleSkipBank = async () => {
+    if (isLoading) return;
+    setBankErrors({});
+    if (!verificationStatus.bank) {
+      const emptyBank = { accountNumber: "", ifscCode: "", bankName: "", accountHolderName: "" };
+      formDataRef.current = { ...formDataRef.current, bankDetails: emptyBank };
+      setFormData(prev => ({ ...prev, bankDetails: emptyBank }));
+    }
+    if (!cardConfig.enabled) await finalizeSignupDirectly();
+    else setStep(9);
+  };
+
   const handleVerifyBank = async () => {
-    const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
-    if (!accountNumber || !ifscCode || !accountHolderName) {
-      return toast({ title: "Incomplete Details", description: "Please enter Account Number, IFSC, and Holder Name.", variant: "destructive" });
-    }
-    const sanitizedHolderName = sanitizeName(accountHolderName);
-    const nameValidation = validateName(sanitizedHolderName);
-    if (!nameValidation.isValid) {
-      return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
-    }
+    const { accountNumber, ifscCode } = formData.bankDetails;
+    const { ok, holder: sanitizedHolderName } = validateBankFields();
+    if (!ok) return;
     setFormData(prev => ({
       ...prev,
       bankDetails: { ...prev.bankDetails, accountHolderName: sanitizedHolderName }
@@ -512,10 +582,10 @@ const ProviderRegister = () => {
         setVerificationStatus(prev => ({ ...prev, bank: true }));
         toast({ title: "Bank Verified", description: "Penny drop successful." });
       } else {
-        toast({ title: "Verification Failed", description: "Bank verification failed.", variant: "destructive" });
+        setBankErrors(prev => ({ ...prev, form: "We couldn't verify this account. Check the details and try again." }));
       }
     } catch (err) {
-      toast({ title: "Verification Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+      setBankErrors(prev => ({ ...prev, form: err.response?.data?.message || "Bank verification failed. Please try again." }));
     } finally {
       setVerifying(prev => ({ ...prev, bank: false }));
     }
@@ -578,26 +648,37 @@ const ProviderRegister = () => {
     }
   };
 
+  // After the final submit: success shows the partner code; a number that
+  // belongs to someone else's account is sent to log in.
+  const handleSignupResult = (signupRes) => {
+    if (signupRes.success) {
+      setGeneratedCode(signupRes.data.vendorCode);
+      setStep(10);
+      return;
+    }
+    if (signupRes.code === "MOBILE_REGISTERED") {
+      toast({ title: "Already registered", description: "This mobile number already has a partner account. Please log in.", variant: "destructive" });
+      ["providerRegStep", "providerRegData", "providerRegStatus"].forEach(k => sessionStorage.removeItem(k));
+      navigate("/provider/login");
+      return;
+    }
+    toast({ title: "Signup Failed", description: signupRes.error, variant: "destructive" });
+  };
+
   const handleSignupComplete = async (response) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     try {
       setIsLoading(true);
       const { data: verifyRes } = await API.post("/payment/verify", response);
       if (verifyRes.success) {
         const finalData = {
           ...formDataRef.current,
+          accountType: formDataRef.current.type,
           location: { type: 'Point', coordinates: coordsRef.current }
         };
         const signupRes = await signup(finalData, 'provider');
-        if (signupRes.success) {
-          setGeneratedCode(signupRes.data.vendorCode);
-          setStep(10);
-        } else {
-          toast({
-            title: "Signup Failed",
-            description: `${signupRes.error} (Data: ${formDataRef.current.city}, ${formDataRef.current.state})`,
-            variant: "destructive"
-          });
-        }
+        handleSignupResult(signupRes);
       } else {
         toast({ title: "Payment Failed", description: "Verification mismatch.", variant: "destructive" });
       }
@@ -605,50 +686,45 @@ const ProviderRegister = () => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
+      submittingRef.current = false;
     }
   };
 
   const finalizeSignupDirectly = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsLoading(true);
     try {
       const finalData = {
         ...formDataRef.current,
+        accountType: formDataRef.current.type,
         location: { type: 'Point', coordinates: coordsRef.current }
       };
       const signupRes = await signup(finalData, 'provider');
-      if (signupRes.success) {
-        setGeneratedCode(signupRes.data.vendorCode);
-        setStep(10);
-      } else {
-        toast({
-          title: "Signup Failed",
-          description: signupRes.error,
-          variant: "destructive"
-        });
-      }
+      handleSignupResult(signupRes);
     } catch (err) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setIsLoading(false);
+      submittingRef.current = false;
     }
   };
 
+  // Save & Continue: only complete, valid and verified bank details go on.
   const handleBankSubmit = async (e) => {
     e.preventDefault();
-    const { accountNumber, ifscCode, accountHolderName } = formData.bankDetails;
-    const sanitizedHolderName = sanitizeName(accountHolderName);
-    const nameValidation = validateName(sanitizedHolderName);
-    if (!nameValidation.isValid) return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
-    if (sanitizedHolderName.length < 3) return toast({ title: "Invalid Name", description: "Account holder name must be at least 3 characters.", variant: "destructive" });
+    if (isLoading) return;
+    const { ok, holder } = validateBankFields();
+    if (!ok) return;
     setFormData(prev => ({
       ...prev,
-      bankDetails: { ...prev.bankDetails, accountHolderName: sanitizedHolderName }
+      bankDetails: { ...prev.bankDetails, accountHolderName: holder }
     }));
 
-    if (!/^\d{11,17}$/.test(accountNumber)) return toast({ title: "Invalid Account Number", description: "Account number must be between 11 and 17 digits.", variant: "destructive" });
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCode)) return toast({ title: "Invalid IFSC", description: "Please enter a valid 11-character IFSC code.", variant: "destructive" });
-
-    if (!verificationStatus.bank) return toast({ title: "Verification Required", description: "Please verify your bank account to continue.", variant: "destructive" });
+    if (!verificationStatus.bank) {
+      setBankErrors({ form: "Tap Verify Account to confirm these details, or Skip for Now." });
+      return;
+    }
 
     if (!cardConfig.enabled) {
       await finalizeSignupDirectly();
@@ -691,8 +767,8 @@ const ProviderRegister = () => {
   };
 
   const stepTitles = [
-    "Verify Mobile", "Business Type", "Select Industry", "Add Services",
-    "Business Profile", "Identity Photo", "Referral", "Bank Details", "Pro Account", "Success"
+    "Verify Mobile", "Account Type", "Select Industry", "Add Services",
+    "Your Profile", "Identity Photo", "Referral", "Bank Details", "Pro Account", "Success"
   ];
 
   return (
@@ -848,48 +924,77 @@ const ProviderRegister = () => {
                 className="space-y-6"
               >
                 <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-slate-800">Business Model</h3>
-                  <p className="text-sm text-slate-500">How would you like to operate your business?</p>
-                  <div className="space-y-4">
-                    <div className="flex border border-slate-100 rounded-lg p-1 bg-slate-50/50">
-                      {['Individual', 'Business'].map(type => (
-                        <button
-                          key={type}
-                          onClick={() => setFormData({ ...formData, type: type.toLowerCase(), shopName: type === 'Individual' ? "" : formData.shopName })}
-                          className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-md transition-all ${formData.type === type.toLowerCase() ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                        >
-                          {type}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <h3 className="text-lg font-semibold text-slate-800">How do you work?</h3>
+                  <p className="text-sm text-slate-500">Choose your account type, then what you do.</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {businessModels.map(m => (
-                    <button
-                      type="button"
-                      key={m.id}
-                      onClick={() => {
-                        if (!formData.type) {
-                          toast({ title: "Selection Required", description: "Please choose whether you operate as an Individual or Business.", variant: "destructive" });
-                          return;
-                        }
-                        setFormData({ ...formData, businessType: m.id }); 
-                        setStep(3); 
-                      }}
-                      className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5 transition-all text-left group"
-                    >
-                      <div className="h-12 w-12 bg-white border border-slate-100 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-all shadow-sm">
-                        <m.icon className="h-6 w-6" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-800 tracking-tight">{m.label}</p>
-                        <p className="text-[11px] font-medium text-slate-500 group-hover:text-emerald-700/70 transition-colors uppercase tracking-wide mt-0.5">{m.description}</p>
-                      </div>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 gap-3">
+                  {ACCOUNT_TYPES.map(t => {
+                    const Icon = LucideIcons[t.icon] || LucideIcons.User;
+                    const active = formData.type === t.id;
+                    return (
+                      <button
+                        type="button"
+                        key={t.id}
+                        aria-pressed={active}
+                        onClick={() => chooseAccountType(t.id)}
+                        className={`flex flex-col items-start gap-3 p-4 rounded-2xl border-2 text-left transition-all ${active
+                          ? "border-emerald-500 bg-emerald-50/60 shadow-sm"
+                          : "border-slate-100 bg-slate-50/40 hover:border-emerald-200 hover:bg-white"}`}
+                      >
+                        <div className="flex w-full items-center justify-between">
+                          <span className={`h-10 w-10 rounded-xl flex items-center justify-center transition-all ${active ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" : "bg-white text-slate-400 border border-slate-100"}`}>
+                            <Icon className="h-5 w-5" />
+                          </span>
+                          <span className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${active ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-200"}`}>
+                            {active && <CheckCircle className="h-3 w-3" />}
+                          </span>
+                        </div>
+                        <div>
+                          <p className={`text-sm font-bold tracking-tight ${active ? "text-emerald-900" : "text-slate-800"}`}>{t.label}</p>
+                          <p className="text-[11px] font-medium leading-snug text-slate-500 mt-0.5">{t.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {formData.type ? (
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600">
+                      {isBusiness ? "What does your business do?" : "What do you do?"}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {partnerModelsFor(formData.type).map(m => {
+                        const Icon = LucideIcons[m.icon] || LucideIcons.Layers;
+                        const picked = formData.businessType === m.id;
+                        return (
+                          <button
+                            type="button"
+                            key={m.id}
+                            onClick={() => chooseModel(m.id)}
+                            className={`flex items-center gap-4 p-4 rounded-2xl border transition-all text-left group ${picked
+                              ? "border-emerald-500 bg-emerald-50/50"
+                              : "border-slate-100 bg-slate-50/30 hover:bg-white hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/5"}`}
+                          >
+                            <div className={`h-12 w-12 shrink-0 border rounded-xl flex items-center justify-center transition-all shadow-sm ${picked ? "bg-emerald-600 text-white border-emerald-600" : "bg-white border-slate-100 text-slate-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 group-hover:border-emerald-100"}`}>
+                              <Icon className="h-6 w-6" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-slate-800 tracking-tight">{m.label}</p>
+                              <p className="text-[11px] font-medium text-slate-500 mt-0.5 leading-snug">{m.description}</p>
+                            </div>
+                            <ChevronRight className={`h-4 w-4 shrink-0 transition-colors ${picked ? "text-emerald-500" : "text-slate-300 group-hover:text-emerald-500"}`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs font-medium text-slate-400">
+                    Pick Individual or Business to see the options for you.
+                  </p>
+                )}
 
                 <button
                   type="button"
@@ -919,7 +1024,9 @@ const ProviderRegister = () => {
                   </button>
                   <div className="space-y-0.5">
                     <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Select Industry</h3>
-                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">Target Market</p>
+                    <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">
+                      {isBusiness ? "Business" : "Individual"}{currentModel ? ` · ${currentModel.label}` : ""}
+                    </p>
                   </div>
                 </div>
 
@@ -929,7 +1036,13 @@ const ProviderRegister = () => {
                       <Loader2 className="h-8 w-8 animate-spin text-emerald-500 opacity-20" />
                       <p className="text-xs font-bold text-slate-400 animate-pulse">Synchronizing Markets...</p>
                     </div>
-                  ) : categories.map(c => (
+                  ) : visibleCategories.length === 0 ? (
+                    <div className="col-span-full py-14 flex flex-col items-center justify-center text-center space-y-3">
+                      <Layers className="h-8 w-8 text-slate-200" />
+                      <p className="text-sm font-medium text-slate-500">No categories are open for {currentModel?.label || "this option"} yet.</p>
+                      <button type="button" onClick={() => setStep(2)} className="text-xs font-bold text-emerald-600 hover:underline">Choose another option</button>
+                    </div>
+                  ) : visibleCategories.map(c => (
                     <button
                       key={c._id}
                       onClick={() => { 
@@ -1045,14 +1158,19 @@ const ProviderRegister = () => {
                   const nameValidation = validateName(sanitizedOwnerName);
                   if (!nameValidation.isValid) return toast({ title: "Invalid Name", description: nameValidation.message, variant: "destructive" });
                   if (sanitizedOwnerName.length < 3) return toast({ title: "Invalid Name", description: "Owner name must be at least 3 characters long.", variant: "destructive" });
-                  setFormData(prev => ({ ...prev, ownerName: sanitizedOwnerName }));
+                  setFormData(prev => ({
+                    ...prev,
+                    ownerName: sanitizedOwnerName,
+                    // An individual is listed under their own name.
+                    ...(isBusiness ? {} : { shopName: sanitizedOwnerName, gst: "" }),
+                  }));
 
                   if (formData.email && !validateEmail(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
-                  if (formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
-                  if (!/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
+                  if (isBusiness && formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
+                  if (isBusiness && !/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
                   if (formData.kycAadhaar && !/^\d{12}$/.test(formData.kycAadhaar)) return toast({ title: "Invalid Aadhaar", description: "Aadhaar number must be exactly 12 digits.", variant: "destructive" });
                   if (formData.kycPanNumber && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(formData.kycPanNumber)) return toast({ title: "Invalid PAN", description: "Please enter a valid PAN number format.", variant: "destructive" });
-                  if (formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
+                  if (isBusiness && formData.gst && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(formData.gst) && formData.gst.length !== 15) return toast({ title: "Invalid GST", description: "Please enter a valid 15-character GST number.", variant: "destructive" });
                   if (formData.password.length < 6) return toast({ title: "Weak Password", description: "Password must be at least 6 characters long.", variant: "destructive" });
                   if (formData.password !== formData.confirmPassword) return toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
 
@@ -1077,7 +1195,7 @@ const ProviderRegister = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Owner Full Name</label>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">{isBusiness ? "Owner Full Name" : "Your Full Name"}</label>
                       <input required value={formData.ownerName} onChange={e => setFormData({ ...formData, ownerName: sanitizeNameOnChange(e.target.value) })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. John Doe" />
                     </div>
                     <div className="space-y-1.5">
@@ -1112,10 +1230,12 @@ const ProviderRegister = () => {
                         </div>
                       )}
                     </div>
+                    {isBusiness && (
                     <div className="space-y-1.5 md:col-span-2">
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Business Name</label>
                       <input required value={formData.shopName} onChange={e => setFormData({ ...formData, shopName: e.target.value.replace(/[^a-zA-Z0-9 ]/g, '') })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none placeholder:text-slate-300" placeholder="e.g. Sharma Experts" />
                     </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
@@ -1166,6 +1286,7 @@ const ProviderRegister = () => {
                     </div>
                   </div>
 
+                  {isBusiness && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between ml-1">
@@ -1180,6 +1301,7 @@ const ProviderRegister = () => {
                       <input maxLength="15" disabled={verificationStatus.gst} value={formData.gst} onChange={e => setFormData({ ...formData, gst: e.target.value.toUpperCase() })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase placeholder:text-slate-300 disabled:opacity-70" placeholder="GST" />
                     </div>
                   </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                     <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/50 cursor-pointer hover:border-emerald-500 transition-colors">
@@ -1523,29 +1645,33 @@ const ProviderRegister = () => {
                 className="space-y-6"
               >
                 <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Standard Settlement Bank</h3>
-                  <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-widest">Payout Details</p>
+                  <h3 className="text-lg font-semibold text-slate-800 tracking-tight">Bank Details</h3>
+                  <p className="text-sm text-slate-500">Where your earnings are paid. You can skip this and add it later.</p>
                 </div>
 
-                <form onSubmit={handleBankSubmit} className="space-y-5">
+                <form onSubmit={handleBankSubmit} noValidate className="space-y-5">
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
-                    <input required disabled={verificationStatus.bank} value={formData.bankDetails.accountHolderName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountHolderName: sanitizeNameOnChange(e.target.value) } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="As per bank records" />
+                    <label htmlFor="bank-holder" className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Holder Name</label>
+                    <input id="bank-holder" disabled={verificationStatus.bank} aria-invalid={!!bankErrors.accountHolderName} value={formData.bankDetails.accountHolderName} onChange={e => setBankField("accountHolderName", sanitizeNameOnChange(e.target.value))} className={`w-full rounded-lg border bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white transition-all outline-none disabled:opacity-70 ${bankErrors.accountHolderName ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-emerald-500"}`} placeholder="As per bank records" />
+                    {bankErrors.accountHolderName && <p className="ml-1 text-[11px] font-semibold text-red-600">{bankErrors.accountHolderName}</p>}
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Number</label>
-                    <input required disabled={verificationStatus.bank} minLength="11" maxLength="17" value={formData.bankDetails.accountNumber} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, accountNumber: e.target.value.replace(/\D/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="Bank Account Number" />
+                    <label htmlFor="bank-account" className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Account Number</label>
+                    <input id="bank-account" inputMode="numeric" disabled={verificationStatus.bank} aria-invalid={!!bankErrors.accountNumber} maxLength="18" value={formData.bankDetails.accountNumber} onChange={e => setBankField("accountNumber", e.target.value.replace(/\D/g, ''))} className={`w-full rounded-lg border bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white transition-all outline-none disabled:opacity-70 ${bankErrors.accountNumber ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-emerald-500"}`} placeholder="Bank Account Number" />
+                    {bankErrors.accountNumber && <p className="ml-1 text-[11px] font-semibold text-red-600">{bankErrors.accountNumber}</p>}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">IFSC Code</label>
-                      <input required disabled={verificationStatus.bank} maxLength="11" value={formData.bankDetails.ifscCode} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, ifscCode: e.target.value.toUpperCase() } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none uppercase disabled:opacity-70" placeholder="IFSC" />
+                      <label htmlFor="bank-ifsc" className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">IFSC Code</label>
+                      <input id="bank-ifsc" disabled={verificationStatus.bank} aria-invalid={!!bankErrors.ifscCode} maxLength="11" value={formData.bankDetails.ifscCode} onChange={e => setBankField("ifscCode", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} className={`uppercase w-full rounded-lg border bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white transition-all outline-none disabled:opacity-70 ${bankErrors.ifscCode ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-emerald-500"}`} placeholder="IFSC" />
+                      {bankErrors.ifscCode && <p className="ml-1 text-[11px] font-semibold text-red-600">{bankErrors.ifscCode}</p>}
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Bank Name</label>
-                      <input required disabled={verificationStatus.bank} value={formData.bankDetails.bankName} onChange={e => setFormData({ ...formData, bankDetails: { ...formData.bankDetails, bankName: e.target.value.replace(/[^a-zA-Z\s]/g, '') } })} className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white focus:border-emerald-500 transition-all outline-none disabled:opacity-70" placeholder="Bank Name" />
+                      <label htmlFor="bank-name" className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] ml-1">Bank Name</label>
+                      <input id="bank-name" disabled={verificationStatus.bank} aria-invalid={!!bankErrors.bankName} value={formData.bankDetails.bankName} onChange={e => setBankField("bankName", e.target.value.replace(/[^a-zA-Z\s]/g, ''))} className={`w-full rounded-lg border bg-slate-50/50 p-2.5 font-semibold text-sm text-slate-900 focus:bg-white transition-all outline-none disabled:opacity-70 ${bankErrors.bankName ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-emerald-500"}`} placeholder="Bank Name" />
+                      {bankErrors.bankName && <p className="ml-1 text-[11px] font-semibold text-red-600">{bankErrors.bankName}</p>}
                     </div>
                   </div>
 
@@ -1556,9 +1682,9 @@ const ProviderRegister = () => {
                       </div>
                       <p className="text-[10px] font-medium text-slate-500 leading-relaxed uppercase tracking-widest max-w-[200px]">Double check your details. Settlements will be sent to this account weekly.</p>
                     </div>
-                    
+
                     {!verificationStatus.bank && (
-                      <button type="button" onClick={handleVerifyBank} disabled={verifying.bank} className="flex-shrink-0 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-200 transition-colors flex items-center gap-2">
+                      <button type="button" onClick={handleVerifyBank} disabled={verifying.bank || isLoading} className="flex-shrink-0 bg-emerald-100 text-emerald-700 px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-200 transition-colors flex items-center gap-2 disabled:opacity-60">
                         {verifying.bank ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Account"}
                       </button>
                     )}
@@ -1570,18 +1696,33 @@ const ProviderRegister = () => {
                     )}
                   </div>
 
-                  <button
-                    type="submit"
-                    className="w-full h-14 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs transition-all hover:bg-slate-800 active:scale-[0.98] flex items-center justify-center gap-3"
-                  >
-                    {cardConfig.enabled ? "Continue to Payment" : "Complete Registration"} <ArrowRight className="h-4 w-4" />
-                  </button>
-                  <div className="flex flex-col items-center gap-2">
-                    <button type="button" onClick={async () => {
-                      if (!cardConfig.enabled) await finalizeSignupDirectly();
-                      else setStep(9);
-                    }} className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors">Skip for now</button>
-                    <button type="button" onClick={() => setStep(7)} className="text-[10px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors">Previous</button>
+                  {bankErrors.form && (
+                    <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{bankErrors.form}</p>
+                  )}
+
+                  <div className="space-y-3">
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="w-full h-14 rounded-xl bg-slate-900 text-white font-black uppercase tracking-widest text-xs transition-all hover:bg-slate-800 active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-60"
+                    >
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Save &amp; Continue <ArrowRight className="h-4 w-4" /></>}
+                    </button>
+
+                    {/* type="button": skipping must never submit the bank form. */}
+                    <button
+                      type="button"
+                      onClick={handleSkipBank}
+                      disabled={isLoading}
+                      className="w-full h-12 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-700 font-black uppercase tracking-widest text-xs transition-all hover:bg-emerald-100 active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
+                    >
+                      Skip for Now <ArrowRight className="h-4 w-4" />
+                    </button>
+                    <p className="text-center text-[11px] font-medium leading-relaxed text-slate-500">
+                      No bank details yet? Add them anytime from <span className="font-bold text-slate-700">Profile → Bank Payout Info</span>. Payouts start once they are added.
+                    </p>
+
+                    <button type="button" onClick={() => { setBankErrors({}); setStep(7); }} className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors">Previous</button>
                   </div>
                 </form>
               </motion.div>

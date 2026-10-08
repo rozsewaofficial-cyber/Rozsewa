@@ -14,6 +14,20 @@ import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameVali
 const ProviderProfile = () => {
   const navigate = useNavigate();
   const { user, logout, syncFCMToken } = useAuth();
+  // Partners registered as Individual; accounts from before this was recorded
+  // keep the business wording.
+  const isIndividual = user?.accountType === "individual";
+  // The rate billing will charge once the free services are used: the
+  // category's Commission Slab rate from the same engine billing runs (this
+  // showed a stored rate, or 10 when there was none).
+  const [payPlanRate, setPayPlanRate] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    API.get("/v2/provider/commission-preview", { params: { bookingAmount: 1000 } })
+      .then(({ data }) => { if (!cancelled) setPayPlanRate(data?.categoryCommission?.categoryRate ?? null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.vendorType]);
   const { toast } = useToast();
   const confirm = useConfirm();
   const draft = JSON.parse(sessionStorage.getItem("provider-profile-draft") || "{}");
@@ -251,13 +265,14 @@ const ProviderProfile = () => {
         </div>
 
         <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-foreground">Business Information</h2><button onClick={toggleEdit} className="text-sm font-semibold text-emerald-600 hover:text-emerald-500">{isEditing ? "Save Changes" : "Edit Profile"}</button></div>
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-foreground">{isIndividual ? "Your Information" : "Business Information"}</h2><button onClick={toggleEdit} className="text-sm font-semibold text-emerald-600 hover:text-emerald-500">{isEditing ? "Save Changes" : "Edit Profile"}</button></div>
           <div className="space-y-4">
             {[
-              { icon: User, label: "Owner Name", field: "ownerName", type: "text" },
-              { icon: Store, label: "Shop Name", field: "shopName", type: "text", warning: "Changing this resets verification!" },
+              { icon: User, label: isIndividual ? "Full Name" : "Owner Name", field: "ownerName", type: "text" },
+              // An individual partner has no business: this is the name customers see.
+              { icon: Store, label: isIndividual ? "Display Name" : "Shop Name", field: "shopName", type: "text", warning: "Changing this resets verification!" },
               { icon: Phone, label: "Mobile Number", field: "mobile", type: "tel", disabled: true },
-              { icon: MapPin, label: "Shop Address", field: "address", type: "textarea" },
+              { icon: MapPin, label: isIndividual ? "Address" : "Shop Address", field: "address", type: "textarea" },
             ].map((item) => (
               <div key={item.label} className="flex items-center gap-4 border-b border-border/50 pb-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted"><item.icon className="h-5 w-5 text-muted-foreground" /></div>
@@ -424,7 +439,7 @@ const ProviderProfile = () => {
               <div className="rounded-[2rem] border border-border bg-card p-6 shadow-sm flex flex-col items-center text-center space-y-2">
                 <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Your Pay Plan</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black text-emerald-600">{user?.commissionRate || 10}</span>
+                  <span className="text-2xl font-black text-emerald-600">{payPlanRate ?? "—"}</span>
                   <span className="text-xs font-black text-emerald-600">%</span>
                 </div>
                 <p className="text-[9px] font-bold text-muted-foreground mt-1">After free services exhausted</p>

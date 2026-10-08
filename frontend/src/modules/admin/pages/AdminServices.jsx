@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 import { normalizeNonNegativeNumber, validateNonNegativeNumber } from "@/lib/numberValidation";
+import { ALL_PARTNER_MODELS } from "@/modules/provider/data/partnerModels";
 
 const InputField = ({ label, children }) => (
     <div className="space-y-1.5">
@@ -188,7 +189,7 @@ const AdminServices = () => {
             }
             setShowModal(false);
             setEditingCat(null);
-            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, visibleTo: "both", services: [] });
+            setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, visibleTo: "both", partnerModels: [], services: [] });
         } catch (err) {
             toast({ title: "Save Failed", variant: "destructive" });
         }
@@ -335,7 +336,7 @@ const AdminServices = () => {
                         <button
                             onClick={() => {
                                 setEditingCat(null);
-                                setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, visibleTo: "both", services: [] });
+                                setNewCat({ name: "", icon: "Scissors", description: "", image: "", isComingSoon: false, businessModel: "commission", defaultLeadPrice: 0, visibleTo: "both", partnerModels: [], services: [] });
                                 setShowModal(true);
                             }}
                             className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-[10px] font-black uppercase tracking-widest text-white shadow-sm hover:bg-blue-700 transition-all active:scale-95"
@@ -455,6 +456,7 @@ const AdminServices = () => {
                                                     businessModel: cat.businessModel || "commission",
                                                     defaultLeadPrice: cat.defaultLeadPrice || 0,
                                                     visibleTo: cat.visibleTo || "both",
+                                                    partnerModels: cat.partnerModels || [],
                                                     services: cat.services || []
                                                 });
                                                 setShowModal(true);
@@ -861,6 +863,36 @@ const AdminServices = () => {
                                         </div>
                                         <p className="text-[10px] text-gray-400 font-medium mt-1.5">Controls which provider type sees this category when registering / choosing an industry.</p>
                                     </InputField>
+
+                                    {(newCat.visibleTo || 'both') !== 'sewak' && (
+                                        <InputField label="Partner registration: show under">
+                                            <div className="flex flex-wrap gap-2">
+                                                {ALL_PARTNER_MODELS.map(m => {
+                                                    const on = (newCat.partnerModels || []).includes(m.id);
+                                                    return (
+                                                        <button
+                                                            key={m.id}
+                                                            type="button"
+                                                            onClick={() => setNewCat({
+                                                                ...newCat,
+                                                                partnerModels: on
+                                                                    ? (newCat.partnerModels || []).filter(id => id !== m.id)
+                                                                    : [...(newCat.partnerModels || []), m.id]
+                                                            })}
+                                                            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-colors ${on
+                                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                                : 'bg-white text-gray-500 border-gray-200 hover:border-blue-300'}`}
+                                                        >
+                                                            {m.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 font-medium mt-1.5">
+                                                The "how do you work" options a partner picks before choosing a category. Leave all off to show this category under every option.
+                                            </p>
+                                        </InputField>
+                                    )}
 
                                     <div className="flex gap-3 pt-2">
                                         <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 border rounded-xl font-bold text-xs text-gray-500 hover:bg-gray-50">Cancel</button>

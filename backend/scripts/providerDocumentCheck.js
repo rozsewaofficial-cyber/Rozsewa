@@ -101,9 +101,14 @@ check("the response carries documents, so the grid doesn't go blank after a revi
 });
 
 check('a Sewak stays gated behind training even when fully document-verified', () => {
-    const fn = sliceFn(controller, 'const verifyProviderDocument');
+    // Go-live moved from the last document review to admin's Approve, so the
+    // training gate is checked there; the document review no longer approves.
+    const fn = sliceFn(controller, 'const updateProviderStatus');
     assert.ok(/requiresTrainingBeforeGoLive\(provider\)/.test(fn),
         'the same gate the rest of the Sewak flow already depends on, reused rather than reimplemented');
+    const review = sliceFn(controller, 'const verifyProviderDocument');
+    assert.ok(!/provider\.status = 'verified'/.test(review),
+        'verifying the last document must not approve the partner by itself');
 });
 
 console.log('\nA rejection always carries a reason');

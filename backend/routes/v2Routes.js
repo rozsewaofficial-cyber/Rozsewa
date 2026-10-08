@@ -8,6 +8,7 @@ const {
     configureWaiver,
     getCommissionAnalytics,
     getCommissionPreview,
+    getProviderCommissionPreview,
     purchaseSubscription,
     renewSubscription,
     getProviderSubscriptionHistory,
@@ -23,6 +24,7 @@ adminV2Router.get('/commission/analytics', protect, admin, getCommissionAnalytic
 adminV2Router.post('/providers/:id/subscription/manual', protect, admin, manualActivateSubscription);
 adminV2Router.post('/providers/:id/subscription/cancel', protect, admin, manualCancelSubscription);
 adminV2Router.post('/providers/:id/override', protect, admin, applyOverride);
+adminV2Router.get('/providers/:id/commission-preview', protect, admin, getProviderCommissionPreview);
 
 // --- Provider V2 Routes ---
 providerV2Router.get('/commission-preview', protect, getCommissionPreview);

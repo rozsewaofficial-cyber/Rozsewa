@@ -13,8 +13,8 @@ import { useScrollLock } from "@/lib/scrollLock";
 
 // Aadhaar and PAN are already collected during registration, so they aren't
 // re-asked here — only the optional extras and Live Video (below) remain.
-const docTypes = [
-  { id: "gst", label: "GST Certificate", required: false },
+const allDocTypes = [
+  { id: "gst", label: "GST Certificate", required: false, businessOnly: true },
   { id: "license", label: "Driving License", required: false },
   { id: "certification", label: "Skill Certification", required: false },
   { id: "police", label: "Police Verification", required: false },
@@ -39,6 +39,10 @@ const ProviderDocuments = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [provider, setProvider] = useState(null);
+  // An individual partner has no business, so no GST certificate to add.
+  const docTypes = provider?.accountType === "individual"
+    ? allDocTypes.filter(d => !d.businessOnly)
+    : allDocTypes;
   const [uploading, setUploading] = useState(null); // ID of document being uploaded
 
   const fileInputRef = useRef(null);

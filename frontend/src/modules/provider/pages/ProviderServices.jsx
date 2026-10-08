@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -8,6 +8,13 @@ import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import ServiceVisual from "@/components/ServiceVisual";
+
+// How long a job takes. Every service used to be saved as "30 min" or
+// "1 hour" without the partner ever being asked.
+const DURATION_OPTIONS = ["15 min", "30 min", "45 min", "1 hour", "1.5 hours", "2 hours", "3 hours", "4 hours", "Half day", "Full day"];
+const MAX_PRICE = 100000;
+const nameKey = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 const ProviderServices = () => {
   const navigate = useNavigate();
@@ -23,7 +30,7 @@ const ProviderServices = () => {
   const [showComboForm, setShowComboForm] = useState(draft.showComboForm || false);
   const [errors, setErrors] = useState({});
   const [editId, setEditId] = useState(draft.editId || null);
-  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "30 min", serviceType: ["home"], visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" });
+  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "", serviceType: ["home"], visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" });
   const [viewService, setViewService] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -108,6 +115,79 @@ const ProviderServices = () => {
     }
   }, [form.subcategory, subcategories]);
 
+  // The services admin offers in this category (the same catalog customers
+  // browse: Partner Program catalog rows plus the category's own list), each
+  // with its subcategory and photo, so they can be shown grouped.
+  const [catalog, setCatalog] = useState([]);
+  const isSewakUser = user?.providerCategory === "sewak";
+  const categoryObj = allCategories.find(c => c.name === categoryName);
+  useEffect(() => {
+    if (isSewakUser || !categoryObj?._id) return;
+    let cancelled = false;
+    API.get("/public/subcategories/all/services", {
+      params: { categoryId: categoryObj._id, category: categoryObj.name, includeZeroPrice: "true" }
+    })
+      .then(({ data }) => {
+        if (!cancelled) setCatalog((Array.isArray(data) ? data : []).filter(c => c.visibleTo !== "sewak"));
+      })
+      .catch(() => { if (!cancelled) setCatalog([]); });
+    return () => { cancelled = true; };
+  }, [categoryObj?._id, isSewakUser]);
+
+  const catalogGroups = useMemo(() => {
+    const groups = subcategories.map(sub => ({ key: String(sub._id), name: sub.name, image: sub.image, items: [] }));
+    const other = { key: "other", name: subcategories.length ? "Other services" : categoryName, items: [] };
+    for (const item of catalog) {
+      const group = groups.find(g => (item.subcategoryId && g.key === String(item.subcategoryId)) || (item.subcategory && nameKey(g.name) === nameKey(item.subcategory)));
+      (group || other).items.push(item);
+    }
+    return [...groups, other].filter(g => g.items.length > 0);
+  }, [catalog, subcategories, categoryName]);
+
+  const ownedService = (name) => services.find(sv => nameKey(sv.name) === nameKey(name));
+
+  // The combo picker offers the same catalog (subcategory services included);
+  // a Sewak has no partner catalog and keeps the category list.
+  // A Sewak works at admin's Master Rate, so only services with one are offered.
+  const comboCatalog = isSewakUser
+    ? categoryServices.filter(c => Number(c.basePrice ?? c.price) > 0)
+    : (catalog.length > 0 ? catalog : categoryServices);
+
+  // A catalog service picked for a combo that the partner doesn't offer yet:
+  // they enter its price and duration first. It used to be added on the spot
+  // at the catalog price, or ₹299, for "1 hour".
+  const [comboPending, setComboPending] = useState(null);
+  const addPendingToCombo = async () => {
+    const { item, price, duration } = comboPending;
+    const p = Number(price);
+    let error = "";
+    if (price === "" || !Number.isFinite(p) || p < 1) error = "Enter your price for this service";
+    else if (p > MAX_PRICE) error = `Price can't be more than ₹${MAX_PRICE.toLocaleString("en-IN")}`;
+    else if (!duration) error = "Choose how long the job takes";
+    if (error) { setComboPending({ ...comboPending, error }); return; }
+    setComboPending({ ...comboPending, error: "", saving: true });
+    try {
+      const { data } = await API.post("/services", {
+        name: item.name,
+        description: item.description || "",
+        duration,
+        visible: false, // offered only inside the combo until the partner shows it
+        image: item.image || "",
+        amenities: item.amenities || [],
+        serviceDetails: item.serviceDetails || [],
+        serviceType: Array.isArray(item.serviceType) && item.serviceType.length ? item.serviceType : ["home"],
+        subcategory: item.subcategory || subcategories.find(sub => String(sub._id) === String(item.subcategoryId))?.name || undefined,
+        category: categoryName,
+        price: p
+      });
+      setServices(prev => [...prev, data]);
+      setComboForm(prev => ({ ...prev, services: [...prev.services, data._id] }));
+      setComboPending(null);
+    } catch (err) {
+      setComboPending(prev => prev && { ...prev, saving: false, error: err.response?.data?.message || "Couldn't add this service" });
+    }
+  };
+
   const fetchProviderInfoAndServices = async (showLoader = true) => {
     if (showLoader) setLoading(true);
     try {
@@ -133,9 +213,13 @@ const ProviderServices = () => {
     const finalName = form.name === "custom" ? form.customName : form.name;
 
     const newErrors = {};
+    if (!editId && subcategories.length > 0 && !form.subcategory) newErrors.subcategory = "Choose a subcategory";
     if (!finalName) newErrors.name = "Service Name is required";
-    if (!form.price) newErrors.price = "Price is required";
-    else if (Number(form.price) < 1) newErrors.price = "Price must be positive";
+    const price = Number(form.price);
+    if (form.price === "" || form.price === undefined || form.price === null) newErrors.price = "Enter your price for this service";
+    else if (!Number.isFinite(price) || price < 1) newErrors.price = "Price must be at least ₹1";
+    else if (price > MAX_PRICE) newErrors.price = `Price can't be more than ₹${MAX_PRICE.toLocaleString("en-IN")}`;
+    if (!form.duration) newErrors.duration = "Choose how long the job takes";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -207,64 +291,54 @@ const ProviderServices = () => {
     }
   };
 
-  const handleQuickAdd = async (s) => {
-    if (saving) return;
-    setSaving(true);
-    const isSewak = user?.providerCategory === 'sewak';
-    const payload = {
-      name: s.name,
-      description: s.description || `Professional ${s.name} service`,
-      duration: "1 hour",
-      visible: true,
-      amenities: s.amenities || [],
-      serviceDetails: s.serviceDetails || [],
-      category: categoryName,
-      price: isSewak ? (s.basePrice || 299) : (s.basePrice || 299)
-    };
-    try {
-      await API.post("/services", payload);
-      toast({ title: "Service Added", description: `${s.name} added to your shop.` });
-      fetchProviderInfoAndServices(false);
-    } catch (err) {
-      toast({ title: "Failed to add", variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAddSuggested = (s) => {
-    const isSewak = user?.providerCategory === 'sewak';
+  // A catalog service opens the full details form for the partner to fill
+  // in: their own price and duration. ("Quick Add" used to add it at once at
+  // the catalog price, or ₹299 when it had none.) One already added opens
+  // for editing instead of being added twice.
+  const openServiceForm = (item) => {
+    const existing = ownedService(item.name);
+    if (existing) { handleEdit(existing); return; }
+    setErrors({});
     setForm({
-      name: s.name,
-      description: s.description || `Professional ${s.name} service`,
-      price: s.basePrice ? s.basePrice : "",
-      duration: "1 hour",
+      name: item.name,
+      customName: "",
+      description: item.description || "",
+      price: "",
+      duration: "",
       visible: true,
-      image: "",
-      amenities: s.amenities || [],
-      serviceDetails: s.serviceDetails || []
+      image: item.image || "",
+      catalogImage: item.image || "",
+      catalogDescription: item.description || "",
+      amenities: item.amenities || [],
+      serviceDetails: item.serviceDetails || [],
+      serviceType: Array.isArray(item.serviceType) ? item.serviceType : (item.serviceType ? [item.serviceType] : ["home"]),
+      subcategory: item.subcategory || subcategories.find(sub => String(sub._id) === String(item.subcategoryId))?.name || "",
+      category: categoryName,
+      suggestedPrice: Number(item.basePrice ?? item.price) > 0 ? Number(item.basePrice ?? item.price) : null,
     });
+    setEditId(null);
     setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "30 min", visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
-  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setShowComboForm(false); setEditId(null); clearDraft(); setErrors({}); };
+  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "", visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
+  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setComboPending(null); setShowComboForm(false); setEditId(null); clearDraft(); setErrors({}); };
 
   const handleEdit = (s) => {
-    const isCustom = !categoryServices.some(cat => cat.name === s.name);
+    const isCustom = !categoryServices.some(cat => cat.name === s.name) && !catalog.some(cat => nameKey(cat.name) === nameKey(s.name));
     setForm({
       name: isCustom ? "custom" : s.name,
       customName: isCustom ? s.name : "",
       description: s.description,
       price: s.price || "",
-      duration: s.duration || "30 min",
+      duration: s.duration || "",
       visible: s.visible,
       image: s.image || "",
       amenities: s.amenities || [],
       serviceDetails: s.serviceDetails || [],
+      serviceType: Array.isArray(s.serviceType) && s.serviceType.length ? s.serviceType : ["home"],
       subcategory: s.subcategory || ""
     });
+    setErrors({});
     setEditId(s._id);
     setShowForm(true);
   };
@@ -373,43 +447,57 @@ const ProviderServices = () => {
               </motion.button>
             )}
 
-            {/* Suggested Services Catalog */}
-            {categoryServices.length > 0 && !showForm && !showComboForm && activeTab === "services" && user?.providerCategory !== 'sewak' && (
-              <section className="space-y-4 mb-8">
+            {/* Catalog for this category, grouped by subcategory */}
+            {catalogGroups.length > 0 && !showForm && !showComboForm && activeTab === "services" && !isSewakUser && (
+              <section className="space-y-5 mb-8">
                 <div className="flex items-center justify-between px-1">
                   <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                     <Gift className="h-4 w-4 text-emerald-500" /> Catalog for {categoryName}
                   </h2>
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-800 uppercase">One-Tap Add</span>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-800 uppercase">Tap to add</span>
                 </div>
-                <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-1 px-1">
-                  {categoryServices.map((suggestion, idx) => (
-                    <motion.button
-                      key={idx}
-                      whileTap={{ scale: 0.95 }}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: idx * 0.05 }}
-                      onClick={() => handleAddSuggested(suggestion)}
-                      className="flex min-w-[140px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-emerald-500/30 bg-emerald-50/50 p-5 text-center hover:border-emerald-500 hover:bg-emerald-50 dark:bg-emerald-950/20 dark:hover:bg-emerald-900/40 dark:border-emerald-800 dark:hover:border-emerald-700 transition-all group shrink-0"
-                    >
-                      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white dark:bg-emerald-900 text-emerald-600 shadow-sm group-hover:scale-110 group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
-                        <Plus className="h-6 w-6" />
-                      </div>
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200 line-clamp-1">{suggestion.name}</span>
-                      <span className="text-[10px] font-bold text-emerald-600 mt-1.5 flex items-center gap-1">
-                        <IndianRupee className="h-2.5 w-2.5" /> {suggestion.basePrice || 299}
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleQuickAdd(suggestion); }}
-                        className="mt-3 w-full rounded-lg bg-emerald-600 py-1.5 text-[9px] font-black uppercase tracking-widest text-white opacity-0 group-hover:opacity-100 transition-all shadow-md shadow-emerald-500/20"
-                      >
-                        Quick Add
-                      </button>
-                      <span className="mt-1 text-[8px] font-bold text-emerald-500 group-hover:hidden">Tap to Customize</span>
-                    </motion.button>
-                  ))}
-                </div>
+                {catalogGroups.map(group => (
+                  <div key={group.key} className="space-y-2.5">
+                    <div className="flex items-center gap-2 px-1">
+                      {group.image && <img src={group.image} alt="" className="h-6 w-6 rounded-md object-cover" />}
+                      <h3 className="text-[11px] font-black uppercase tracking-wider text-foreground">{group.name}</h3>
+                      <span className="text-[10px] font-bold text-muted-foreground">{group.items.length}</span>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar -mx-1 px-1">
+                      {group.items.map(item => {
+                        const owned = ownedService(item.name);
+                        const suggested = Number(item.basePrice ?? item.price) > 0 ? Number(item.basePrice ?? item.price) : null;
+                        return (
+                          <motion.button
+                            key={item._id || item.name}
+                            type="button"
+                            whileTap={{ scale: 0.96 }}
+                            onClick={() => openServiceForm(item)}
+                            className={`w-36 shrink-0 overflow-hidden rounded-2xl border text-left transition-all ${owned ? "border-emerald-500/60 bg-emerald-50/60 dark:bg-emerald-950/30" : "border-border bg-card hover:border-emerald-500"}`}
+                          >
+                            <div className="relative h-20 w-full bg-muted">
+                              <ServiceVisual src={item.image} name={item.name} hint={`${item.description || ""} ${categoryName}`} iconClassName="h-7 w-7" />
+                              {owned && (
+                                <span className="absolute top-1.5 right-1.5 flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[8px] font-black uppercase text-white shadow">
+                                  <CheckCircle2 className="h-2.5 w-2.5" /> Added
+                                </span>
+                              )}
+                            </div>
+                            <div className="p-2.5">
+                              <p className="text-[11px] font-black leading-tight text-foreground line-clamp-2">{item.name}</p>
+                              <p className="mt-1 text-[10px] font-bold text-emerald-600">
+                                {owned ? `Your price ₹${owned.price}` : (suggested ? `Catalog ₹${suggested}` : "Set your price")}
+                              </p>
+                              <p className="mt-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                                {owned ? <><Edit3 className="h-2.5 w-2.5" /> Edit</> : <><Plus className="h-2.5 w-2.5" /> Add details</>}
+                              </p>
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </section>
             )}
 
@@ -441,12 +529,10 @@ const ProviderServices = () => {
               {activeTab === "services" && services.filter(s => serviceSubTab === "active" ? s.visible : !s.visible).map((s, i) => (
                 <motion.div key={s._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className={`flex flex-col rounded-2xl border bg-card overflow-hidden transition-all ${s.visible ? "border-border" : "border-border/50 opacity-60"}`}>
-                  {s.image && (
-                    <div className="h-28 w-full relative">
-                      <img src={s.image} alt={s.name} className="h-full w-full object-cover" />
-                      <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
-                    </div>
-                  )}
+                  <div className="h-28 w-full relative bg-muted">
+                    <ServiceVisual src={s.image} name={s.name} hint={`${s.description || ""} ${categoryName}`} iconClassName="h-9 w-9" />
+                    {s.image && <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />}
+                  </div>
                   <div className="p-4 flex-1 text-left">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <h3 className="text-sm font-black text-foreground">
@@ -464,6 +550,8 @@ const ProviderServices = () => {
                     {s.description && <p className="text-[10px] text-muted-foreground mb-2 line-clamp-1 italic">{s.description}</p>}
                     <div className="flex gap-2 flex-wrap items-center">
                       <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">Price ₹{s.price}</span>
+                      {s.duration && <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300">{s.duration}</span>}
+                      {s.subcategory && <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300">{s.subcategory}</span>}
                     </div>
                   </div>
                 </motion.div>
@@ -537,7 +625,7 @@ const ProviderServices = () => {
               </div>
               <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto flex-1">
                 <div className="text-left">
-                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Work Photo</label>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Photo</label>
                   <div className="group relative h-48 w-full overflow-hidden rounded-[24px] bg-muted/50 border-2 border-dashed border-border hover:border-primary/50 transition-all">
                     {form.image ? (
                       <>
@@ -555,7 +643,7 @@ const ProviderServices = () => {
                             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                               <Plus className="h-6 w-6" />
                             </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Upload Sample Work</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Upload a photo of your work</span>
                           </>
                         )}
                         <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
@@ -577,25 +665,39 @@ const ProviderServices = () => {
 
                 {subcategories.length > 0 && (
                   <div className="text-left">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Subcategory</label>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Subcategory *</label>
                     <select
                       disabled={!!editId}
                       value={form.subcategory || ""}
                       onChange={e => {
+                        // While editing, the service itself stays (its name can't be
+                        // changed); only its subcategory is set.
+                        if (editId) {
+                          setForm({ ...form, subcategory: e.target.value });
+                          setErrors(prev => ({ ...prev, subcategory: undefined }));
+                          return;
+                        }
                         setForm({
                           ...form,
                           subcategory: e.target.value,
                           name: "",
-                          price: ""
+                          price: "",
+                          image: form.image && form.image !== form.catalogImage ? form.image : "",
+                          catalogImage: "",
+                          description: form.description && form.description !== form.catalogDescription ? form.description : "",
+                          catalogDescription: "",
+                          suggestedPrice: null
                         });
+                        setErrors(prev => ({ ...prev, subcategory: undefined, name: undefined }));
                       }}
-                      className={`w-full rounded-2xl border border-border p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
+                      className={`w-full rounded-2xl border ${errors.subcategory ? 'border-rose-500' : 'border-border'} p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none ${!!editId ? 'bg-slate-50 dark:bg-slate-900 cursor-not-allowed opacity-80' : 'bg-background'}`}
                     >
                       <option value="">Select a subcategory...</option>
                       {subcategories.map(sub => (
                         <option key={sub._id} value={sub.name}>{sub.name}</option>
                       ))}
                     </select>
+                    {errors.subcategory && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.subcategory}</p>}
                   </div>
                 )}
 
@@ -620,11 +722,20 @@ const ProviderServices = () => {
                         const selected = currentSvcs.find(s => s.name === val);
                         const isSewak = user?.providerCategory === 'sewak';
                         const p = selected?.basePrice !== undefined ? selected?.basePrice : selected?.price;
+                        setErrors(prev => ({ ...prev, name: undefined }));
                         setForm({
                           ...form,
                           name: val,
                           customName: "",
-                          price: isSewak ? p : (p || ""),
+                          // A partner sets their own price; the catalog's is offered as a suggestion.
+                          price: isSewak ? p : "",
+                          suggestedPrice: !isSewak && Number(p) > 0 ? Number(p) : null,
+                          // The new service's photo and description replace the
+                          // previous service's; the partner's own upload or text stays.
+                          image: form.image && form.image !== form.catalogImage ? form.image : (selected?.image || ""),
+                          catalogImage: selected?.image || "",
+                          description: form.description && form.description !== form.catalogDescription ? form.description : (selected?.description || ""),
+                          catalogDescription: selected?.description || "",
                           amenities: selected?.amenities || [],
                           serviceDetails: selected?.serviceDetails || [],
                           serviceType: Array.isArray(selected?.serviceType) ? selected.serviceType : (selected?.serviceType ? [selected.serviceType] : ["home"])
@@ -640,9 +751,14 @@ const ProviderServices = () => {
                         return allCategories.find(c => c.name === catName)?.services || categoryServices;
                       })().filter(s => {
                         const p = s.basePrice !== undefined ? s.basePrice : s.price;
+                        if (user?.providerCategory !== 'sewak' && s.visibleTo === 'sewak') return false;
                         return user?.providerCategory !== 'sewak' || Number(p) > 0;
-                      }).map(s => (
-                        <option key={s._id || s.name} value={s.name}>{s.name}</option>
+                      }).concat(
+                        // Editing a service that isn't in the current list (e.g. from
+                        // a subcategory catalog) still shows its name.
+                        editId && form.name ? [{ name: form.name, label: form.name === "custom" ? form.customName : form.name, _id: "__current" }] : []
+                      ).filter((s, i, list) => list.findIndex(x => x.name === s.name) === i).map(s => (
+                        <option key={s._id || s.name} value={s.name}>{s.label || s.name}</option>
                       ))}
                     </select>
                     {errors.name && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.name}</p>}
@@ -661,11 +777,30 @@ const ProviderServices = () => {
                       Service Price (₹) *
                       {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded uppercase">Master Rate</span>}
                     </label>
-                    <input type="number" min="1" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}
+                    <input type="number" min="1" max={MAX_PRICE} inputMode="numeric" placeholder="Your price" value={form.price} onChange={e => { setForm({ ...form, price: e.target.value }); setErrors(prev => ({ ...prev, price: undefined })); }}
                       onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300)}
                       readOnly={user?.providerCategory === 'sewak'}
                       className={`w-full rounded-2xl border ${errors.price ? 'border-rose-500' : 'border-border'} p-4 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} />
                     {errors.price && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.price}</p>}
+                    {!errors.price && form.suggestedPrice && String(form.price) !== String(form.suggestedPrice) && user?.providerCategory !== 'sewak' && (
+                      <button type="button" onClick={() => setForm({ ...form, price: String(form.suggestedPrice) })}
+                        className="mt-1.5 text-[10px] font-bold text-emerald-600 hover:underline">
+                        Use catalog price ₹{form.suggestedPrice}
+                      </button>
+                    )}
+
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mt-4 mb-2 text-muted-foreground">Time / Duration *</label>
+                    <select
+                      value={form.duration || ""}
+                      onChange={e => { setForm({ ...form, duration: e.target.value }); setErrors(prev => ({ ...prev, duration: undefined })); }}
+                      className={`w-full rounded-2xl border ${errors.duration ? 'border-rose-500' : 'border-border'} bg-background p-4 text-xs font-bold focus:border-primary focus:outline-none appearance-none`}
+                    >
+                      <option value="">How long does it take?</option>
+                      {[...DURATION_OPTIONS, ...(form.duration && !DURATION_OPTIONS.includes(form.duration) ? [form.duration] : [])].map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                    {errors.duration && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.duration}</p>}
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Types</label>
@@ -867,51 +1002,33 @@ const ProviderServices = () => {
                 <div className="text-left">
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Included Services * (Select Multiple)</label>
                   <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 min-h-[100px]">
-                    {categoryServices.map((catSvc, i) => {
-                      const existingSvc = services.find(s => s.name === catSvc.name);
+                    {comboCatalog.filter(c => isSewakUser || c.visibleTo !== "sewak").map((catSvc, i) => {
+                      const existingSvc = ownedService(catSvc.name);
                       const isSelected = existingSvc && comboForm.services.includes(existingSvc._id);
                       const isAdded = !!existingSvc;
+                      const isPending = comboPending && comboPending.item.name === catSvc.name;
 
                       return (
                         <button
-                          key={i}
+                          key={catSvc._id || i}
                           type="button"
-                          onClick={async () => {
-                            let targetSvc = existingSvc;
+                          onClick={() => {
                             if (!isAdded) {
-                              // Direct Quick Add logic here for speed
-                              const payload = {
-                                name: catSvc.name,
-                                description: catSvc.description || `Professional ${catSvc.name} service`,
-                                duration: "1 hour",
-                                visible: false, // Hidden by default if added via Combo
-                                amenities: catSvc.amenities || [],
-                                serviceDetails: catSvc.serviceDetails || [],
-                                category: categoryName,
-                                price: catSvc.basePrice || 299
-                              };
-                              try {
-                                const { data } = await API.post("/services", payload);
-                                targetSvc = data;
-                                // Update services list locally to reflect the new addition
-                                setServices(prev => [...prev, data]);
-                              } catch (err) {
-                                toast({ title: "Quick Add Failed", variant: "destructive" });
-                                return;
-                              }
+                              setComboPending(isPending ? null : { item: catSvc, price: "", duration: "", error: "" });
+                              return;
                             }
-
-                            const selected = comboForm.services.includes(targetSvc._id);
                             setComboForm({
                               ...comboForm,
-                              services: selected ? comboForm.services.filter(id => id !== targetSvc._id) : [...comboForm.services, targetSvc._id]
+                              services: isSelected ? comboForm.services.filter(id => id !== existingSvc._id) : [...comboForm.services, existingSvc._id]
                             });
                           }}
                           className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all flex items-center gap-1.5 ${isSelected
                             ? "bg-emerald-600 text-white border-emerald-700 shadow-lg shadow-emerald-600/20"
                             : isAdded
                               ? "bg-white dark:bg-emerald-900/40 text-emerald-600 border-emerald-100 dark:border-emerald-800"
-                              : "bg-white dark:bg-slate-900 text-slate-400 border-dashed border-slate-300 dark:border-slate-700 italic"
+                              : isPending
+                                ? "bg-amber-50 dark:bg-amber-900/30 text-amber-700 border-amber-300"
+                                : "bg-white dark:bg-slate-900 text-slate-400 border-dashed border-slate-300 dark:border-slate-700 italic"
                             }`}
                         >
                           {!isAdded && <Plus className="h-2.5 w-2.5" />}
@@ -921,7 +1038,7 @@ const ProviderServices = () => {
                       );
                     })}
                     {/* Render Custom Services */}
-                    {services.filter(s => !categoryServices.some(catSvc => catSvc.name === s.name)).map((customSvc, i) => {
+                    {services.filter(s => !comboCatalog.some(catSvc => nameKey(catSvc.name) === nameKey(s.name))).map((customSvc, i) => {
                       const isSelected = comboForm.services.includes(customSvc._id);
                       return (
                         <button
@@ -944,10 +1061,45 @@ const ProviderServices = () => {
                         </button>
                       );
                     })}
-                    {categoryServices.length === 0 && services.length === 0 && (
+                    {comboCatalog.length === 0 && services.length === 0 && (
                       <p className="text-[10px] font-bold text-slate-400 text-center w-full py-4">Loading catalog...</p>
                     )}
                   </div>
+                  {comboPending && (
+                    <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 p-4 space-y-3">
+                      <p className="text-[11px] font-black text-foreground">
+                        Add “{comboPending.item.name}” to your services
+                        <span className="block text-[10px] font-bold text-muted-foreground mt-0.5">Set your price and time for it; it's added to this combo.</span>
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="number" min="1" max={MAX_PRICE} inputMode="numeric" placeholder="Your price ₹"
+                          value={comboPending.price}
+                          onChange={e => setComboPending({ ...comboPending, price: e.target.value, error: "" })}
+                          className="w-full rounded-xl border border-border bg-background p-3 text-xs font-bold focus:border-emerald-500 focus:outline-none" />
+                        <select value={comboPending.duration}
+                          onChange={e => setComboPending({ ...comboPending, duration: e.target.value, error: "" })}
+                          className="w-full rounded-xl border border-border bg-background p-3 text-xs font-bold focus:border-emerald-500 focus:outline-none">
+                          <option value="">Duration</option>
+                          {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </div>
+                      {Number(comboPending.item.basePrice ?? comboPending.item.price) > 0 && String(comboPending.price) !== String(comboPending.item.basePrice ?? comboPending.item.price) && (
+                        <button type="button" onClick={() => setComboPending({ ...comboPending, price: String(comboPending.item.basePrice ?? comboPending.item.price), error: "" })}
+                          className="text-[10px] font-bold text-emerald-600 hover:underline">
+                          Use catalog price ₹{comboPending.item.basePrice ?? comboPending.item.price}
+                        </button>
+                      )}
+                      {comboPending.error && <p className="text-[10px] text-rose-500 font-bold">{comboPending.error}</p>}
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setComboPending(null)}
+                          className="flex-1 rounded-xl border border-border py-2.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Cancel</button>
+                        <button type="button" disabled={comboPending.saving} onClick={addPendingToCombo}
+                          className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-[10px] font-black uppercase tracking-wider text-white disabled:opacity-60">
+                          {comboPending.saving ? "Adding..." : "Add to combo"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-left">

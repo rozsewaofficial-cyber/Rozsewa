@@ -344,6 +344,12 @@ const AdminVerifySewak = () => {
     handleItemStatusChange(rejectionTarget.sewakId, rejectionTarget.docId, 'rejected', rejectionReason);
   };
 
+  // Approval only after these are verified (server: SEWAK_REQUIRED_DOCS).
+  const SEWAK_REQUIRED_DOCS = ["aadhaar", "pan", "live_video"];
+  const sewakDocsVerified = (sewak) =>
+    SEWAK_REQUIRED_DOCS.every(id => (sewak?.documents || []).some(d => d.id === id && d.status === "verified"))
+    && !(sewak?.documents || []).some(d => d.status === "rejected");
+
   // API Bulk Workflows
   const handleVerifyGlobal = async (id) => {
     setBulkProcessing(true);
@@ -357,7 +363,8 @@ const AdminVerifySewak = () => {
           : "KYC verified. Sewak must still complete Skill Session, Starter Kit, and Training before going live."
       });
     } catch (err) {
-      toast({ title: "Global Verification Failed", variant: "destructive" });
+      // Refused until Aadhaar, PAN and the live video are verified; say which.
+      toast({ title: "Global Verification Failed", description: err.response?.data?.message, variant: "destructive" });
     } finally {
       setBulkProcessing(false);
     }
@@ -650,7 +657,8 @@ const AdminVerifySewak = () => {
                     </Button>
                     <Button
                       onClick={() => handleVerifyGlobal(activeSewak._id)}
-                      disabled={bulkProcessing}
+                      disabled={bulkProcessing || !sewakDocsVerified(activeSewak)}
+                      title={sewakDocsVerified(activeSewak) ? "Approve KYC" : "Verify Aadhaar, PAN and the live video first"}
                       className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white font-black h-10 rounded-xl shadow-sm text-xs"
                     >
                       {bulkProcessing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Approve KYC"}

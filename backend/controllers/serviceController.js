@@ -50,6 +50,30 @@ const getMyServices = async (req, res) => {
         let services = await Service.find({ providerId: req.user._id });
         let combos = await Combo.find({ providerId: req.user._id }).populate('services');
 
+        // Services added before the subcategory was saved have none. Take it
+        // from the admin catalog service of the same name, once.
+        const withoutSubcategory = isSewak ? [] : services.filter(s => !s.subcategory);
+        if (withoutSubcategory.length > 0 && provider?.vendorType?._id) {
+            const catalogRows = await Service.find({
+                providerId: null,
+                categoryId: provider.vendorType._id,
+                subcategory: { $nin: [null, ''] }
+            }).select('name subcategory subcategoryId').lean();
+            const byName = new Map(catalogRows.map(r => [normalizeKey(r.name), r]));
+            const ops = [];
+            for (const svc of withoutSubcategory) {
+                const row = byName.get(normalizeKey(svc.name));
+                if (!row) continue;
+                svc.subcategory = row.subcategory;
+                svc.subcategoryId = row.subcategoryId;
+                ops.push({ updateOne: {
+                    filter: { _id: svc._id, subcategory: { $in: [null, ''] } },
+                    update: { $set: { subcategory: row.subcategory, subcategoryId: row.subcategoryId } }
+                } });
+            }
+            if (ops.length > 0) await Service.bulkWrite(ops);
+        }
+
         const visibleForType = isSewak ? 'sewak' : 'partner';
         const categoryServices = (provider?.vendorType?.services || []).filter(
             s => !s.visibleTo || s.visibleTo === 'both' || s.visibleTo === visibleForType
@@ -119,14 +143,25 @@ const getMyServices = async (req, res) => {
 // @desc    Create a new service
 // @route   POST /api/services
 // @access  Private (Provider)
+// The ways a partner can offer a service (Service.serviceType).
+const SERVICE_TYPES = ['home', 'shop', '24x7'];
+const cleanServiceTypes = (v) => {
+    const list = (Array.isArray(v) ? v : [v]).filter(t => SERVICE_TYPES.includes(t));
+    return list.length ? [...new Set(list)] : undefined;
+};
+const MAX_SERVICE_PRICE = 100000;
+
 const createService = async (req, res) => {
-    const { name, description, price, duration, category, visible, image, amenities, serviceDetails } = req.body;
+    const { name, description, price, duration, category, subcategory, visible, image, amenities, serviceDetails } = req.body;
 
     if (!name) {
         return res.status(400).json({ message: 'Service name is required' });
     }
     if (price === undefined || price === null || price === "" || Number(price) <= 0) {
         return res.status(400).json({ message: 'Service price is required and must be greater than 0' });
+    }
+    if (Number(price) > MAX_SERVICE_PRICE) {
+        return res.status(400).json({ message: `Service price can't be more than ₹${MAX_SERVICE_PRICE}` });
     }
 
     try {
@@ -171,6 +206,10 @@ const createService = async (req, res) => {
             price,
             duration,
             category: category || req.user.vendorType,
+            // The subcategory and service types the partner picked were sent
+            // but never saved.
+            subcategory: subcategory || undefined,
+            serviceType: cleanServiceTypes(req.body.serviceType),
             visible: heldForSkillSession ? false : (visible !== undefined ? visible : true),
             image,
             amenities: amenities || [],
@@ -211,7 +250,14 @@ const updateService = async (req, res) => {
 
             if (req.body.name !== undefined) service.name = req.body.name;
             if (req.body.description !== undefined) service.description = req.body.description;
-            if (req.body.price !== undefined) service.price = req.body.price;
+            if (req.body.price !== undefined) {
+                if (Number(req.body.price) > MAX_SERVICE_PRICE) {
+                    return res.status(400).json({ message: `Service price can't be more than ₹${MAX_SERVICE_PRICE}` });
+                }
+                service.price = req.body.price;
+            }
+            if (req.body.subcategory !== undefined) service.subcategory = req.body.subcategory || undefined;
+            if (cleanServiceTypes(req.body.serviceType)) service.serviceType = cleanServiceTypes(req.body.serviceType);
             if (req.body.duration !== undefined) service.duration = req.body.duration;
             // A held service can't be made visible from here — only completing the
             // Skill Session releases it.

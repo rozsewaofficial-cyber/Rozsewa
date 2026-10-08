@@ -8,6 +8,9 @@ const providerSchema = mongoose.Schema({
     password: { type: String, required: true },
     email: { type: String, unique: true, sparse: true, set: v => v === "" ? undefined : v },
     businessType: { type: String },
+    // Partner registration: works alone, or as a shop / firm / team. Unset on
+    // accounts made before it was recorded.
+    accountType: { type: String, enum: ['individual', 'business'] },
     vendorType: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
     subServices: [{ type: String }],
     vendorCode: { type: String, unique: true }, // RSVNDxxxxx

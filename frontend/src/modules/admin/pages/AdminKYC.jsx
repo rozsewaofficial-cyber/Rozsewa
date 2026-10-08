@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import VerificationStatus, { canApprove, documentVerification } from "@/modules/admin/components/VerificationStatus";
 
 const STATUS_CONFIG = {
     verified: { label: "Verified", cls: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
@@ -82,12 +83,17 @@ const AdminKYC = () => {
 
     const handleAction = async (id, action) => {
         const newStatus = action === 'approve' ? 'verified' : 'rejected';
+        const target = providers.find(p => p._id === id);
+        if (action === 'approve' && target && !canApprove(target)) {
+            toast({ title: "Documents first", description: `Document verification is ${documentVerification(target).label.toLowerCase()}. Verify every document in the provider's profile, then approve.`, variant: "destructive" });
+            return;
+        }
         try {
             await API.put(`/admin/providers/${id}/status`, { status: newStatus });
             setProviders(prev => prev.map(p => p._id === id ? { ...p, status: newStatus } : p));
             toast({ title: `KYC ${action === 'approve' ? 'Approved' : 'Rejected'}`, description: `Provider account status updated.` });
         } catch (err) {
-            toast({ title: "Action Failed", variant: "destructive" });
+            toast({ title: "Action Failed", description: err.response?.data?.message, variant: "destructive" });
         }
     };
 
@@ -288,6 +294,7 @@ const AdminKYC = () => {
                                                     <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${sc.cls}`}>
                                                         {sc.label}
                                                     </span>
+                                                    <VerificationStatus provider={req} className="mt-2 items-center" />
                                                 </td>
 
                                                 {/* Actions */}
@@ -297,8 +304,8 @@ const AdminKYC = () => {
                                                             <>
                                                                 <button
                                                                     onClick={() => handleAction(req._id, 'approve')}
-                                                                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
-                                                                    title="Approve KYC"
+                                                                    className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${canApprove(req) ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-100" : "bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+                                                                    title={canApprove(req) ? "Approve KYC" : "Verify all documents before approving"}
                                                                 >
                                                                     <CheckCircle2 className="h-4 w-4" />
                                                                 </button>

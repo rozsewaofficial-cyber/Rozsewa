@@ -1,4 +1,5 @@
 const Provider = require('../models/Provider');
+const { isModelFor } = require('../config/partnerModels');
 const generateToken = require('../utils/generateToken');
 const Employee = require('../models/Employee');
 const { adminRecipients } = require('../utils/adminRecipients');
@@ -11,6 +12,43 @@ const computeVendorCardExpiry = async () => {
     const days = setting ? parseInt(setting.value, 10) : 365;
     const validDays = Number.isFinite(days) && days > 0 ? days : 365;
     return new Date(Date.now() + validDays * 24 * 60 * 60 * 1000);
+};
+
+// What partner registration answers with: the new account, or the one an
+// earlier, identical submission already created.
+const registrationResponse = (provider, extra = {}) => ({
+    _id: provider._id,
+    ownerName: provider.ownerName,
+    mobile: provider.mobile,
+    shopName: provider.shopName,
+    status: provider.status,
+    vendorCode: provider.vendorCode,
+    vendorType: provider.vendorType,
+    businessType: provider.businessType,
+    accountType: provider.accountType,
+    freeServicesLeft: provider.freeServicesLeft,
+    isSubscribed: provider.isSubscribed,
+    planType: provider.planType,
+    token: generateToken(provider._id),
+    ...extra
+});
+
+// The last step of registration can reach the server twice: a second tap
+// while the first is still saving, or a retry after a slow reply. The first
+// one creates the account; the second used to be refused with "Mobile number
+// is already registered", so the partner saw an error while admin already
+// had their application. A repeat from the same person (same number and
+// password, moments later) is answered with the account it created instead.
+const REPEAT_WINDOW_MS = 30 * 60 * 1000;
+const sameRegistration = async (existing, password) =>
+    !!existing
+    && Date.now() - new Date(existing.createdAt || 0).getTime() < REPEAT_WINDOW_MS
+    && !!password
+    && await existing.matchPassword(password).catch(() => false);
+
+const ALREADY_REGISTERED = {
+    code: 'MOBILE_REGISTERED',
+    message: 'This mobile number is already registered. Please log in.'
 };
 
 // @desc    Register a new provider
@@ -28,19 +66,45 @@ const registerProvider = async (req, res) => {
             return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
         }
 
+        // Individual or Business (older app builds send it as `type`). An
+        // individual has no business name or GST: their own name is shown.
+        const accountType = ['individual', 'business'].includes(req.body.accountType || req.body.type)
+            ? (req.body.accountType || req.body.type)
+            : null;
+        if (accountType && businessType && !isModelFor(businessType, accountType)) {
+            return res.status(400).json({ message: 'That business model is not available for this account type.' });
+        }
+        if (accountType === 'business' && String(shopName || '').trim().length < 3) {
+            return res.status(400).json({ message: 'Business name is required.' });
+        }
+        const finalShopName = accountType === 'individual'
+            ? (String(shopName || '').trim() || ownerName)
+            : shopName;
+        const finalGst = accountType === 'individual' ? undefined : gst;
+
         // Check for duplicates across unique fields
         const existingChecks = [];
         if (mobile) existingChecks.push({ mobile });
         if (req.body.email) existingChecks.push({ email: req.body.email });
         if (kycAadhaar) existingChecks.push({ kycAadhaar });
         if (kycPanNumber) existingChecks.push({ kycPanNumber });
-        if (gst) existingChecks.push({ gst });
+        if (gst && accountType !== 'individual') existingChecks.push({ gst });
         if (bankDetails && bankDetails.accountNumber) existingChecks.push({ 'bankDetails.accountNumber': bankDetails.accountNumber });
+
+        // The number first: a repeat of this same registration gets its
+        // account back; anyone else is told to log in.
+        const sameMobile = await Provider.findOne({ mobile });
+        if (sameMobile) {
+            if (await sameRegistration(sameMobile, password)) {
+                return res.status(200).json(registrationResponse(sameMobile, { alreadyRegistered: true }));
+            }
+            return res.status(400).json(ALREADY_REGISTERED);
+        }
 
         if (existingChecks.length > 0) {
             const providerExists = await Provider.findOne({ $or: existingChecks });
             if (providerExists) {
-                if (providerExists.mobile === mobile) return res.status(400).json({ message: 'Mobile number is already registered' });
+                if (providerExists.mobile === mobile) return res.status(400).json(ALREADY_REGISTERED);
                 if (req.body.email && providerExists.email === req.body.email) return res.status(400).json({ message: 'Email is already registered' });
                 if (kycAadhaar && providerExists.kycAadhaar === kycAadhaar) return res.status(400).json({ message: 'Aadhaar number is already registered' });
                 if (kycPanNumber && providerExists.kycPanNumber === kycPanNumber) return res.status(400).json({ message: 'PAN number is already registered' });
@@ -98,48 +162,63 @@ const registerProvider = async (req, res) => {
         if (kycAadhaarPhoto) initialDocs.push({ id: 'aadhaar_front', url: kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Front.jpg' });
         if (kycAadhaarBackPhoto) initialDocs.push({ id: 'aadhaar_back', url: kycAadhaarBackPhoto, status: 'pending', fileName: 'Aadhaar_Back.jpg' });
         if (kycPanPhoto) initialDocs.push({ id: 'pan', url: kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' });
-        if (gst) initialDocs.push({ id: 'gst', url: gst, status: 'pending', fileName: 'GST_Registration.jpg' });
+        if (finalGst) initialDocs.push({ id: 'gst', url: finalGst, status: 'pending', fileName: 'GST_Registration.jpg' });
 
         const vendorCardExpiry = await computeVendorCardExpiry();
 
-        const provider = await Provider.create({
-            mobile,
-            ownerName,
-            email,
-            shopName,
-            password: password || "123456",
-            businessType,
-            vendorType,
-            subServices,
-            profileImage,
-            vendorCode,
-            address,
-            city,
-            state,
-            gst,
-            kycAadhaar,
-            kycAadhaarPhoto,
-            kycAadhaarBackPhoto,
-            kycPanNumber,
-            kycPanPhoto,
-            referralCode,
-            employeeCode,
-            registrationType: registrationType || 'individual',
-            referredBy: referredBy || null,
-            onboardedByStaff: onboardedByStaff,
-            bankDetails: bankDetails || null,
-            freeServicesLeft,
-            documents: initialDocs,
-            location: req.body.location,
-            isHomeVisitAvailable: isHomeVisitAvailable || false,
-            is24x7: is24x7 || false,
-            isEmergencyEnabled: is24x7 || false,
-            status: 'pending', // Verification required by admin
-            vendorCardExpiry
-        });
-
-        // Push Notification for Admins (New KYC Request)
+        let provider;
         try {
+            provider = await Provider.create({
+                mobile,
+                ownerName,
+                email,
+                shopName: finalShopName,
+                password: password || "123456",
+                businessType,
+                ...(accountType ? { accountType } : {}),
+                vendorType,
+                subServices,
+                profileImage,
+                vendorCode,
+                address,
+                city,
+                state,
+                gst: finalGst,
+                kycAadhaar,
+                kycAadhaarPhoto,
+                kycAadhaarBackPhoto,
+                kycPanNumber,
+                kycPanPhoto,
+                referralCode,
+                employeeCode,
+                registrationType: registrationType || 'individual',
+                referredBy: referredBy || null,
+                onboardedByStaff: onboardedByStaff,
+                bankDetails: bankDetails || null,
+                freeServicesLeft,
+                documents: initialDocs,
+                location: req.body.location,
+                isHomeVisitAvailable: isHomeVisitAvailable || false,
+                is24x7: is24x7 || false,
+                isEmergencyEnabled: is24x7 || false,
+                status: 'pending', // Verification required by admin
+                vendorCardExpiry
+            });
+        } catch (createErr) {
+            if (createErr && createErr.code === 11000 && createErr.keyPattern && createErr.keyPattern.mobile) {
+                const existing = await Provider.findOne({ mobile });
+                if (await sameRegistration(existing, password)) {
+                    return res.status(200).json(registrationResponse(existing, { alreadyRegistered: true }));
+                }
+                return res.status(400).json(ALREADY_REGISTERED);
+            }
+            throw createErr;
+        }
+
+        // Push Notification for Admins (New KYC Request). Not awaited: the
+        // partner's reply used to wait on every admin push, and a slow reply
+        // is what made people tap again.
+        (async () => { try {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
 
@@ -158,23 +237,10 @@ const registerProvider = async (req, res) => {
             }
         } catch (err) {
             console.log('Admin push notification failed (skipping):', err.message);
-        }
+        } })();
 
         if (provider) {
-            res.status(201).json({
-                _id: provider._id,
-                ownerName: provider.ownerName,
-                mobile: provider.mobile,
-                shopName: provider.shopName,
-                status: provider.status,
-                vendorCode: provider.vendorCode,
-                vendorType: provider.vendorType,
-                businessType: provider.businessType,
-                freeServicesLeft: provider.freeServicesLeft,
-                isSubscribed: provider.isSubscribed,
-                planType: provider.planType,
-                token: generateToken(provider._id),
-            });
+            res.status(201).json(registrationResponse(provider));
         } else {
             res.status(400).json({ message: 'Invalid provider data' });
         }
@@ -435,6 +501,7 @@ const authProvider = async (req, res) => {
                         vendorCode: provider.vendorCode,
                         vendorType: provider.vendorType,
                         businessType: provider.businessType,
+                        accountType: provider.accountType,
                         freeServicesLeft: provider.freeServicesLeft,
                         isSubscribed: provider.isSubscribed,
                         planType: provider.planType,
@@ -460,6 +527,7 @@ const getProviderProfile = async (req, res) => {
 
         if (providerDoc) {
             // Auto-sync legacy documents to the new array if it's empty
+            let syncedLegacy = false;
             if (!providerDoc.documents || providerDoc.documents.length === 0) {
                 let changed = false;
                 if (providerDoc.kycAadhaarPhoto) { providerDoc.documents.push({ id: 'aadhaar_front', url: providerDoc.kycAadhaarPhoto, status: 'pending', fileName: 'Aadhaar_Front.jpg' }); changed = true; }
@@ -467,11 +535,15 @@ const getProviderProfile = async (req, res) => {
                 if (providerDoc.kycPanPhoto) { providerDoc.documents.push({ id: 'pan', url: providerDoc.kycPanPhoto, status: 'pending', fileName: 'PAN_Registration.jpg' }); changed = true; }
                 if (providerDoc.gst && providerDoc.gst.startsWith('http')) { providerDoc.documents.push({ id: 'gst', url: providerDoc.gst, status: 'pending', fileName: 'GST_Registration.jpg' }); changed = true; }
 
-                if (changed) await providerDoc.save();
+                if (changed) { await providerDoc.save(); syncedLegacy = true; }
             }
 
-            // Fix for existing providers: If they are verified, their registration docs should be marked verified
-            if (providerDoc.status === 'verified') {
+            // Fix for existing providers: an account approved before documents
+            // were tracked gets its just-synced registration documents marked
+            // verified. Only those: this used to verify any pending document of
+            // an approved partner, so one uploaded later (e.g. police
+            // verification) was verified without admin ever seeing it.
+            if (providerDoc.status === 'verified' && syncedLegacy) {
                 let statusFixed = false;
                 providerDoc.documents.forEach(doc => {
                     if (doc.status === 'pending') {
