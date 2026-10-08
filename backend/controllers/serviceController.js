@@ -3,6 +3,7 @@ const Combo = require('../models/Combo');
 const Category = require('../models/Category');
 const Provider = require('../models/Provider');
 const SkillSession = require('../models/SkillSession');
+const { releaseServiceImage } = require('../utils/serviceImageCleanup');
 
 const normalizeKey = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
 
@@ -150,6 +151,8 @@ const cleanServiceTypes = (v) => {
     return list.length ? [...new Set(list)] : undefined;
 };
 const MAX_SERVICE_PRICE = 100000;
+// A service photo is a link from the upload API (or the catalog), never raw data.
+const validImage = (v) => v === undefined || v === null || v === '' || (typeof v === 'string' && /^https?:\/\/\S+$/i.test(v) && v.length <= 1000);
 
 const createService = async (req, res) => {
     const { name, description, price, duration, category, subcategory, visible, image, amenities, serviceDetails } = req.body;
@@ -159,6 +162,9 @@ const createService = async (req, res) => {
     }
     if (price === undefined || price === null || price === "" || Number(price) <= 0) {
         return res.status(400).json({ message: 'Service price is required and must be greater than 0' });
+    }
+    if (!validImage(req.body.image)) {
+        return res.status(400).json({ message: 'Service photo must be an uploaded image' });
     }
     if (Number(price) > MAX_SERVICE_PRICE) {
         return res.status(400).json({ message: `Service price can't be more than ₹${MAX_SERVICE_PRICE}` });
@@ -267,13 +273,22 @@ const updateService = async (req, res) => {
                 }
                 service.visible = req.body.visible;
             }
-            if (req.body.image !== undefined) service.image = req.body.image;
+            let replacedImage = null;
+            if (req.body.image !== undefined) {
+                if (!validImage(req.body.image)) {
+                    return res.status(400).json({ message: 'Service photo must be an uploaded image' });
+                }
+                if (service.image && service.image !== req.body.image) replacedImage = service.image;
+                service.image = req.body.image;
+            }
             if (req.body.amenities !== undefined) service.amenities = req.body.amenities;
             if (req.body.serviceDetails !== undefined) service.serviceDetails = req.body.serviceDetails;
             if (req.body.useCategoryLeadPrice !== undefined) service.useCategoryLeadPrice = req.body.useCategoryLeadPrice;
             if (req.body.customLeadPrice !== undefined) service.customLeadPrice = req.body.customLeadPrice;
 
             const updatedService = await service.save();
+            // A replaced photo is removed once nothing else uses it.
+            if (replacedImage) releaseServiceImage(replacedImage);
             res.json(updatedService);
         } else {
             res.status(404).json({ message: 'Service not found' });
@@ -296,6 +311,8 @@ const deleteService = async (req, res) => {
             }
 
             await Service.deleteOne({ _id: req.params.id });
+            // Its photo goes too, unless the catalog or another record uses it.
+            if (service.image) releaseServiceImage(service.image, { excludeServiceId: service._id });
             res.json({ message: 'Service removed' });
         } else {
             res.status(404).json({ message: 'Service not found' });

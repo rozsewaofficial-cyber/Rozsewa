@@ -430,7 +430,7 @@ const getPublicProviders = async (req, res) => {
                 }
             } else {
                 const offers = serviceScopeFor(p, p.vendorType?.services);
-                const services = (await Service.find({ providerId: p._id, visible: true }).select('name price'))
+                const services = (await Service.find({ providerId: p._id, visible: true }).select('name price image'))
                     .filter(s => !offers || offers(s));
 
                 if (wantedService) {
@@ -445,7 +445,9 @@ const getPublicProviders = async (req, res) => {
                         || (wantedService.key && serviceNameKey(s.name) === wantedService.key));
                     if (!offered) continue;
                     startingPrice = Number(offered.price) || startingPrice;
-                    providerObj.matchedService = { _id: offered._id, name: offered.name, price: offered.price };
+                    // Its photo too: the customer picked this service, so the
+                    // partner's own photo of it says more than the shop picture.
+                    providerObj.matchedService = { _id: offered._id, name: offered.name, price: offered.price, image: offered.image || undefined };
                 } else if (services.length > 0) {
                     startingPrice = Math.min(...services.map(s => s.price));
                 } else {

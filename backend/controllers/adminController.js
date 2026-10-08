@@ -4246,9 +4246,27 @@ const deleteCoupon = async (req, res) => {
     }
 };
 
+// @desc    A partner's own services, with the photo each one shows customers
+// @route   GET /api/admin/providers/:id/services
+// @access  Private (Admin)
+const getProviderServicesForAdmin = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: 'Invalid provider id' });
+        const services = await Service.find({ providerId: req.params.id })
+            .select('name image price duration subcategory visible serviceType')
+            .sort({ createdAt: -1 })
+            .limit(200)
+            .lean();
+        res.json(services);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getProviders,
     getProviderById,
+    getProviderServicesForAdmin,
     getProviderStats,
     getProviderPicker,
     getProviderReports,

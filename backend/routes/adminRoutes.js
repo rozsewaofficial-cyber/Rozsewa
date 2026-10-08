@@ -7,6 +7,7 @@ const broadcastController = require('../controllers/broadcastController');
 const {
     getProviders,
     getProviderById,
+    getProviderServicesForAdmin,
     getProviderStats,
     getProviderPicker,
     getProviderReports,
@@ -150,6 +151,7 @@ router.get('/providers/stats', protect, admin, getProviderStats);
 router.get('/providers/picker', protect, admin, getProviderPicker);
 // Kept below /stats and /picker, or :id would swallow both as a literal id.
 router.get('/providers/:id', protect, admin, getProviderById);
+router.get('/providers/:id/services', protect, admin, getProviderServicesForAdmin);
 router.get('/provider-reports', protect, admin, getProviderReports);
 router.patch('/provider-reports/:id/resolve', protect, admin, resolveProviderReport);
 router.delete('/providers/:id', protect, admin, deleteProvider);

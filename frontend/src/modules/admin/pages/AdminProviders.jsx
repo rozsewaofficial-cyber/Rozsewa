@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import API from "@/lib/api";
+import ServiceVisual from "@/components/ServiceVisual";
 import VerificationStatus, { canApprove, documentVerification } from "@/modules/admin/components/VerificationStatus";
 
 // Bank details are added at registration or skipped ("Skip for Now") and
@@ -61,6 +62,18 @@ const AdminProviders = () => {
             .finally(() => { if (!cancelled) setCommissionLoading(false); });
         return () => { cancelled = true; };
     }, [selectedProvider]);
+    // The partner's own services, with the photo each shows customers.
+    const [providerServices, setProviderServices] = useState(null);
+    const openProviderId = selectedProvider?._id;
+    useEffect(() => {
+        if (!openProviderId) { setProviderServices(null); return undefined; }
+        let cancelled = false;
+        setProviderServices(null);
+        API.get(`/admin/providers/${openProviderId}/services`)
+            .then(({ data }) => { if (!cancelled) setProviderServices(Array.isArray(data) ? data : []); })
+            .catch(() => { if (!cancelled) setProviderServices([]); });
+        return () => { cancelled = true; };
+    }, [openProviderId]);
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [categories, setCategories] = useState([]);
     const [showStatusModal, setShowStatusModal] = useState(false);
@@ -870,6 +883,35 @@ const AdminProviders = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                {selectedProvider.providerCategory !== 'sewak' && (
+                                    <div className="space-y-3" data-admin-provider-services>
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                            Services Offered {providerServices ? `(${providerServices.length})` : ''}
+                                        </h4>
+                                        {providerServices === null ? (
+                                            <p className="text-xs font-bold text-gray-400">Loading…</p>
+                                        ) : providerServices.length === 0 ? (
+                                            <p className="text-xs font-bold text-gray-400">No services added yet.</p>
+                                        ) : (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                {providerServices.map(svc => (
+                                                    <div key={svc._id} className="overflow-hidden rounded-xl border border-gray-100 bg-white">
+                                                        <div className="relative h-20 bg-gray-50">
+                                                            <ServiceVisual src={svc.image} name={svc.name} iconClassName="h-6 w-6" />
+                                                            {!svc.visible && <span className="absolute right-1.5 top-1.5 rounded bg-gray-800/80 px-1.5 py-0.5 text-[8px] font-black uppercase text-white">Hidden</span>}
+                                                        </div>
+                                                        <div className="p-2">
+                                                            <p className="text-[11px] font-black text-gray-900 leading-tight line-clamp-2">{svc.name}</p>
+                                                            <p className="mt-0.5 text-[10px] font-bold text-emerald-700">₹{svc.price}{svc.duration ? ` · ${svc.duration}` : ''}</p>
+                                                            {svc.subcategory && <p className="text-[9px] font-bold text-gray-400 truncate">{svc.subcategory}</p>}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div className="space-y-3">
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Commission & Billing Settings</h4>

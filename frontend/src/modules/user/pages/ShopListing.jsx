@@ -126,7 +126,8 @@ const ShopListing = () => {
       // Listed for one service: that partner's price for it, not "from".
       price: p.matchedService?.price ?? (p.startingPrice || 199),
       priceLabel: p.matchedService ? "" : "From",
-      image: p.profileImage || `https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop`,
+      // Listed for one service: the partner's photo of that service first.
+      image: p.matchedService?.image || p.profileImage || `https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop`,
       verified: p.status === "verified",
       emergency: !!(p.isEmergencyEnabled || p.is24x7)
     };

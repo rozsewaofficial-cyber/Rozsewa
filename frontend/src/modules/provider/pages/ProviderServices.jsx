@@ -14,6 +14,9 @@ import ServiceVisual from "@/components/ServiceVisual";
 // "1 hour" without the partner ever being asked.
 const DURATION_OPTIONS = ["15 min", "30 min", "45 min", "1 hour", "1.5 hours", "2 hours", "3 hours", "4 hours", "Half day", "Full day"];
 const MAX_PRICE = 100000;
+// What the upload API accepts (config/cloudinary allowed_formats).
+const PHOTO_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
+const MAX_PHOTO_MB = 10;
 const nameKey = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 const ProviderServices = () => {
@@ -63,10 +66,23 @@ const ProviderServices = () => {
     fetchProviderInfoAndServices();
   }, [user]);
 
+  // The partner's own photo for this service. Checked before it is sent
+  // (the formats the upload API accepts, a sane size), shown at once, and
+  // any failure is said under the photo, not only in a passing toast.
+  const [photoPreview, setPhotoPreview] = useState("");
+  const [photoError, setPhotoError] = useState("");
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
+    e.target.value = ""; // the same file can be picked again after an error
     if (!file) return;
 
+    const okType = PHOTO_TYPES.includes((file.type || "").toLowerCase()) || /\.(jpe?g|png|webp|heic)$/i.test(file.name || "");
+    if (!okType) { setPhotoError("Use a JPG, PNG, WEBP or HEIC photo."); return; }
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) { setPhotoError(`Photo is too large. Use one under ${MAX_PHOTO_MB} MB.`); return; }
+
+    setPhotoError("");
+    const preview = URL.createObjectURL(file);
+    setPhotoPreview(preview);
     setUploading(true);
     try {
       const { compressImage } = await import('@/lib/imageCompression');
@@ -78,12 +94,18 @@ const ProviderServices = () => {
       const { data } = await API.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      setForm({ ...form, image: data.url });
-      toast({ title: "Image Uploaded", description: "Service image updated successfully." });
+      if (!data?.url) throw new Error("No image link returned");
+      // A HEIC the browser couldn't convert is stored as HEIC, which most
+      // browsers can't show; Cloudinary serves it as JPG under a .jpg link.
+      const url = /res\.cloudinary\.com/.test(data.url) ? data.url.replace(/\.(heic|heif)(\?|$)/i, ".jpg$2") : data.url;
+      setForm(prev => ({ ...prev, image: url }));
+      toast({ title: "Photo uploaded", description: "Customers will see your photo on this service." });
     } catch (err) {
-      toast({ title: "Upload Failed", variant: "destructive" });
+      setPhotoError(err.response?.data?.message || "Upload failed. Check your connection and try again.");
     } finally {
       setUploading(false);
+      setPhotoPreview("");
+      URL.revokeObjectURL(preview);
     }
   };
 
@@ -299,6 +321,7 @@ const ProviderServices = () => {
     const existing = ownedService(item.name);
     if (existing) { handleEdit(existing); return; }
     setErrors({});
+    setPhotoError("");
     setForm({
       name: item.name,
       customName: "",
@@ -336,9 +359,11 @@ const ProviderServices = () => {
       amenities: s.amenities || [],
       serviceDetails: s.serviceDetails || [],
       serviceType: Array.isArray(s.serviceType) && s.serviceType.length ? s.serviceType : ["home"],
-      subcategory: s.subcategory || ""
+      subcategory: s.subcategory || "",
+      catalogImage: catalog.find(c => nameKey(c.name) === nameKey(s.name))?.image || ""
     });
     setErrors({});
+    setPhotoError("");
     setEditId(s._id);
     setShowForm(true);
   };
@@ -626,30 +651,65 @@ const ProviderServices = () => {
               <form onSubmit={handleSave} className="p-6 space-y-5 overflow-y-auto flex-1">
                 <div className="text-left">
                   <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Photo</label>
-                  <div className="group relative h-48 w-full overflow-hidden rounded-[24px] bg-muted/50 border-2 border-dashed border-border hover:border-primary/50 transition-all">
-                    {form.image ? (
-                      <>
-                        <img src={form.image} alt="Work" className="h-full w-full object-cover" />
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button type="button" onClick={() => setForm({ ...form, image: "" })} className="h-10 w-10 rounded-full bg-white text-rose-500 shadow-xl flex items-center justify-center">
-                            <Trash2 className="h-5 w-5" />
-                          </button>
+                  {(() => {
+                    // Which photo customers will see: the partner's own upload, or
+                    // the RozSewa catalog photo for this service. The form used to
+                    // show either with nothing saying which, and replacing it
+                    // needed a hover a phone can't do.
+                    const shown = photoPreview || form.image;
+                    const isCatalog = !!form.image && !photoPreview && form.image === form.catalogImage;
+                    const canUseCatalog = !!form.catalogImage && form.image !== form.catalogImage;
+                    return (
+                      <div className="space-y-2" data-service-photo={photoPreview ? "uploading" : !form.image ? "none" : isCatalog ? "catalog" : "own"}>
+                        <div className="relative h-48 w-full overflow-hidden rounded-[24px] bg-muted/50 border-2 border-dashed border-border">
+                          {shown ? (
+                            <img src={shown} alt="Service" className="h-full w-full object-cover" />
+                          ) : (
+                            <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2">
+                              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary"><Camera className="h-6 w-6" /></div>
+                              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Upload a photo of your work</span>
+                              <span className="text-[9px] font-bold text-muted-foreground">JPG, PNG, WEBP · up to {MAX_PHOTO_MB} MB</span>
+                              <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+                            </label>
+                          )}
+                          {uploading && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-white" /></div>
+                          )}
+                          {shown && !uploading && (
+                            <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-wider shadow ${isCatalog ? "bg-white/90 text-slate-700" : "bg-emerald-600 text-white"}`}>
+                              {isCatalog ? "RozSewa catalog photo" : "Your photo"}
+                            </span>
+                          )}
                         </div>
-                      </>
-                    ) : (
-                      <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-2">
-                        {uploading ? <Loader2 className="h-8 w-8 animate-spin text-primary" /> : (
-                          <>
-                            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                              <Plus className="h-6 w-6" />
-                            </div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Upload a photo of your work</span>
-                          </>
-                        )}
-                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
-                      </label>
-                    )}
-                  </div>
+                        <p className="text-[10px] font-medium text-muted-foreground">
+                          {!form.image
+                            ? "No photo yet: customers see a service icon until you add one."
+                            : isCatalog
+                              ? "Customers see this catalog photo. Upload your own to show your work."
+                              : "Customers see this photo on this service."}
+                        </p>
+                        {photoError && <p className="text-[10px] font-bold text-rose-500">{photoError}</p>}
+                        <div className="flex flex-wrap gap-2">
+                          <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                            <Camera className="h-3.5 w-3.5" /> {form.image && !isCatalog ? "Replace photo" : "Upload your photo"}
+                            <input type="file" accept="image/jpeg,image/png,image/webp,image/heic" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+                          </label>
+                          {canUseCatalog && (
+                            <button type="button" disabled={uploading} onClick={() => { setForm({ ...form, image: form.catalogImage }); setPhotoError(""); }}
+                              className="rounded-xl border border-border px-3 py-2 text-[10px] font-black uppercase tracking-wider text-muted-foreground hover:bg-muted disabled:opacity-50">
+                              Use catalog photo
+                            </button>
+                          )}
+                          {form.image && (
+                            <button type="button" disabled={uploading} onClick={() => { setForm({ ...form, image: "" }); setPhotoError(""); }}
+                              className="inline-flex items-center gap-1 rounded-xl border border-border px-3 py-2 text-[10px] font-black uppercase tracking-wider text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 disabled:opacity-50">
+                              <Trash2 className="h-3.5 w-3.5" /> Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="text-left">
