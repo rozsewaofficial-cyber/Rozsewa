@@ -204,7 +204,7 @@ const createBooking = async (req, res) => {
                     const ids = ((items && items.length > 0) ? items.map(i => i.id) : [serviceId])
                         .filter(id => mongoose.Types.ObjectId.isValid(id));
                     const [svcs, combos] = await Promise.all([
-                        Service.find({ _id: { $in: ids }, providerId: { $in: [specificProvider._id, null] } }).select('name'),
+                        Service.find({ _id: { $in: ids }, providerId: { $in: [specificProvider._id, null] } }).select('name providerId'),
                         Combo.find({ _id: { $in: ids }, providerId: specificProvider._id }).populate('services', 'name')
                     ]);
                     const notOffered = [

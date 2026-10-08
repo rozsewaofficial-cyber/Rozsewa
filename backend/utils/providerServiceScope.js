@@ -28,7 +28,18 @@ const serviceScopeFor = (provider, categoryServices = []) => {
         if (s && s._id && ids.has(String(s._id))) names.add(key(s.name));
     }
 
-    return (service) => !!service && (ids.has(String(service._id)) || names.has(key(service.name)));
+    // A service the partner added themselves (Add Service) is one they offer,
+    // whatever they picked at registration: only Sewaks ever had services
+    // created for them. Without this, a partner who picked one service at
+    // registration had every service they added later hidden from customers
+    // ("No specific services listed") and refused at booking.
+    const ownerId = String(provider?._id || '');
+    const ownService = (service) => {
+        const by = service.providerId && (service.providerId._id || service.providerId);
+        return !!by && String(by) === ownerId;
+    };
+
+    return (service) => !!service && (ownService(service) || ids.has(String(service._id)) || names.has(key(service.name)));
 };
 
 /**

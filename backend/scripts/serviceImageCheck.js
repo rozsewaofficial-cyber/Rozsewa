@@ -72,7 +72,11 @@ Subcategory.exists = async () => null;
     });
     const lean = (v) => ({ lean: async () => v });
     Provider.findById = () => lean({ _id: 'p1', providerCategory: 'partner', vendorType: 'c1' });
-    Category.findById = () => lean({ _id: 'c1', services: [] });
+    // The partner's category catalog (services can only come from it).
+    // Subcategories of the category (none here).
+    require('../models/Subcategory').find = () => ({ select: () => ({ lean: async () => [] }) });
+    Category.findById = () => lean({ _id: 'c1', name: 'Electrician', services: [{ name: 'A' }, { name: 'B' }, { name: 'C' }] });
+    Service.find = () => ({ select: () => ({ lean: async () => [] }) });
 
     await check("each service is saved with its own photo, and a non-link photo is refused", async () => {
         const made = [];
@@ -116,7 +120,7 @@ Subcategory.exists = async () => null;
 
     await check('listed for one service, a partner card shows their photo of it', async () => {
         const home = read('backend', 'controllers', 'homeController.js');
-        assert.ok(/\.select\('name price image'\)/.test(home));
+        assert.ok(/\.select\('name price image providerId'\)/.test(home));
         assert.ok(/matchedService = \{ _id: offered\._id, name: offered\.name, price: offered\.price, image: offered\.image \|\| undefined \}/.test(home));
         const listing = read('frontend', 'src', 'modules', 'user', 'pages', 'ShopListing.jsx');
         assert.ok(/image: p\.matchedService\?\.image \|\| p\.profileImage/.test(listing));

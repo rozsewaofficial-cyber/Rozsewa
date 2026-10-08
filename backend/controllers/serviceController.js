@@ -151,6 +151,52 @@ const cleanServiceTypes = (v) => {
     return list.length ? [...new Set(list)] : undefined;
 };
 const MAX_SERVICE_PRICE = 100000;
+
+/**
+ * The services a provider may offer: their own category's catalog — the
+ * category's list and its subcategories' services — that their kind of
+ * account (partner / sewak) may see. Returns { category, entries } with
+ * each entry's name and subcategory, or null without a category.
+ */
+const categoryCatalogFor = async (provider) => {
+    if (!provider?.vendorType) return null;
+    const cat = await Category.findById(provider.vendorType).lean();
+    if (!cat) return null;
+    const visible = (v) => !v || v === 'both' || v === provider.providerCategory;
+
+    // The same catalog the app lists (GET /public/subcategories/all/services):
+    // admin rows tied to the category by id, by name, or through one of its
+    // subcategories, and the list kept on the Category — unless the admin
+    // hid that service.
+    const Subcategory = require('../models/Subcategory');
+    const subs = await Subcategory.find({ categoryId: cat._id }).select('_id name').lean();
+    const subNameById = new Map(subs.map(s => [String(s._id), s.name]));
+    const escaped = String(cat.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const nameRx = new RegExp(`^${escaped}$`, 'i');
+    const inCategory = {
+        providerId: null,
+        $or: [
+            { categoryId: cat._id },
+            { category: nameRx },
+            { subcategoryId: { $in: subs.map(s => s._id) } },
+            { subcategory: { $in: subs.map(s => s.name) } }
+        ]
+    };
+    const rows = await Service.find(inCategory).select('name subcategory subcategoryId visibleTo visible').lean();
+    const hidden = new Set(rows.filter(r => r.visible === false).map(r => normalizeKey(r.name)));
+    const entries = [
+        ...rows.filter(r => r.visible !== false && visible(r.visibleTo))
+            .map(r => ({ name: r.name, subcategory: r.subcategory || subNameById.get(String(r.subcategoryId)) || null })),
+        ...(cat.services || []).filter(s => visible(s.visibleTo) && !hidden.has(normalizeKey(s.name)))
+            .map(s => ({ name: s.name, subcategory: null }))
+    ];
+    return { category: cat, entries };
+};
+const findInCatalog = (catalog, name) => {
+    const k = normalizeKey(String(name || ''));
+    const hits = (catalog?.entries || []).filter(e => normalizeKey(e.name) === k);
+    return hits.find(h => h.subcategory) || hits[0] || null;
+};
 // A service photo is a link from the upload API (or the catalog), never raw data.
 const validImage = (v) => v === undefined || v === null || v === '' || (typeof v === 'string' && /^https?:\/\/\S+$/i.test(v) && v.length <= 1000);
 
@@ -177,12 +223,21 @@ const createService = async (req, res) => {
         let skillFields = {};
         const provider = await Provider.findById(req.user._id).lean();
 
-        if (provider?.vendorType) {
-            const cat = await Category.findById(provider.vendorType).lean();
-            const catalogEntry = (cat?.services || []).find(s => normalizeKey(s.name) === normalizeKey(name));
-            if (catalogEntry?.visibleTo && catalogEntry.visibleTo !== 'both' && catalogEntry.visibleTo !== provider.providerCategory) {
-                return res.status(400).json({ message: `This service is not available for ${provider.providerCategory} accounts.` });
-            }
+        // Only a service from the provider's own category: the app lists
+        // nothing else, and the server now holds to the same — it used to
+        // take any name and any category name sent to it.
+        const catalog = await categoryCatalogFor(provider);
+        if (!catalog) {
+            return res.status(400).json({ message: 'Choose your service category first.' });
+        }
+        const catalogEntry = findInCatalog(catalog, name);
+        if (!catalogEntry) {
+            return res.status(400).json({ message: `Choose a service from your category (${catalog.category.name}).` });
+        }
+        // Once each: a second copy would show twice on the shop page.
+        const mine = await Service.find({ providerId: req.user._id }).select('name').lean();
+        if (mine.some(s => normalizeKey(s.name) === normalizeKey(name))) {
+            return res.status(409).json({ message: `You already offer ${name}. Edit it instead.` });
         }
 
         if (provider?.providerCategory === 'sewak' && provider.vendorType) {
@@ -205,16 +260,23 @@ const createService = async (req, res) => {
             }
         }
 
+        // A partner who picked services at registration: what they add joins
+        // that list (it is what they offer).
+        if (provider && provider.providerCategory !== 'sewak' && Array.isArray(provider.subServices) && provider.subServices.length > 0
+            && !provider.subServices.some(s => normalizeKey(String(s)) === normalizeKey(name))) {
+            await Provider.updateOne({ _id: provider._id }, { $addToSet: { subServices: String(name).trim() } });
+        }
+
         const service = await Service.create({
             providerId: req.user._id,
             name,
             description,
             price,
             duration,
-            category: category || req.user.vendorType,
+            category: catalog.category.name,
             // The subcategory and service types the partner picked were sent
             // but never saved.
-            subcategory: subcategory || undefined,
+            subcategory: catalogEntry.subcategory || subcategory || undefined,
             serviceType: cleanServiceTypes(req.body.serviceType),
             visible: heldForSkillSession ? false : (visible !== undefined ? visible : true),
             image,
@@ -254,7 +316,15 @@ const updateService = async (req, res) => {
                 return res.status(401).json({ message: 'Not authorized' });
             }
 
-            if (req.body.name !== undefined) service.name = req.body.name;
+            if (req.body.name !== undefined && normalizeKey(String(req.body.name)) !== normalizeKey(service.name)) {
+                // Renamed: still only to a service from the provider's own category.
+                const owner = await Provider.findById(req.user._id).lean();
+                const catalog = await categoryCatalogFor(owner);
+                if (!catalog || !findInCatalog(catalog, req.body.name)) {
+                    return res.status(400).json({ message: 'Choose a service from your category.' });
+                }
+                service.name = req.body.name;
+            }
             if (req.body.description !== undefined) service.description = req.body.description;
             if (req.body.price !== undefined) {
                 if (Number(req.body.price) > MAX_SERVICE_PRICE) {
@@ -400,6 +470,7 @@ const deleteCombo = async (req, res) => {
 };
 
 module.exports = {
+    categoryCatalogFor,
     getMyServices,
     createService,
     updateService,

@@ -430,7 +430,7 @@ const getPublicProviders = async (req, res) => {
                 }
             } else {
                 const offers = serviceScopeFor(p, p.vendorType?.services);
-                const services = (await Service.find({ providerId: p._id, visible: true }).select('name price image'))
+                const services = (await Service.find({ providerId: p._id, visible: true }).select('name price image providerId'))
                     .filter(s => !offers || offers(s));
 
                 if (wantedService) {

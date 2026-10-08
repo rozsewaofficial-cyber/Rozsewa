@@ -25,7 +25,11 @@ const check = async (l, f) => { await f(); passed += 1; console.log(`  ok  ${l}`
 
 const lean = (v) => ({ lean: async () => v });
 Provider.findById = () => lean({ _id: 'p1', providerCategory: 'partner', vendorType: 'c1' });
-Category.findById = () => lean({ _id: 'c1', services: [] });
+// The partner's category catalog (services can only come from it).
+// Subcategories of the category (none here).
+require('../models/Subcategory').find = () => ({ select: () => ({ lean: async () => [] }) });
+Category.findById = () => lean({ _id: 'c1', name: 'Electrician', services: [{ name: 'Geyser Repair' }] });
+Service.find = () => ({ select: () => ({ lean: async () => [] }) });
 let created;
 Service.create = async (doc) => { created = doc; return { ...doc, toObject() { return { ...doc }; } }; };
 
