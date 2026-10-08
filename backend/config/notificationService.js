@@ -186,7 +186,7 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
         const exists = await NotificationLog.findOne({ notificationId });
         if (exists) {
             console.log(`Duplicate notification ignored (FCM direct call): ${notificationId}`);
-            return;
+            return { status: 'duplicate' };
         }
     }
 
@@ -200,15 +200,18 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
 
     if (!target) {
         console.log(`User/Provider not found for notification: ${userId}`);
-        return;
+        return { status: 'not_found' };
     }
 
+    const devices = { web: (target.fcmTokens || []).length, app: (target.fcmTokenMobile || []).length };
     let tokens = [...(target.fcmTokens || []), ...(target.fcmTokenMobile || [])];
     tokens = [...new Set(tokens)]; // Remove duplicates
 
     if (!tokens.length) {
-        console.log(`No FCM tokens found for user: ${userId}`);
-        return;
+        // The most common reason a push never arrives: this account has no
+        // device registered (the app never sent its token).
+        console.log(`No FCM tokens found for ${userRole} ${userId}`);
+        return { status: 'no_tokens', devices };
     }
 
     try {
@@ -260,7 +263,8 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             data: stringifiedData
         });
 
-        console.log(`Successfully sent ${response.successCount} push notifications.`);
+        console.log(`Push to ${userRole} ${userId}: ${response.successCount} sent, ${response.failureCount} failed (devices web=${devices.web}, app=${devices.app}).`);
+        const errorCodes = response.responses.filter(r => !r.success).map(r => r.error?.code || 'unknown');
 
         // Save log (LOCK) - use findOneAndUpdate to prevent duplicate key errors
         await NotificationLog.findOneAndUpdate(
@@ -291,15 +295,21 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                 console.log(`Removed ${failedTokens.length} permanently failed/unregistered tokens from DB.`);
             }
         }
+        return {
+            status: response.successCount > 0 ? 'sent' : 'failed',
+            devices, successCount: response.successCount, failureCount: response.failureCount,
+            errors: [...new Set(errorCodes)]
+        };
     } catch (error) {
         console.error('Error sending FCM notification:', error);
+        return { status: 'error', devices, errors: [error.code || error.message] };
     }
 }
 
 /**
  * Unified notification handler (In-App DB, Socket, FCM, Email, SMS)
  */
-async function notifyUser({ userId, userRole, title, message, type = 'system', data = {}, bookingId = null }) {
+async function notifyUser({ userId, userRole, title, message, type = 'system', data = {}, bookingId = null, onPush = null }) {
     const timestamp = new Date().toISOString();
     let inAppStatus = 'skipped';
     let socketStatus = 'skipped';
@@ -386,12 +396,15 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
 
         // 4. Channel 3: Firebase Push Notification (FCM)
         try {
-            await sendNotificationToUser(userId, userRole, {
+            const push = await sendNotificationToUser(userId, userRole, {
                 title,
                 body: message,
                 data: { type, bookingId: bookingId ? bookingId.toString() : '', ...data }
             }, true); // bypassDuplicateCheck = true
-            pushStatus = 'success';
+            // It used to say 'success' even when nothing was sent (no device).
+            pushStatus = push?.status === 'sent' ? 'success' : `skipped (${push?.status || 'unknown'})`;
+            if (push?.status === 'failed' || push?.status === 'error') pushStatus = `fail (${(push.errors || []).join(', ')})`;
+            if (typeof onPush === 'function') onPush(push);
         } catch (fcmErr) {
             pushStatus = 'fail';
             hasErrors = true;

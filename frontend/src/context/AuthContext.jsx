@@ -340,6 +340,37 @@ export const AuthProvider = ({ children }) => {
   // to the backend. Exposed via context so callers can re-sync inside a user
   // gesture (e.g. providers toggling "Go Online"), where browsers are far more
   // likely to actually surface the permission prompt.
+  // For the RozSewa mobile apps (a WebView): the app passes its native push
+  // token here — `window.rozsewaRegisterPushToken(token)` — and it is saved
+  // as an app token for whoever is signed in on this page. A partner's
+  // session is kept under its own key (rozsewa_auth_provider), so an app that
+  // only read the customer's session registered no device for partners, and
+  // partners got no push at all. Calls made before sign-in are kept and sent
+  // once someone signs in.
+  useEffect(() => {
+    const send = async (token) => {
+      const session = auth?.token ? auth : null;
+      if (!session) {
+        try { localStorage.setItem("rozsewa_pending_app_push_token", token); } catch { /* ignore */ }
+        return { saved: false, reason: "not signed in yet" };
+      }
+      await API.post("/notifications/fcm-tokens/save",
+        { token, platform: "mobile" },
+        { headers: { Authorization: `Bearer ${session.token}` } }
+      );
+      try { localStorage.removeItem("rozsewa_pending_app_push_token"); } catch { /* ignore */ }
+      return { saved: true, role: session.role };
+    };
+    window.rozsewaRegisterPushToken = (token) => {
+      if (!token || typeof token !== "string") return Promise.resolve({ saved: false, reason: "no token" });
+      return send(token).catch((err) => ({ saved: false, reason: err?.message }));
+    };
+    // A token the app handed over before sign-in.
+    let pending = null;
+    try { pending = localStorage.getItem("rozsewa_pending_app_push_token"); } catch { /* ignore */ }
+    if (pending && auth?.token) send(pending).catch(() => {});
+  }, [auth]);
+
   const syncFCMToken = async () => {
     if (!auth || !auth.token) return;
     try {

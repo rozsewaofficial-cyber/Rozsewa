@@ -190,8 +190,14 @@ const ProviderProfile = () => {
         return;
       }
       await syncFCMToken();
-      await API.post("/notifications/fcm-tokens/test");
-      toast({ title: "Test Notification Sent", description: "You should receive a push notification on this device shortly." });
+      // The server says what happened: delivered, no device registered for
+      // this account, or the notification service refusing the send.
+      const { data } = await API.post("/notifications/fcm-tokens/test");
+      toast({
+        title: data?.delivered ? "Test Notification Sent" : "Notification not delivered",
+        description: `${data?.summary || "You should receive a push notification shortly."} (Devices — app: ${data?.devices?.app ?? 0}, web: ${data?.devices?.web ?? 0})`,
+        variant: data?.delivered ? "default" : "destructive",
+      });
     } catch (err) {
       toast({ title: "Test Failed", description: err.response?.data?.message || "Could not send test notification.", variant: "destructive" });
     } finally {

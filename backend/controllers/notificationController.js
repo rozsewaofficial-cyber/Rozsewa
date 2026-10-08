@@ -163,6 +163,7 @@ const testFCMNotification = async (req, res) => {
         // test entry is also persisted to the DB and pushed over the socket —
         // otherwise it only ever shows as an OS-level push and never appears in
         // the in-app notification bell/list on the partner side.
+        let push = null;
         await notifyUser({
             userId,
             userRole,
@@ -171,10 +172,22 @@ const testFCMNotification = async (req, res) => {
             type: "test",
             data: {
                 link: userRole === 'provider' ? '/provider/notifications' : '/notifications'
-            }
+            },
+            onPush: (p) => { push = p; }
         });
 
-        res.json({ message: 'Test notification sent' });
+        // Say what actually happened, so a missing push can be traced: no
+        // device registered for this account, or Firebase refusing the send.
+        const devices = push?.devices || { web: 0, app: 0 };
+        let summary;
+        if (!push || push.status === 'no_tokens') {
+            summary = 'No device is registered for notifications on this account. Open the app, allow notifications, and log in again.';
+        } else if (push.status === 'sent') {
+            summary = `Sent to ${push.successCount} device(s).` + (push.failureCount ? ` ${push.failureCount} failed: ${push.errors.join(', ')}.` : '');
+        } else {
+            summary = `The notification service refused it: ${(push.errors || []).join(', ') || push.status}.`;
+        }
+        res.json({ message: 'Test notification sent', delivered: push?.status === 'sent', devices, push, summary });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
