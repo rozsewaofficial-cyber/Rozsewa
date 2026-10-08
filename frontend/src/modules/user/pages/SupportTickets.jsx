@@ -7,6 +7,7 @@ import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import SupportTicketThread, { ticketNumber, lastSpeaker } from "@/components/support/SupportTicketThread";
 
 const SupportTickets = () => {
   const navigate = useNavigate();
@@ -16,8 +17,9 @@ const SupportTickets = () => {
   const [message, setMessage] = useState("");
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [openTicket, setOpenTicket] = useState(null);
 
-  useScrollLock(showCreate);
+  useScrollLock(showCreate || openTicket);
 
   useEffect(() => {
     fetchTickets();
@@ -86,11 +88,13 @@ const SupportTickets = () => {
           )}
           {tickets.map((t, i) => (
             <motion.div key={t._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-              className="rounded-2xl border border-border bg-card p-4 space-y-3">
+              onClick={() => setOpenTicket(t)} role="button" tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "Enter") setOpenTicket(t); }}
+              className="rounded-2xl border border-border bg-card p-4 space-y-3 cursor-pointer hover:border-primary/40 transition-colors">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-mono text-muted-foreground">{t._id}</span>
+                    <span className="text-[10px] font-mono text-muted-foreground">{ticketNumber(t)}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${statusColors[t.status]}`}>{t.status}</span>
                   </div>
                   <h3 className="text-sm font-bold text-foreground truncate">{t.subject}</h3>
@@ -102,15 +106,41 @@ const SupportTickets = () => {
                   <Clock className="h-3 w-3" />
                   {new Date(t.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                 </div>
-                {t.reply && (
+                {lastSpeaker(t) === "admin" ? (
                   <span className="flex items-center gap-1 text-[10px] font-bold text-primary">
-                    <MessageCircle className="h-3 w-3" /> 1 reply
+                    <MessageCircle className="h-3 w-3" /> Support replied · View
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
+                    <MessageCircle className="h-3 w-3" /> {(t.messages || []).length ? `${t.messages.length} messages` : "Open chat"}
                   </span>
                 )}
               </div>
             </motion.div>
           ))}
         </div>
+
+        {/* Ticket conversation */}
+        <AnimatePresence>
+          {openTicket && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => { setOpenTicket(null); fetchTickets(); }}>
+              <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} onClick={(e) => e.stopPropagation()}
+                className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl bg-card p-5 border border-border shadow-2xl max-h-[92vh] overflow-y-auto">
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Ticket {ticketNumber(openTicket)} · {openTicket.status}</p>
+                    <h3 className="text-base font-bold text-foreground truncate">{openTicket.subject}</h3>
+                  </div>
+                  <button onClick={() => { setOpenTicket(null); fetchTickets(); }} className="rounded-full p-2 hover:bg-muted"><X className="h-5 w-5" /></button>
+                </div>
+                <SupportTicketThread ticketId={openTicket._id} viewer="user" showCall={false}
+                  onChange={(t) => setOpenTicket(prev => prev && prev._id === t._id ? { ...prev, status: t.status } : prev)} />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Create Modal */}
         <AnimatePresence>

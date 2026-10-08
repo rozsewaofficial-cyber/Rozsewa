@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Search, Loader2, LifeBuoy, AlertCircle, MessageSquare, CheckCircle2 } from "lucide-react";
+import { Search, Loader2, LifeBuoy, MessageSquare, PhoneCall, ChevronUp, User, Hash, Phone } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useSocket } from "@/context/SocketContext";
+import SupportTicketThread, { ticketNumber, ticketOwner, CALL_STATUS, lastSpeaker } from "@/components/support/SupportTicketThread";
 
 const AdminSupport = () => {
   const { setTitle } = useOutletContext();
@@ -10,14 +12,40 @@ const AdminSupport = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [replyText, setReplyText] = useState("");
-  const [replyingTo, setReplyingTo] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // The ticket whose Live Chat is open, and the list filter.
+  const [chatOpen, setChatOpen] = useState(null);
+  const [filter, setFilter] = useState("all");
+  const socketCtx = useSocket();
+  const socket = socketCtx?.socket;
 
   useEffect(() => {
     setTitle("Support Tickets");
     fetchTickets();
   }, [setTitle]);
+
+  // A new ticket, message or call request shows up without a reload.
+  const refreshTimer = useRef(null);
+  useEffect(() => {
+    if (!socket) return;
+    const onUpdate = () => {
+      clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(fetchTickets, 600);
+    };
+    socket.on("SUPPORT_TICKET_UPDATED", onUpdate);
+    return () => { socket.off("SUPPORT_TICKET_UPDATED", onUpdate); clearTimeout(refreshTimer.current); };
+  }, [socket]);
+
+  const replaceTicket = (data) => setTickets(prev => prev.map(t => t._id === data._id ? { ...t, ...data } : t));
+
+  const setStatus = async (id, status) => {
+    try {
+      const { data } = await API.patch(`/support/tickets/${id}/status`, { status });
+      replaceTicket(data);
+      toast({ title: `Ticket ${status}` });
+    } catch (err) {
+      toast({ title: "Failed", description: err.response?.data?.message, variant: "destructive" });
+    }
+  };
 
   const fetchTickets = async () => {
     try {
@@ -30,29 +58,18 @@ const AdminSupport = () => {
     }
   };
 
-  const handleReply = async (id) => {
-    if (!replyText.trim()) return;
-    setIsSubmitting(true);
-    try {
-      const { data } = await API.patch(`/support/tickets/${id}/reply`, { reply: replyText });
-      setTickets(tickets.map(t => t._id === id ? data : t));
-      toast({ title: "Reply Sent", description: "The ticket has been resolved." });
-      setReplyingTo(null);
-      setReplyText("");
-    } catch (err) {
-      toast({ title: "Failed", description: "Could not send reply.", variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const callOpen = (t) => ["requested", "in_progress"].includes(t.callRequest?.status);
+  const callCount = tickets.filter(callOpen).length;
 
   const filteredTickets = tickets.filter(t => {
+    if (filter === "calls" && !callOpen(t)) return false;
+    if (filter === "open" && !["pending", "open"].includes(t.status)) return false;
     const search = (searchTerm || "").toLowerCase();
-    const subject = (t.subject || "").toLowerCase();
-    const desc = (t.description || "").toLowerCase();
-    const name = (t.contactInfo?.name || t.userId?.name || t.providerId?.name || "").toLowerCase();
-    
-    return subject.includes(search) || desc.includes(search) || name.includes(search);
+    const owner = ticketOwner(t);
+    // Searchable by partner name, business, Partner ID, mobile and ticket number too.
+    const haystack = [t.subject, t.description, owner.name, owner.business, owner.partnerId, owner.mobile, ticketNumber(t)]
+      .join(" ").toLowerCase();
+    return haystack.includes(search);
   });
 
   if (loading) return (
@@ -73,8 +90,17 @@ const AdminSupport = () => {
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <Search className="h-4 w-4 text-gray-400" />
           </div>
-          <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm" placeholder="Search tickets..." />
+          <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-3 text-sm placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 shadow-sm" placeholder="Search name, Partner ID, mobile, ticket..." />
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {[["all", "All tickets"], ["open", "Open"], ["calls", `Call requests${callCount ? ` (${callCount})` : ""}`]].map(([key, label]) => (
+          <button key={key} onClick={() => setFilter(key)}
+            className={`rounded-full px-4 py-1.5 text-xs font-bold border transition-colors ${filter === key ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"}`}>
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -86,10 +112,10 @@ const AdminSupport = () => {
           </div>
         ) : (
           filteredTickets.map((t) => {
-            const authorName = t.contactInfo?.name || t.providerId?.name || t.userId?.name || 'Anonymous';
-            const authorRole = t.contactInfo?.role || (t.providerId ? 'Provider' : t.userId ? 'User' : 'Public');
-            const authorPhone = t.contactInfo?.mobile || "N/A";
-            
+            const owner = ticketOwner(t);
+            const call = t.callRequest?.status ? CALL_STATUS[t.callRequest.status] : null;
+            const messageCount = (t.messages || []).length;
+
             return (
               <div key={t._id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 flex flex-col md:flex-row gap-5 items-start">
                 <div className="flex-1 space-y-3 w-full">
@@ -98,6 +124,15 @@ const AdminSupport = () => {
                       <div className="flex items-center gap-2 mb-1">
                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${t.priority === 'high' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{t.priority}</span>
                         <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${t.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{t.status}</span>
+                        <span className="text-[10px] font-black text-gray-500">{ticketNumber(t)}</span>
+                        {lastSpeaker(t) === "owner" && (t.messages || []).length > 0 && !["resolved", "closed"].includes(t.status) && (
+                          <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded bg-rose-100 text-rose-700">{owner.kind} replied</span>
+                        )}
+                        {call && (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${call.tone}`}>
+                            <PhoneCall className="h-3 w-3" /> Call {call.label}
+                          </span>
+                        )}
                         <span className="text-[10px] font-bold text-gray-400">{new Date(t.createdAt).toLocaleString()}</span>
                       </div>
                       <h4 className="text-sm font-black text-gray-900">{t.subject}</h4>
@@ -105,43 +140,48 @@ const AdminSupport = () => {
                     </div>
                   </div>
 
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase">From: <span className="text-slate-800">{authorName}</span> ({authorRole})</p>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Contact: <span className="text-slate-800">{authorPhone}</span></p>
+                  {/* Who raised it, from their own partner / customer record */}
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-2" data-ticket-owner>
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><User className="h-3 w-3" /> {owner.kind} Name</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{owner.name}</p>
+                      {owner.business && <p className="text-[10px] font-medium text-slate-500 truncate">{owner.business}</p>}
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Hash className="h-3 w-3" /> {owner.kind} ID</p>
+                      <p className="text-xs font-bold text-slate-800">{owner.partnerId || "Not assigned"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1"><Phone className="h-3 w-3" /> Mobile</p>
+                      {owner.mobile
+                        ? <a href={`tel:${owner.mobile}`} className="text-xs font-bold text-sky-700 hover:underline">{owner.mobile}</a>
+                        : <p className="text-xs font-bold text-slate-800">—</p>}
+                    </div>
                   </div>
 
-                  {t.reply ? (
-                    <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
-                      <p className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 mb-1"><CheckCircle2 className="h-4 w-4" /> Admin Reply</p>
-                      <p className="text-sm text-emerald-700">{t.reply}</p>
-                    </div>
-                  ) : (
-                    <div className="pt-2">
-                      {replyingTo === t._id ? (
-                        <div className="space-y-3">
-                          <textarea
-                            value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            placeholder="Type your resolution here..."
-                            className="w-full text-sm p-3 rounded-xl border border-gray-200 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
-                            rows="3"
-                          />
-                          <div className="flex gap-2">
-                            <button onClick={() => handleReply(t._id)} disabled={isSubmitting} className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-50">
-                              {isSubmitting ? "Sending..." : "Mark as Resolved"}
-                            </button>
-                            <button onClick={() => setReplyingTo(null)} className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-200">
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button onClick={() => { setReplyingTo(t._id); setReplyText(""); }} className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors">
-                          <MessageSquare className="h-3.5 w-3.5" /> Reply & Resolve
-                        </button>
-                      )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={() => setChatOpen(chatOpen === t._id ? null : t._id)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                      {chatOpen === t._id ? <ChevronUp className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
+                      {chatOpen === t._id ? "Hide chat" : `Live Chat${messageCount ? ` (${messageCount})` : ""}`}
+                    </button>
+                    {t.status !== "resolved" && t.status !== "closed" && (
+                      <button onClick={() => setStatus(t._id, "resolved")} className="text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg">Mark Resolved</button>
+                    )}
+                    {t.status !== "closed" && (
+                      <button onClick={() => setStatus(t._id, "closed")} className="text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg">Close</button>
+                    )}
+                    {(t.status === "resolved" || t.status === "closed") && (
+                      <button onClick={() => setStatus(t._id, "open")} className="text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg">Reopen</button>
+                    )}
+                  </div>
+
+                  {chatOpen === t._id && (
+                    <div className="rounded-2xl border border-emerald-100 bg-white p-3">
+                      <SupportTicketThread ticketId={t._id} viewer="admin" onChange={replaceTicket} />
                     </div>
                   )}
+
                 </div>
               </div>
             );

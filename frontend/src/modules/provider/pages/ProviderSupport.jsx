@@ -7,6 +7,7 @@ import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { LifeBuoy, FileQuestion, MessageSquare, PhoneCall, ChevronRight, Loader2, Send, Plus, X, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import SupportTicketThread, { ticketNumber, CALL_STATUS, CALL_TIMES, lastSpeaker } from "@/components/support/SupportTicketThread";
 
 const ProviderSupport = () => {
   const { toast } = useToast();
@@ -31,7 +32,13 @@ const ProviderSupport = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ticketsPerPage = 5;
 
-  useScrollLock(isRaisingTicket || selectedGuide);
+  // The ticket whose chat is open, and the Live Chat / Request a Call sheet.
+  const [openTicket, setOpenTicket] = useState(null);
+  const [startMode, setStartMode] = useState(null); // 'chat' | 'call'
+  const [startText, setStartText] = useState("");
+  const [startTime, setStartTime] = useState(CALL_TIMES[0]);
+
+  useScrollLock(isRaisingTicket || selectedGuide || openTicket || startMode);
   const [submitting, setSubmitting] = useState(false);
 
   const getAuthProviderToken = () => {
@@ -74,6 +81,49 @@ const ProviderSupport = () => {
       toast({ title: "Sync Error", description: "Failed to load ticket history.", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Live Chat and Request a Call used to show a message and do nothing.
+  // Each now starts a ticket that support sees and answers in its chat.
+  const openStart = (mode) => {
+    if (!getAuthProviderToken()) {
+      toast({ title: "Please login", description: "Login to chat with support or request a call.", variant: "destructive" });
+      return;
+    }
+    setStartText("");
+    setStartTime(CALL_TIMES[0]);
+    setStartMode(mode);
+  };
+
+  const handleStart = async (e) => {
+    e.preventDefault();
+    const text = startText.trim();
+    if (startMode === "chat" && !text) {
+      toast({ title: "Type your question", variant: "destructive" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { data } = await API.post("/support/tickets", startMode === "chat"
+        ? { subject: "Live Chat", description: text, category: "other", priority: "medium" }
+        : {
+            subject: "Call back request",
+            description: text || "Please call me back.",
+            category: "other",
+            priority: "medium",
+            requestCall: true,
+            preferredTime: startTime,
+            callNote: text
+          });
+      toast({ title: startMode === "chat" ? "Chat started" : "Call requested", description: startMode === "chat" ? "Our support team will reply here." : `We'll call you: ${startTime}.` });
+      setStartMode(null);
+      setOpenTicket(data);
+      fetchTickets();
+    } catch (err) {
+      toast({ title: "Error", description: err.response?.data?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -135,7 +185,7 @@ const ProviderSupport = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button onClick={() => toast({ title: 'Live Chat Support', description: 'Connecting you to our next available executive. Please wait...', duration: 4000 })} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-emerald-200 transition-all text-left group">
+          <button onClick={() => openStart("chat")} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-emerald-200 transition-all text-left group">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 mr-4 group-hover:scale-110 transition-all">
               <MessageSquare className="h-7 w-7" />
             </div>
@@ -145,7 +195,7 @@ const ProviderSupport = () => {
             </div>
           </button>
 
-          <button onClick={() => toast({ title: 'Call Requested', description: 'Our support team will call you back within 2-4 hours.', duration: 5000 })} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left group">
+          <button onClick={() => openStart("call")} className="flex items-center p-6 border border-border bg-card rounded-[24px] shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left group">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 mr-4 group-hover:scale-110 transition-all">
               <PhoneCall className="h-7 w-7" />
             </div>
@@ -194,22 +244,36 @@ const ProviderSupport = () => {
             ) : (
               <>
                 {tickets.slice((currentPage - 1) * ticketsPerPage, currentPage * ticketsPerPage).map((ticket) => (
-                  <div key={ticket._id} className="p-5 flex items-center justify-between hover:bg-muted/20 transition-all group">
+                  <button type="button" key={ticket._id} onClick={() => setOpenTicket(ticket)} className="w-full text-left p-5 flex items-center justify-between gap-3 hover:bg-muted/20 transition-all group">
                     <div className="flex items-center gap-4 min-w-0">
                       <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${ticket.status === 'resolved' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
                         <AlertCircle className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-xs font-bold text-foreground truncate">{ticket.subject}</h4>
-                        <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
-                          {ticket.category.toUpperCase()} • {new Date(ticket.createdAt).toLocaleDateString()}
+                        <p className="text-[10px] text-muted-foreground font-medium flex flex-wrap items-center gap-x-2">
+                          {ticketNumber(ticket)} • {(ticket.category || "other").toUpperCase()} • {new Date(ticket.createdAt).toLocaleDateString()}
+                          {(ticket.messages || []).length > 0 && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{ticket.messages.length}</span>}
                         </p>
+                        {lastSpeaker(ticket) === "admin" && (
+                          <span className="mt-1 mr-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700">
+                            <MessageSquare className="h-3 w-3" /> Support replied
+                          </span>
+                        )}
+                        {ticket.callRequest?.status && (
+                          <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${CALL_STATUS[ticket.callRequest.status]?.tone}`}>
+                            <PhoneCall className="h-3 w-3" /> Call {CALL_STATUS[ticket.callRequest.status]?.label}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${ticket.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                      {ticket.status}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg ${ticket.status === 'resolved' || ticket.status === 'closed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {ticket.status}
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
-                  </div>
+                  </button>
                 ))}
                 
                 {Math.ceil(tickets.length / ticketsPerPage) > 1 && (
@@ -259,6 +323,78 @@ const ProviderSupport = () => {
 
       {/* Modals */}
       <AnimatePresence>
+        {openTicket && (
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4" onClick={() => { setOpenTicket(null); fetchTickets(); }}>
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] bg-card p-5 sm:p-6 border border-border shadow-2xl max-h-[92vh] overflow-y-auto"
+            >
+              <div className="flex items-start justify-between gap-3 mb-4 text-left">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Ticket {ticketNumber(openTicket)} · {openTicket.status}</p>
+                  <h3 className="text-base font-black text-foreground truncate">{openTicket.subject}</h3>
+                </div>
+                <button onClick={() => { setOpenTicket(null); fetchTickets(); }} className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-muted"><X className="h-4 w-4" /></button>
+              </div>
+              <SupportTicketThread
+                ticketId={openTicket._id}
+                viewer="provider"
+                onChange={(t) => setOpenTicket(prev => prev && prev._id === t._id ? { ...prev, status: t.status, subject: t.subject } : prev)}
+              />
+            </motion.div>
+          </div>
+        )}
+
+        {startMode && (
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4" onClick={() => setStartMode(null)}>
+            <motion.form
+              onSubmit={handleStart}
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg rounded-t-[32px] sm:rounded-[32px] bg-card p-6 border border-border shadow-2xl text-left space-y-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-black text-foreground flex items-center gap-2">
+                    {startMode === "chat" ? <MessageSquare className="h-5 w-5 text-emerald-600" /> : <PhoneCall className="h-5 w-5 text-blue-600" />}
+                    {startMode === "chat" ? "Live Chat with Support" : "Request a Call"}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {startMode === "chat" ? "Tell us what you need help with. Our team replies right here." : "Our support team will call you on your registered mobile number."}
+                  </p>
+                </div>
+                <button type="button" onClick={() => setStartMode(null)} className="h-9 w-9 shrink-0 flex items-center justify-center rounded-full bg-muted"><X className="h-4 w-4" /></button>
+              </div>
+              {startMode === "call" && (
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">When should we call?</label>
+                  <select value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full rounded-2xl border border-border bg-background p-3.5 text-sm font-bold">
+                    {CALL_TIMES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">
+                  {startMode === "chat" ? "Your question *" : "What is it about? (optional)"}
+                </label>
+                <textarea value={startText} onChange={(e) => setStartText(e.target.value)} rows={3} maxLength={startMode === "chat" ? 2000 : 500}
+                  placeholder={startMode === "chat" ? "e.g. My payout hasn't arrived" : "e.g. Help with my documents"}
+                  className="w-full rounded-2xl border border-border bg-background p-3.5 text-sm focus:border-emerald-500 focus:outline-none" />
+              </div>
+              <button type="submit" disabled={submitting}
+                className={`w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-xs font-black uppercase tracking-widest text-white disabled:opacity-60 ${startMode === "chat" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-blue-600 hover:bg-blue-700"}`}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : startMode === "chat" ? <Send className="h-4 w-4" /> : <PhoneCall className="h-4 w-4" />}
+                {startMode === "chat" ? "Start Chat" : "Request Call"}
+              </button>
+            </motion.form>
+          </div>
+        )}
+
         {isRaisingTicket && (
           <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <motion.div
