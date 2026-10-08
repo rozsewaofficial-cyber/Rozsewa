@@ -476,6 +476,11 @@ const AdminBookings = () => {
                             <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`}></span>
                             {sc.label}
                           </span>
+                          {booking.workshop?.status && (
+                            <p className="mt-1.5 text-[9px] font-black uppercase text-orange-600 max-w-[140px] mx-auto truncate" title={booking.workshop.reason || ''}>
+                              {{ pickup_pending: 'Workshop: pickup OTP sent', at_workshop: 'Workshop: item at workshop', return_pending: 'Workshop: return OTP sent', returned: 'Workshop: item returned' }[booking.workshop.status]}
+                            </p>
+                          )}
                           {booking.status === 'cancelled' && booking.cancellationReason && (
                             <p className="mt-1.5 text-[9px] font-bold text-red-600 max-w-[120px] mx-auto truncate" title={booking.cancellationReason}>
                               {booking.cancelledBy === 'provider' ? 'Provider:' : 'Reason:'} {booking.cancellationReason}

@@ -1931,7 +1931,7 @@ const updateBookingStatusByProvider = async (req, res) => {
 
             // Generate OTP if status is changed to 'on_the_way'
             if (newStatus === 'on_the_way' && !booking.startOTP) {
-                const otp = Math.floor(1000 + Math.random() * 9000).toString();
+                const otp = newOtp();
                 booking.startOTP = otp;
 
                 // Notify User with OTP via unified service
@@ -1955,8 +1955,11 @@ const updateBookingStatusByProvider = async (req, res) => {
             // before the UI re-renders) would mark the job completed with zero OTP
             // check and skip payout/commission entirely.
             if (newStatus === 'completed' && booking.status === 'started') {
+                if (itemAwayAtWorkshop(booking)) {
+                    return res.status(400).json({ message: 'Return the customer\'s item from the workshop (return OTP) before completing.' });
+                }
                 if (!booking.endOTP) {
-                    const otp = Math.floor(1000 + Math.random() * 9000).toString();
+                    const otp = newOtp();
                     booking.endOTP = otp;
                     if (req.body.afterImage) {
                         booking.afterImage = req.body.afterImage;
@@ -2271,6 +2274,197 @@ const verifyStartOTP = async (req, res) => {
     }
 };
 
+// ---------- Workshop Required ----------
+// The customer's item goes to the partner's shop mid-job: handed over
+// against a pickup OTP, given back against a return OTP. OTPs are random,
+// made here, sent to the customer only (never in a partner response — see
+// utils/hideBookingOtps), and void after 5 wrong tries.
+
+const WORKSHOP_MAX_ATTEMPTS = 5;
+const WORKSHOP_ACTIVE = ['pickup_pending', 'at_workshop', 'return_pending'];
+const itemAwayAtWorkshop = (booking) => WORKSHOP_ACTIVE.includes(booking?.workshop?.status);
+const newOtp = () => String(require('crypto').randomInt(1000, 10000));
+
+const workshopTell = async (booking, title, message) => {
+    try {
+        const { notifyUser } = require('../config/notificationService');
+        await notifyUser({
+            userId: booking.userId, userRole: 'user', title, message,
+            type: 'booking', bookingId: booking._id,
+            data: { link: `/tracking?bookingId=${booking._id}` }
+        });
+    } catch (err) {
+        console.log('Workshop notification failed (skipping):', err.message);
+    }
+    try {
+        const { emitToUser } = require('../config/socket');
+        emitToUser(booking.userId, 'BOOKING_STATUS_UPDATED', { bookingId: String(booking._id), workshop: booking.workshop?.status });
+    } catch (err) { /* sockets not running */ }
+};
+
+/** The partner's own job, in progress. */
+const loadWorkshopBooking = async (req, res) => {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) { res.status(404).json({ message: 'Booking not found' }); return null; }
+    if (req.user.role !== 'provider' || String(booking.providerId) !== String(req.user._id)) {
+        res.status(403).json({ message: 'Only the partner on this job can do this' }); return null;
+    }
+    if (booking.status !== 'started') {
+        res.status(400).json({ message: 'The workshop step is for a job in progress' }); return null;
+    }
+    if (!booking.workshop) booking.workshop = {};
+    return booking;
+};
+
+const checkWorkshopOtp = (booking, field, otp) => {
+    const w = booking.workshop;
+    if (!w[field]) return { status: 400, message: 'No OTP is waiting. Send a new one to the customer.' };
+    if (String(otp || '').trim() === w[field]) return null;
+    w.otpAttempts = (w.otpAttempts || 0) + 1;
+    if (w.otpAttempts >= WORKSHOP_MAX_ATTEMPTS) {
+        w[field] = null;
+        w.otpAttempts = 0;
+        return { status: 400, message: 'Too many wrong tries. Send a new OTP to the customer.' };
+    }
+    return { status: 400, message: `Invalid OTP. ${WORKSHOP_MAX_ATTEMPTS - w.otpAttempts} tries left.` };
+};
+
+// @desc    Workshop Required: send the customer a pickup OTP (again, to resend)
+// @route   POST /api/bookings/:id/workshop/request
+// @access  Private (Provider)
+const requestWorkshop = async (req, res) => {
+    try {
+        const booking = await loadWorkshopBooking(req, res);
+        if (!booking) return;
+        const w = booking.workshop;
+        if (!['pickup_pending', null, undefined].includes(w.status)) {
+            return res.status(400).json({ message: w.status === 'returned' ? 'The item is already back with the customer.' : 'The item is already at the workshop.' });
+        }
+        // The workshop step comes before completion: once the completion OTP
+        // is out, the job is being closed.
+        if (!w.status && booking.endOTP) {
+            return res.status(400).json({ message: 'The completion OTP is already sent. The workshop step comes before completing.' });
+        }
+        const reason = String(req.body.reason || w.reason || '').trim();
+        if (reason.length < 5) return res.status(400).json({ message: 'Say what you are taking to the workshop (at least 5 characters).' });
+
+        w.status = 'pickup_pending';
+        w.reason = reason.slice(0, 300);
+        w.pickupOTP = newOtp();
+        w.otpAttempts = 0;
+        w.requestedAt = w.requestedAt || new Date();
+        booking.markModified('workshop');
+        await booking.save();
+
+        await workshopTell(booking, 'Workshop pickup OTP',
+            `Your partner needs to take "${w.reason}" to their workshop. Share OTP ${w.pickupOTP} only when you hand it over.`);
+        res.json({ message: 'Pickup OTP sent to the customer.', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Item handed over: verify the customer's pickup OTP
+// @route   POST /api/bookings/:id/workshop/pickup
+// @access  Private (Provider)
+const verifyWorkshopPickup = async (req, res) => {
+    try {
+        const booking = await loadWorkshopBooking(req, res);
+        if (!booking) return;
+        const w = booking.workshop;
+        if (w.status !== 'pickup_pending') return res.status(400).json({ message: 'No pickup is waiting for an OTP.' });
+        const bad = checkWorkshopOtp(booking, 'pickupOTP', req.body.otp);
+        if (bad) {
+            booking.markModified('workshop');
+            await booking.save();
+            return res.status(bad.status).json({ message: bad.message });
+        }
+        w.status = 'at_workshop';
+        w.pickupOTP = null; // used once
+        w.otpAttempts = 0;
+        w.pickedUpAt = new Date();
+        booking.markModified('workshop');
+        await booking.save();
+        await workshopTell(booking, 'Item taken to the workshop',
+            `"${w.reason}" is now at your partner's workshop. You'll get a return OTP when it comes back.`);
+        res.json({ message: 'Pickup confirmed. The item is at the workshop.', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Item ready: send the customer a return OTP (again, to resend)
+// @route   POST /api/bookings/:id/workshop/return-request
+// @access  Private (Provider)
+const requestWorkshopReturn = async (req, res) => {
+    try {
+        const booking = await loadWorkshopBooking(req, res);
+        if (!booking) return;
+        const w = booking.workshop;
+        if (!['at_workshop', 'return_pending'].includes(w.status)) return res.status(400).json({ message: 'The item is not at the workshop.' });
+        w.status = 'return_pending';
+        w.returnOTP = newOtp();
+        w.otpAttempts = 0;
+        w.returnRequestedAt = w.returnRequestedAt || new Date();
+        booking.markModified('workshop');
+        await booking.save();
+        await workshopTell(booking, 'Workshop return OTP',
+            `"${w.reason}" is ready to be returned. Share OTP ${w.returnOTP} only when you get it back.`);
+        res.json({ message: 'Return OTP sent to the customer.', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Item back with the customer: verify the return OTP
+// @route   POST /api/bookings/:id/workshop/return
+// @access  Private (Provider)
+const verifyWorkshopReturn = async (req, res) => {
+    try {
+        const booking = await loadWorkshopBooking(req, res);
+        if (!booking) return;
+        const w = booking.workshop;
+        if (w.status !== 'return_pending') return res.status(400).json({ message: 'No return is waiting for an OTP.' });
+        const bad = checkWorkshopOtp(booking, 'returnOTP', req.body.otp);
+        if (bad) {
+            booking.markModified('workshop');
+            await booking.save();
+            return res.status(bad.status).json({ message: bad.message });
+        }
+        w.status = 'returned';
+        w.returnOTP = null; // used once
+        w.otpAttempts = 0;
+        w.returnedAt = new Date();
+        booking.markModified('workshop');
+        await booking.save();
+        await workshopTell(booking, 'Item returned',
+            `"${w.reason}" is back with you. The partner can now complete the job.`);
+        res.json({ message: 'Item returned. You can complete the job now.', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Not needed after all (only before the item is handed over)
+// @route   POST /api/bookings/:id/workshop/cancel
+// @access  Private (Provider)
+const cancelWorkshop = async (req, res) => {
+    try {
+        const booking = await loadWorkshopBooking(req, res);
+        if (!booking) return;
+        if (booking.workshop.status !== 'pickup_pending') {
+            return res.status(400).json({ message: 'Only a pickup that has not happened yet can be cancelled.' });
+        }
+        booking.workshop = { status: null };
+        booking.markModified('workshop');
+        await booking.save();
+        await workshopTell(booking, 'Workshop pickup cancelled', 'Your partner no longer needs to take the item to the workshop.');
+        res.json({ message: 'Workshop pickup cancelled.', booking });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Verify End OTP and complete booking
 // @route   POST /api/bookings/:id/complete
 // @access  Private (Provider)
@@ -2283,6 +2477,9 @@ const verifyEndOTP = async (req, res) => {
                 booking.userId.toString() === req.user._id.toString();
             if (!isAuthorized) return res.status(401).json({ message: 'Not authorized' });
 
+            if (itemAwayAtWorkshop(booking)) {
+                return res.status(400).json({ message: 'Return the customer\'s item from the workshop (return OTP) before completing.' });
+            }
             if (booking.endOTP === otp) {
                 // ---- EXTRA CHARGE ENFORCEMENT (backend source of truth) ----
                 // Check before starting the transaction to fail fast
@@ -3413,6 +3610,11 @@ const replyReview = async (req, res) => {
 };
 
 module.exports = {
+    requestWorkshop,
+    verifyWorkshopPickup,
+    requestWorkshopReturn,
+    verifyWorkshopReturn,
+    cancelWorkshop,
     replyReview,
     createBooking,
     getUserBookings,

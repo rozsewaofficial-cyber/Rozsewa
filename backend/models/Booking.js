@@ -85,6 +85,20 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    // "Workshop Required": the item goes to the partner's shop mid-job.
+    // The customer hands it over against a pickup OTP and takes it back
+    // against a return OTP; the job can only be completed once it is back.
+    workshop: {
+        status: { type: String, enum: ['pickup_pending', 'at_workshop', 'return_pending', 'returned', null], default: null },
+        reason: { type: String, maxlength: 300 },
+        pickupOTP: { type: String, default: null },
+        returnOTP: { type: String, default: null },
+        otpAttempts: { type: Number, default: 0 },
+        requestedAt: { type: Date },
+        pickedUpAt: { type: Date },
+        returnRequestedAt: { type: Date },
+        returnedAt: { type: Date }
+    },
     paymentStatus: {
         type: String,
         enum: ['pending', 'paid', 'failed', 'refunded'],

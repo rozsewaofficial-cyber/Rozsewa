@@ -1028,6 +1028,32 @@ const LiveTracking = () => {
               )}
             </motion.div>
 
+            {/* Workshop Required: the item is going to / at / back from the
+                partner's shop. The customer holds the OTP for each handover. */}
+            {bookingDetails?.workshop?.status && (
+              <section className="rounded-[24px] border border-orange-200 dark:border-orange-900/40 bg-orange-50/70 dark:bg-orange-950/20 p-5" data-customer-workshop={bookingDetails.workshop.status}>
+                <h3 className="text-sm font-black text-orange-800 dark:text-orange-200">
+                  {{ pickup_pending: 'Item going to the workshop', at_workshop: 'Item at the workshop', return_pending: 'Item coming back', returned: 'Item returned' }[bookingDetails.workshop.status]}
+                </h3>
+                {bookingDetails.workshop.reason && (
+                  <p className="mt-0.5 text-xs font-medium text-orange-700 dark:text-orange-300">"{bookingDetails.workshop.reason}"</p>
+                )}
+                {(bookingDetails.workshop.status === 'pickup_pending' || bookingDetails.workshop.status === 'return_pending') && (
+                  <div className="mt-3 w-fit rounded-xl bg-white dark:bg-slate-900 border border-orange-200 dark:border-orange-900/40 p-3">
+                    <p className="text-[10px] font-bold uppercase text-orange-600 mb-1">
+                      {bookingDetails.workshop.status === 'pickup_pending' ? 'Share only when you hand the item over' : 'Share only when you get the item back'}
+                    </p>
+                    <p className="text-2xl font-black tracking-[0.5em] text-orange-700 dark:text-orange-300">
+                      {(bookingDetails.workshop.status === 'pickup_pending' ? bookingDetails.workshop.pickupOTP : bookingDetails.workshop.returnOTP) || '----'}
+                    </p>
+                  </div>
+                )}
+                {bookingDetails.workshop.status === 'at_workshop' && (
+                  <p className="mt-2 text-[11px] font-bold text-orange-700 dark:text-orange-300">You'll get a return OTP when it is ready.</p>
+                )}
+              </section>
+            )}
+
             {/* Timeline */}
             <section className="rounded-[24px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
               <h3 className="mb-5 text-sm font-bold text-card-foreground flex items-center gap-2">

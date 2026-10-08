@@ -28,6 +28,16 @@ const TAB_IDS = (hideCompletedAndCancelled) =>
  */
 const tabStorageKey = (surface) => `bookings_active_tab:${surface}`;
 
+// What each customer OTP is for, in the verify popup.
+const OTP_TEXT = {
+  start: { title: 'Service Verification', ask: 'to start the service', verify: 'Verify & Start' },
+  complete: { title: 'Completion Verification', ask: 'to complete the service', verify: 'Verify & Complete' },
+  workshop_pickup: { title: 'Workshop Pickup', ask: 'when they hand the item over', verify: 'Verify Pickup' },
+  workshop_return: { title: 'Workshop Return', ask: 'when you give the item back', verify: 'Verify Return' },
+};
+// The customer's item is away at the workshop: no completing yet.
+const itemAway = (req) => ['pickup_pending', 'at_workshop', 'return_pending'].includes(req?.workshop?.status);
+
 const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'bookings' }) => {
   const [requests, setRequests] = useState([]);
   // Counts across every booking this worker has, not just the page on screen.
@@ -478,12 +488,44 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
 
   useScrollLock(showExtraModal || !!otpBooking || cancelModalOpen || !!counteringBookingId || !!reportBookingId || showAdminRequestModal || !!activeTracking);
 
+  // Workshop Required: the item goes to the shop and back, each against a
+  // customer OTP (the partner never sees it; the customer tells them).
+  const [workshopFor, setWorkshopFor] = useState(null);
+  const [workshopReason, setWorkshopReason] = useState("");
+  const [workshopBusy, setWorkshopBusy] = useState(false);
+  const workshopAction = async (id, step, body = {}, done) => {
+    if (workshopBusy) return;
+    setWorkshopBusy(true);
+    try {
+      const { data } = await API.post(`/bookings/${id}/workshop/${step}`, body);
+      toast({ title: done || data?.message });
+      fetchBookings();
+      return true;
+    } catch (err) {
+      toast({ title: "Couldn't update", description: err.response?.data?.message, variant: "destructive" });
+      return false;
+    } finally {
+      setWorkshopBusy(false);
+    }
+  };
+  const submitWorkshopRequest = async () => {
+    if (workshopReason.trim().length < 5) {
+      toast({ title: "Say what you are taking", description: "At least 5 characters, e.g. 'Mixer motor for rewinding'.", variant: "destructive" });
+      return;
+    }
+    const ok = await workshopAction(workshopFor, 'request', { reason: workshopReason.trim() }, 'Pickup OTP sent to the customer');
+    if (ok) { setWorkshopFor(null); setWorkshopReason(""); }
+  };
+
   const handleOtpVerify = async () => {
     const fullOtp = providerOtp;
     if (fullOtp.length !== 4) return;
     setIsVerifyingOtp(true);
     try {
-      if (otpType === 'start') {
+      if (otpType === 'workshop_pickup' || otpType === 'workshop_return') {
+        await API.post(`/bookings/${otpBooking}/workshop/${otpType === 'workshop_pickup' ? 'pickup' : 'return'}`, { otp: fullOtp });
+        toast({ title: otpType === 'workshop_pickup' ? "Pickup confirmed — item at workshop" : "Item returned to the customer" });
+      } else if (otpType === 'start') {
         await API.post(`/bookings/${otpBooking}/start`, {
           otp: fullOtp,
           beforeImage: beforeWorkPhoto
@@ -1098,6 +1140,53 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                       </div>
                     )}
 
+                    {/* Workshop Required (before the completion OTP) */}
+                    {(req.workshop?.status || !(req.endOtpSent || req.endOTP)) && (
+                    <div className="rounded-xl border border-orange-200 dark:border-orange-900/40 bg-orange-50/60 dark:bg-orange-950/20 p-3 space-y-2" data-workshop={req.workshop?.status || 'none'}>
+                      {!req.workshop?.status && !(req.endOtpSent || req.endOTP) && (
+                        <button onClick={() => { setWorkshopFor(req._id); setWorkshopReason(""); }}
+                          className="w-full rounded-lg border border-orange-300 bg-white dark:bg-transparent py-2.5 text-[10px] font-black uppercase tracking-widest text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-950/40">
+                          Workshop Required
+                        </button>
+                      )}
+                      {req.workshop?.status === 'pickup_pending' && (
+                        <>
+                          <p className="text-[11px] font-bold text-orange-800 dark:text-orange-200">Pickup OTP sent to the customer — "{req.workshop.reason}"</p>
+                          <button onClick={() => { setOtpBooking(req._id); setOtpType('workshop_pickup'); setProviderOtp(""); }}
+                            className="w-full rounded-lg bg-orange-600 py-2.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-orange-700">
+                            Enter Pickup OTP
+                          </button>
+                          <div className="flex gap-2">
+                            <button disabled={workshopBusy} onClick={() => workshopAction(req._id, 'request', {}, 'Pickup OTP sent again')} className="flex-1 rounded-lg border border-orange-300 py-2 text-[10px] font-bold text-orange-700 dark:text-orange-300 disabled:opacity-50">Resend OTP</button>
+                            <button disabled={workshopBusy} onClick={() => workshopAction(req._id, 'cancel')} className="flex-1 rounded-lg border border-border py-2 text-[10px] font-bold text-muted-foreground disabled:opacity-50">Not needed</button>
+                          </div>
+                        </>
+                      )}
+                      {req.workshop?.status === 'at_workshop' && (
+                        <>
+                          <p className="text-[11px] font-bold text-orange-800 dark:text-orange-200">At your workshop: "{req.workshop.reason}"</p>
+                          <button disabled={workshopBusy} onClick={() => workshopAction(req._id, 'return-request', {}, 'Return OTP sent to the customer')}
+                            className="w-full rounded-lg bg-orange-600 py-2.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-orange-700 disabled:opacity-50">
+                            Item Ready — Return to Customer
+                          </button>
+                        </>
+                      )}
+                      {req.workshop?.status === 'return_pending' && (
+                        <>
+                          <p className="text-[11px] font-bold text-orange-800 dark:text-orange-200">Return OTP sent to the customer — "{req.workshop.reason}"</p>
+                          <button onClick={() => { setOtpBooking(req._id); setOtpType('workshop_return'); setProviderOtp(""); }}
+                            className="w-full rounded-lg bg-orange-600 py-2.5 text-[10px] font-black uppercase tracking-widest text-white hover:bg-orange-700">
+                            Enter Return OTP
+                          </button>
+                          <button disabled={workshopBusy} onClick={() => workshopAction(req._id, 'return-request', {}, 'Return OTP sent again')} className="w-full rounded-lg border border-orange-300 py-2 text-[10px] font-bold text-orange-700 dark:text-orange-300 disabled:opacity-50">Resend OTP</button>
+                        </>
+                      )}
+                      {req.workshop?.status === 'returned' && (
+                        <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">✓ "{req.workshop.reason}" returned to the customer</p>
+                      )}
+                    </div>
+                    )}
+
                     {/* Upload After Photo */}
                     <div className="space-y-2">
                       <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">After Work Photo (Evidence)</p>
@@ -1124,7 +1213,11 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                       </div>
                     </div>
 
-                    {!req.endOTP ? (
+                    {itemAway(req) ? (
+                      <p className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-center text-[11px] font-bold text-amber-700">
+                        Return the item from the workshop (return OTP) before completing this job.
+                      </p>
+                    ) : !(req.endOtpSent || req.endOTP) ? (
                       <button
                         onClick={() => {
                           handleAction(req._id, 'complete', { afterImage: afterWorkPhoto });
@@ -1221,13 +1314,36 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
         )}
       </AnimatePresence>
 
+      {/* WORKSHOP REQUIRED */}
+      <AnimatePresence>
+        {workshopFor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-7 border border-border shadow-2xl">
+              <h3 className="text-lg font-black text-center mb-1">Workshop Required</h3>
+              <p className="text-xs text-muted-foreground text-center mb-5">The customer gets a pickup OTP. Take the item only after they tell you the code.</p>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">What are you taking? *</label>
+              <textarea value={workshopReason} onChange={(e) => setWorkshopReason(e.target.value)} rows={3} maxLength={300}
+                placeholder="e.g. Mixer motor for rewinding"
+                className="w-full rounded-xl border border-border bg-background p-3 text-sm focus:border-orange-500 focus:outline-none" />
+              <div className="flex gap-3 mt-5">
+                <button onClick={() => setWorkshopFor(null)} className="flex-1 py-3 text-xs font-bold text-muted-foreground">Cancel</button>
+                <button onClick={submitWorkshopRequest} disabled={workshopBusy}
+                  className="flex-1 py-3 rounded-xl text-xs font-black bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50">
+                  {workshopBusy ? 'Sending…' : 'Send Pickup OTP'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* OTP MODAL */}
       <AnimatePresence>
         {otpBooking && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 touch-none">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-sm rounded-[32px] bg-card p-8 border border-border shadow-2xl touch-auto">
-              <h3 className="text-lg font-black text-center mb-2">{otpType === 'start' ? 'Service Verification' : 'Completion Verification'}</h3>
-              <p className="text-xs text-muted-foreground text-center mb-6">Ask the customer for the 4-digit code to {otpType === 'start' ? 'start' : 'complete'} the service.</p>
+              <h3 className="text-lg font-black text-center mb-2">{OTP_TEXT[otpType]?.title || 'Verification'}</h3>
+              <p className="text-xs text-muted-foreground text-center mb-6">Ask the customer for the 4-digit code {OTP_TEXT[otpType]?.ask}.</p>
 
               <div className="flex justify-center mb-8">
                 <InputOTP maxLength={4} value={providerOtp} onChange={(val) => setProviderOtp(val)}>
@@ -1271,7 +1387,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
               <div className="flex gap-3">
                 <button onClick={() => setOtpBooking(null)} className="flex-1 py-3 text-xs font-bold text-muted-foreground">Cancel</button>
                 <button onClick={handleOtpVerify} disabled={isVerifyingOtp || (otpType === 'start' && !beforeWorkPhoto)} className={`flex-1 py-3 rounded-xl text-xs font-black shadow-lg transition-all ${((otpType === 'start' && !beforeWorkPhoto) || isVerifyingOtp) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90'}`}>
-                  {(otpType === 'start' && !beforeWorkPhoto) ? "Upload Photo to Start" : (isVerifyingOtp ? "Verifying..." : "Verify & " + (otpType === 'start' ? 'Start' : 'Complete'))}
+                  {(otpType === 'start' && !beforeWorkPhoto) ? "Upload Photo to Start" : (isVerifyingOtp ? "Verifying..." : OTP_TEXT[otpType]?.verify || "Verify")}
                 </button>
               </div>
             </motion.div>

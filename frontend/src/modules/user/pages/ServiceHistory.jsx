@@ -554,6 +554,12 @@ const ServiceHistory = () => {
                         {selectedBooking.status}
                       </span>
                     </div>
+                    {selectedBooking.workshop?.status && (
+                      <div className="rounded-xl bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900/40 p-3">
+                        <p className="text-xs font-black text-orange-700 dark:text-orange-300">{{ pickup_pending: 'Workshop: pickup OTP sent', at_workshop: 'Workshop: item at workshop', return_pending: 'Workshop: return OTP sent', returned: 'Workshop: item returned' }[selectedBooking.workshop.status]}</p>
+                        {selectedBooking.workshop.reason && <p className="mt-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">"{selectedBooking.workshop.reason}"</p>}
+                      </div>
+                    )}
                     {selectedBooking.status === 'cancelled' && (selectedBooking.cancelledBy || selectedBooking.cancellationReason) && (
                       <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 p-3">
                         <p className="text-xs font-black text-red-700 dark:text-red-300">{cancelledByLabel(selectedBooking.cancelledBy)}</p>

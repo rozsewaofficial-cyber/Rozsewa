@@ -8,9 +8,14 @@ const {
     getProviderReviewStats,
     submitReview, replyReview,
     proposeSchedule, acceptSchedule, rejectSchedule, checkOverlapStatus,
-    counterOfferBooking, acceptCounterOffer, rejectCounterOffer, collectPayment
+    counterOfferBooking, acceptCounterOffer, rejectCounterOffer, collectPayment,
+    requestWorkshop, verifyWorkshopPickup, requestWorkshopReturn, verifyWorkshopReturn, cancelWorkshop
 } = require('../controllers/bookingController');
 const { protect } = require('../middleware/authMiddleware');
+const { hideBookingOtpsFromProviders } = require('../utils/hideBookingOtps');
+
+// A partner's responses never carry the customer's OTPs.
+router.use(hideBookingOtpsFromProviders);
 
 router.post('/', protect, createBooking);
 router.get('/', protect, getUserBookings);
@@ -21,6 +26,12 @@ router.put('/:id', protect, updateBooking);
 router.patch('/:id/status', protect, updateBookingStatusByProvider);
 router.post('/:id/start', protect, verifyStartOTP);
 router.post('/:id/complete', protect, verifyEndOTP);
+// Workshop Required: item to the partner's shop and back, each against a customer OTP.
+router.post('/:id/workshop/request', protect, requestWorkshop);
+router.post('/:id/workshop/pickup', protect, verifyWorkshopPickup);
+router.post('/:id/workshop/return-request', protect, requestWorkshopReturn);
+router.post('/:id/workshop/return', protect, verifyWorkshopReturn);
+router.post('/:id/workshop/cancel', protect, cancelWorkshop);
 router.post('/:id/review', protect, submitReview);
 router.get('/provider/reviews', protect, getProviderReviews);
 // The rating itself, over every review rather than the page above.
