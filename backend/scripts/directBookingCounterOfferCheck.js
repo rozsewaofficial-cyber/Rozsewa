@@ -38,6 +38,10 @@ check('...but only for that provider, and only while the bargain is still open',
     assert.ok(/booking\.status === 'pending'/.test(block) && /booking\.offerStatus === 'pending'/.test(block));
 });
 check('the original broadcast condition is not the only gate any more', () => {
-    assert.ok(!/if \(isAccepting && !booking\.providerId\) \{/.test(src));
+    // The old decision gate (broadcast bookings only) must not come back. A
+    // separate `isAccepting && !booking.providerId` check (the Home Visit
+    // refusal) is fine: it is not the gate in front of the decision block.
+    assert.ok(!/if \(isAccepting && !booking\.providerId\) \{\s*\/\/ Pre-check for race condition/.test(src));
+    assert.ok(/if \(isAccepting && \(!booking\.providerId \|\| assignedProviderDecidingBargain\)\) \{/.test(src));
 });
 console.log(`\n${passed} direct-booking-counter-offer checks passed.\n`);
