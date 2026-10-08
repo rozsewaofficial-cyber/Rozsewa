@@ -200,7 +200,7 @@ const ShopDetail = () => {
     // Check individual services
     for (const s of servicesList) {
       const p = s.plans.find(pl => pl.id === planId);
-      if (p) return { serviceName: s.name, planName: p.name, price: p.price, duration: s.duration, expressPrice: s.expressPrice };
+      if (p) return { serviceName: s.name, planName: p.name, price: p.price, duration: s.duration, expressPrice: s.expressPrice, serviceType: s.serviceType };
     }
     // Check combos
     const combo = combosList.find(c => c.id === planId);
@@ -219,7 +219,7 @@ const ShopDetail = () => {
     const items = Object.entries(cart).map(([id, qty]) => {
       const d = getPlanDetails(id);
       if (d.expressPrice > maxExpress) maxExpress = d.expressPrice;
-      return { id, name: `${d.serviceName} (${d.planName})`, price: d.price, qty, duration: d.duration, expressPrice: d.expressPrice };
+      return { id, name: `${d.serviceName} (${d.planName})`, price: d.price, qty, duration: d.duration, expressPrice: d.expressPrice, serviceType: d.serviceType };
     });
     localStorage.setItem("rozsewa_checkout_data", JSON.stringify({
       providerId: provider?.id,

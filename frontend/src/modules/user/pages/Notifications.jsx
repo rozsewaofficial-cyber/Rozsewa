@@ -49,8 +49,11 @@ const Notifications = () => {
       }
     }
 
-    let targetLink = "";
-    if (notif.type === "booking" || notif.bookingId) {
+    // A notification that names its screen (e.g. the offer to answer) opens it.
+    let targetLink = notif.link || "";
+    if (targetLink) {
+      // its own screen
+    } else if (notif.type === "booking" || notif.bookingId) {
       targetLink = "/my-bookings";
     } else if (notif.type === "payment") {
       targetLink = "/wallet";

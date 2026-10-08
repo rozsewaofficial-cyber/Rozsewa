@@ -19,8 +19,15 @@ export const RECENT_COMPLETION_MINUTES = 60;
 const lastChange = (b) => new Date(b.completedAt || b.updatedAt || b.createdAt || 0).getTime();
 const minutesAgo = (b, now) => (now - lastChange(b)) / 60000;
 
-export const pickTrackedBooking = (bookings, { trackedId = null, dismissed = [], now = Date.now() } = {}) => {
+export const pickTrackedBooking = (bookings, { trackedId = null, requestedId = null, dismissed = [], now = Date.now() } = {}) => {
   const list = Array.isArray(bookings) ? bookings : [];
+
+  // Opened for one booking (from its notification, e.g. an offer to answer):
+  // that one, while it is still going.
+  if (requestedId) {
+    const requested = list.find((b) => b._id === requestedId);
+    if (requested && ACTIVE_STATUSES.includes(requested.status)) return requested;
+  }
 
   const inProgress = list.find((b) => ACTIVE_STATUSES.includes(b.status));
   if (inProgress) return inProgress;

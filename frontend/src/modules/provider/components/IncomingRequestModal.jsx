@@ -71,17 +71,23 @@ const IncomingRequestModal = ({ request, onAction }) => {
         };
     }, [request, alarmSoundPlaying]);
 
+    // One accept at a time: a double tap would send it twice.
+    const acceptingRef = useRef(false);
     const handleAccept = async (decision = null) => {
+        if (acceptingRef.current) return;
+        acceptingRef.current = true;
         try {
             const payload = { status: 'confirmed' };
             if (decision && typeof decision === 'string') {
                 payload.offerDecision = decision;
             }
-            await API.patch(`/bookings/${request.bookingId}/status`, payload);
+            const { data } = await API.patch(`/bookings/${request.bookingId}/status`, payload);
             toast({ title: "Booking Accepted!", variant: "default" });
             stopAlarmSound();
-            onAction('accepted');
+            // Confirmed: its chat with the customer opens next.
+            onAction('accepted', { bookingId: request.bookingId, openChat: (data?.status || 'confirmed') === 'confirmed' });
         } catch (err) {
+            acceptingRef.current = false;
             toast({
                 title: err.response?.status === 409 ? "Booking Taken" : "Failed to accept booking",
                 description: err.response?.data?.message || "Something went wrong.",

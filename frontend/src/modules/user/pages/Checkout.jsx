@@ -119,6 +119,18 @@ const Checkout = () => {
     total: 499,
   };
 
+  // At Home is offered only when the partner has Home Visit on and every
+  // chosen service offers it (a service can be shop-only).
+  const itemTypes = (checkoutData.items || []).map(i => i.serviceType).filter(t => Array.isArray(t) && t.length);
+  const homeVisitOffered =
+    !(providerDetails && providerDetails.providerCategory !== "sewak" && providerDetails.isHomeVisitAvailable === false) &&
+    itemTypes.every(t => t.includes("home") || t.includes("both"));
+  useEffect(() => {
+    if (!homeVisitOffered && serviceLocation === "home" && checkoutData.requiredProviderCategory !== "sewak") {
+      setServiceLocation("shop");
+    }
+  }, [homeVisitOffered, serviceLocation, checkoutData.requiredProviderCategory]);
+
   useEffect(() => {
     const fetchProviderHours = async () => {
       if (checkoutData.providerId) {
@@ -1493,7 +1505,27 @@ const Checkout = () => {
 
         {/* Service Preference Toggle */}
         {checkoutData.requiredProviderCategory !== 'sewak' && (() => {
-          const isHomeVisitDisabled = providerDetails && providerDetails.isHomeVisitAvailable === false;
+          const isHomeVisitDisabled = !homeVisitOffered;
+          // Waiting for the partner's details: no choice to show yet.
+          if (checkoutData.providerId && !providerDetails) return null;
+          // Home Visit is off: there is no At Home option to show at all (a
+          // greyed-out card still read as one). At Shop only.
+          if (isHomeVisitDisabled) {
+            return (
+              <section className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3" data-service-location="shop-only">
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-emerald-500" /> Where would you like your service?
+                </h3>
+                <div className="flex items-center gap-3 p-4 rounded-2xl border-2 border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30">
+                  <div className="p-1.5 rounded-xl bg-emerald-600 text-white"><Briefcase className="h-4 w-4" /></div>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-900 dark:text-white">At Shop</h3>
+                    <p className="text-[10px] font-bold text-slate-500 leading-tight">You visit the provider's shop. Home visit isn't offered for this booking.</p>
+                  </div>
+                </div>
+              </section>
+            );
+          }
 
           return (
             <section className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3.5">
@@ -1528,7 +1560,7 @@ const Checkout = () => {
                     <h3 className="text-xs font-black text-slate-900 dark:text-white">At Home</h3>
                   </div>
                   <p className="text-[10px] font-bold text-slate-500 leading-tight">
-                    {isHomeVisitDisabled ? "Not offered by this provider" : "Provider visits your address"}
+                    Provider visits your address
                   </p>
                 </motion.div>
 

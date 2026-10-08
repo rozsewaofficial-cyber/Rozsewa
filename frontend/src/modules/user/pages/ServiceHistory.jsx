@@ -34,6 +34,14 @@ const statusColors = {
   provider_countered: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
 };
 
+// Who cancelled a booking, as the customer reads it.
+const cancelledByLabel = (by) => ({
+  provider: 'Cancelled by Partner',
+  user: 'Cancelled by you',
+  admin: 'Cancelled by RozSewa',
+  system: 'Cancelled automatically',
+}[by] || 'Cancelled');
+
 const ServiceHistory = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -74,14 +82,24 @@ const ServiceHistory = () => {
         negotiation: b.negotiation,
         serviceLocation: b.serviceLocation,
         providerAddress: b.providerId ? `${b.providerId.address || ''} ${b.providerId.city ? `, ${b.providerId.city}` : ''}` : '',
+        partnerName: b.providerId && typeof b.providerId === 'object' ? (b.providerId.shopName || b.providerId.ownerName || '') : '',
       }));
       setBookings(formatted);
+      return formatted;
     } catch (err) {
       console.error("Failed to fetch bookings", err);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Opened from a notification for one booking: its details open.
+  const linkedBookingId = searchParams.get("bookingId");
+  useEffect(() => {
+    if (!linkedBookingId || !bookings.length) return;
+    const linked = bookings.find(b => b.id === linkedBookingId);
+    if (linked) setSelectedBooking(linked);
+  }, [linkedBookingId, bookings]);
 
   useEffect(() => {
     fetchBookings();
@@ -263,13 +281,31 @@ const ServiceHistory = () => {
   // with "no counter offer to accept", since negotiation.status was never
   // actually set. PUT /bookings/:id with counterDecision is the endpoint
   // that reads partnerCounterOffer/offerStatus for real.
+  // After accepting, that booking's chat with the partner opens — only once
+  // the server has confirmed it. One tap at a time per booking.
+  const [acceptingId, setAcceptingId] = useState(null);
+  // The booking whose chat opened after accepting (the details sheet stays shut).
+  const [chatBooking, setChatBooking] = useState(null);
+  const openChatFor = async (id) => {
+    const list = await fetchBookings();
+    const booking = (list || []).find(b => b.id === id);
+    if (booking) {
+      setChatBooking(booking);
+      setIsChatOpen(true);
+    }
+  };
   const handleAcceptCounter = async (id) => {
+    if (acceptingId) return;
+    setAcceptingId(id);
     try {
       await API.put(`/bookings/${id}`, { counterDecision: 'accept' });
-      toast({ title: "Price Accepted!", description: "Booking is now confirmed." });
-      fetchBookings();
+      toast({ title: "Price Accepted!", description: "Booking is now confirmed. Chat with your partner." });
+      await openChatFor(id);
     } catch (err) {
       toast({ title: "Failed to accept price", description: err.response?.data?.message, variant: "destructive" });
+      fetchBookings();
+    } finally {
+      setAcceptingId(null);
     }
   };
 
@@ -368,6 +404,20 @@ const ServiceHistory = () => {
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">#{bookingRef(booking.id)}</span>
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{booking.service}</h3>
+                  {booking.partnerName && (
+                    <p className="text-[12px] font-bold text-blue-600 dark:text-blue-400 truncate">with {booking.partnerName}</p>
+                  )}
+                  {booking.status === 'cancelled' && (booking.cancelledBy || booking.cancellationReason) && (
+                    <p className="mt-1 text-[12px] font-bold text-red-600 dark:text-red-400 line-clamp-2">
+                      {cancelledByLabel(booking.cancelledBy)}{booking.cancellationReason ? `: "${booking.cancellationReason}"` : ''}
+                    </p>
+                  )}
+                  {booking.status === 'provider_countered' && (
+                    <p className="mt-1 text-[12px] font-bold text-purple-700 dark:text-purple-300">
+                      {booking.partnerName || 'The partner'} offered ₹{booking.partnerCounterTotal ?? booking.partnerCounterOffer}
+                      {booking.customerOffer ? ` (your offer ₹${booking.customerOffer})` : ''}
+                    </p>
+                  )}
                   <div className="mt-1">
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase ${booking.serviceLocation === 'shop' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'}`}>
                       {booking.serviceLocation === 'shop' ? 'At Shop' : 'At Home'}
@@ -428,8 +478,8 @@ const ServiceHistory = () => {
                           className="flex-1 rounded-xl border-2 border-red-200 bg-red-50 py-3 text-[13px] font-bold text-red-600 hover:bg-red-100 transition-all">
                           Reject Price
                         </motion.button>
-                        <motion.button whileTap={{ scale: 0.95 }} onClick={(e) => { e.stopPropagation(); handleAcceptCounter(booking.id); }}
-                          className="flex-1 rounded-xl border-2 border-blue-600 bg-blue-600 py-3 text-[13px] font-bold text-white hover:bg-blue-700 transition-all">
+                        <motion.button whileTap={{ scale: 0.95 }} disabled={acceptingId === booking.id} onClick={(e) => { e.stopPropagation(); handleAcceptCounter(booking.id); }}
+                          className="disabled:opacity-60 flex-1rounded-xl border-2 border-blue-600 bg-blue-600 py-3 text-[13px] font-bold text-white hover:bg-blue-700 transition-all">
                           Accept ₹{booking.partnerCounterTotal ?? booking.partnerCounterOffer ?? booking.negotiation?.providerCounterAmount}
                         </motion.button>
                       </div>
@@ -504,6 +554,14 @@ const ServiceHistory = () => {
                         {selectedBooking.status}
                       </span>
                     </div>
+                    {selectedBooking.status === 'cancelled' && (selectedBooking.cancelledBy || selectedBooking.cancellationReason) && (
+                      <div className="rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 p-3">
+                        <p className="text-xs font-black text-red-700 dark:text-red-300">{cancelledByLabel(selectedBooking.cancelledBy)}</p>
+                        {selectedBooking.cancellationReason && (
+                          <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">Reason: {selectedBooking.cancellationReason}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Payment Info */}
@@ -705,10 +763,10 @@ const ServiceHistory = () => {
 
       <ChatModal 
         isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
-        bookingId={selectedBooking?.id} 
+        onClose={() => { setIsChatOpen(false); setChatBooking(null); }} 
+        bookingId={(chatBooking || selectedBooking)?.id} 
         userType="User" 
-        recipientName={selectedBooking?.providerId?.shopName || selectedBooking?.providerId?.ownerName || selectedBooking?.providerId?.name}
+        recipientName={(chatBooking || selectedBooking)?.providerId?.shopName || (chatBooking || selectedBooking)?.providerId?.ownerName || (chatBooking || selectedBooking)?.providerId?.name}
       />
     </div>
   );

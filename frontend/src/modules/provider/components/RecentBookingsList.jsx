@@ -74,6 +74,26 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
     };
   }, [requests, pollingIntervalId]);
   const [activeChatBookingId, setActiveChatBookingId] = useState(null);
+
+  // A booking accepted from the "New Request" popup opens its chat here.
+  useEffect(() => {
+    const open = (e) => {
+      if (!e.detail?.bookingId) return;
+      e.detail.handled = true;
+      setActiveChatBookingId(e.detail.bookingId);
+    };
+    window.addEventListener('OPEN_BOOKING_CHAT', open);
+    // Or arrived here for it (/provider/bookings?chat=<id>).
+    const params = new URLSearchParams(window.location.search);
+    const fromLink = params.get('chat');
+    if (fromLink) {
+      setActiveChatBookingId(fromLink);
+      // Once: coming back to this page shouldn't reopen it.
+      params.delete('chat');
+      window.history.replaceState(null, '', window.location.pathname + (params.toString() ? `?${params}` : ''));
+    }
+    return () => window.removeEventListener('OPEN_BOOKING_CHAT', open);
+  }, []);
   const { toast } = useToast();
   const { socket } = useSocket();
   const { user } = useAuth();
@@ -251,6 +271,8 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
         toast({ title: `Booking ${action === 'complete' ? 'Completed' : action === 'reject' ? 'Rejected' : action + 'ed'}` });
       }
       fetchBookings();
+      // Accepted and confirmed: open the chat with this customer.
+      if (action === 'accept' && (granted || newStatus) === 'confirmed') setActiveChatBookingId(id);
     } catch (err) {
       toast({
         title: "Action failed",

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSocket } from '@/context/SocketContext';
 import { useAuth } from '@/context/AuthContext';
 import IncomingRequestModal from '@/modules/provider/components/IncomingRequestModal';
@@ -10,6 +11,7 @@ import AdminSosModal from './AdminSosModal';
 const GlobalAlarm = () => {
     const socketData = useSocket();
     const { user } = useAuth();
+    const navigate = useNavigate();
 
     // Safety fallback for Vite HMR issues where context might be temporarily lost
     if (!socketData || !user) return null;
@@ -71,8 +73,15 @@ const GlobalAlarm = () => {
     return (
         <IncomingRequestModal
             request={incomingRequest}
-            onAction={() => {
+            onAction={(result, info) => {
                 setIncomingRequest(null);
+                // Accepted: open that booking's chat — in the bookings list if
+                // it is on screen, else on the Bookings page.
+                if (result === 'accepted' && info?.openChat && info.bookingId) {
+                    const detail = { bookingId: info.bookingId, handled: false };
+                    window.dispatchEvent(new CustomEvent('OPEN_BOOKING_CHAT', { detail }));
+                    if (!detail.handled) navigate(`/provider/bookings?chat=${info.bookingId}`);
+                }
                 // Closing the popup is not enough: the dashboard list is a
                 // separate component that only refetches on a socket event,
                 // so a booking accepted here kept showing Accept/Reject —

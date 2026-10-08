@@ -180,6 +180,20 @@ const createBooking = async (req, res) => {
             if (serviceLocation === 'home' && specificProvider.providerCategory !== 'sewak' && specificProvider.isHomeVisitAvailable === false) {
                 return res.status(400).json({ message: 'This provider does not offer home visits. Please choose At-Shop.' });
             }
+            // Nor a service they offer at the shop only (Home Visit unticked on it).
+            if (serviceLocation === 'home' && specificProvider.providerCategory !== 'sewak') {
+                const ids = [serviceId, ...(Array.isArray(items) ? items.map(i => i && i.id) : [])]
+                    .filter(id => id && mongoose.Types.ObjectId.isValid(String(id)));
+                if (ids.length) {
+                    const shopOnly = await Service.findOne({
+                        _id: { $in: ids }, providerId: specificProvider._id,
+                        serviceType: { $exists: true, $ne: [], $nin: ['home', 'both'] }
+                    }).select('name').lean();
+                    if (shopOnly) {
+                        return res.status(400).json({ message: `${shopOnly.name} is offered at the shop only. Please choose At-Shop.` });
+                    }
+                }
+            }
             // A partner who chose specific services can only be booked for those.
             if (specificProvider.providerCategory !== 'sewak') {
                 const cat = specificProvider.vendorType
@@ -1012,8 +1026,17 @@ const createBooking = async (req, res) => {
                 notifyUser({
                     userId: booking.userId,
                     userRole: 'user',
-                    title: 'Booking Confirmed! ✓',
-                    message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been placed.`,
+                    // A bargain is a request until the partner answers it, so
+                    // it isn't announced as a confirmed booking.
+                    ...(booking.customerOffer !== null && booking.customerOffer !== undefined
+                        ? {
+                            title: 'Offer Sent',
+                            message: `Your offer of ₹${booking.customerOffer} for ${booking.serviceName} was sent. We'll notify you when the partner responds.`
+                        }
+                        : {
+                            title: 'Booking Confirmed! ✓',
+                            message: `Your booking #${booking._id.toString().slice(-6)} for ${booking.serviceName} has been placed.`
+                        }),
                     type: 'booking',
                     bookingId: booking._id
                 }).catch(err => console.log('User booking confirmation notification failed (skipping):', err.message));
@@ -1401,14 +1424,16 @@ const getProviderBookingStats = async (req, res) => {
     }
 };
 
-const notifyCustomerOfProviderCancellation = async (booking, reason, creditAmount = 0) => {
+// `cancelled`: a confirmed booking the partner cancelled (vs. a request they
+// rejected before accepting it), whatever compensation went through.
+const notifyCustomerOfProviderCancellation = async (booking, reason, creditAmount = 0, { cancelled = creditAmount > 0 } = {}) => {
     const { notifyUser } = require('../config/notificationService');
     const { emitToUser } = require('../config/socket');
 
     const bookingRef = booking._id.toString().slice(-6);
     const hasPenaltyCredit = creditAmount > 0;
-    const title = hasPenaltyCredit ? 'Booking Cancelled by Partner' : 'Booking Rejected by Partner';
-    let message = hasPenaltyCredit
+    const title = cancelled ? 'Booking Cancelled by Partner' : 'Booking Rejected by Partner';
+    let message = cancelled
         ? `Your booking #${bookingRef} for ${booking.serviceName} has been cancelled by the partner.`
         : `Provider rejected your booking #${bookingRef} for ${booking.serviceName}.`;
 
@@ -1424,10 +1449,13 @@ const notifyCustomerOfProviderCancellation = async (booking, reason, creditAmoun
         userRole: 'user',
         title,
         message,
-        type: 'cancel',
+        // 'cancel' is no Notification type, so the in-app record failed to
+        // save: the customer got a passing popup at most, nothing in their
+        // notifications. A booking notification, opening this booking.
+        type: 'booking',
         bookingId: booking._id,
         data: {
-            link: '/tracking',
+            link: `/my-bookings?bookingId=${booking._id}`,
             cancellationReason: reason || '',
             cancelledBy: 'provider'
         }
@@ -1993,11 +2021,10 @@ const updateBookingStatusByProvider = async (req, res) => {
                     creditAmount = 50;
                 }
 
-                try {
-                    await notifyCustomerOfProviderCancellation(booking, reason, creditAmount);
-                } catch (notifyErr) {
-                    console.log('User cancel notification failed (skipping):', notifyErr.message);
-                }
+                // The customer is told after the money moves, and only of a
+                // credit that was actually made (it used to say "₹X credited"
+                // before the credit ran, true or not).
+                let compensated = 0;
 
                 try {
                     const PartnerProgram = require('../models/PartnerProgram');
@@ -2045,6 +2072,7 @@ const updateBookingStatusByProvider = async (req, res) => {
                     userWallet.balance += creditAmount;
                     userWallet.updatedAt = Date.now();
                     await userWallet.save();
+                    compensated = creditAmount;
 
                     await Transaction.create({
                         userId: booking.userId,
@@ -2097,6 +2125,12 @@ const updateBookingStatusByProvider = async (req, res) => {
                 } catch (err) {
                     console.log('Cancellation penalty/distribution failed:', err.message);
                 }
+
+                try {
+                    await notifyCustomerOfProviderCancellation(booking, reason, compensated, { cancelled: true });
+                } catch (notifyErr) {
+                    console.log('User cancel notification failed (skipping):', notifyErr.message);
+                }
             }
 
             // If confirmed or countered, notify other potential providers to stop their alarms
@@ -2107,21 +2141,28 @@ const updateBookingStatusByProvider = async (req, res) => {
                 if (booking.offerStatus === 'countered') {
                     io.to(`user_${booking.userId}`).emit('COUNTER_OFFER_RECEIVED', {
                         bookingId: booking._id.toString(),
+                        partnerName: req.user.shopName || req.user.ownerName || '',
                         partnerCounterOffer: booking.partnerCounterOffer,
                         partnerCounterTotal: booking.partnerCounterTotal,
                         counterOfferExpiresAt: booking.counterOfferExpiresAt
                     });
 
-                    // Notify user
+                    // Notify user: who offered what, and a tap opens that offer.
                     try {
                         const { notifyUser } = require('../config/notificationService');
+                        const partnerName = req.user.shopName || req.user.ownerName || 'A partner';
+                        const offered = booking.partnerCounterTotal || booking.partnerCounterOffer;
+                        const minutes = booking.counterOfferExpiresAt
+                            ? Math.max(1, Math.round((new Date(booking.counterOfferExpiresAt).getTime() - Date.now()) / 60000))
+                            : null;
                         await notifyUser({
                             userId: booking.userId,
                             userRole: 'user',
-                            title: 'New Counter-Offer Proposed!',
-                            message: `A partner has proposed a counter-offer of ₹${booking.partnerCounterTotal || booking.partnerCounterOffer} for your request.`,
+                            title: `New offer from ${partnerName}`,
+                            message: `You have received a new offer from ${partnerName}: ₹${offered} for ${booking.serviceName} (your offer ₹${booking.customerOffer}).${minutes ? ` Accept or reject within ${minutes} min.` : ''}`,
                             type: 'booking',
-                            bookingId: booking._id
+                            bookingId: booking._id,
+                            data: { link: `/tracking?bookingId=${booking._id}`, partnerName, offer: String(offered) }
                         });
                     } catch (err) {
                         console.log('User counter-offer notification failed:', err.message);

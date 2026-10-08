@@ -14,7 +14,7 @@ import {
   X,
   MapPin,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
@@ -26,6 +26,9 @@ import { pickTrackedBooking } from "@/lib/trackedBooking";
 
 const LiveTracking = () => {
   const navigate = useNavigate();
+  // Opened from a notification for one booking (e.g. an offer to answer).
+  const [searchParams] = useSearchParams();
+  const requestedBookingId = searchParams.get("bookingId");
   const { toast } = useToast();
   const [bookingDetails, setBookingDetails] = useState(null);
   const bookingDetailsRef = useRef(null);
@@ -103,6 +106,8 @@ const LiveTracking = () => {
   const [proposedSchedule, setProposedSchedule] = useState(null);
   const [counterTimer, setCounterTimer] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  // The booking a just-accepted chat belongs to, whatever the screen shows next.
+  const [chatBookingId, setChatBookingId] = useState(null);
 
   const loadRazorpay = () => {
     return new Promise((resolve) => {
@@ -204,6 +209,7 @@ const LiveTracking = () => {
       } catch (e) {}
       const active = pickTrackedBooking(data, {
         trackedId: bookingDetailsRef.current?._id,
+        requestedId: requestedBookingId,
         dismissed,
       });
       if (active) {
@@ -336,8 +342,13 @@ const LiveTracking = () => {
     return () => clearInterval(timer);
   }, [counterTimer]);
 
+  // One decision at a time: a second tap while the first is in flight
+  // would send it twice.
+  const [deciding, setDeciding] = useState(false);
   const handleCounterDecision = async (decision) => {
-    if (!bookingDetails) return;
+    if (!bookingDetails || deciding) return;
+    const acceptedId = bookingDetails._id;
+    setDeciding(true);
     try {
       await API.put(`/bookings/${bookingDetails._id}`, {
         counterDecision: decision,
@@ -349,11 +360,14 @@ const LiveTracking = () => {
             : "Counter-Offer Rejected",
         description:
           decision === "accept"
-            ? "Your booking is now confirmed."
+            ? "Your booking is now confirmed. Chat with your partner below."
             : "Your booking has been cancelled.",
         variant: "default",
       });
-      fetchBookingStatus();
+      await fetchBookingStatus();
+      // Accepted: the booking is confirmed, so its chat with the partner
+      // opens straight away (only after the server confirmed it).
+      if (decision === "accept") { setChatBookingId(acceptedId); setIsChatOpen(true); }
     } catch (err) {
       if (err.response?.status === 410) {
         toast({
@@ -369,6 +383,8 @@ const LiveTracking = () => {
         });
       }
       fetchBookingStatus();
+    } finally {
+      setDeciding(false);
     }
   };
 
@@ -433,20 +449,27 @@ const LiveTracking = () => {
   }, [bookingDetails]);
 
   const handleAcceptSchedule = async () => {
+    if (!bookingDetails || deciding) return;
+    setDeciding(true);
     try {
       await API.patch(`/bookings/${bookingDetails._id}/accept-schedule`);
       toast({
         title: "Schedule Accepted",
         description: "Your booking is now confirmed.",
       });
+      const acceptedId = bookingDetails._id;
       setProposedSchedule(null);
-      fetchBookingStatus();
+      await fetchBookingStatus();
+      setChatBookingId(acceptedId);
+      setIsChatOpen(true);
     } catch (err) {
       toast({
         title: "Error",
         description: "Failed to accept schedule",
         variant: "destructive",
       });
+    } finally {
+      setDeciding(false);
     }
   };
 
@@ -746,13 +769,14 @@ const LiveTracking = () => {
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <button
                   onClick={() => handleCounterDecision("reject")}
-                  className="h-12 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
+                  disabled={deciding}
+                  className="h-12rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center justify-center gap-2 transition-all font-bold text-[13px] text-slate-600 dark:text-slate-300"
                 >
                   <X className="h-4 w-4" /> Reject & Cancel
                 </button>
                 <button
                   onClick={() => handleCounterDecision("accept")}
-                  disabled={counterTimer <= 0}
+                  disabled={counterTimer <= 0 || deciding}
                   className="h-12 rounded-full bg-purple-600 hover:bg-purple-700 text-white shadow-md shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 transition-all font-bold text-[13px] disabled:opacity-50"
                 >
                   <Check className="h-4 w-4" /> Accept Counter
@@ -1131,8 +1155,8 @@ const LiveTracking = () => {
 
       <ChatModal
         isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        bookingId={bookingDetails?._id || bookingDetails?.id}
+        onClose={() => { setIsChatOpen(false); setChatBookingId(null); }}
+        bookingId={chatBookingId || bookingDetails?._id || bookingDetails?.id}
         userType="User"
         recipientName={
           bookingDetails?.providerId?.shopName ||

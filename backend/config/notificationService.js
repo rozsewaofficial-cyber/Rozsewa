@@ -343,6 +343,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                 type,
             };
             if (bookingId) notificationData.bookingId = bookingId;
+            if (typeof data?.link === 'string' && data.link.startsWith('/')) notificationData.link = data.link;
             if (data?.leadId) notificationData.leadId = data.leadId;
 
             newNotification = await Notification.create(notificationData);
