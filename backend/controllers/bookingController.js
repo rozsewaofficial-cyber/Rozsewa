@@ -829,7 +829,10 @@ const createBooking = async (req, res) => {
                         _id: { $ne: req.user._id },
                         status: 'verified',
                         isOnline: true,
-                        providerCategory: targetCategory
+                        providerCategory: targetCategory,
+                        ...(serviceLocation === 'home' && targetCategory !== 'sewak'
+                            ? { isHomeVisitAvailable: { $ne: false } }
+                            : {})
                     })
                         .select('location serviceRadius serviceModes vendorType fcmTokens ownerName shopName mobile email')
                         .limit(DISPATCH_FANOUT_CAP)
@@ -862,6 +865,11 @@ const createBooking = async (req, res) => {
                             { serviceModes: { $exists: false } },
                             { serviceModes: { $size: 0 } }
                         ];
+                        // A partner who switched Home Visit off must not be sent home bookings
+                        // (sewaks always work at the customer's home).
+                        if (targetCategory !== 'sewak') {
+                            providerQuery.isHomeVisitAvailable = { $ne: false };
+                        }
                     } else {
                         providerQuery.serviceModes = 'shop';
                     }
@@ -1287,6 +1295,25 @@ const updateBooking = async (req, res) => {
     }
 };
 
+// Where this worker can do a job: their service modes, minus "home" when a partner has switched
+// Home Visit off in their settings (a sewak always works at the customer's home).
+const homeVisitOff = (provider) =>
+    Boolean(provider) && provider.providerCategory !== 'sewak' && provider.isHomeVisitAvailable === false;
+
+const serviceLocationsFor = (provider) => {
+    const modes = provider.serviceModes && provider.serviceModes.length ? provider.serviceModes : ['home'];
+    return homeVisitOff(provider) ? modes.filter((mode) => mode !== 'home') : modes;
+};
+
+// A partner with Home Visit off cannot take or bid on a home booking (by API, not only in the list).
+const refuseHomeBookingIfHomeVisitOff = async (req, booking) => {
+    if (!booking || booking.serviceLocation !== 'home' || req.user?.role !== 'provider') return null;
+    const provider = await Provider.findById(req.user._id).select('providerCategory isHomeVisitAvailable').lean();
+    return homeVisitOff(provider)
+        ? 'Home Visit is switched off in your settings, so you cannot take home-visit bookings.'
+        : null;
+};
+
 // The unclaimed jobs this worker may actually take: inside their service
 // radius, and within what they are allowed to owe. Shared, so the counts above
 // the list describe the same set the list is drawn from.
@@ -1296,7 +1323,7 @@ const eligiblePendingFor = async (provider) => {
         providerId: { $in: [null, undefined] },
         requiredProviderCategory: provider.providerCategory || 'partner',
         rejectedProviders: { $ne: provider._id },
-        serviceLocation: { $in: provider.serviceModes && provider.serviceModes.length ? provider.serviceModes : ['home'] }
+        serviceLocation: { $in: serviceLocationsFor(provider) }
     })
         .populate('userId', 'ownerName name mobile address')
         // A live feed of unclaimed jobs: newest first, and bounded so a
@@ -1543,6 +1570,13 @@ const updateBookingStatusByProvider = async (req, res) => {
             }
 
             const isAccepting = req.body.status === 'confirmed' || req.body.offerDecision === 'counter';
+
+            if (isAccepting && !booking.providerId) {
+                const refusal = await refuseHomeBookingIfHomeVisitOff(req, booking);
+                if (refusal) {
+                    return res.status(400).json({ message: refusal });
+                }
+            }
 
             const isAuthorized = (isAccepting && !booking.providerId) ||
                 (booking.providerId && booking.providerId.toString() === req.user._id.toString()) ||
@@ -3336,6 +3370,8 @@ const counterOfferBooking = async (req, res) => {
         if (booking.status !== 'pending') return res.status(400).json({ message: 'Booking is no longer pending' });
 
         if (!booking.providerId) {
+            const refusal = await refuseHomeBookingIfHomeVisitOff(req, booking);
+            if (refusal) return res.status(400).json({ message: refusal });
             // Assign this provider temporarily for negotiation
             booking.providerId = req.user._id;
         } else if (booking.providerId.toString() !== req.user._id.toString()) {
