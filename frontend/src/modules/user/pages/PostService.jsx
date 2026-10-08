@@ -52,11 +52,18 @@ const PostService = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const [totalTipped, setTotalTipped] = useState(0);
+  // Tips already on this booking, by how they are paid.
+  const [onlineTipped, setOnlineTipped] = useState(0);
+  const [cashTipped, setCashTipped] = useState(0);
+  // The tip chosen on the payment screen: part of the bill, paid with it.
+  const [tipChoice, setTipChoice] = useState(0);
 
   const fetchTips = async (bookingId) => {
     try {
       const { data } = await API.get(`/tips/booking/${bookingId}`);
       setTotalTipped(data.totalTipped || 0);
+      setOnlineTipped(data.onlineTipped || 0);
+      setCashTipped(data.cashTipped || 0);
     } catch (err) {
       // Non-critical — bill still renders correctly without tip history.
     }
@@ -80,6 +87,8 @@ const PostService = () => {
       if (active) {
         setBooking(active);
         setPaymentDone(active.paymentStatus === "paid");
+        // A cash tip chosen earlier is still the tip on this bill.
+        if (active.paymentStatus !== "paid" && active.cashTip > 0) setTipChoice((t) => t || active.cashTip);
         if (active.extraStatus === "pending") setShowApproval(true);
         fetchTips(active._id);
       }
@@ -132,12 +141,17 @@ const PostService = () => {
       return;
     }
     try {
+      // Raised for this booking, so the server prices it (bill + tip) and
+      // can mark this booking paid. It was raised with no booking, which
+      // verification refuses: the customer was charged, the booking not paid.
       const { data: order } = await API.post("/payment/order", {
-        amount: finalTotal,
         currency: "INR",
+        purpose: "booking",
+        bookingId: booking._id,
+        tipAmount: tipChoice || undefined,
       });
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa",
@@ -150,7 +164,9 @@ const PostService = () => {
               bookingId: booking._id,
             });
             if (verification.success) {
-              toast({ title: "Payment Successful!" });
+              toast({ title: "Payment Successful!", description: tipChoice ? `Including your ₹${tipChoice} tip — thank you!` : undefined });
+              setBooking((b) => (b ? { ...b, paymentStatus: "paid" } : b));
+              fetchTips(booking._id);
               setPaymentDone(true);
               setShowConfetti(true);
               setTimeout(() => setShowConfetti(false), 3000);
@@ -170,7 +186,7 @@ const PostService = () => {
     } catch (err) {
       toast({
         title: "Payment Failed",
-        description: err.message,
+        description: err.response?.data?.message || err.message,
         variant: "destructive",
       });
     } finally {
@@ -197,6 +213,24 @@ const PostService = () => {
       .reduce((sum, item) => sum + item.amount, 0) || 0;
   const baseAmount = booking?.totalAmount || 0;
   const finalTotal = baseAmount + approvedExtraTotal;
+  // What the customer pays now: the bill plus the tip they chose.
+  const payableNow = finalTotal + (tipChoice || 0);
+
+  // The bill adds up: every line shown is in the total.
+  //  - not paid yet: bill + the tip chosen = Total Payable (what the buttons charge)
+  //  - paid online:  bill + tips paid       = Total Paid
+  //  - cash chosen:  bill + the cash tip    = Total to pay in cash
+  const paidOnline = booking?.paymentStatus === "paid";
+  const billTipLines = paymentDone
+    ? [
+        ...(onlineTipped > 0 ? [{ label: "Tip", amount: onlineTipped }] : []),
+        ...(cashTipped > 0 ? [{ label: "Tip (cash)", amount: cashTipped }] : []),
+      ]
+    : tipChoice > 0
+      ? [{ label: "Tip", amount: tipChoice }]
+      : [];
+  const billTotal = paymentDone ? finalTotal + onlineTipped + cashTipped : payableNow;
+  const billTotalLabel = !paymentDone ? "Total Payable" : paidOnline ? "Total Paid" : "Total (pay in cash)";
 
   const handleExtraAction = async (status) => {
     try {
@@ -218,6 +252,9 @@ const PostService = () => {
   const handlePayment = async (method) => {
     try {
       if (method === "cod") {
+        if (tipChoice > 0 || cashTipped > 0 || booking.cashTip > 0) {
+          await API.post("/tips/cash", { bookingId: booking._id, amount: tipChoice || 0 });
+        }
         await API.patch(`/bookings/${booking._id}/status`, {
           paymentMode: "after",
           status: "completed",
@@ -234,9 +271,11 @@ const PostService = () => {
       toast({
         title:
           method === "cod"
-            ? "Please pay the provider in cash"
+            ? `Please pay the provider ₹${payableNow} in cash`
             : "Payment Successful!",
+        description: method === "cod" && tipChoice ? `Includes your ₹${tipChoice} tip.` : undefined,
       });
+      fetchTips(booking._id);
     } catch {
       toast({
         title: "Failed to update payment status",
@@ -445,38 +484,41 @@ const PostService = () => {
                 </span>
               </div>
             )}
-            {totalTipped > 0 && (
-              <div className="flex justify-between items-center">
+            {/* Tip lines: each one is inside the total below. */}
+            {billTipLines.map((t) => (
+              <div key={t.label} className="flex justify-between items-center">
                 <span className="text-[13px] text-rose-500 dark:text-rose-400 flex items-center gap-1">
-                  <Heart className="h-3 w-3 fill-rose-500 text-rose-500" /> Tip Given
+                  <Heart className="h-3 w-3 fill-rose-500 text-rose-500" /> {t.label}
                 </span>
-                <span className="text-[13px] font-bold text-rose-600 dark:text-rose-400">
-                  +₹{totalTipped}
-                </span>
+                <span className="text-[13px] font-bold text-rose-600 dark:text-rose-400">+₹{t.amount}</span>
               </div>
-            )}
+            ))}
             <div className="border-t border-slate-100 dark:border-slate-800 pt-3 flex justify-between items-center">
               <span className="text-[15px] font-black text-slate-900 dark:text-white">
-                Total Payable
+                {billTotalLabel}
               </span>
-              <span className="text-[22px] font-black text-blue-600 dark:text-blue-400">
-                ₹{finalTotal}
+              <span className="text-[22px] font-black text-blue-600 dark:text-blue-400" data-total-payable={billTotal}>
+                ₹{billTotal}
               </span>
             </div>
-            {totalTipped > 0 && (
+            {billTipLines.length > 0 && (
               <p className="text-[10px] text-slate-400 text-right -mt-1">
-                Tip is collected separately and already paid.
+                {paymentDone && booking?.paymentStatus !== "paid"
+                  ? "Pay this in cash. The tip goes 100% to the professional."
+                  : "The tip goes 100% to the professional."}
               </p>
             )}
           </div>
         </section>
 
-        {/* Tip — Trigger 1: alongside the payment screen */}
+        {/* Tip — Trigger 1: chosen with the bill, paid in the same payment */}
         {!paymentDone && (
           <TipSection
             booking={booking}
             triggerPoint="payment_screen"
-            onTipUpdate={() => fetchTips(booking._id)}
+            selectOnly
+            value={tipChoice}
+            onSelect={setTipChoice}
           />
         )}
 
@@ -496,7 +538,7 @@ const PostService = () => {
                 </>
               ) : (
                 <>
-                  <CreditCard className="h-5 w-5" /> Pay Online ₹{finalTotal}
+                  <CreditCard className="h-5 w-5" /> Pay Online ₹{payableNow}
                 </>
               )}
             </motion.button>
@@ -505,7 +547,7 @@ const PostService = () => {
               onClick={() => handlePayment("cod")}
               className="w-full flex items-center justify-center gap-2.5 py-4 rounded-[20px] border-2 border-emerald-500 text-emerald-600 dark:text-emerald-400 text-[15px] font-black hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all"
             >
-              <Banknote className="h-5 w-5" /> Confirm Cash Payment
+              <Banknote className="h-5 w-5" /> Confirm Cash Payment ₹{payableNow}
             </motion.button>
           </div>
         ) : (

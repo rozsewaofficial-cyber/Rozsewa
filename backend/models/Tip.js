@@ -46,9 +46,12 @@ const tipSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'credited', 'failed'],
+        // 'cash': paid to the professional in cash with the bill — recorded,
+        // never credited (the platform never received it).
+        enum: ['pending', 'credited', 'failed', 'cash'],
         default: 'pending'
     },
+    paymentMode: { type: String, enum: ['online', 'cash'], default: 'online' },
     triggerPoint: {
         type: String,
         enum: ['payment_screen', 'post_payment'],

@@ -37,7 +37,8 @@ check('the order is written down when it is created', () => {
 
 check("a booking's price comes off the booking, not the caller", () => {
     const fn = controller.slice(controller.indexOf('const createOrder'), controller.indexOf('// @desc    Verify Razorpay Payment'));
-    assert.ok(/amount = Number\(booking\.totalAmount\)/.test(fn),
+    // Priced by bookingPayable (the bill as the customer is shown it).
+    assert.ok(/amount = bookingPayable\(booking\)/.test(fn) && /Number\(booking\.totalAmount\)/.test(controller.slice(controller.indexOf('const bookingPayable'))),
         'the figure is read from the booking being paid for');
 });
 

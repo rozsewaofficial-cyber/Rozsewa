@@ -1257,6 +1257,18 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                         <span>Total Bill</span>
                         <span>₹{(req.totalAmount || 0) + ((req.extraCharges || []).filter(c => c.status !== 'declined' && !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0)}</span>
                       </div>
+                      {req.cashTip > 0 && req.paymentMode !== 'now' && (
+                        <>
+                          <div className="flex justify-between text-xs font-bold text-rose-600 mt-2">
+                            <span>Tip (cash, 100% yours)</span>
+                            <span>+₹{req.cashTip}</span>
+                          </div>
+                          <div className="flex justify-between text-sm font-black text-foreground mt-1" data-collect-total>
+                            <span>Collect in cash</span>
+                            <span>₹{(req.totalAmount || 0) + ((req.extraCharges || []).filter(c => c.status !== 'declined' && !c.item.includes('Travel Charge') && !c.item.includes('Night Charge')).reduce((sum, c) => sum + (c.amount || 0), 0) || 0) + req.cashTip}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {req.paymentMode === 'now' ? (

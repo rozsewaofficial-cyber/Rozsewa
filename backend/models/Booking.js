@@ -85,6 +85,9 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    // A tip the customer is paying in cash with the bill, so the partner's
+    // collection screen asks for it too (the Tip record holds the history).
+    cashTip: { type: Number, default: 0 },
     // "Workshop Required": the item goes to the partner's shop mid-job.
     // The customer hands it over against a pickup OTP and takes it back
     // against a return OTP; the job can only be completed once it is back.

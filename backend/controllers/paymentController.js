@@ -9,7 +9,21 @@ const razorpay = new Razorpay({
 
 const PaymentOrder = require('../models/PaymentOrder');
 
-const PURPOSES = ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'banner', 'other'];
+const PURPOSES = ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'banner', 'tip', 'other'];
+
+/**
+ * What a booking's bill comes to, as the customer is shown it: the booking
+ * total, the welfare contribution, and the extra charges they approved
+ * (night / travel charges are already inside the total).
+ */
+const bookingPayable = (booking) => {
+    const extras = (booking.extraCharges || [])
+        .filter(c => c.status !== 'declined' && c.status !== 'pending'
+            && !String(c.item || '').includes('Night Charge') && !String(c.item || '').includes('Travel Charge'))
+        .reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+    return Number(booking.totalAmount) + Number(booking.welfareFundAmount || 0) + extras;
+};
+const MAX_TIP = 10000;
 
 /**
  * Accepting a payment without a gateway.
@@ -137,7 +151,7 @@ const createOrder = async (req, res) => {
 
         if (bookingId) {
             const Booking = require('../models/Booking');
-            booking = await Booking.findById(bookingId).select('totalAmount welfareFundAmount userId providerId');
+            booking = await Booking.findById(bookingId).select('totalAmount welfareFundAmount extraCharges userId providerId status');
             if (!booking) {
                 return res.status(404).json({ message: 'Booking not found' });
             }
@@ -152,7 +166,24 @@ const createOrder = async (req, res) => {
             // welfareFundAmount rides along on top of the service total — kept
             // off totalAmount itself so it never inflates provider payout or
             // platform commission, both computed from that field elsewhere.
-            amount = Number(booking.totalAmount) + Number(booking.welfareFundAmount || 0);
+            amount = bookingPayable(booking);
+        }
+
+        // A tip paid with the bill: the same payment, credited to the
+        // professional in full once it is verified (verifyPayment).
+        let tipAmount = 0;
+        if (booking && req.body.tipAmount !== undefined && req.body.tipAmount !== null && req.body.tipAmount !== '' && Number(req.body.tipAmount) !== 0) {
+            tipAmount = Number(req.body.tipAmount);
+            if (!Number.isInteger(tipAmount) || tipAmount < 1 || tipAmount > MAX_TIP) {
+                return res.status(400).json({ message: `Tip must be between ₹1 and ₹${MAX_TIP}` });
+            }
+            if (!req.user || String(booking.userId) !== String(req.user._id)) {
+                return res.status(403).json({ message: 'Only the customer can add a tip' });
+            }
+            if (booking.status !== 'completed') {
+                return res.status(400).json({ message: 'A tip can be added once the service is completed.' });
+            }
+            amount += tipAmount;
         }
 
         if (!amount || isNaN(amount) || amount <= 0) {
@@ -182,6 +213,7 @@ const createOrder = async (req, res) => {
             currency: options.currency,
             purpose: PURPOSES.includes(purpose) ? purpose : (bookingId ? 'booking' : 'other'),
             bookingId: booking?._id,
+            meta: tipAmount ? { tipAmount } : undefined,
             // `protect` does not run on this route — registration pays before
             // there is an account — so this is recorded only when known.
             userId: req.user?.role === 'customer' ? req.user._id : undefined,
@@ -245,6 +277,20 @@ const verifyPayment = async (req, res) => {
                     newCollectionStatus: 'online_verified',
                     note: `Razorpay payment verified. Payment ID: ${razorpay_payment_id}`
                 });
+
+                // A tip paid with the bill goes to the professional in full —
+                // once, as the order it rode on can only be claimed once.
+                if (claim.order.meta?.tipAmount > 0) {
+                    try {
+                        const { creditTip } = require('./tipController');
+                        await creditTip({
+                            booking, amount: claim.order.meta.tipAmount, customerId: booking.userId,
+                            orderId: claim.order.orderId, paymentId: razorpay_payment_id, triggerPoint: 'payment_screen'
+                        });
+                    } catch (tipErr) {
+                        console.error('Tip with bill could not be credited:', claim.order.orderId, tipErr.message);
+                    }
+                }
 
                 // Logged only the first time this booking is verified paid —
                 // claimPayment's order-consume already stops a signature being

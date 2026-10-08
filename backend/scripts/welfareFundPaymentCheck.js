@@ -92,7 +92,9 @@ check('createBooking stores it separately from finalTotalAmount, capped and cash
 
 check("the Razorpay order for a booking's payment adds welfareFundAmount on top of totalAmount, not into it", () => {
     const fn = sliceFn(paymentController, 'const createOrder');
-    assert.ok(/amount = Number\(booking\.totalAmount\) \+ Number\(booking\.welfareFundAmount \|\| 0\)/.test(fn));
+    // Priced by bookingPayable, which keeps welfare on top of totalAmount.
+    assert.ok(/amount = bookingPayable\(booking\)/.test(fn));
+    assert.ok(/Number\(booking\.totalAmount\) \+ Number\(booking\.welfareFundAmount \|\| 0\)/.test(paymentController.slice(paymentController.indexOf('const bookingPayable'))));
 });
 
 check('a successful payment logs the contribution exactly once, tied to the booking', () => {

@@ -25,7 +25,7 @@ const paymentOrderSchema = mongoose.Schema({
     // another.
     purpose: {
         type: String,
-        enum: ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'banner', 'other'],
+        enum: ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'banner', 'tip', 'other'],
         default: 'other'
     },
 
