@@ -15,6 +15,7 @@ const { Wallet, Transaction } = require('../models/Wallet');
 const AuditLog = require('../models/AuditLog');
 const { notifyUser } = require('../config/notificationService');
 const { adminRecipients } = require('../utils/adminRecipients');
+const { serviceScopeFor, serviceNameKey } = require('../utils/providerServiceScope');
 
 // How many workers one lead may be offered to. Lead targeting is a race to
 // unlock, not a broadcast; candidates come back nearest-first, so this keeps
@@ -140,18 +141,43 @@ const findEligibleProviders = async (lead, category) => {
         .lean();
     const walletByProvider = new Map(wallets.map(w => [String(w.providerId), w]));
 
+    // Layer 2 input. The lead names a catalog service by id; a partner's
+    // chosen services are kept as names (registration) and as the services
+    // they added themselves. Comparing the id with those names matched no
+    // one, so a lead for a specific service reached no partner at all.
+    let requested = null;
+    const requestedKey = lead.serviceId?.toString() || lead.subServiceId || null;
+    const servicesByProvider = new Map();
+    if (requestedKey) {
+        const doc = mongoose.Types.ObjectId.isValid(String(requestedKey))
+            ? await Service.findById(requestedKey).select('name').lean()
+            : null;
+        const fromCategory = (category.services || []).find(s => String(s._id) === String(requestedKey));
+        requested = { _id: String(requestedKey), name: doc?.name || fromCategory?.name || String(requestedKey) };
+        const own = await Service.find({ providerId: { $in: candidates.map(p => p._id) } }).select('providerId name').lean();
+        for (const s of own) {
+            const k = String(s.providerId);
+            if (!servicesByProvider.has(k)) servicesByProvider.set(k, new Set());
+            servicesByProvider.get(k).add(serviceNameKey(s.name));
+        }
+    }
+
     const eligible = [];
     for (const p of candidates) {
         console.log(`[LeadTargeting] Checking candidate provider "${p.shopName || p.ownerName}" (ID: ${p._id})`);
 
         // Layer 2 — Service/SubService match (if lead specifies one)
-        if (lead.serviceId || lead.subServiceId) {
-            const serviceKey = lead.serviceId?.toString() || lead.subServiceId;
-            const hasService = p.subServices?.some(s =>
-                s === serviceKey || s === lead.subServiceId
-            );
+        // Offered when picked at registration (by name or id), added on the
+        // Services page, or when the partner never narrowed their category.
+        if (requested) {
+            const offers = serviceScopeFor(p, category.services || []);
+            const added = servicesByProvider.get(String(p._id));
+            const listsAnything = !!offers || (added && added.size > 0);
+            const hasService = !listsAnything
+                || (offers && offers(requested))
+                || (added && added.has(serviceNameKey(requested.name)));
             if (!hasService) {
-                console.log(`  ➔ [Layer 2] Skip: Provider does not offer the requested specific sub-service ID "${serviceKey}".`);
+                console.log(`  ➔ [Layer 2] Skip: Provider does not offer "${requested.name}".`);
                 continue;
             }
         }
@@ -1472,6 +1498,8 @@ const deleteLeadForm = async (req, res) => {
 };
 
 module.exports = {
+    // Which partners a lead goes to (exported for its check script)
+    findEligibleProviders,
     // Form Schema
     getFormSchema,
     // Draft

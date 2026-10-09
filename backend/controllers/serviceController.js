@@ -135,7 +135,10 @@ const getMyServices = async (req, res) => {
             }))
             : categoryServices;
 
-        res.json({ services, combos, categoryServices: annotatedCategoryServices, categoryName });
+        // Lead-based category: work comes as leads the partner unlocks, so a
+        // service is listed without a price of its own.
+        const leadBased = !isSewak && provider?.vendorType?.businessModel === 'lead';
+        res.json({ services, combos, categoryServices: annotatedCategoryServices, categoryName, leadBased });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -200,20 +203,23 @@ const findInCatalog = (catalog, name) => {
 // A service photo is a link from the upload API (or the catalog), never raw data.
 const validImage = (v) => v === undefined || v === null || v === '' || (typeof v === 'string' && /^https?:\/\/\S+$/i.test(v) && v.length <= 1000);
 
+/** Why a partner's service price is refused, or null when it is fine. */
+const servicePriceError = (price) => {
+    if (price === undefined || price === null || price === "" || !Number.isFinite(Number(price)) || Number(price) <= 0) {
+        return 'Service price is required and must be greater than 0';
+    }
+    if (Number(price) > MAX_SERVICE_PRICE) return `Service price can't be more than ₹${MAX_SERVICE_PRICE}`;
+    return null;
+};
+
 const createService = async (req, res) => {
     const { name, description, price, duration, category, subcategory, visible, image, amenities, serviceDetails } = req.body;
 
     if (!name) {
         return res.status(400).json({ message: 'Service name is required' });
     }
-    if (price === undefined || price === null || price === "" || Number(price) <= 0) {
-        return res.status(400).json({ message: 'Service price is required and must be greater than 0' });
-    }
     if (!validImage(req.body.image)) {
         return res.status(400).json({ message: 'Service photo must be an uploaded image' });
-    }
-    if (Number(price) > MAX_SERVICE_PRICE) {
-        return res.status(400).json({ message: `Service price can't be more than ₹${MAX_SERVICE_PRICE}` });
     }
 
     try {
@@ -234,6 +240,12 @@ const createService = async (req, res) => {
         if (!catalogEntry) {
             return res.status(400).json({ message: `Choose a service from your category (${catalog.category.name}).` });
         }
+        // A lead-based partner lists what they do — leads, not a fixed price,
+        // bring the work — so no price is asked for or kept. Everyone else
+        // sets one.
+        const leadBased = provider?.providerCategory !== 'sewak' && catalog.category.businessModel === 'lead';
+        const priceError = leadBased ? null : servicePriceError(price);
+        if (priceError) return res.status(400).json({ message: priceError });
         // Once each: a second copy would show twice on the shop page.
         const mine = await Service.find({ providerId: req.user._id }).select('name').lean();
         if (mine.some(s => normalizeKey(s.name) === normalizeKey(name))) {
@@ -271,7 +283,7 @@ const createService = async (req, res) => {
             providerId: req.user._id,
             name,
             description,
-            price,
+            price: leadBased ? 0 : Number(price),
             duration,
             category: catalog.category.name,
             // The subcategory and service types the partner picked were sent
@@ -327,10 +339,15 @@ const updateService = async (req, res) => {
             }
             if (req.body.description !== undefined) service.description = req.body.description;
             if (req.body.price !== undefined) {
-                if (Number(req.body.price) > MAX_SERVICE_PRICE) {
-                    return res.status(400).json({ message: `Service price can't be more than ₹${MAX_SERVICE_PRICE}` });
+                const owner = await Provider.findById(req.user._id).select('vendorType providerCategory').populate('vendorType', 'businessModel').lean();
+                const leadBased = owner?.providerCategory !== 'sewak' && owner?.vendorType?.businessModel === 'lead';
+                if (leadBased) {
+                    service.price = 0;
+                } else {
+                    const priceError = servicePriceError(req.body.price);
+                    if (priceError) return res.status(400).json({ message: priceError });
+                    service.price = Number(req.body.price);
                 }
-                service.price = req.body.price;
             }
             if (req.body.subcategory !== undefined) service.subcategory = req.body.subcategory || undefined;
             if (cleanServiceTypes(req.body.serviceType)) service.serviceType = cleanServiceTypes(req.body.serviceType);

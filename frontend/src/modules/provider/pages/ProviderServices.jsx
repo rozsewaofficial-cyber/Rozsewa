@@ -24,6 +24,9 @@ const ProviderServices = () => {
   const { toast } = useToast();
   const [services, setServices] = useState([]);
   const [combos, setCombos] = useState([]);
+  // Lead-based category: the partner lists the services they do and gets
+  // leads for them — there is no per-service price (or combo) to set.
+  const [leadBased, setLeadBased] = useState(false);
   const [categoryServices, setCategoryServices] = useState([]);
   const [categoryName, setCategoryName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -221,6 +224,8 @@ const ProviderServices = () => {
       setCombos(servicesRes.data.combos || []);
       setCategoryServices(servicesRes.data.categoryServices || []);
       setCategoryName(servicesRes.data.categoryName || "Your Category");
+      setLeadBased(!!servicesRes.data.leadBased);
+      if (servicesRes.data.leadBased && !(servicesRes.data.combos || []).length) setActiveTab("services");
       setAllCategories(catRes.data || []);
     } catch (err) {
       toast({ title: "Failed to load data", variant: "destructive" });
@@ -235,13 +240,19 @@ const ProviderServices = () => {
     const finalName = form.name === "custom" ? form.customName : form.name;
 
     const newErrors = {};
-    if (!editId && subcategories.length > 0 && !form.subcategory) newErrors.subcategory = "Choose a subcategory";
+    // A subcategory is asked for only when the service sits in one: a catalog
+    // service under "Other services" belongs to none, and demanding one made
+    // it impossible to add.
+    const inNoSubcategory = catalog.some(c => nameKey(c.name) === nameKey(finalName) && !c.subcategory && !c.subcategoryId);
+    if (!editId && subcategories.length > 0 && !form.subcategory && !inNoSubcategory) newErrors.subcategory = "Choose a subcategory";
     if (!finalName) newErrors.name = "Service Name is required";
     const price = Number(form.price);
-    if (form.price === "" || form.price === undefined || form.price === null) newErrors.price = "Enter your price for this service";
-    else if (!Number.isFinite(price) || price < 1) newErrors.price = "Price must be at least ₹1";
-    else if (price > MAX_PRICE) newErrors.price = `Price can't be more than ₹${MAX_PRICE.toLocaleString("en-IN")}`;
-    if (!form.duration) newErrors.duration = "Choose how long the job takes";
+    if (!leadBased) {
+      if (form.price === "" || form.price === undefined || form.price === null) newErrors.price = "Enter your price for this service";
+      else if (!Number.isFinite(price) || price < 1) newErrors.price = "Price must be at least ₹1";
+      else if (price > MAX_PRICE) newErrors.price = `Price can't be more than ₹${MAX_PRICE.toLocaleString("en-IN")}`;
+      if (!form.duration) newErrors.duration = "Choose how long the job takes";
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -262,7 +273,8 @@ const ProviderServices = () => {
       serviceDetails: form.serviceDetails || [],
       category: form.category || categoryName,
       subcategory: form.subcategory,
-      price: Number(form.price) || 0,
+      // No price for a lead-based category; the server keeps none either.
+      ...(leadBased ? {} : { price: Number(form.price) || 0 }),
     };
 
     try {
@@ -419,6 +431,17 @@ const ProviderServices = () => {
       {!showForm && !showComboForm && <ProviderTopNav title="Service Hub" />}
       <main className="container max-w-3xl px-4 py-6 space-y-6">
         <div className="flex flex-col gap-6">
+          {leadBased && (
+            <div className="rounded-2xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 p-4 text-left" data-lead-based-note>
+              <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-300">Lead-based category</p>
+              <p className="mt-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+                Add the services you do. You get customer leads for these services — no price is needed here; you agree the price with the customer after unlocking a lead.
+              </p>
+            </div>
+          )}
+          {/* Combos need prices; a lead-based partner keeps the tab only to
+              manage combos made before the category moved to leads. */}
+          {(!leadBased || combos.length > 0) && (
           <div className="flex p-1 bg-muted rounded-xl">
             {["services", "combos"].map((t) => (
               <button
@@ -430,6 +453,7 @@ const ProviderServices = () => {
               </button>
             ))}
           </div>
+          )}
 
           {user?.providerCategory !== 'sewak' && (
             <div className="flex items-center justify-end">
@@ -511,7 +535,7 @@ const ProviderServices = () => {
                             <div className="p-2.5">
                               <p className="text-[11px] font-black leading-tight text-foreground line-clamp-2">{item.name}</p>
                               <p className="mt-1 text-[10px] font-bold text-emerald-600">
-                                {owned ? `Your price ₹${owned.price}` : (suggested ? `Catalog ₹${suggested}` : "Set your price")}
+                                {leadBased ? (owned ? "You get leads for this" : "Tap to add") : (owned ? `Your price ₹${owned.price}` : (suggested ? `Catalog ₹${suggested}` : "Set your price"))}
                               </p>
                               <p className="mt-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
                                 {owned ? <><Edit3 className="h-2.5 w-2.5" /> Edit</> : <><Plus className="h-2.5 w-2.5" /> Add details</>}
@@ -574,7 +598,10 @@ const ProviderServices = () => {
                     </div>
                     {s.description && <p className="text-[10px] text-muted-foreground mb-2 line-clamp-1 italic">{s.description}</p>}
                     <div className="flex gap-2 flex-wrap items-center">
-                      <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">Price ₹{s.price}</span>
+                      {leadBased && <span className="rounded-lg bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">Leads</span>}
+                      {/* A price set before the category moved to leads still
+                          shows on the shop page, so the partner sees it too. */}
+                      {(!leadBased || s.price > 0) && <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">Price ₹{s.price}</span>}
                       {s.duration && <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300">{s.duration}</span>}
                       {s.subcategory && <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300">{s.subcategory}</span>}
                     </div>
@@ -833,6 +860,7 @@ const ProviderServices = () => {
 
                 <div className="grid grid-cols-2 gap-3 text-left">
                   <div>
+                    {!leadBased && (<>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground flex items-center justify-between">
                       Service Price (₹) *
                       {user?.providerCategory === 'sewak' && <span className="text-[7px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1 rounded uppercase">Master Rate</span>}
@@ -848,8 +876,9 @@ const ProviderServices = () => {
                         Use catalog price ₹{form.suggestedPrice}
                       </button>
                     )}
+                    </>)}
 
-                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] mt-4 mb-2 text-muted-foreground">Time / Duration *</label>
+                    <label className={`block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground ${leadBased ? '' : 'mt-4'}`}>Time / Duration {leadBased ? '(optional)' : '*'}</label>
                     <select
                       value={form.duration || ""}
                       onChange={e => { setForm({ ...form, duration: e.target.value }); setErrors(prev => ({ ...prev, duration: undefined })); }}
@@ -1200,6 +1229,7 @@ const ProviderServices = () => {
                   <p className="text-xs text-muted-foreground font-medium mb-6 leading-relaxed">{viewService.description}</p>
 
                   <div className="space-y-4">
+{!leadBased && (
                     <div className="bg-muted/50 rounded-2xl p-4 border border-border/50">
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3">Pricing Tiers</p>
                       <div className="space-y-2">
@@ -1221,6 +1251,7 @@ const ProviderServices = () => {
                         )}
                       </div>
                     </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-muted/50 rounded-2xl p-4 border border-border/50">

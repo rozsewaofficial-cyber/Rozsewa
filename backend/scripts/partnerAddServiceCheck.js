@@ -23,7 +23,8 @@ const { createService, updateService } = require('../controllers/serviceControll
 let passed = 0;
 const check = async (l, f) => { await f(); passed += 1; console.log(`  ok  ${l}`); };
 
-const lean = (v) => ({ lean: async () => v });
+// select / populate chain like a real query (editing a price reads the category model).
+const lean = (v) => ({ select() { return this; }, populate() { return this; }, lean: async () => v });
 Provider.findById = () => lean({ _id: 'p1', providerCategory: 'partner', vendorType: 'c1' });
 // The partner's category catalog (services can only come from it).
 // Subcategories of the category (none here).
@@ -74,7 +75,8 @@ const base = { name: 'Geyser Repair', price: 399, duration: '2 hours', category:
         assert.ok(/openServiceForm\(item\)/.test(page), 'tapping a service opens the form');
         assert.ok(!/handleQuickAdd/.test(page), 'no instant add');
         assert.ok(!/suggestion\.basePrice \|\| 299/.test(page), 'no ₹299 fallback on the catalog');
-        assert.ok(/Time \/ Duration \*/.test(page), 'duration is asked');
+        // Required for a priced service; optional only for a lead-based category.
+        assert.ok(/Time \/ Duration \{leadBased \? '\(optional\)' : '\*'\}/.test(page), 'duration is asked');
         assert.ok(/newErrors\.duration/.test(page) && /newErrors\.subcategory/.test(page), 'duration and subcategory validated');
         assert.ok(/form\.image !== form\.catalogImage \? form\.image : \(selected\?\.image/.test(page), "another service brings its own photo, not the previous one's");
         assert.ok(/if \(editId\) \{\s*setForm\(\{ \.\.\.form, subcategory: e\.target\.value \}\)/.test(page), 'editing a subcategory keeps the service');

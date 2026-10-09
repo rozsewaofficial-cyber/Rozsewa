@@ -19,7 +19,8 @@ const ctrl = require('../controllers/serviceController');
 
 let passed = 0;
 const check = async (l, f) => { await f(); passed += 1; console.log(`  ok  ${l}`); };
-const lean = (v) => ({ lean: async () => v });
+// select / populate chain like a real query (editing a price reads the category model).
+const lean = (v) => ({ select() { return this; }, populate() { return this; }, lean: async () => v });
 
 Provider.findById = () => lean({ _id: 'p1', providerCategory: 'partner', vendorType: 'c1', subServices: [] });
 // Subcategories of the category (none here).
