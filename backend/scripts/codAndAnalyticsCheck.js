@@ -501,7 +501,8 @@ check("a worker's dashboard reads the month it reports on", () => {
     // It reported today, this week and this month, and loaded the whole career
     // to do it. The lifetime figure is a count, so it needs no rows at all.
     const src = read('controllers/providerController.js');
-    assert.ok(/createdAt: \{ \$gte: monthStart \}/.test(src), 'the window must be applied');
+    // The window is now on the day jobs were completed (income is counted then).
+    assert.ok(/completedAt: \{ \$gte: since \}/.test(src), 'the window must be applied');
     assert.ok(/countDocuments/.test(src), 'the lifetime figure must be counted');
     assert.ok(/countProviderJobs/.test(src), 'including the Insta side');
 });

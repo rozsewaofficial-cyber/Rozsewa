@@ -14,9 +14,9 @@ const EarningsWidget = () => {
     try {
       const { data } = await API.get("/provider/stats");
       setStats([
-        { title: "Today's Income", amount: `₹${data.today?.toLocaleString() || 0}`, icon: TrendingUp, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
-        { title: "This Week", amount: `₹${data.week?.toLocaleString() || 0}`, icon: CalendarDays, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/40" },
-        { title: "This Month", amount: `₹${data.month?.toLocaleString() || 0}`, icon: BarChart3, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/40" },
+        { title: "Today's Income", amount: `₹${Number(data.today || 0).toLocaleString("en-IN")}`, icon: TrendingUp, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-100 dark:bg-emerald-900/40" },
+        { title: "This Week", amount: `₹${Number(data.week || 0).toLocaleString("en-IN")}`, icon: CalendarDays, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/40" },
+        { title: "This Month", amount: `₹${Number(data.month || 0).toLocaleString("en-IN")}`, icon: BarChart3, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-100 dark:bg-purple-900/40" },
       ]);
     } catch (err) {
       console.error("Failed to fetch stats", err);
@@ -59,6 +59,8 @@ const EarningsWidget = () => {
             <h3 className="text-xl font-bold flex items-center text-foreground">
               {stat.amount}
             </h3>
+            {/* What the partner earned — not the customers' total bill. */}
+            <p className="text-[10px] font-medium text-muted-foreground">After commission, incl. tips</p>
           </div>
         </motion.div>
       ))}

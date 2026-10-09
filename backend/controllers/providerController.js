@@ -819,33 +819,64 @@ const updateProviderProfile = async (req, res) => {
 // @desc    Get provider earnings stats
 // @route   GET /api/provider/stats
 // @access  Private (Provider)
+// Day / week / month boundaries in India time, whatever the server's clock:
+// on a UTC server "today" used to start at 5:30 AM IST.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const istStart = (unit, now = new Date()) => {
+    const ist = new Date(now.getTime() + IST_OFFSET_MS); // read as UTC = IST wall clock
+    let y = ist.getUTCFullYear(), m = ist.getUTCMonth(), d = ist.getUTCDate();
+    if (unit === 'week') d -= ist.getUTCDay(); // weeks start on Sunday
+    if (unit === 'month') d = 1;
+    return new Date(Date.UTC(y, m, d) - IST_OFFSET_MS);
+};
+/** What the partner earned on a job: their payout after commission. */
+const jobEarning = (b) => {
+    const payout = Number(b.providerPayout) || 0;
+    if (payout > 0) return payout;
+    // Older jobs completed before the payout was recorded.
+    return Math.max(0, (Number(b.totalAmount || b.totalPrice || b.amount) || 0) - (Number(b.adminCommission) || 0));
+};
+
 const getProviderStats = async (req, res) => {
     try {
         const Booking = require('../models/Booking');
+        const Tip = require('../models/Tip');
         const InstaEarningsAdapter = require('../services/InstaEarningsAdapter');
 
-        // This screen reports today, this week and this month, plus a seven-day
-        // chart — so the month is as far back as it ever needs to look. It used
-        // to load every job the worker had ever completed, which grows for the
-        // life of the account and is read on every dashboard open.
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
+        const today = istStart('day');
+        const week = istStart('week');
+        const month = istStart('month');
+        // The chart's first day may sit in the previous month.
+        const chartStart = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
+        const since = new Date(Math.min(month.getTime(), chartStart.getTime(), week.getTime()));
 
-        // A Sewak may earn entirely through Insta Work, so counting only
-        // bookings would show them a dashboard of zeroes after a full day.
-        const bookings = [
-            // One month, and only the date and the amount, which is all the
-            // running totals and the chart below read off each row.
-            ...(await Booking.find({
+        // Income is what the partner earned (payout after commission, plus
+        // tips), counted on the day the job was completed. It used to add up
+        // the customer's whole bill, commission included, on the day the
+        // booking was made.
+        const [bookings, instaJobs, tips] = await Promise.all([
+            Booking.find({
                 providerId: req.user._id,
                 status: 'completed',
-                createdAt: { $gte: monthStart }
+                $or: [
+                    { completedAt: { $gte: since } },
+                    { completedAt: null, createdAt: { $gte: since } }
+                ]
             })
-                .select('createdAt totalAmount')
+                .select('createdAt completedAt totalAmount providerPayout adminCommission')
                 .limit(5000)
-                .lean()),
-            ...(await InstaEarningsAdapter.getProviderJobs(req.user._id, { since: monthStart }))
+                .lean(),
+            InstaEarningsAdapter.getProviderJobs(req.user._id, { since }),
+            Tip.find({ providerId: req.user._id, status: { $in: ['credited', 'cash'] }, createdAt: { $gte: since } })
+                .select('amount createdAt')
+                .limit(5000)
+                .lean()
+        ]);
+
+        const entries = [
+            ...bookings.map(b => ({ at: new Date(b.completedAt || b.createdAt), amount: jobEarning(b) })),
+            ...(instaJobs || []).map(j => ({ at: new Date(j.completedAt || j.createdAt), amount: jobEarning(j) })),
+            ...tips.map(t => ({ at: new Date(t.createdAt), amount: Number(t.amount) || 0 }))
         ];
 
         // The lifetime figure is a count, so it does not need the rows.
@@ -854,53 +885,35 @@ const getProviderStats = async (req, res) => {
             status: 'completed'
         }) + await InstaEarningsAdapter.countProviderJobs(req.user._id);
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const week = new Date();
-        week.setDate(week.getDate() - week.getDay());
-        week.setHours(0, 0, 0, 0);
-
-        const month = new Date();
-        month.setDate(1);
-        month.setHours(0, 0, 0, 0);
-
         let todayEarnings = 0;
         let weekEarnings = 0;
         let monthEarnings = 0;
 
-        // Dynamic Chart Data
-        const performance = [];
+        // Seven-day chart, India days.
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const performance = [];
         for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            performance.push({
-                day: days[d.getDay()],
-                date: new Date(d).setHours(0, 0, 0, 0),
-                amount: 0
-            });
+            const dayStart = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+            const istDay = new Date(dayStart.getTime() + IST_OFFSET_MS).getUTCDay();
+            performance.push({ day: days[istDay], start: dayStart.getTime(), amount: 0 });
         }
+        const DAY = 24 * 60 * 60 * 1000;
 
-        bookings.forEach(b => {
-            const bDate = new Date(b.createdAt);
-            const amt = b.totalAmount || b.totalPrice || b.amount || 0;
-
-            if (bDate >= today) todayEarnings += amt;
-            if (bDate >= week) weekEarnings += amt;
-            if (bDate >= month) monthEarnings += amt;
-
-            const bDayTime = new Date(b.createdAt).setHours(0, 0, 0, 0);
-            const chartDay = performance.find(p => p.date === bDayTime);
-            if (chartDay) chartDay.amount += amt;
+        entries.forEach(({ at, amount }) => {
+            if (at >= today) todayEarnings += amount;
+            if (at >= week) weekEarnings += amount;
+            if (at >= month) monthEarnings += amount;
+            const slot = performance.find(p => at.getTime() >= p.start && at.getTime() < p.start + DAY);
+            if (slot) slot.amount += amount;
         });
 
+        const round = (n) => Math.round(n * 100) / 100;
         res.json({
-            today: todayEarnings,
-            week: weekEarnings,
-            month: monthEarnings,
+            today: round(todayEarnings),
+            week: round(weekEarnings),
+            month: round(monthEarnings),
             totalBookings: lifetimeCompleted,
-            chartData: performance.map(({ day, amount }) => ({ day, amount }))
+            chartData: performance.map(({ day, amount }) => ({ day, amount: round(amount) }))
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
