@@ -192,6 +192,14 @@ const createBooking = async (req, res) => {
                     if (shopOnly) {
                         return res.status(400).json({ message: `${shopOnly.name} is offered at the shop only. Please choose At-Shop.` });
                     }
+                    // A combo the partner marked shop-only, the same way.
+                    const shopOnlyCombo = await Combo.findOne({
+                        _id: { $in: ids }, providerId: specificProvider._id,
+                        serviceType: { $exists: true, $ne: [], $nin: ['home', 'both'] }
+                    }).select('name').lean();
+                    if (shopOnlyCombo) {
+                        return res.status(400).json({ message: `${shopOnlyCombo.name} is offered at the shop only. Please choose At-Shop.` });
+                    }
                 }
             }
             // A partner who chose specific services can only be booked for those.

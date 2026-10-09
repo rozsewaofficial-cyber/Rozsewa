@@ -16,6 +16,9 @@ const comboSchema = mongoose.Schema({
     ],
     price: { type: Number, required: true },
     image: { type: String },
+    // Where the combo is done, as on a Service: 'home', 'shop', '24x7'. A
+    // combo saved before this existed has none and is not restricted.
+    serviceType: { type: [String], default: undefined },
     status: {
         type: String,
         enum: ['pending', 'approved', 'rejected'],

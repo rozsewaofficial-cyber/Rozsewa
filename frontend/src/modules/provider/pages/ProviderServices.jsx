@@ -14,6 +14,39 @@ import ServiceVisual from "@/components/ServiceVisual";
 // "1 hour" without the partner ever being asked.
 const DURATION_OPTIONS = ["15 min", "30 min", "45 min", "1 hour", "1.5 hours", "2 hours", "3 hours", "4 hours", "Half day", "Full day"];
 const MAX_PRICE = 100000;
+
+const SERVICE_TYPE_OPTIONS = [
+  { id: 'home', label: 'Home Visit' },
+  { id: 'shop', label: 'Shop Visit' },
+  { id: '24x7', label: '24x7 Emergency' }
+];
+const SERVICE_TYPE_LABEL = { home: 'Home Visit', shop: 'Shop Visit', '24x7': '24x7' };
+
+/** Where a service or combo is done: Home Visit / Shop Visit / 24x7. */
+const ServiceTypePicker = ({ value, onChange, layout = "col" }) => {
+  const current = Array.isArray(value) ? value : [value].filter(Boolean);
+  return (
+    <div className={layout === "row" ? "grid grid-cols-1 gap-2 sm:grid-cols-3" : "flex flex-col gap-2"} data-service-types>
+      {SERVICE_TYPE_OPTIONS.map(type => {
+        const on = current.includes(type.id);
+        return (
+          <label key={type.id} className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${on ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}>
+            <input
+              type="checkbox"
+              className="hidden"
+              checked={on}
+              onChange={(e) => onChange(e.target.checked ? [...current, type.id] : current.filter(t => t !== type.id))}
+            />
+            <div className={`h-4 w-4 rounded-[6px] border flex items-center justify-center ${on ? 'border-primary bg-primary text-primary-foreground' : 'border-slate-300 dark:border-slate-600'}`}>
+              {on && <CheckCircle2 className="h-3 w-3" />}
+            </div>
+            <span className="text-xs font-bold text-foreground">{type.label}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+};
 // What the upload API accepts (config/cloudinary allowed_formats).
 const PHOTO_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/heic", "image/heif"];
 const MAX_PHOTO_MB = 10;
@@ -42,7 +75,7 @@ const ProviderServices = () => {
 
   useScrollLock(showForm || showComboForm || !!viewService);
 
-  const [comboForm, setComboForm] = useState(draft.comboForm || { name: "", description: "", services: [], price: "", image: "" });
+  const [comboForm, setComboForm] = useState(draft.comboForm || { name: "", description: "", services: [], price: "", image: "", serviceType: ["home"] });
 
   useEffect(() => {
     sessionStorage.setItem("provider-services-draft", JSON.stringify({
@@ -299,6 +332,10 @@ const ProviderServices = () => {
   const handleComboSave = async (e) => {
     e.preventDefault();
     if (saving) return;
+    if (!comboForm.serviceType || comboForm.serviceType.length === 0) {
+      toast({ title: "Choose where it's done", description: "Tick Home Visit, Shop Visit or 24x7 for this combo.", variant: "destructive" });
+      return;
+    }
     if (!comboForm.name || !comboForm.price || comboForm.services.length === 0) {
       toast({ title: "Missing fields", description: "Select services and enter price.", variant: "destructive" });
       return;
@@ -356,7 +393,7 @@ const ProviderServices = () => {
   };
 
   const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "", visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
-  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "" }); setComboPending(null); setShowComboForm(false); setEditId(null); clearDraft(); setErrors({}); };
+  const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "", serviceType: ["home"] }); setComboPending(null); setShowComboForm(false); setEditId(null); clearDraft(); setErrors({}); };
 
   const handleEdit = (s) => {
     const isCustom = !categoryServices.some(cat => cat.name === s.name) && !catalog.some(cat => nameKey(cat.name) === nameKey(s.name));
@@ -386,7 +423,9 @@ const ProviderServices = () => {
       description: c.description,
       services: c.services.map(s => s._id),
       price: c.price,
-      image: c.image || ""
+      image: c.image || "",
+      // A combo saved before types existed opens as Home Visit.
+      serviceType: Array.isArray(c.serviceType) && c.serviceType.length ? c.serviceType : ["home"]
     });
     setEditId(c._id);
     setShowComboForm(true);
@@ -631,6 +670,13 @@ const ProviderServices = () => {
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="text-base font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight">{c.name}</h3>
+                            {Array.isArray(c.serviceType) && c.serviceType.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1" data-combo-types>
+                                {c.serviceType.map(t => (
+                                  <span key={t} className="rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-600 dark:text-slate-300">{SERVICE_TYPE_LABEL[t] || t}</span>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 mt-1">
                               <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Combo Price: ₹{c.price}</p>
                               <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${c.status === 'approved' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' :
@@ -893,33 +939,7 @@ const ProviderServices = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Types</label>
-                    <div className="flex flex-col gap-2">
-                      {[
-                        { id: 'home', label: 'Home Visit' },
-                        { id: 'shop', label: 'Shop Visit' },
-                        { id: '24x7', label: '24x7 Emergency' }
-                      ].map(type => (
-                        <label key={type.id} className={`flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all ${form.serviceType?.includes(type.id) ? 'border-primary bg-primary/5' : 'border-border bg-background'}`}>
-                          <input
-                            type="checkbox"
-                            className="hidden"
-                            checked={form.serviceType?.includes(type.id) || false}
-                            onChange={(e) => {
-                              const current = Array.isArray(form.serviceType) ? form.serviceType : [form.serviceType].filter(Boolean);
-                              if (e.target.checked) {
-                                setForm({ ...form, serviceType: [...current, type.id] });
-                              } else {
-                                setForm({ ...form, serviceType: current.filter(t => t !== type.id) });
-                              }
-                            }}
-                          />
-                          <div className={`h-4 w-4 rounded-[6px] border flex items-center justify-center ${form.serviceType?.includes(type.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-slate-300 dark:border-slate-600'}`}>
-                            {form.serviceType?.includes(type.id) && <CheckCircle2 className="h-3 w-3" />}
-                          </div>
-                          <span className="text-xs font-bold text-foreground">{type.label}</span>
-                        </label>
-                      ))}
-                    </div>
+                    <ServiceTypePicker value={form.serviceType} onChange={(serviceType) => setForm({ ...form, serviceType })} />
                   </div>
                 </div>
 
@@ -1189,6 +1209,11 @@ const ProviderServices = () => {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <div className="text-left">
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Service Types *</label>
+                  <ServiceTypePicker layout="row" value={comboForm.serviceType} onChange={(serviceType) => setComboForm({ ...comboForm, serviceType })} />
                 </div>
 
                 <div className="text-left">

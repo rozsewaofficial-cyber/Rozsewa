@@ -148,7 +148,9 @@ const ShopDetail = () => {
         description: c.description,
         price: c.price,
         image: c.image,
-        services: c.services
+        services: c.services,
+        // Where the combo is done; none (an older combo) is not restricted.
+        serviceType: Array.isArray(c.serviceType) && c.serviceType.length ? c.serviceType : undefined
       }));
       setCombosList(mappedCombos);
 
@@ -215,7 +217,7 @@ const ShopDetail = () => {
     }
     // Check combos
     const combo = combosList.find(c => c.id === planId);
-    if (combo) return { serviceName: combo.name, planName: "Combo Offer", price: combo.price, duration: "Varries", expressPrice: 0 };
+    if (combo) return { serviceName: combo.name, planName: "Combo Offer", price: combo.price, duration: "Varries", expressPrice: 0, serviceType: combo.serviceType };
     return null;
   };
 
@@ -346,12 +348,21 @@ const ShopDetail = () => {
                 <button onClick={() => setServiceFilter('24x7')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === '24x7' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>24x7 Emergency</button>
               </div>
 
-              {/* Combos Section */}
-              {serviceFilter === 'all' && combosList.length > 0 && (
+              {/* Combos Section — a combo with a type follows the Home Visit /
+                  24x7 filter like a service; an older one (no type) shows
+                  under All only, as before. */}
+              {(() => {
+                const visibleCombos = combosList.filter(c => {
+                  if (serviceFilter === 'all') return true;
+                  if (!c.serviceType) return false;
+                  if (serviceFilter === '24x7' && provider?.is24x7) return true;
+                  return c.serviceType.includes(serviceFilter);
+                });
+                return visibleCombos.length > 0 && (
                 <div className="space-y-3">
                   <h2 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2 uppercase tracking-widest"><Package className="h-4 w-4 text-blue-500" /> Discounted Combos</h2>
                   <div className="grid grid-cols-1 gap-3">
-                    {combosList.map((combo) => (
+                    {visibleCombos.map((combo) => (
                       <motion.div key={combo.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                         className="relative rounded-[20px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all">
                         <div className="p-3.5 flex gap-3.5">
@@ -361,6 +372,13 @@ const ShopDetail = () => {
                           <div className="flex-1 min-w-0">
                             <h3 className="text-[14px] font-black text-slate-900 dark:text-white leading-tight truncate">{combo.name}</h3>
                             {combo.description && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">{combo.description}</p>}
+                            {combo.serviceType && (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5" data-combo-modes>
+                                {serviceModeTags(combo.serviceType, provider?.isHomeVisitAvailable !== false).map(t => (
+                                  <span key={t.key} data-mode={t.key} className={`text-[9px] px-2 py-0.5 rounded-[6px] uppercase tracking-widest font-black border ${t.tone}`}>{t.label}</span>
+                                ))}
+                              </div>
+                            )}
                             
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {combo.services && combo.services.length > 0 && combo.services.map((svc, i) => (
@@ -393,7 +411,8 @@ const ShopDetail = () => {
                     ))}
                   </div>
                 </div>
-              )}
+              );
+              })()}
 
               {/* Individual Services Section */}
               <div className="space-y-3">

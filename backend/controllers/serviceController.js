@@ -422,7 +422,9 @@ const createCombo = async (req, res) => {
             description,
             services,
             price,
-            image
+            image,
+            // Home Visit / Shop Visit / 24x7, like a single service.
+            serviceType: cleanServiceTypes(req.body.serviceType) || ['home']
         });
 
         if (combo) {
@@ -453,6 +455,7 @@ const updateCombo = async (req, res) => {
             combo.price = req.body.price || combo.price;
             combo.isActive = req.body.isActive !== undefined ? req.body.isActive : combo.isActive;
             combo.image = req.body.image || combo.image;
+            if (cleanServiceTypes(req.body.serviceType)) combo.serviceType = cleanServiceTypes(req.body.serviceType);
 
             const updatedCombo = await combo.save();
             res.json(updatedCombo);
