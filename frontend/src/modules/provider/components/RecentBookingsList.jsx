@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink, MessageCircle, CalendarDays } from "lucide-react";
+import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink, MessageCircle, CalendarDays, Search } from "lucide-react";
 import LiveTrackingView from "./LiveTrackingView";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
@@ -660,7 +660,9 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
 
   return (
     <div className="space-y-6">
-      <div className="flex p-1 bg-muted rounded-2xl w-full sm:w-fit overflow-x-auto no-scrollbar">
+      {/* Every tab fits on a phone in one row (the Bookings page has four;
+          "Rejected" used to sit off-screen behind a sideways scroll). */}
+      <div className="flex w-full gap-1 p-1 bg-muted rounded-2xl sm:w-fit" data-booking-tabs>
         {/* Driven by the same list the remembered tab is validated against,
             so the two can never disagree about what exists. */}
         {tabIds.map((id) => ({
@@ -670,96 +672,91 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
           cancelled: { id: "cancelled", label: "Rejected", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400" }
         }[id])).map((tab) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`relative flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-xl transition-all whitespace-nowrap ${activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+            className={`relative flex min-w-0 items-center justify-center rounded-xl py-2.5 font-bold transition-all whitespace-nowrap sm:gap-2 sm:px-5 sm:text-sm ${tabIds.length > 2 ? "flex-auto gap-1 px-1 text-[11px]" : "flex-1 gap-2 px-3 text-sm"} sm:flex-none ${activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}>
             {tab.label}
-            {counts[tab.id] > 0 && <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${activeTab === tab.id ? tab.color : "bg-muted-foreground/20"}`}>{counts[tab.id]}</span>}
+            {counts[tab.id] > 0 && <span className={`flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1 text-[10px] sm:h-5 sm:min-w-5 ${activeTab === tab.id ? tab.color : "bg-muted-foreground/20"}`}>{counts[tab.id]}</span>}
           </button>
         ))}
       </div>
 
       {/* Filters Section - Only for Partner (Provider), not for Sewak */}
-      {user?.role === 'provider' && (
-        <div className="flex flex-col sm:flex-row gap-3 bg-card p-3 rounded-2xl border border-border">
-          {!isSewak && (
-            <div className="flex-1">
-              <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">Search City/Address</label>
-              <input
-                type="text"
-                placeholder="e.g. Delhi, Mumbai..."
-                value={filterCity}
-                onChange={(e) => setFilterCity(e.target.value)}
-                className="w-full bg-background border border-border rounded-lg p-2 text-xs focus:ring-2 focus:ring-primary outline-none"
-              />
-            </div>
-          )}
-          <div className="flex-1">
-            <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">From Date</label>
+      {user?.role === 'provider' && (() => {
+        const filtersOn = !!(filterCity || fromDateDisplay || toDateDisplay);
+        const clearFilters = () => { setFilterCity(""); setFilterFromDate(""); setFilterToDate(""); setFromDateDisplay(""); setToDateDisplay(""); };
+        const dateField = (label, display, onType, pickerProps, onPick) => (
+          <div className="min-w-0">
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</label>
             <div className="relative">
               <input
                 type="text"
                 inputMode="numeric"
                 placeholder="DD/MM/YYYY"
-                value={fromDateDisplay}
+                value={display}
                 maxLength={10}
-                onChange={(e) => handleFromDateChange(e.target.value)}
-                className="w-full bg-background border border-border rounded-lg p-2 pr-8 text-xs focus:ring-2 focus:ring-primary outline-none"
+                onChange={(e) => onType(e.target.value)}
+                className="h-10 w-full rounded-xl border border-border bg-background pl-3 pr-9 text-xs font-medium text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
-              {/* Hidden native date picker triggered by icon */}
-              <input
-                type="date"
-                max={today}
-                tabIndex={-1}
-                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                onChange={(e) => {
-                  const iso = e.target.value;
-                  if (!iso) return;
-                  const [yyyy, mm, dd] = iso.split('-');
-                  handleFromDateChange(`${dd}${mm}${yyyy}`);
-                }}
-              />
-              <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              {/* Calendar button: the native picker sits on the icon only, so the
+                  field itself stays typeable. */}
+              <span className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
+                <CalendarDays className="h-4 w-4 pointer-events-none" />
+                <input
+                  type="date"
+                  {...pickerProps}
+                  max={today}
+                  tabIndex={-1}
+                  aria-label={`Pick ${label.toLowerCase()}`}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  onClick={(e) => { try { e.currentTarget.showPicker?.(); } catch { /* picker opens natively */ } }}
+                  onChange={(e) => {
+                    const iso = e.target.value;
+                    if (!iso) return;
+                    const [yyyy, mm, dd] = iso.split('-');
+                    onPick(`${dd}${mm}${yyyy}`);
+                  }}
+                />
+              </span>
             </div>
           </div>
-          <div className="flex-1">
-            <label className="block text-[10px] font-black uppercase text-muted-foreground mb-1">To Date</label>
-            <div className="relative">
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="DD/MM/YYYY"
-                value={toDateDisplay}
-                maxLength={10}
-                onChange={(e) => handleToDateChange(e.target.value)}
-                className="w-full bg-background border border-border rounded-lg p-2 pr-8 text-xs focus:ring-2 focus:ring-primary outline-none"
-              />
-              {/* Hidden native date picker triggered by icon */}
-              <input
-                type="date"
-                min={filterFromDate || undefined}
-                max={today}
-                tabIndex={-1}
-                className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                onChange={(e) => {
-                  const iso = e.target.value;
-                  if (!iso) return;
-                  const [yyyy, mm, dd] = iso.split('-');
-                  handleToDateChange(`${dd}${mm}${yyyy}`);
-                }}
-              />
-              <CalendarDays className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        );
+        return (
+          <div className="space-y-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:flex sm:items-end sm:gap-3 sm:space-y-0" data-booking-filters>
+            {!isSewak && (
+              <div className="sm:flex-1">
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Search City / Address</label>
+                  {filtersOn && (
+                    <button onClick={clearFilters} className="flex items-center gap-1 text-[11px] font-bold text-primary sm:hidden" data-clear-filters>
+                      <X className="h-3 w-3" /> Clear
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Delhi, Mumbai..."
+                    value={filterCity}
+                    onChange={(e) => setFilterCity(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs font-medium text-foreground placeholder:text-muted-foreground/70 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2 sm:flex-[1.4]">
+              {dateField('From Date', fromDateDisplay, handleFromDateChange, {}, handleFromDateChange)}
+              {dateField('To Date', toDateDisplay, handleToDateChange, { min: filterFromDate || undefined }, handleToDateChange)}
             </div>
+            {filtersOn && (
+              <button onClick={clearFilters}
+                className={`${isSewak ? 'flex w-full' : 'hidden sm:flex'} h-10 items-center justify-center gap-1 rounded-xl bg-muted px-4 text-xs font-bold text-foreground hover:bg-muted/80`}>
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
           </div>
-          <div className="flex items-end">
-            <button 
-              onClick={() => { setFilterCity(""); setFilterFromDate(""); setFilterToDate(""); setFromDateDisplay(""); setToDateDisplay(""); }}
-              className="w-full sm:w-auto px-4 py-2 bg-muted text-foreground text-xs font-bold rounded-lg hover:bg-muted/80"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       <AnimatePresence initial={false}>
         {loading ? (
