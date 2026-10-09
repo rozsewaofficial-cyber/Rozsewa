@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import CategoryIcon from "@/components/CategoryIcon";
 import { motion } from "framer-motion";
 import {
-  Zap, Loader2, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, CalendarDays, Repeat,
+  Zap, Loader2, ArrowLeft, MapPin, Star, Clock, CheckCircle2, AlertTriangle, CalendarDays, Repeat, ChevronRight,
 } from "lucide-react";
 import InstaLocationPicker, { EMPTY_PLACE, formatAddress } from "@/modules/user/components/InstaLocationPicker";
 import { useNavigate } from "react-router-dom";
@@ -156,6 +156,14 @@ const InstaWork = () => {
     loadActiveJob();
   }, [loadServices, loadActiveJob]);
 
+  // The list is admin-managed: a service added, edited or switched off shows
+  // as soon as the customer comes back to this tab, not only on a reload.
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") loadServices(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loadServices]);
+
   // A job in flight changes on the worker's actions, so poll while one is live.
   useEffect(() => {
     if (!activeJob) return;
@@ -189,6 +197,21 @@ const InstaWork = () => {
     setSchedDay("");
     setSchedTime("");
     setStep("browse");
+  };
+
+  /** The rate line a customer sees for a service (Sewak rate, or the Partner band). */
+  const rateLabel = (s) => (s.availableFor.includes("sewak")
+    ? `₹${s.sewakRate}/${s.unitLabel}`
+    : `₹${s.minRate}–₹${s.maxRate}/${s.unitLabel}`);
+
+  // Requested from the Help Services list: Now help when the service offers
+  // it, otherwise Scheduled help.
+  const requestService = (svc) => {
+    const m = svc.modes?.now !== false ? "now" : "scheduled";
+    setMode(m);
+    setSchedDay("");
+    setSchedTime("");
+    pickService(svc);
   };
 
   const pickService = (svc) => {
@@ -636,6 +659,65 @@ const InstaWork = () => {
           </div>
         )}
 
+        {/* ----------------------- Help Services (all) ----------------------- */}
+        {enabled && step === "mode" && !activeJob && (
+          <section className="space-y-3" data-help-services>
+            <div className="flex items-end justify-between gap-2">
+              <h2 className="text-lg font-black text-foreground">Help Services</h2>
+              {services.length > 0 && (
+                <span className="text-[11px] font-bold text-muted-foreground">{services.length} available</span>
+              )}
+            </div>
+            {services.length === 0 ? (
+              <div className="rounded-2xl border-2 border-dashed border-border p-8 text-center" data-help-services-empty>
+                <Zap className="mx-auto h-8 w-8 text-muted-foreground/50" />
+                <p className="mt-3 text-sm font-bold text-foreground">No help services in your area yet</p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">New services appear here as soon as they are added.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {services.map((s) => {
+                  const now = s.modes?.now !== false;
+                  const scheduled = s.modes?.scheduled !== false;
+                  const bookable = now || scheduled;
+                  return (
+                    <div key={s._id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4" data-help-service={s.name}>
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-900/30">
+                        <CategoryIcon icon={s.icon} label={s.name} className="h-6 w-6" imgClassName="h-full w-full object-cover" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-foreground">{s.name}</p>
+                        {s.description && <p className="mt-0.5 line-clamp-2 text-xs font-medium text-muted-foreground">{s.description}</p>}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-bold text-amber-600">{rateLabel(s)}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${now ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>
+                            {now ? "Now" : "Not now"}
+                          </span>
+                          <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${scheduled ? "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" : "bg-muted text-muted-foreground"}`}>
+                            {scheduled ? "Scheduled" : "No scheduling"}
+                          </span>
+                          {s.cities?.length > 0 && (
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[9px] font-black uppercase text-muted-foreground" data-help-service-cities>
+                              Only in {s.cities.join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => requestService(s)}
+                        disabled={!bookable}
+                        className="flex shrink-0 items-center gap-1 rounded-xl bg-amber-500 px-3 py-2 text-xs font-black text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                      >
+                        {bookable ? <>Request <ChevronRight className="h-3.5 w-3.5" /></> : "Unavailable"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* --------------------------- Service list --------------------------- */}
         {enabled && step === "browse" && !activeJob && (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -658,11 +740,7 @@ const InstaWork = () => {
                 </div>
                 <p className="mt-3 text-sm font-black text-foreground">{s.name}</p>
                 <p className="mt-0.5 text-xs font-medium text-muted-foreground">{s.description}</p>
-                <p className="mt-2 text-xs font-bold text-amber-600">
-                  {s.availableFor.includes("sewak")
-                    ? `₹${s.sewakRate}/${s.unitLabel}`
-                    : `₹${s.minRate}–₹${s.maxRate}/${s.unitLabel}`}
-                </p>
+                <p className="mt-2 text-xs font-bold text-amber-600">{rateLabel(s)}</p>
               </button>
             ))}
           </div>

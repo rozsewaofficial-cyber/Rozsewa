@@ -543,6 +543,7 @@ const ProviderInstaWork = () => {
 
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-foreground">{svc.name}</p>
+                  {svc.description && <p className="line-clamp-2 text-[11px] font-medium text-muted-foreground">{svc.description}</p>}
                   <p className="text-[11px] font-semibold text-muted-foreground">
                     {profile.canSetRate
                       ? `Allowed: ₹${svc.minRate} – ₹${svc.maxRate} per ${svc.unitLabel}`

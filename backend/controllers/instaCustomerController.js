@@ -109,6 +109,8 @@ const getServices = async (req, res) => {
                 minQuantity: s.minQuantity,
                 maxQuantity: s.maxQuantity,
                 availableFor: s.availableFor,
+                // Empty = everywhere; otherwise the only cities it is offered in.
+                cities: s.cities || [],
                 timed: Pricing.isTimed(s.pricingType),
                 // Which of NOW / SCHEDULED help this service is offered as.
                 modes: {
@@ -229,6 +231,12 @@ const createJob = async (req, res) => {
 
         const service = await InstaService.findById(serviceId);
         if (!service || !service.isActive) return res.status(404).json({ message: 'Service not available.' });
+        // Admin may limit a service to some cities. The list hides it
+        // elsewhere, but only when the customer's city is known; the job's own
+        // address city is the one that counts.
+        if (!service.servesCity(city)) {
+            return res.status(400).json({ message: `${service.name} is not available in ${city} yet.` });
+        }
         if (!['sewak', 'partner'].includes(supplyModel)) {
             return res.status(400).json({ message: 'Choose a valid supply option.' });
         }

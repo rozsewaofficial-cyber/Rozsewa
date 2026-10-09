@@ -125,6 +125,7 @@ const getInstaProfile = async (req, res) => {
                 return {
                     _id: s._id,
                     name: s.name,
+                    description: s.description || '',
                     icon: s.icon,
                     pricingType: s.pricingType,
                     unitLabel: Pricing.UNIT_LABELS[s.pricingType],
