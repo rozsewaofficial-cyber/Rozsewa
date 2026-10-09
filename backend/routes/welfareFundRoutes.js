@@ -5,6 +5,7 @@ const {
     contributeToWelfareFund,
     createWelfareFundOrder,
     verifyWelfareFundPayment,
+    closeWelfareFundPayment,
     getMyWelfareFundContributions,
     getWelfareFundSummary
 } = require('../controllers/welfareFundController');
@@ -14,6 +15,8 @@ const {
 router.post('/contribute', protect, contributeToWelfareFund);
 router.post('/order', protect, createWelfareFundOrder);
 router.post('/verify', protect, verifyWelfareFundPayment);
+// A checkout closed or failed: the pending gift is marked so, never counted.
+router.post('/close', protect, closeWelfareFundPayment);
 router.get('/my-contributions', protect, getMyWelfareFundContributions);
 router.get('/summary', protect, getWelfareFundSummary);
 

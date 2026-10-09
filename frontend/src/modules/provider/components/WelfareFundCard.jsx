@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { ShieldCheck, HeartHandshake, Loader2 } from "lucide-react";
+import { ShieldCheck, HeartHandshake, Loader2, Wallet as WalletIcon, CreditCard } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import { payWelfareByRazorpay } from "@/lib/welfareRazorpay";
+import WelfareContributionHistory from "@/components/WelfareContributionHistory";
 
 const AMOUNT_OPTIONS = [10, 20, 50, 100];
 
@@ -17,6 +19,10 @@ const WelfareFundCard = () => {
   const [customAmount, setCustomAmount] = useState("");
   const [isCustom, setIsCustom] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Partners could only give from their wallet; UPI / card goes through the
+  // same Razorpay flow customers use.
+  const [isPayingDirect, setIsPayingDirect] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
 
   const amount = isCustom ? Number(customAmount) || 0 : selectedAmount;
 
@@ -33,6 +39,7 @@ const WelfareFundCard = () => {
       setOpen(false);
       setIsCustom(false);
       setCustomAmount("");
+      setHistoryKey((k) => k + 1);
     } catch (err) {
       toast({
         title: "Contribution Failed",
@@ -41,6 +48,30 @@ const WelfareFundCard = () => {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleContributeDirect = async () => {
+    if (!amount || amount < 1) {
+      toast({ title: "Enter a valid amount", variant: "destructive" });
+      return;
+    }
+    setIsPayingDirect(true);
+    try {
+      const result = await payWelfareByRazorpay({ amount, user });
+      if (result.status === "paid") {
+        toast({ title: "Thank you!", description: result.message });
+        setOpen(false);
+        setIsCustom(false);
+        setCustomAmount("");
+      } else {
+        toast({ title: { cancelled: "Payment cancelled", pending: "Payment not confirmed yet" }[result.status] || "Payment failed", description: result.message, variant: result.status === "failed" ? "destructive" : "default" });
+      }
+      setHistoryKey((k) => k + 1);
+    } catch (err) {
+      toast({ title: "Could Not Start Payment", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsPayingDirect(false);
     }
   };
 
@@ -107,26 +138,38 @@ const WelfareFundCard = () => {
             />
           )}
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setOpen(false); setIsCustom(false); setCustomAmount(""); }}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-500 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              Cancel
-            </button>
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={handleContribute}
-              disabled={isSubmitting}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-2"
+              disabled={isSubmitting || isPayingDirect}
+              className="py-2.5 rounded-xl text-[11px] font-bold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-60 flex items-center justify-center gap-1.5"
             >
-              {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `Contribute ₹${amount || 0}`}
+              {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <WalletIcon className="h-3.5 w-3.5" />}
+              Pay via Wallet
+            </button>
+            <button
+              onClick={handleContributeDirect}
+              disabled={isSubmitting || isPayingDirect}
+              className="py-2.5 rounded-xl text-[11px] font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 flex items-center justify-center gap-1.5"
+              data-welfare-razorpay
+            >
+              {isPayingDirect ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CreditCard className="h-3.5 w-3.5" />}
+              Pay via UPI/Card
             </button>
           </div>
+          <button
+            onClick={() => { setOpen(false); setIsCustom(false); setCustomAmount(""); }}
+            className="w-full py-2 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            Cancel
+          </button>
           <p className="text-[9px] text-slate-400 font-medium text-center">
-            Deducted from wallet balance · Wallet: ₹{user?.walletBalance ?? 0}
+            ₹{amount || 0} · Wallet: ₹{user?.walletBalance ?? 0}
           </p>
         </div>
       )}
+
+      <WelfareContributionHistory refreshKey={historyKey} limit={3} />
     </div>
   );
 };

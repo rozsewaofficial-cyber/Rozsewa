@@ -3,18 +3,10 @@ import { ShieldCheck, HeartHandshake, Loader2, Users, Wallet as WalletIcon, Cred
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import { payWelfareByRazorpay } from "@/lib/welfareRazorpay";
+import WelfareContributionHistory from "@/components/WelfareContributionHistory";
 
 const AMOUNT_OPTIONS = [10, 20, 50, 100];
-
-const loadRazorpay = () =>
-  new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
 
 /**
  * The customer's side of the RozSewa Welfare Fund.
@@ -40,6 +32,7 @@ const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
   const [isPayingDirect, setIsPayingDirect] = useState(false);
   const [given, setGiven] = useState({ totalContributed: 0, contributionsCount: 0 });
   const [fund, setFund] = useState(null);
+  const [historyKey, setHistoryKey] = useState(0);
 
   const amount = isCustom ? Number(customAmount) || 0 : selectedAmount;
 
@@ -85,6 +78,7 @@ const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
       setIsCustom(false);
       setCustomAmount("");
       await load();
+      setHistoryKey((k) => k + 1);
       onContributed?.(data.walletBalance);
     } catch (err) {
       toast({
@@ -98,7 +92,8 @@ const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
   };
 
   // A card/UPI gift, independent of wallet balance — for a customer with
-  // nothing in their wallet, or who'd simply rather not draw it down.
+  // nothing in their wallet, or who'd simply rather not draw it down. Counted
+  // only once the server has verified the payment.
   const handleContributeDirect = async () => {
     if (!amount || amount < 1) {
       toast({ title: "Enter a valid amount", variant: "destructive" });
@@ -106,50 +101,25 @@ const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
     }
     setIsPayingDirect(true);
     try {
-      const ok = await loadRazorpay();
-      if (!ok) {
-        toast({ title: "Payment SDK failed to load", variant: "destructive" });
-        setIsPayingDirect(false);
-        return;
+      const result = await payWelfareByRazorpay({ amount, user });
+      if (result.status === "paid") {
+        toast({ title: "Thank you!", description: result.message });
+        setOpen(false);
+        setIsCustom(false);
+        setCustomAmount("");
+        await load();
+        onContributed?.();
+      } else {
+        toast({ title: { cancelled: "Payment cancelled", pending: "Payment not confirmed yet" }[result.status] || "Payment failed", description: result.message, variant: result.status === "failed" ? "destructive" : "default" });
       }
-      const { data: order } = await API.post("/welfare-fund/order", { amount });
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
-        amount: order.amount,
-        currency: order.currency,
-        name: "RozSewa Welfare Fund",
-        description: "Anna Seva & Jeev Seva contribution",
-        order_id: order.id,
-        handler: async (response) => {
-          try {
-            await API.post("/welfare-fund/verify", { ...response, amount });
-            toast({ title: "Thank you!", description: `Your ₹${amount} contribution has been received.` });
-            setOpen(false);
-            setIsCustom(false);
-            setCustomAmount("");
-            await load();
-            onContributed?.();
-          } catch (err) {
-            toast({
-              title: "Payment Verification Failed",
-              description: err.response?.data?.message,
-              variant: "destructive"
-            });
-          } finally {
-            setIsPayingDirect(false);
-          }
-        },
-        modal: { ondismiss: () => setIsPayingDirect(false) },
-        prefill: { name: user?.name, email: user?.email, contact: user?.mobile },
-        theme: { color: "#059669" }
-      };
-      new window.Razorpay(options).open();
+      setHistoryKey((k) => k + 1);
     } catch (err) {
       toast({
         title: "Could Not Start Payment",
         description: err.response?.data?.message || err.message,
         variant: "destructive"
       });
+    } finally {
       setIsPayingDirect(false);
     }
   };
@@ -275,6 +245,8 @@ const WelfareFundCard = ({ walletBalance = 0, onContributed }) => {
           </p>
         </div>
       )}
+
+      <WelfareContributionHistory refreshKey={historyKey} />
     </div>
   );
 };

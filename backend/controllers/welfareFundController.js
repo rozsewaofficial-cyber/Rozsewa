@@ -6,6 +6,12 @@ const User = require('../models/User');
 const WelfareFundContribution = require('../models/WelfareFundContribution');
 const { Wallet, Transaction } = require('../models/Wallet');
 
+// Only gifts that went through count towards a total: pending, failed and
+// cancelled Razorpay attempts are history, not money. Rows from before the
+// status existed (and wallet gifts) carry none or 'paid'.
+const COUNTED = { status: { $nin: ['pending', 'failed', 'cancelled'] } };
+const MAX_RAZORPAY_GIFT = 100000;
+
 const razorpay = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -128,10 +134,31 @@ const createWelfareFundOrder = async (req, res) => {
             return res.status(400).json({ message: 'Please enter a valid contribution amount.' });
         }
 
+        if (amount > MAX_RAZORPAY_GIFT) {
+            return res.status(400).json({ message: `A single contribution can be up to ₹${MAX_RAZORPAY_GIFT.toLocaleString('en-IN')}.` });
+        }
+        const contributor = await contributorFor(req.user);
+        if (!contributor) {
+            return res.status(404).json({ message: 'Account not found' });
+        }
+        const rupees = Math.round(amount * 100) / 100;
+
         const order = await razorpay.orders.create({
-            amount: Math.round(amount * 100),
+            amount: Math.round(rupees * 100),
             currency: 'INR',
             receipt: `welfare_${Date.now()}`
+        });
+
+        // Recorded now as pending, so the amount paid for is the server's, and
+        // a closed or failed checkout leaves a trace instead of nothing.
+        await WelfareFundContribution.create({
+            contributorType: contributor.kind,
+            ...contributor.contributionKey,
+            amount: rupees,
+            note: String(req.body.note || '').slice(0, 280),
+            paymentMethod: 'razorpay',
+            razorpayOrderId: order.id,
+            status: 'pending'
         });
 
         res.json(order);
@@ -147,10 +174,9 @@ const createWelfareFundOrder = async (req, res) => {
 // @access  Private (Customer / Provider / Sewak)
 const verifyWelfareFundPayment = async (req, res) => {
     try {
-        const { amount, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-        const contributionAmount = Number(amount);
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-        if (!contributionAmount || contributionAmount < 1 || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
             return res.status(400).json({ message: 'Missing required fields for payment verification.' });
         }
 
@@ -168,15 +194,19 @@ const verifyWelfareFundPayment = async (req, res) => {
             return res.status(404).json({ message: 'Account not found' });
         }
 
-        const contribution = await WelfareFundContribution.create({
-            contributorType: contributor.kind,
-            ...contributor.contributionKey,
-            amount: contributionAmount,
-            note: String(req.body.note || '').slice(0, 280),
-            paymentMethod: 'razorpay',
-            razorpayOrderId: razorpay_order_id,
-            razorpayPaymentId: razorpay_payment_id
-        });
+        // The amount is the one fixed when the order was made — not whatever
+        // the app sends now (paying ₹1 used to record any amount) — and a
+        // payment is counted once, however often it is submitted.
+        const contribution = await WelfareFundContribution.findOneAndUpdate(
+            { razorpayOrderId: razorpay_order_id, ...contributor.contributionKey, status: { $ne: 'paid' } },
+            { $set: { status: 'paid', razorpayPaymentId: razorpay_payment_id }, $unset: { failureReason: 1 } },
+            { new: true }
+        );
+        if (!contribution) {
+            const already = await WelfareFundContribution.findOne({ razorpayOrderId: razorpay_order_id, ...contributor.contributionKey, status: 'paid' });
+            if (already) return res.json({ message: 'This contribution is already recorded. Thank you!', contribution: already });
+            return res.status(404).json({ message: 'No welfare contribution was started for this payment.' });
+        }
 
         res.status(201).json({
             message: 'Thank you for contributing to the RozSewa Welfare Fund!',
@@ -199,6 +229,7 @@ const getMyWelfareFundContributions = async (req, res) => {
         }
 
         const scope = contributor.contributionKey;
+        await reconcileRazorpayGifts(scope);
 
         // A giving history grows without limit, so it arrives a page at a time.
         const contributions = await paginate(
@@ -210,7 +241,7 @@ const getMyWelfareFundContributions = async (req, res) => {
         // Summing the rows in hand would tell a long-standing contributor they
         // had given only what the most recent page happens to show.
         const [totals] = await WelfareFundContribution.aggregate([
-            { $match: scope },
+            { $match: { ...scope, ...COUNTED } },
             { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
         ]);
 
@@ -232,6 +263,7 @@ const getMyWelfareFundContributions = async (req, res) => {
 const getWelfareFundSummary = async (req, res) => {
     try {
         const [row] = await WelfareFundContribution.aggregate([
+            { $match: COUNTED },
             {
                 $group: {
                     _id: null,
@@ -245,6 +277,7 @@ const getWelfareFundSummary = async (req, res) => {
 
         // How many distinct people have given, rather than how many gifts.
         const [people] = await WelfareFundContribution.aggregate([
+            { $match: COUNTED },
             { $group: { _id: { $ifNull: ['$userId', '$providerId'] } } },
             { $count: 'contributors' }
         ]);
@@ -261,7 +294,69 @@ const getWelfareFundSummary = async (req, res) => {
     }
 };
 
+/**
+ * Razorpay gifts paid but never confirmed — the app closed or the network
+ * dropped after paying, a UPI request approved after the checkout was shut,
+ * a failed try that succeeded on retry — are asked about at Razorpay and
+ * marked paid when the money was captured. Same approach as
+ * reconcileWalletRecharges; a gateway that cannot be reached is tried again
+ * next time.
+ */
+const reconcileRazorpayGifts = async (scope) => {
+    const open = await WelfareFundContribution.find({
+        ...scope,
+        paymentMethod: 'razorpay',
+        status: { $in: ['pending', 'failed', 'cancelled'] },
+        razorpayOrderId: { $exists: true },
+        // A minute old (one still being paid is the checkout's to confirm),
+        // and no older than three days.
+        createdAt: { $gte: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), $lte: new Date(Date.now() - 60 * 1000) }
+    }).sort({ createdAt: -1 }).limit(5).lean();
+
+    for (const gift of open) {
+        let payments;
+        try {
+            payments = await razorpay.orders.fetchPayments(gift.razorpayOrderId);
+        } catch (err) {
+            continue;
+        }
+        const captured = (payments?.items || []).find(p => p.status === 'captured');
+        if (!captured) continue;
+        await WelfareFundContribution.updateOne(
+            { _id: gift._id, status: { $ne: 'paid' } },
+            { $set: { status: 'paid', razorpayPaymentId: captured.id }, $unset: { failureReason: 1 } }
+        );
+    }
+};
+
+// @desc    A Razorpay checkout that did not go through: closed by the giver
+//          (cancelled) or refused by the bank (failed). Only a pending gift
+//          changes — a verified one is never undone from here.
+// @route   POST /api/welfare-fund/close
+// @access  Private (Customer / Provider / Sewak)
+const closeWelfareFundPayment = async (req, res) => {
+    try {
+        const { razorpay_order_id, outcome, reason } = req.body;
+        if (!razorpay_order_id || !['failed', 'cancelled'].includes(outcome)) {
+            return res.status(400).json({ message: 'Order and outcome (failed / cancelled) are required.' });
+        }
+        const contributor = await contributorFor(req.user);
+        if (!contributor) return res.status(404).json({ message: 'Account not found' });
+
+        const contribution = await WelfareFundContribution.findOneAndUpdate(
+            { razorpayOrderId: razorpay_order_id, ...contributor.contributionKey, status: 'pending' },
+            { $set: { status: outcome, failureReason: String(reason || '').slice(0, 200) || undefined } },
+            { new: true }
+        );
+        if (!contribution) return res.status(404).json({ message: 'No pending contribution for this order.' });
+        res.json({ message: outcome === 'failed' ? 'Payment failed — nothing was taken.' : 'Payment cancelled.', contribution });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
+    closeWelfareFundPayment,
     contributeToWelfareFund,
     createWelfareFundOrder,
     verifyWelfareFundPayment,

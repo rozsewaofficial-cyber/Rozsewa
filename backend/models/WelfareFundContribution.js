@@ -36,6 +36,15 @@ const welfareFundContributionSchema = new mongoose.Schema({
     },
     razorpayOrderId: { type: String },
     razorpayPaymentId: { type: String },
+    // A Razorpay gift is recorded when its order is made (pending) and only
+    // counts once the payment is verified (paid). Wallet gifts and older rows
+    // are paid when written, so the default is paid.
+    status: {
+        type: String,
+        enum: ['pending', 'paid', 'failed', 'cancelled'],
+        default: 'paid'
+    },
+    failureReason: { type: String },
     bookingId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Booking'
@@ -46,5 +55,6 @@ const welfareFundContributionSchema = new mongoose.Schema({
 
 welfareFundContributionSchema.index({ providerId: 1, createdAt: -1 });
 welfareFundContributionSchema.index({ userId: 1, createdAt: -1 });
+welfareFundContributionSchema.index({ razorpayOrderId: 1 }, { sparse: true });
 
 module.exports = mongoose.model('WelfareFundContribution', welfareFundContributionSchema);

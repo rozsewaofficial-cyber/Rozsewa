@@ -56,7 +56,8 @@ check('the contribution record can carry payment-method/Razorpay audit fields', 
 check('createWelfareFundOrder creates a real Razorpay order for the chosen amount', () => {
     const fn = sliceFn(controller, 'const createWelfareFundOrder');
     assert.ok(/razorpay\.orders\.create\(\{/.test(fn));
-    assert.ok(/amount: Math\.round\(amount \* 100\)/.test(fn));
+    // In paise, from the amount the server rounded and recorded as pending.
+    assert.ok(/amount: Math\.round\(rupees \* 100\)/.test(fn));
 });
 
 check('verifyWelfareFundPayment checks the HMAC signature before logging anything, and never touches a wallet', () => {
@@ -73,7 +74,9 @@ check('both new endpoints are routed and protected', () => {
 
 check('the Wallet-page card offers both payment methods, not just the wallet debit', () => {
     assert.ok(/Pay via Wallet/.test(welfareCardUi) && /Pay via UPI\/Card/.test(welfareCardUi));
-    assert.ok(/API\.post\("\/welfare-fund\/order", \{ amount \}\)/.test(welfareCardUi));
+    // The Razorpay steps live in one helper shared with the partner card.
+    assert.ok(/payWelfareByRazorpay\(\{ amount, user \}\)/.test(welfareCardUi));
+    assert.ok(/API\.post\("\/welfare-fund\/order", \{ amount \}\)/.test(feRead('lib/welfareRazorpay.js')));
 });
 
 console.log('\nCheckout-time contribution rides on top of the booking\'s own payment, off totalAmount');
