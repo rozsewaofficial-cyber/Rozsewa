@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink, MessageCircle, CalendarDays, Search } from "lucide-react";
 import LiveTrackingView from "./LiveTrackingView";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useScrollLock } from "@/lib/scrollLock";
 import API from "@/lib/api";
@@ -218,6 +218,18 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
     return () => window.removeEventListener('BOOKING_ACTION_TAKEN', refresh);
   }, []);
 
+  // Back from the background (the phone app's live connection often drops
+  // there): the New / Active numbers are fetched again, not left as they were.
+  const socketRefreshTimer = useRef(null);
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") fetchBookings(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      clearTimeout(socketRefreshTimer.current);
+    };
+  }, []);
+
   useEffect(() => {
     if (user && user._id) {
       API.get(`/public/services/${user._id}`)
@@ -230,20 +242,22 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
 
   useEffect(() => {
     if (socket) {
+      // One action often sends several events at once (a notice and the
+      // booking update): refresh once for the lot, not once per event.
       const handleSocketUpdate = () => {
-        fetchBookings();
+        clearTimeout(socketRefreshTimer.current);
+        socketRefreshTimer.current = setTimeout(() => fetchBookings(), 400);
       };
       
-      socket.on("EXTRA_CHARGES_UPDATE", handleSocketUpdate);
-      socket.on("PAYMENT_COMPLETED", handleSocketUpdate);
-      socket.on("NEW_NOTIFICATION", handleSocketUpdate);
-      socket.on("BOOKING_UPDATE", handleSocketUpdate);
-      
+      // Everything that moves a booking between New / Active / done. A new
+      // request, one another partner took, and the customer's answers used
+      // to leave the tab numbers stale until a reload.
+      const events = ["EXTRA_CHARGES_UPDATE", "PAYMENT_COMPLETED", "NEW_NOTIFICATION", "BOOKING_UPDATE",
+        "NEW_BOOKING_REQUEST", "BOOKING_TAKEN", "COUNTER_DECISION", "SCHEDULE_ACCEPTED", "SCHEDULE_REJECTED"];
+      events.forEach((e) => socket.on(e, handleSocketUpdate));
+
       return () => {
-        socket.off("EXTRA_CHARGES_UPDATE", handleSocketUpdate);
-        socket.off("PAYMENT_COMPLETED", handleSocketUpdate);
-        socket.off("NEW_NOTIFICATION", handleSocketUpdate);
-        socket.off("BOOKING_UPDATE", handleSocketUpdate);
+        events.forEach((e) => socket.off(e, handleSocketUpdate));
       };
     }
   }, [socket]);
@@ -662,22 +676,40 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
     <div className="space-y-6">
       {/* Every tab fits on a phone in one row (the Bookings page has four;
           "Rejected" used to sit off-screen behind a sideways scroll). */}
-      <div className="flex w-full gap-1 p-1 bg-muted rounded-2xl sm:w-fit" data-booking-tabs>
+      <div role="tablist" aria-label="Bookings" className={`flex w-full rounded-2xl border border-border bg-muted/60 sm:w-fit sm:gap-1.5 sm:p-1.5 ${tabIds.length > 2 ? "gap-0.5 p-1" : "gap-1.5 p-1.5"}`} data-booking-tabs>
         {/* Driven by the same list the remembered tab is validated against,
-            so the two can never disagree about what exists. */}
+            so the two can never disagree about what exists. Each tab has its
+            own colour; the selected one is filled with it, so New and Active
+            are told apart at a glance. */}
         {tabIds.map((id) => ({
-          pending: { id: "pending", label: "New", color: "text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400" },
-          active: { id: "active", label: "Active", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400" },
-          completed: { id: "completed", label: "Completed", color: "text-emerald-700 bg-emerald-100 dark:bg-emerald-800/30 dark:text-emerald-300" },
-          cancelled: { id: "cancelled", label: "Rejected", color: "text-rose-600 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400" }
-        }[id])).map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`relative flex min-w-0 items-center justify-center rounded-xl py-2.5 font-bold transition-all whitespace-nowrap sm:gap-2 sm:px-5 sm:text-sm ${tabIds.length > 2 ? "flex-auto gap-1 px-1 text-[11px]" : "flex-1 gap-2 px-3 text-sm"} sm:flex-none ${activeTab === tab.id ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}>
-            {tab.label}
-            {counts[tab.id] > 0 && <span className={`flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1 text-[10px] sm:h-5 sm:min-w-5 ${activeTab === tab.id ? tab.color : "bg-muted-foreground/20"}`}>{counts[tab.id]}</span>}
-          </button>
-        ))}
+          pending: { id: "pending", label: "New", on: "bg-blue-600 text-white shadow-md shadow-blue-600/25", off: "text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/40", badgeOff: "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200", ring: "focus-visible:ring-blue-500" },
+          active: { id: "active", label: "Active", on: "bg-emerald-600 text-white shadow-md shadow-emerald-600/25", off: "text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/40", badgeOff: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200", ring: "focus-visible:ring-emerald-500" },
+          completed: { id: "completed", label: "Completed", on: "bg-slate-700 text-white shadow-md dark:bg-slate-200 dark:text-slate-900", off: "text-muted-foreground hover:bg-background hover:text-foreground", badgeOff: "bg-muted-foreground/15 text-muted-foreground", ring: "focus-visible:ring-slate-500" },
+          cancelled: { id: "cancelled", label: "Rejected", on: "bg-rose-600 text-white shadow-md shadow-rose-600/25", off: "text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40", badgeOff: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-200", ring: "focus-visible:ring-rose-500" }
+        }[id])).map((tab) => {
+          const selected = activeTab === tab.id;
+          const count = counts[tab.id] || 0;
+          // New requests waiting while the partner looks elsewhere: a pulse on New.
+          const waiting = tab.id === "pending" && count > 0 && !selected;
+          return (
+            <button key={tab.id} role="tab" aria-selected={selected} data-tab={tab.id} data-selected={selected}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative flex min-w-0 items-center justify-center rounded-xl py-2.5 font-black transition-all whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] sm:gap-2 sm:px-5 sm:text-sm ${tab.ring} ${tabIds.length > 2 ? "flex-auto gap-0.5 px-1 text-[11px] tracking-tight" : "flex-1 gap-2 px-3 text-sm"} sm:flex-none ${selected ? tab.on : tab.off}`}>
+              {waiting && (
+                <span className="absolute right-1.5 top-1.5 flex h-2 w-2" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600" />
+                </span>
+              )}
+              {tab.label}
+              {/* New and Active always show their number, 0 included — once the
+                  real counts are in, so a loading page never reads "0". */}
+              {!loading && (count > 0 || tab.id === "pending" || tab.id === "active") && (
+                <span className={`flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-black sm:h-5 sm:min-w-5 ${selected ? "bg-white/25 text-white dark:bg-black/20" : tab.badgeOff}`} data-count>{count}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters Section - Only for Partner (Provider), not for Sewak */}
