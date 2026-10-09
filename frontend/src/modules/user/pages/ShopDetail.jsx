@@ -28,6 +28,17 @@ import { useEffect, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 import ServiceVisual from "@/components/ServiceVisual";
 
+// The service's ticks (Home Visit / Shop Visit / 24x7) as tags, in that order.
+const serviceModeTags = (serviceType, homeVisitOn) => {
+  const types = (Array.isArray(serviceType) ? serviceType : [serviceType]).filter(Boolean);
+  const has = (t) => types.includes(t) || (types.includes('both') && (t === 'home' || t === 'shop'));
+  return [
+    has('home') && homeVisitOn && { key: 'home', label: 'Home Visit', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    has('shop') && { key: 'shop', label: 'Shop Visit', tone: 'bg-purple-50 text-purple-600 border-purple-200' },
+    has('24x7') && { key: '24x7', label: '24x7', tone: 'bg-rose-50 text-rose-600 border-rose-200' },
+  ].filter(Boolean);
+};
+
 const ShopDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -431,9 +442,12 @@ const ShopDetail = () => {
                               </h3>
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
                                 <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-[6px] tracking-widest uppercase">{service.duration}</span>
-                                {(Array.isArray(service.serviceType) ? service.serviceType : [service.serviceType]).filter(t => t && t !== 'home').map(t => (
-                                  <span key={t} className={`text-[9px] px-2 py-0.5 rounded-[6px] uppercase tracking-widest font-black ${t === '24x7' ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-purple-50 text-purple-600 border border-purple-200'}`}>
-                                    {t === 'both' ? 'Shop Visit' : t}
+                                {/* Where the service is offered, as the partner ticked it. Home
+                                    Visit used to be left out; it shows unless the partner has
+                                    home visits switched off (checkout offers At Shop only then). */}
+                                {serviceModeTags(service.serviceType, provider?.isHomeVisitAvailable !== false).map(t => (
+                                  <span key={t.key} data-mode={t.key} className={`text-[9px] px-2 py-0.5 rounded-[6px] uppercase tracking-widest font-black border ${t.tone}`}>
+                                    {t.label}
                                   </span>
                                 ))}
                               </div>
