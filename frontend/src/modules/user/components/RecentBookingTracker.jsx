@@ -172,7 +172,7 @@ const RecentBookingTracker = () => {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
-                onClick={() => navigate('/tracking')}
+                onClick={() => navigate(`/tracking?bookingId=${activeBooking._id}`)}
                 className="w-full bg-white dark:bg-slate-900 rounded-[24px] overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-md cursor-pointer group"
             >
                 {/* Top colored bar */}

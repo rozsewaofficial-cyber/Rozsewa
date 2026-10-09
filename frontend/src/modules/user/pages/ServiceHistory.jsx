@@ -32,6 +32,8 @@ const statusColors = {
   confirmed: "bg-primary/10 text-primary dark:bg-primary/20",
   pending: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   provider_countered: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  on_the_way: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
+  started: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
 };
 
 // Who cancelled a booking, as the customer reads it.
@@ -399,7 +401,7 @@ const ServiceHistory = () => {
                         ? 'RESCHEDULE PROPOSED' 
                         : booking.status === 'provider_countered' 
                           ? 'COUNTER-OFFER RECEIVED' 
-                          : booking.status}
+                          : String(booking.status).replace(/_/g, ' ')}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500">#{bookingRef(booking.id)}</span>
                   </div>
@@ -466,8 +468,11 @@ const ServiceHistory = () => {
                         <RotateCcw className="h-4 w-4" /> Re-Book
                       </motion.button>
                     )}
-                    {booking.status === "confirmed" && (
-                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/tracking")}
+                    {/* Every booking in progress can be tracked — it was only a
+                        confirmed one, so a started job had no button. Opens this
+                        booking, not whichever one Live Tracking picks first. */}
+                    {["confirmed", "on_the_way", "started"].includes(booking.status) && (
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(`/tracking?bookingId=${booking.id}`)}
                         className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-[13px] font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all">
                         Track Service <ChevronRight className="h-4 w-4" />
                       </motion.button>
@@ -647,11 +652,15 @@ const ServiceHistory = () => {
                   </div>
 
                   {/* Secondary Actions */}
-                  {selectedBooking.status === "confirmed" && (
-                    <div className="grid grid-cols-2 gap-3">
+                  {/* Chat while the job is in progress (it was only for a confirmed
+                      one); rescheduling only before the partner sets out. */}
+                  {["confirmed", "on_the_way", "started"].includes(selectedBooking.status) && (
+                    <div className={`grid gap-3 ${selectedBooking.status === "confirmed" ? "grid-cols-2" : "grid-cols-1"}`}>
+                      {selectedBooking.status === "confirmed" && (
                       <button onClick={() => setShowReschedule(true)} className="flex items-center justify-center gap-2 rounded-xl border border-border py-3 text-xs font-bold hover:bg-muted">
                         <Calendar className="h-4 w-4" /> Reschedule
                       </button>
+                      )}
                       <button onClick={() => setIsChatOpen(true)} className="flex items-center justify-center gap-2 rounded-xl border border-blue-600 bg-blue-50 py-3 text-xs font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50">
                         <MessageCircle className="h-4 w-4" /> Chat
                       </button>
