@@ -472,10 +472,18 @@ const ServiceHistory = () => {
                         confirmed one, so a started job had no button. Opens this
                         booking, not whichever one Live Tracking picks first. */}
                     {["confirmed", "on_the_way", "started"].includes(booking.status) && (
+                      booking.extraStatus === "pending" ? (
+                        // The partner cannot finish until this is answered.
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(`/tracking?bookingId=${booking.id}`)} data-extra-review
+                          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 py-3 text-[13px] font-bold text-white shadow-md shadow-amber-500/20 hover:bg-amber-600 transition-all">
+                          Approve Extra Charges <ChevronRight className="h-4 w-4" />
+                        </motion.button>
+                      ) : (
                       <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(`/tracking?bookingId=${booking.id}`)}
                         className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-[13px] font-bold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all">
                         Track Service <ChevronRight className="h-4 w-4" />
                       </motion.button>
+                      )
                     )}
                     {booking.status === "provider_countered" && (
                       <div className="flex w-full gap-2">

@@ -1150,7 +1150,18 @@ const LiveTracking = () => {
                       {/* Completion OTP Display */}
                       {i === currentStep &&
                         i === 3 &&
-                        bookingDetails?.endOTP && (
+                        bookingDetails?.endOTP &&
+                        bookingDetails?.extraStatus === "pending" && (
+                          <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 w-fit" data-endotp-held>
+                            <p className="text-[11px] font-bold text-amber-700">
+                              Approve or decline the extra charges above to get your completion code.
+                            </p>
+                          </div>
+                        )}
+                      {i === currentStep &&
+                        i === 3 &&
+                        bookingDetails?.endOTP &&
+                        bookingDetails?.extraStatus !== "pending" && (
                           <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-100 w-fit">
                             <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">
                               Share this OTP to Complete Service

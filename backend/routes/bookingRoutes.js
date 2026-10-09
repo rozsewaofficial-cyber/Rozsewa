@@ -9,7 +9,8 @@ const {
     submitReview, replyReview,
     proposeSchedule, acceptSchedule, rejectSchedule, checkOverlapStatus,
     counterOfferBooking, acceptCounterOffer, rejectCounterOffer, collectPayment,
-    requestWorkshop, verifyWorkshopPickup, requestWorkshopReturn, verifyWorkshopReturn, cancelWorkshop
+    requestWorkshop, verifyWorkshopPickup, requestWorkshopReturn, verifyWorkshopReturn, cancelWorkshop,
+    remindExtraCharges
 } = require('../controllers/bookingController');
 const { protect } = require('../middleware/authMiddleware');
 const { hideBookingOtpsFromProviders } = require('../utils/hideBookingOtps');
@@ -26,6 +27,8 @@ router.put('/:id', protect, updateBooking);
 router.patch('/:id/status', protect, updateBookingStatusByProvider);
 router.post('/:id/start', protect, verifyStartOTP);
 router.post('/:id/complete', protect, verifyEndOTP);
+// Extra charges still waiting on the customer: send them a reminder.
+router.post('/:id/extra-charges/remind', protect, remindExtraCharges);
 // Workshop Required: item to the partner's shop and back, each against a customer OTP.
 router.post('/:id/workshop/request', protect, requestWorkshop);
 router.post('/:id/workshop/pickup', protect, verifyWorkshopPickup);

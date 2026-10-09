@@ -543,6 +543,18 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
       setAfterWorkPhoto(null);
       fetchBookings();
     } catch (err) {
+      if (err.response?.data?.extraStatus === 'pending') {
+        // Not a wrong code: the extra charges are still waiting on the customer.
+        setOtpBooking(null);
+        setProviderOtp("");
+        fetchBookings();
+        toast({
+          title: "Waiting for the customer",
+          description: "They must approve or decline the extra charges first. Use \"Remind Customer\", or remove the charges.",
+          variant: "destructive"
+        });
+        return;
+      }
       toast({ 
         title: "Verification Failed", 
         description: err.response?.data?.message || "Please enter the correct code.", 
@@ -579,6 +591,33 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
       } else {
         toast({ title: "Failed to add charges", variant: "destructive" });
       }
+    }
+  };
+
+  const [remindingExtra, setRemindingExtra] = useState(null);
+  const remindExtraCharges = async (bookingId) => {
+    setRemindingExtra(bookingId);
+    try {
+      const { data } = await API.post(`/bookings/${bookingId}/extra-charges/remind`);
+      toast({ title: data?.message || "Reminder sent to the customer." });
+    } catch (err) {
+      toast({ title: "Could not send reminder", description: err.response?.data?.message || err.message, variant: "destructive" });
+      fetchBookings();
+    } finally {
+      setRemindingExtra(null);
+    }
+  };
+
+  // Withdraw every still-pending item so the job can be completed without them.
+  const removePendingExtraCharges = async (bookingId, currentCharges) => {
+    try {
+      const kept = (currentCharges || []).filter(c => c.status !== 'pending');
+      await API.patch(`/bookings/${bookingId}/status`, { extraCharges: kept, extraStatus: 'none' });
+      toast({ title: "Pending extra charges removed", description: "You can complete the job now." });
+      fetchBookings();
+    } catch (err) {
+      toast({ title: "Failed to remove extra charges", description: err.response?.data?.message || err.message, variant: "destructive" });
+      fetchBookings();
     }
   };
 
@@ -1135,8 +1174,23 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                     )}
 
                     {req.extraStatus === 'pending' && (
-                      <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-center">
-                        <p className="text-[10px] font-bold text-amber-600 uppercase">Extra Charges Pending Approval</p>
+                      <div className="rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-3 space-y-2" data-extra-waiting>
+                        <p className="text-center text-[10px] font-bold text-amber-600 uppercase">
+                          Extra Charges Pending Approval · ₹{(req.extraCharges || []).filter(c => c.status === 'pending').reduce((sum, c) => sum + (Number(c.amount) || 0), 0)}
+                        </p>
+                        <p className="text-center text-[11px] font-medium text-amber-800 dark:text-amber-200">
+                          The customer must approve or decline them in their app (Track Service) before you can complete this job.
+                        </p>
+                        <div className="flex gap-2">
+                          <button disabled={remindingExtra === req._id} onClick={() => remindExtraCharges(req._id)}
+                            className="flex-1 rounded-lg bg-amber-500 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-amber-600 disabled:opacity-50">
+                            {remindingExtra === req._id ? 'Sending...' : 'Remind Customer'}
+                          </button>
+                          <button onClick={() => removePendingExtraCharges(req._id, req.extraCharges)}
+                            className="flex-1 rounded-lg border border-amber-300 py-2 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/40">
+                            Remove Charges
+                          </button>
+                        </div>
                       </div>
                     )}
 
@@ -1216,6 +1270,10 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                     {itemAway(req) ? (
                       <p className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-center text-[11px] font-bold text-amber-700">
                         Return the item from the workshop (return OTP) before completing this job.
+                      </p>
+                    ) : req.extraStatus === 'pending' ? (
+                      <p className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-center text-[11px] font-bold text-amber-700" data-complete-blocked="extra">
+                        Waiting for the customer to approve the extra charges — then you can complete this job.
                       </p>
                     ) : !(req.endOtpSent || req.endOTP) ? (
                       <button

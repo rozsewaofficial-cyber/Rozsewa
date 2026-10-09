@@ -1564,8 +1564,14 @@ const updateBookingStatusByProvider = async (req, res) => {
                 return res.json(booking);
             }
 
+            // A partner who booked this job as a customer may answer its extra
+            // charges — that request alone, nothing else gets past the lock.
+            const bookedItAnsweringExtras = booking.userId && String(booking.userId) === String(req.user._id)
+                && ['approved', 'declined'].includes(req.body.extraStatus)
+                && Object.keys(req.body).every(k => k === 'extraStatus');
+
             // Lock the booking to one provider during negotiation
-            if (req.user.role === 'provider' && booking.providerId && booking.providerId.toString() !== req.user._id.toString()) {
+            if (req.user.role === 'provider' && booking.providerId && booking.providerId.toString() !== req.user._id.toString() && !bookedItAnsweringExtras) {
                 return res.status(403).json({ message: 'This booking is locked by another provider.' });
             }
 
@@ -1864,16 +1870,36 @@ const updateBookingStatusByProvider = async (req, res) => {
             }
 
 
+            const extraByAdmin = ['admin', 'superadmin', 'employee', 'supervisor'].includes(req.user.role);
+            const extraByPartner = req.user.role === 'provider' && booking.providerId && String(booking.providerId) === String(req.user._id);
+            // The one who booked — a partner may book a job too; only the partner
+            // working this job is kept out of approving its charges.
+            const extraByCustomer = booking.userId && String(booking.userId) === String(req.user._id) && !extraByPartner;
+
             if (req.body.extraStatus === 'pending' || req.body.extraStatus === 'none') {
-                // Provider submitting a new round, or editing/clearing a still-pending
-                // one — trust the client-sent array contents (it already contains prior
-                // resolved items plus whatever pending ones remain), but derive the
-                // booking-level status from the array itself rather than the client's
-                // claimed status, since a caller can miscompute it (e.g. checking array
-                // length instead of whether anything in it is still pending).
+                // Partner submitting a new round, or editing/clearing a still-pending
+                // one. Only the partner on the job may, and only the pending items are
+                // theirs to change: approved/declined items are kept exactly as stored
+                // (a partner could otherwise add charges "already approved", or raise
+                // one after the customer agreed; a customer could wipe what they had
+                // approved). Everything the partner sends waits for the customer.
+                if (!extraByPartner && !extraByAdmin) {
+                    return res.status(403).json({ message: 'Only the partner on this job can add or remove extra charges.' });
+                }
                 const previousExtraStatus = booking.extraStatus;
-                if (req.body.extraCharges) {
-                    booking.extraCharges = req.body.extraCharges;
+                if (Array.isArray(req.body.extraCharges)) {
+                    const settled = (booking.extraCharges || []).filter(c => c.status !== 'pending');
+                    const proposed = req.body.extraCharges
+                        .filter(c => c && c.status !== 'approved' && c.status !== 'declined')
+                        .map(c => ({ item: String(c.item || '').trim().slice(0, 120), amount: Math.round(Number(c.amount) * 100) / 100, status: 'pending' }));
+                    if (proposed.some(c => !c.item || !Number.isFinite(c.amount) || c.amount <= 0 || c.amount > 100000)) {
+                        return res.status(400).json({ message: 'Each extra charge needs a name and an amount between ₹1 and ₹1,00,000.' });
+                    }
+                    if (proposed.length > 20) {
+                        return res.status(400).json({ message: 'Too many extra charges at once.' });
+                    }
+                    booking.extraCharges = [...settled, ...proposed];
+                    booking.markModified('extraCharges');
                 }
                 booking.extraStatus = (booking.extraCharges || []).some(c => c.status === 'pending') ? 'pending' : 'none';
 
@@ -1890,9 +1916,10 @@ const updateBookingStatusByProvider = async (req, res) => {
                             userId: booking.userId,
                             userRole: 'user',
                             title: 'Extra Charges Added',
-                            message: `Provider has added extra charges for spare parts. Please approve them.`,
+                            message: `Your partner has added extra charges. Open Track Service to approve or decline them — the job can be completed after that.`,
                             type: 'booking',
-                            bookingId: booking._id
+                            bookingId: booking._id,
+                            data: { link: `/tracking?bookingId=${booking._id}` }
                         }).catch(err => console.log('Extra charges notification failed:', err.message));
                     } catch (err) {
                         console.log('Extra charges socket/notification error:', err.message);
@@ -1901,6 +1928,11 @@ const updateBookingStatusByProvider = async (req, res) => {
             } else if (['approved', 'declined'].includes(req.body.extraStatus)) {
                 // Customer resolving the current round — resolve per-item, server-side,
                 // so items from a resolved earlier round are never touched or re-blocked.
+                // The customer's answer alone: a partner approving their own charges
+                // would bill the customer without consent.
+                if (!extraByCustomer && !extraByAdmin) {
+                    return res.status(403).json({ message: 'Only the customer can approve or decline extra charges.' });
+                }
                 let anyResolved = false;
                 (booking.extraCharges || []).forEach(c => {
                     if (c.status === 'pending') {
@@ -1991,6 +2023,14 @@ const updateBookingStatusByProvider = async (req, res) => {
             if (newStatus === 'completed' && booking.status === 'started') {
                 if (itemAwayAtWorkshop(booking)) {
                     return res.status(400).json({ message: 'Return the customer\'s item from the workshop (return OTP) before completing.' });
+                }
+                // The completion code would only be refused later, after the
+                // customer has read it out: settle the extra charges first.
+                if (booking.extraStatus === 'pending') {
+                    return res.status(400).json({
+                        message: 'The customer has not approved the extra charges yet. Remind them, or remove the charges.',
+                        extraStatus: 'pending'
+                    });
                 }
                 if (!booking.endOTP) {
                     const otp = newOtp();
@@ -3645,7 +3685,50 @@ const replyReview = async (req, res) => {
     }
 };
 
+// Extra charges waiting on the customer: the partner can nudge them again
+// (the first notice may have been missed), at most once a minute.
+const extraReminderAt = new Map();
+const remindExtraCharges = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+        if (req.user.role !== 'provider' || String(booking.providerId) !== String(req.user._id)) {
+            return res.status(403).json({ message: 'Only the partner on this job can do this' });
+        }
+        const pending = (booking.extraCharges || []).filter(c => c.status === 'pending');
+        if (booking.extraStatus !== 'pending' || pending.length === 0) {
+            return res.status(400).json({ message: 'No extra charges are waiting for approval.' });
+        }
+        const key = String(booking._id);
+        if (Date.now() - (extraReminderAt.get(key) || 0) < 60 * 1000) {
+            return res.status(429).json({ message: 'Reminder already sent. Please wait a minute before sending again.' });
+        }
+        extraReminderAt.set(key, Date.now());
+
+        const total = pending.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+        try {
+            const { emitToUser } = require('../config/socket');
+            emitToUser(booking.userId, 'EXTRA_CHARGES_PENDING', { bookingId: key, extraCharges: booking.extraCharges });
+        } catch (err) { /* sockets not running */ }
+        const { notifyUser } = require('../config/notificationService');
+        await notifyUser({
+            userId: booking.userId,
+            userRole: 'user',
+            title: 'Please approve extra charges',
+            message: `Your partner is waiting for you to approve or decline extra charges of ₹${total}. The job can be completed after that.`,
+            type: 'booking',
+            bookingId: booking._id,
+            data: { link: `/tracking?bookingId=${key}` }
+        }).catch(err => console.log('Extra charges reminder failed:', err.message));
+
+        res.json({ message: 'Reminder sent to the customer.' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
+    remindExtraCharges,
     requestWorkshop,
     verifyWorkshopPickup,
     requestWorkshopReturn,

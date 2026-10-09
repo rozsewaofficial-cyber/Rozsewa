@@ -166,6 +166,11 @@ export const SocketProvider = ({ children }) => {
             });
         });
 
+        // Partner added extra charges (or reminded): open tracking pages refresh.
+        newSocket.on("EXTRA_CHARGES_PENDING", (data) => {
+            window.dispatchEvent(new CustomEvent('EXTRA_CHARGES_PENDING', { detail: data }));
+        });
+
         newSocket.on("SCHEDULE_PROPOSED", (data) => {
             console.log("Global Socket: Schedule Proposed", data);
             window.dispatchEvent(new CustomEvent('SCHEDULE_PROPOSED', { detail: data }));
