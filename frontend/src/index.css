@@ -119,6 +119,25 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
   }
+
+  /* No page ever scrolls sideways. A decorative glow or pulse that reaches
+     past the screen edge used to widen the whole page in the iPhone app (its
+     WebKit does not always clip animated children), shifting everything and
+     cutting off the right side. `clip`, not `hidden`: it does not make the
+     page its own scroll box, so sticky headers and scroll tracking still work. */
+  html,
+  body,
+  #root {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+  /* iOS before 16 has no `clip`: body's `hidden` is passed on to the window
+     itself (html stays visible), which blocks the sideways slide the same way. */
+  @supports not (overflow-x: clip) {
+    body {
+      overflow-x: hidden;
+    }
+  }
 }
 
 @layer utilities {
