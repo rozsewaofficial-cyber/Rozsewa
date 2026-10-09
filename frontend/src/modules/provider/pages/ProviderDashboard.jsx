@@ -779,7 +779,7 @@ const ProviderDashboard = () => {
             <div className="relative flex-1 md:flex-none w-full sm:w-auto" ref={emergencyMenuRef}>
               <button
                 onClick={() => isEmergencyActive ? setShowEmergencyMenu(!showEmergencyMenu) : toggleEmergency()}
-                className={`w-full flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 relative overflow-hidden ${
+                className={`w-full flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 relative overflow-hidden isolate ${
                   isEmergencyActive
                     ? "bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]"
                     : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-700 hover:border-rose-200 hover:text-rose-400"
@@ -968,7 +968,7 @@ const ProviderDashboard = () => {
         {/* Registration Status / Elite Banner */}
         {!isSubscribed && (
           <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="relative overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-4 md:p-6 text-white shadow-2xl shadow-emerald-500/20 border border-white/10 group text-left">
+              <div className="relative isolate overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-900 p-4 md:p-6 text-white shadow-2xl shadow-emerald-500/20 border border-white/10 group text-left">
                 <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></div>
 
                 <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-center md:justify-between md:gap-6">
