@@ -5,6 +5,7 @@ import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import WelfareFundCard from "@/modules/provider/components/WelfareFundCard";
+import SewakBanners from "@/modules/provider/components/SewakBanners";
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
   Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle,
@@ -790,6 +791,9 @@ const ProviderDashboard = () => {
         {/* Pending, under-review or rejected documents (hidden once all are verified) */}
         <DocumentStatusCard />
 
+        {/* A Sewak sees RozSewa's own banners only — never partners' promotions. */}
+        {user?.providerCategory === 'sewak' && <SewakBanners />}
+
         {/* Superior Welcome Bar */}
         <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div className="space-y-1.5 w-full md:w-auto">
@@ -1182,6 +1186,8 @@ const ProviderDashboard = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
             {(menuItems.length > 0 ? menuItems : defaultMenu).filter(item => {
               if (item.title === "Registration") return user?.providerCategory !== 'sewak';
+              // Promotional (paid) banners are for partners; a Sewak sees RozSewa's own.
+              if (item.title === "Promotions" || item.path === "/provider/banner-promotions") return user?.providerCategory !== 'sewak';
               if (item.title === "Skill Sessions") return user?.providerCategory === 'sewak';
               if (item.title === "Starter Kits") return user?.providerCategory === 'sewak';
               return true;

@@ -14,6 +14,9 @@ const fail = (res, err) => {
 
 const requirePartner = (req) => {
     if (req.user?.role !== 'provider') throw Banners.httpError(403, 'Only partner accounts can buy banner promotions.');
+    // A Sewak is a provider account too, but promotional banners are a
+    // partner's: a Sewak sees RozSewa's own banners and buys none.
+    if (req.user?.providerCategory === 'sewak') throw Banners.httpError(403, 'Banner promotions are for partners. Sewaks see RozSewa banners only.');
 };
 
 const isHttpUrl = (v) => /^https?:\/\/\S+$/i.test(String(v || '').trim());

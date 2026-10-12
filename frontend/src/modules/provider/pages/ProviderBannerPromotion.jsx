@@ -398,6 +398,22 @@ const ProviderBannerPromotion = () => {
     </div>
   );
 
+  // Promotional banners are a partner's; a Sewak sees RozSewa's own banners
+  // on their dashboard and cannot buy one (the server refuses it too).
+  if (user?.providerCategory === 'sewak') {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24" data-sewak-no-promotions>
+        <ProviderTopNav title="Banner Promotions" onBack={() => navigate('/provider')} />
+        <main className="container max-w-lg px-4 py-12 text-center space-y-3">
+          <h1 className="text-lg font-black text-slate-900 dark:text-white">Banner promotions are for partners</h1>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400">As a Sewak you see RozSewa's banners on your dashboard. Promotional banners aren't available for Sewak accounts.</p>
+          <button onClick={() => navigate('/provider')} className="mt-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white">Back to Dashboard</button>
+        </main>
+        <ProviderBottomNav />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
       <ProviderTopNav title="Banner Promotions" onBack={() => showForm ? setShowForm(false) : navigate('/provider')} />
