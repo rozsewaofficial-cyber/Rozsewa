@@ -861,6 +861,26 @@ const verifyKitOrderPayment = async (req, res) => {
             if (claim.error) {
                 return res.status(claim.status).json({ success: false, message: claim.error });
             }
+            // The order placed is the one that was paid for: what to buy comes
+            // from the payment record (set by /kit-store/payment-order), not
+            // from this request, and placeOrder checks the paid amount against
+            // the price — a payment opened for ₹1 no longer buys a ₹499 kit.
+            const meta = claim.order.meta || {};
+            if (meta.orderType) {
+                req.body = {
+                    orderType: meta.orderType,
+                    itemId: meta.itemId,
+                    comboId: meta.comboId,
+                    orderQuantity: meta.orderQuantity,
+                    paymentMode: meta.paymentMode
+                };
+            }
+            req.kitPayment = {
+                razorpayOrderId: razorpay_order_id,
+                razorpayPaymentId: razorpay_payment_id,
+                amount: claim.order.amount,
+                frozen: meta.frozen || null
+            };
             isVerified = true;
         }
 

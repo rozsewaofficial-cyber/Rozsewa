@@ -186,27 +186,36 @@ const buildOrderDraft = async ({ provider, orderType, itemId, comboId, orderQuan
     };
 };
 
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+
+/**
+ * The price of a requested kit order and what is paid now — one set of rules
+ * for the quote, the Razorpay order and the placed order, so the amount shown,
+ * the amount charged and the amount recorded can never differ.
+ */
+const priceKitOrder = async (provider, body) => {
+    if (!provider?.vendorType) throw httpError(400, 'No category assigned to your account');
+    const draft = await buildOrderDraft({ provider, ...body });
+    const cfg = await getConfigFor(provider.vendorType);
+
+    const paymentMode = body.paymentMode === 'part' ? 'part' : 'full';
+    if (paymentMode === 'part' && cfg.paymentMode === 'full') throw httpError(400, 'Your category only allows full payment');
+    if (paymentMode === 'full' && cfg.paymentMode === 'part') throw httpError(400, 'Your category requires part payment');
+    if (paymentMode === 'part' && !(Number(cfg.instalmentAmount) > 0)) {
+        throw httpError(400, 'Part payment is not configured for your category yet. Contact admin.');
+    }
+
+    const downPaymentAmount = paymentMode === 'full' ? draft.totalAmount : computeDownPayment(cfg, draft.totalAmount);
+    return { draft, cfg, paymentMode, downPaymentAmount, remainingAmount: draft.totalAmount - downPaymentAmount };
+};
+
 // @desc    Price a prospective order (no side effects)
 // @route   POST /api/kit-store/quote
 // @access  Private (Sewak)
 const quoteOrder = async (req, res) => {
     try {
         const provider = await Provider.findById(req.user._id).lean();
-        if (!provider?.vendorType) return res.status(400).json({ message: 'No category assigned to your account' });
-
-        const draft = await buildOrderDraft({ provider, ...req.body });
-        const cfg = await getConfigFor(provider.vendorType);
-
-        const paymentMode = req.body.paymentMode === 'part' ? 'part' : 'full';
-        if (paymentMode === 'part' && cfg.paymentMode === 'full') {
-            return res.status(400).json({ message: 'Your category only allows full payment' });
-        }
-        if (paymentMode === 'full' && cfg.paymentMode === 'part') {
-            return res.status(400).json({ message: 'Your category requires part payment' });
-        }
-
-        const payNow = paymentMode === 'full' ? draft.totalAmount : computeDownPayment(cfg, draft.totalAmount);
-        const remaining = draft.totalAmount - payNow;
+        const { draft, cfg, paymentMode, downPaymentAmount: payNow, remainingAmount: remaining } = await priceKitOrder(provider, req.body);
 
         res.json({
             ...draft,
@@ -221,30 +230,87 @@ const quoteOrder = async (req, res) => {
     }
 };
 
+// @desc    Open the Razorpay payment for a kit order, for exactly what is due now
+// @route   POST /api/kit-store/payment-order
+// @access  Private (Sewak)
+// The server prices the order; the request only says what is being bought.
+// The details are stored with the payment so the order placed after it is
+// the order that was paid for.
+const createKitPaymentOrder = async (req, res) => {
+    try {
+        const provider = await Provider.findById(req.user._id).lean();
+        if (!provider) return res.status(404).json({ message: 'Provider not found' });
+        const { draft, paymentMode, downPaymentAmount, remainingAmount } = await priceKitOrder(provider, req.body);
+        if (!(downPaymentAmount > 0)) {
+            return res.status(400).json({ message: 'Nothing is due up front for this order. Contact admin to place it.' });
+        }
+
+        const { createRecordedOrder } = require('./paymentController');
+        const order = await createRecordedOrder({
+            amount: downPaymentAmount,
+            purpose: 'kit',
+            providerId: provider._id,
+            meta: {
+                orderType: draft.orderType,
+                itemId: draft.orderType === 'single' ? String(draft.lines[0].itemId) : undefined,
+                comboId: draft.comboId ? String(draft.comboId) : undefined,
+                orderQuantity: draft.orderQuantity,
+                paymentMode,
+                // The order exactly as priced for this payment. It is placed as
+                // is once paid — if admin changes the price or switches the item
+                // off meanwhile, the Sewak still gets what they paid for rather
+                // than paying and getting an error.
+                frozen: {
+                    categoryId: String(draft.categoryId),
+                    orderType: draft.orderType,
+                    comboId: draft.comboId ? String(draft.comboId) : null,
+                    comboName: draft.comboName,
+                    lines: draft.lines.map(l => ({ ...l, itemId: String(l.itemId) })),
+                    orderQuantity: draft.orderQuantity,
+                    totalAmount: draft.totalAmount,
+                    paymentMode,
+                    downPaymentAmount,
+                    remainingAmount
+                }
+            }
+        });
+        res.json({
+            id: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            key: process.env.RAZORPAY_KEY_ID,
+            payNow: downPaymentAmount,
+            totalAmount: draft.totalAmount
+        });
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message });
+    }
+};
+
 // @desc    Place an order (after payment has been verified)
 // @route   POST /api/kit-store/order
 // @access  Private (Sewak)
+// `req.kitPayment` ({ razorpayOrderId, razorpayPaymentId, amount }) is set by
+// verifyKitOrderPayment when Razorpay took the money.
 const placeOrder = async (req, res) => {
     try {
         const provider = await Provider.findById(req.user._id);
         if (!provider) return res.status(404).json({ message: 'Provider not found' });
-        if (!provider.vendorType) return res.status(400).json({ message: 'No category assigned to your account' });
 
-        const draft = await buildOrderDraft({ provider, ...req.body });
-        const cfg = await getConfigFor(provider.vendorType);
-
-        const paymentMode = req.body.paymentMode === 'part' ? 'part' : 'full';
-        if (paymentMode === 'part' && cfg.paymentMode === 'full') {
-            return res.status(400).json({ message: 'Your category only allows full payment' });
+        const paid = req.kitPayment || null;
+        // Paid through /kit-store/payment-order: place the order priced for
+        // that payment. Otherwise price it now (and a payment must cover it).
+        const frozen = paid && paid.frozen && Math.round(Number(paid.frozen.downPaymentAmount) * 100) === Math.round(Number(paid.amount) * 100)
+            ? paid.frozen
+            : null;
+        const { draft, paymentMode, downPaymentAmount, remainingAmount } = frozen
+            ? { draft: frozen, paymentMode: frozen.paymentMode, downPaymentAmount: frozen.downPaymentAmount, remainingAmount: frozen.remainingAmount }
+            : await priceKitOrder(provider, req.body);
+        // What was paid must be what is due.
+        if (paid && Math.round(Number(paid.amount) * 100) !== Math.round(downPaymentAmount * 100)) {
+            console.error('[KitOrder] paid amount does not match the price', { provider: String(provider._id), paid: paid.amount, due: downPaymentAmount, razorpayOrderId: paid.razorpayOrderId });
+            return res.status(409).json({ message: `The price changed while you were paying (paid ₹${paid.amount}, due ₹${downPaymentAmount}). Please contact support — your payment is recorded.` });
         }
-        if (paymentMode === 'part' && !(Number(cfg.instalmentAmount) > 0)) {
-            return res.status(400).json({ message: 'Part payment is not configured for your category yet. Contact admin.' });
-        }
-
-        const downPaymentAmount = paymentMode === 'full'
-            ? draft.totalAmount
-            : computeDownPayment(cfg, draft.totalAmount);
-        const remainingAmount = draft.totalAmount - downPaymentAmount;
 
         const order = await KitOrder.create({
             sewakId: provider._id,
@@ -259,12 +325,13 @@ const placeOrder = async (req, res) => {
             downPaymentAmount,
             remainingAmount,
             status: 'pending',
-            razorpayOrderId: req.body.razorpayOrderId || '',
-            razorpayPaymentId: req.body.razorpayPaymentId || ''
+            razorpayOrderId: paid ? paid.razorpayOrderId : '',
+            razorpayPaymentId: paid ? paid.razorpayPaymentId : ''
         });
 
-        // Record the money actually taken up front.
-        if (downPaymentAmount > 0) {
+        // A down payment not taken by Razorpay comes out of the wallet. One
+        // Razorpay took is not taken again: that charged the Sewak twice.
+        if (downPaymentAmount > 0 && !paid) {
             try {
                 await applyKitWalletMovement({
                     providerId: provider._id,
@@ -721,6 +788,7 @@ module.exports = {
     getCatalog,
     getMyPaymentConfig,
     quoteOrder,
+    createKitPaymentOrder,
     placeOrder,
     getMyOrders,
     getMyOrderById,

@@ -150,11 +150,19 @@ const AdminVerifySewak = () => {
     return { completed, total, approved, pending, rejected };
   };
 
-  // Helper: Standardize documents & video mapping — Aadhaar/PAN are collected at
-  // registration, so they aren't part of this review checklist.
+  // Helper: Standardize documents & video mapping. Aadhaar (front/back photos)
+  // and PAN come from registration and are reviewed here like the live video:
+  // approval needs all three, and they used to be missing from this list, so
+  // no newly registered Sewak could be approved.
   const getChecklistItems = (sewak) => {
     if (!sewak) return [];
+    const hasDoc = (id) => (sewak.documents || []).some(d => d.id === id);
     const items = [
+      // An older account may have one 'aadhaar' document instead of photos.
+      ...(hasDoc('aadhaar') && !hasDoc('aadhaar_front')
+        ? [{ id: 'aadhaar', label: 'Aadhaar Card', required: true }]
+        : [{ id: 'aadhaar_front', label: 'Aadhaar (Front)', required: true }, { id: 'aadhaar_back', label: 'Aadhaar (Back)', required: hasDoc('aadhaar_back') }]),
+      { id: 'pan', label: 'PAN Card', required: true },
       { id: 'live_video', label: 'Live Video Verification', required: true },
       { id: 'gst', label: 'GST Certificate', required: false },
       { id: 'license', label: 'Business License', required: false },
@@ -344,11 +352,17 @@ const AdminVerifySewak = () => {
     handleItemStatusChange(rejectionTarget.sewakId, rejectionTarget.docId, 'rejected', rejectionReason);
   };
 
-  // Approval only after these are verified (server: SEWAK_REQUIRED_DOCS).
+  // Approval only after these are verified — same rule as the server
+  // (utils/sewakKycDocs): Aadhaar is the front photo, plus the back if one
+  // was given (or an older single 'aadhaar' document).
   const SEWAK_REQUIRED_DOCS = ["aadhaar", "pan", "live_video"];
-  const sewakDocsVerified = (sewak) =>
-    SEWAK_REQUIRED_DOCS.every(id => (sewak?.documents || []).some(d => d.id === id && d.status === "verified"))
-    && !(sewak?.documents || []).some(d => d.status === "rejected");
+  const sewakDocsVerified = (sewak) => {
+    const docs = sewak?.documents || [];
+    const ok = (id) => docs.some(d => d.id === id && d.status === "verified");
+    const aadhaarOk = ok("aadhaar") || (ok("aadhaar_front") && (!docs.some(d => d.id === "aadhaar_back") || ok("aadhaar_back")));
+    return SEWAK_REQUIRED_DOCS.every(id => (id === "aadhaar" ? aadhaarOk : ok(id)))
+      && !docs.some(d => d.status === "rejected");
+  };
 
   // API Bulk Workflows
   const handleVerifyGlobal = async (id) => {
@@ -884,7 +898,7 @@ const AdminVerifySewak = () => {
                                           </p>
                                         </div>
                                         {/* Show the stored document number */}
-                                        {activeReviewItem.id === 'aadhaar' && activeSewak?.kycAadhaar && (
+                                        {['aadhaar', 'aadhaar_front', 'aadhaar_back'].includes(activeReviewItem.id) && activeSewak?.kycAadhaar && (
                                           <div className="bg-white rounded-xl border border-emerald-100 px-4 py-2 shadow-sm">
                                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Aadhaar Number</p>
                                             <p className="text-sm font-black text-slate-800 font-mono tracking-widest">

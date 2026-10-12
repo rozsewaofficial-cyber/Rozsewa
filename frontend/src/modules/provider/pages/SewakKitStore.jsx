@@ -10,6 +10,8 @@ import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import { useScrollLock } from "@/lib/scrollLock";
 import API from "@/lib/api";
+import { loadRazorpay } from "@/lib/welfareRazorpay";
+import { useAuth } from "@/context/AuthContext";
 
 const STATUS_META = {
   pending: { label: "Awaiting confirmation", icon: Clock, cls: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
@@ -25,6 +27,7 @@ const prettyDate = (d) =>
 const SewakKitStore = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [tab, setTab] = useState("store");
   const [catalog, setCatalog] = useState({ items: [], combos: [] });
@@ -116,26 +119,52 @@ const SewakKitStore = () => {
     return () => { cancelled = true; };
   }, [checkout, qty, paymentMode, toast]);
 
+  // Pay by Razorpay. The server prices the order and opens the payment for
+  // exactly what is due now; the order is placed only once the payment is
+  // verified. (It used to send a "simulated" payment, which the server
+  // refuses — so no kit could be bought.)
   const placeOrder = async () => {
     if (!quote) return;
     setPlacing(true);
     try {
-      // Payment gateway step. Wired as a simulated confirmation here — swap
-      // isSimulated for a real Razorpay checkout handler when keys are live.
-      await API.post("/payment/verify-kit-order", {
-        isSimulated: true,
+      const sdkReady = await loadRazorpay();
+      if (!sdkReady) throw new Error("Payment could not load. Check your connection and try again.");
+      const { data: order } = await API.post("/kit-store/payment-order", {
         orderType: checkout.type,
         itemId: checkout.type === "single" ? checkout.entity._id : undefined,
         comboId: checkout.type === "combo" ? checkout.entity._id : undefined,
         orderQuantity: qty,
         paymentMode,
       });
-      toast({ title: "Order placed", description: "You'll be notified once admin confirms it." });
-      setCheckout(null);
-      setTab("orders");
+      const rzp = new window.Razorpay({
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.id,
+        name: "RozSewa Starter Kit",
+        description: checkout.entity.name,
+        prefill: { name: user?.ownerName || user?.name, contact: user?.mobile, email: user?.email },
+        theme: { color: "#059669" },
+        handler: async (response) => {
+          try {
+            await API.post("/payment/verify-kit-order", response);
+            toast({ title: "Order placed", description: "Payment received. You'll be notified once admin confirms it." });
+            setCheckout(null);
+            setTab("orders");
+          } catch (err) {
+            toast({ title: "Payment received, order not placed yet", description: err.response?.data?.message || "Please contact support with your payment details — don't pay again.", variant: "destructive" });
+          } finally { setPlacing(false); }
+        },
+        modal: { ondismiss: () => { setPlacing(false); toast({ title: "Payment cancelled", description: "No order was placed." }); } },
+      });
+      rzp.on("payment.failed", (resp) => {
+        toast({ title: "Payment failed", description: resp?.error?.description || "Nothing was charged. Please try again.", variant: "destructive" });
+      });
+      rzp.open();
     } catch (err) {
-      toast({ title: "Could not place order", description: err.response?.data?.message || "Please try again.", variant: "destructive" });
-    } finally { setPlacing(false); }
+      toast({ title: "Could not start payment", description: err.response?.data?.message || err.message || "Please try again.", variant: "destructive" });
+      setPlacing(false);
+    }
   };
 
   const allowsFull = !config || config.paymentMode === "full" || config.paymentMode === "both";

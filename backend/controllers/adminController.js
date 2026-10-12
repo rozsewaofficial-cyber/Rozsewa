@@ -2814,16 +2814,16 @@ const requiresTrainingBeforeGoLive = async (provider) => {
 
 // The documents a Sewak must have verified before approval (the same list
 // the per-document review completes KYC on).
-const SEWAK_REQUIRED_DOCS = ['aadhaar', 'pan', 'live_video'];
+const { SEWAK_REQUIRED_DOCS, requiredDocVerified, missingRequiredDocs } = require('../utils/sewakKycDocs');
 
 /** What still stops a Sewak's approval: required documents not verified, or any rejected. */
 const sewakDocumentsBlockingApproval = (sewak) => {
     const docs = sewak.documents || [];
-    const notVerified = SEWAK_REQUIRED_DOCS
-        .filter(id => !docs.some(d => d.id === id && d.status === 'verified'))
-        .map(id => `${id} (${(docs.find(d => d.id === id) || {}).status || 'missing'})`);
+    const notVerified = missingRequiredDocs(docs);
+    // Any other rejected document (Aadhaar photos are part of 'aadhaar' above).
+    const covered = [...SEWAK_REQUIRED_DOCS, 'aadhaar_front', 'aadhaar_back'];
     const rejected = docs
-        .filter(d => d.status === 'rejected' && !SEWAK_REQUIRED_DOCS.includes(d.id))
+        .filter(d => d.status === 'rejected' && !covered.includes(d.id))
         .map(d => `${d.id} (rejected)`);
     return [...notVerified, ...rejected];
 };
@@ -3053,11 +3053,7 @@ const verifySewakDocument = async (req, res) => {
             }
         } else {
             // Check if ALL required documents and live video are approved
-            const requiredDocs = ['aadhaar', 'pan', 'live_video'];
-            const allApproved = requiredDocs.every(reqId => {
-                const doc = sewak.documents.find(d => d.id === reqId);
-                return doc && doc.status === 'verified';
-            });
+            const allApproved = SEWAK_REQUIRED_DOCS.every(reqId => requiredDocVerified(sewak.documents || [], reqId));
 
             if (allApproved) {
                 sewak.kycStatus = 'verified';

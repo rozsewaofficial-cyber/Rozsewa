@@ -61,6 +61,9 @@ const ProviderDashboard = () => {
   const [menuItems, setMenuItems] = useState([]);
   const [trainingStatus, setTrainingStatus] = useState(null);
   const [trainingStatusLoading, setTrainingStatusLoading] = useState(true);
+  // A Sewak waiting to go live needs a starter kit; their latest kit order
+  // (or none) decides what the activation screen offers.
+  const [latestKitOrder, setLatestKitOrder] = useState(undefined);
   const [catalogServices, setCatalogServices] = useState([]);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [selectedServices, setSelectedServices] = useState([]);
@@ -183,6 +186,17 @@ const ProviderDashboard = () => {
       }
     };
 
+    const fetchLatestKitOrder = async () => {
+      if (user?.providerCategory !== 'sewak') return;
+      try {
+        const { data } = await API.get("/kit-store/orders", { params: { limit: 5 } });
+        // A cancelled order does not count as having a kit.
+        setLatestKitOrder((Array.isArray(data) ? data : []).find(o => o.status !== 'cancelled') || null);
+      } catch (err) {
+        setLatestKitOrder(null);
+      }
+    };
+
     const fetchMenu = async () => {
       try {
         const { data } = await API.get("/provider/menu");
@@ -195,6 +209,7 @@ const ProviderDashboard = () => {
     fetchPlans();
     fetchMenu();
     fetchTrainingStatus();
+    fetchLatestKitOrder();
     loadRazorpay();
     fetchCommissionPreview();
   }, []);
@@ -607,7 +622,37 @@ const ProviderDashboard = () => {
             {!trainingStatusLoading && trainingStatus?.missingItems?.length > 0 && (
               <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left">
                 <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0"><Lock className="h-5 w-5 text-amber-600" /></div>
-                <div><p className="text-xs font-black">Starter Kit</p><p className="text-[10px] text-muted-foreground">Missing: {trainingStatus.missingItems.map(i => i.itemName).join(", ")}</p></div>
+                <div>
+                  <p className="text-xs font-black">Starter Kit</p>
+                  <p className="text-[10px] text-muted-foreground">Missing: {trainingStatus.missingItems.map(i => i.itemName).join(", ")}</p>
+                  {/* Ordered already: say so, rather than invite a second purchase. */}
+                  {latestKitOrder && (
+                    <p className="text-[10px] font-bold text-amber-700" data-kit-ordered={latestKitOrder.status}>
+                      Your order: {{ pending: "placed — waiting for confirmation", confirmed: "confirmed", dispatched: "on the way to you", delivered: "delivered — bring it to your training centre" }[latestKitOrder.status] || latestKitOrder.status}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            {/* The kit is a step from the start, not only once the trainer
+                finds something missing — a new Sewak had no way to buy it. */}
+            {!trainingStatusLoading && !(trainingStatus?.missingItems?.length > 0) && latestKitOrder !== undefined && (
+              <div className="bg-muted p-4 rounded-2xl flex items-center gap-4 text-left" data-kit-step={latestKitOrder ? latestKitOrder.status : 'none'}>
+                <div className="h-10 w-10 bg-background rounded-xl flex items-center justify-center shrink-0">
+                  {latestKitOrder && latestKitOrder.status === 'delivered'
+                    ? <CheckCircle className="h-5 w-5 text-emerald-600" />
+                    : <Package className="h-5 w-5 text-amber-600" />}
+                </div>
+                <div>
+                  <p className="text-xs font-black">Starter Kit</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {!latestKitOrder ? "Not ordered yet — buy your starter kit to start training"
+                      : latestKitOrder.status === 'pending' ? "Order placed — waiting for confirmation"
+                      : latestKitOrder.status === 'confirmed' ? "Order confirmed"
+                      : latestKitOrder.status === 'dispatched' ? "On the way to you"
+                      : "Delivered — bring it to your training centre"}
+                  </p>
+                </div>
               </div>
             )}
             {!trainingStatusLoading && trainingStatus?.topicsTotal > 0 && (
@@ -624,9 +669,14 @@ const ProviderDashboard = () => {
                 Book Skill Session
               </Link>
             )}
-            {trainingStatus?.missingItems?.length > 0 && (
-              <Link to="/provider/kit-store" className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-colors">
+            {trainingStatus?.missingItems?.length > 0 && !latestKitOrder ? (
+              <Link to="/provider/kit-store" data-kit-cta className="w-full py-4 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-colors">
                 Order Missing Items
+              </Link>
+            ) : (
+              <Link to="/provider/kit-store" data-kit-cta
+                className={`w-full py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl transition-colors ${latestKitOrder ? 'bg-card border border-border text-foreground hover:bg-muted' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}>
+                {latestKitOrder ? "View Kit Order" : "Buy Starter Kit"}
               </Link>
             )}
             <button onClick={() => window.location.reload()} className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl">Refresh Status</button>
