@@ -345,7 +345,10 @@ const ShopDetail = () => {
                 {provider.isHomeVisitAvailable && (
                 <button onClick={() => setServiceFilter('home')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === 'home' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>Home Visit</button>
                 )}
+                {/* A Sewak has no 24/7 option, so this tab would always be empty. */}
+                {provider.providerCategory !== 'sewak' && (
                 <button onClick={() => setServiceFilter('24x7')} className={`flex-1 py-2.5 rounded-full transition-all ${serviceFilter === '24x7' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>24x7 Emergency</button>
+                )}
               </div>
 
               {/* Combos Section — a combo with a type follows the Home Visit /

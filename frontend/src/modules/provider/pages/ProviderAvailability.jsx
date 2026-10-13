@@ -19,7 +19,9 @@ const getDefault = () => days.reduce((acc, d) => ({
 const ProviderAvailability = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { updateUser } = useAuth();
+  const { user, updateUser } = useAuth();
+  // 24/7 is a partner setting — a Sewak has no 24/7 option.
+  const isSewak = user?.providerCategory === "sewak";
   const [schedule, setSchedule] = useState(() => getDefault());
   const [is24x7, setIs24x7] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -140,8 +142,12 @@ const ProviderAvailability = () => {
         isActive: schedule[day].enabled
       }));
 
-      await API.put("/provider/profile", { availability: availabilityArray, is24x7 });
-      updateUser({ is24x7, isEmergencyEnabled: is24x7 }); // dashboard Emergency button reads this
+      if (isSewak) {
+        await API.put("/provider/profile", { availability: availabilityArray });
+      } else {
+        await API.put("/provider/profile", { availability: availabilityArray, is24x7 });
+        updateUser({ is24x7, isEmergencyEnabled: is24x7 }); // dashboard Emergency button reads this
+      }
       toast({ title: "Schedule Saved ✓", description: "Your availability has been updated." });
     } catch (err) {
       toast({ title: "Error", description: "Failed to save schedule.", variant: "destructive" });
@@ -172,6 +178,7 @@ const ProviderAvailability = () => {
           </div>
         ) : (
           <div className="space-y-3">
+          {!isSewak && (
           <div className="rounded-2xl border bg-card p-4 mb-4">
             <div className="flex items-center justify-between gap-2">
               <div>
@@ -198,6 +205,7 @@ const ProviderAvailability = () => {
               </p>
             )}
           </div>
+          )}
           
           <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Clock className="h-4 w-4 text-primary" /> Weekly Schedule</h3>
           {days.map((day, i) => (
