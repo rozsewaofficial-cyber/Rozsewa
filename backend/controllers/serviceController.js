@@ -107,6 +107,9 @@ const getMyServices = async (req, res) => {
                 _id: catSvc._id,
                 name: catSvc.name,
                 description: catSvc.description || `Professional ${catSvc.name} service`,
+                // The photo admin set on the catalog service — it was left out,
+                // so a Sewak's services showed no photo anywhere.
+                image: catSvc.image || '',
                 duration: "1 hour",
                 visible: true,
                 category: categoryName,

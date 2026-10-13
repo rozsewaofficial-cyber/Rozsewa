@@ -572,6 +572,8 @@ const getPublicServiceByProvider = async (req, res) => {
                 _id: catSvc._id,
                 name: catSvc.name,
                 description: catSvc.description || `Professional ${catSvc.name} service`,
+                // Admin's catalog photo — customers saw a Sewak's services without it.
+                image: catSvc.image || '',
                 duration: "1 hour",
                 visible: true,
                 category: categoryName,

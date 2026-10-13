@@ -6,6 +6,7 @@ import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import WelfareFundCard from "@/modules/provider/components/WelfareFundCard";
 import SewakBanners from "@/modules/provider/components/SewakBanners";
+import ServiceVisual from "@/components/ServiceVisual";
 import {
   Briefcase, CalendarCheck, FileText, Star, ShieldAlert, CreditCard, Tag, Settings, Headset,
   Wallet, Clock, Lock, ShieldCheck, AlertCircle, CheckCircle, TrendingUp, Crown, Zap, Upload, XCircle,
@@ -530,7 +531,11 @@ const ProviderDashboard = () => {
                     ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/30'
                     : 'border-slate-100 dark:border-slate-800 hover:border-emerald-200'}`}
                 >
-                  <span className="min-w-0">
+                  {/* The service's photo from admin's catalog (an icon when it has none). */}
+                  <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800" data-service-photo>
+                    <ServiceVisual src={s.image} name={s.name} hint={s.description || ""} iconClassName="h-5 w-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{s.name}</span>
                       {s.skillSessionRequired && s.skillSessionActive !== false && (
