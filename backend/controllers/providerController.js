@@ -429,8 +429,10 @@ const registerSewak = async (req, res) => {
             }
         }
 
-        // Push Notification for Admins (New KYC Request)
-        try {
+        // Push Notification for Admins (New KYC Request). Not awaited, same as
+        // partner registration: the Sewak's reply (Submit or Skip for now on
+        // Bank Details) waited on every admin push, one after another.
+        (async () => { try {
             const User = require('../models/User');
             const { sendNotificationToUser } = require('../config/notificationService');
 
@@ -449,7 +451,7 @@ const registerSewak = async (req, res) => {
             }
         } catch (err) {
             console.log('Admin push notification failed (skipping):', err.message);
-        }
+        } })();
 
         if (sewak) {
             res.status(201).json({

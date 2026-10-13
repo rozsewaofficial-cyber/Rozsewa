@@ -554,19 +554,10 @@ export const AuthProvider = ({ children }) => {
       const { data } = await API.post(endpoint, userData);
       setAuth({ ...data, role: type });
 
-      try {
-        const { requestForToken } = await import("@/lib/firebase");
-        const token = await requestForToken();
-        if (token) {
-          await API.post("/notifications/fcm-tokens/save",
-            { token, platform: 'web' },
-            { headers: { Authorization: `Bearer ${data.token}` } }
-          );
-        }
-      } catch (err) {
-        console.error("Error saving FCM token on signup", err);
-      }
-
+      // The notification token is saved by syncFCMToken, which runs once
+      // auth is set. Waiting for it here held the last signup step (e.g.
+      // Bank Details "Skip for now") on the permission prompt, and sent the
+      // same token twice.
       return { success: true, data };
     } catch (error) {
       return {
