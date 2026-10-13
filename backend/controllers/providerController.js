@@ -367,9 +367,8 @@ const registerSewak = async (req, res) => {
             documents: initialDocs,
             location: req.body.location,
             isHomeVisitAvailable: isHomeVisitAvailable || false,
-            // 24/7 is a partner setting — a Sewak has no 24/7 option.
-            is24x7: false,
-            isEmergencyEnabled: false,
+            is24x7: is24x7 || false,
+            isEmergencyEnabled: is24x7 || false,
             providerCategory: 'sewak',
             commissionRate: 100, // 100% to Admin — Sewak earns via incentives, not commission
             kycVerified: false,
@@ -641,8 +640,7 @@ const updateProviderStatus = async (req, res) => {
             if (isOnline !== undefined) provider.isOnline = isOnline;
             // One 24/7 setting, two fields (see the Timing screen's is24x7) —
             // switching it here must switch it there too.
-            // 24/7 is a partner setting — a Sewak has no 24/7 option.
-            if (isEmergencyEnabled !== undefined && provider.providerCategory !== 'sewak') {
+            if (isEmergencyEnabled !== undefined) {
                 provider.isEmergencyEnabled = !!isEmergencyEnabled;
                 provider.is24x7 = !!isEmergencyEnabled;
             }
@@ -769,7 +767,7 @@ const updateProviderProfile = async (req, res) => {
                 }
                 provider.availability = req.body.availability;
             }
-            if (req.body.is24x7 !== undefined && provider.providerCategory !== 'sewak') {
+            if (req.body.is24x7 !== undefined) {
                 // Same setting as the Settings tile / dashboard Emergency
                 // button (isEmergencyEnabled); keep both in step.
                 provider.is24x7 = !!req.body.is24x7;

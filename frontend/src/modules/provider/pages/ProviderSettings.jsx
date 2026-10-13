@@ -36,7 +36,6 @@ const ProviderSettings = () => {
   // One 24/7 setting, two fields: this tile writes isEmergencyEnabled, the
   // Timing screen writes is24x7. Either one means the partner is on 24/7.
   const roundTheClock = !!(provider?.isEmergencyEnabled || provider?.is24x7);
-  const isSewak = provider?.providerCategory === 'sewak';
 
   const handleToggleStatus = async (type) => {
     setStatusLoading(true);
@@ -97,8 +96,7 @@ const ProviderSettings = () => {
         </section>
 
         {/* Live Status Toggles */}
-        {/* 24/7 is a partner setting — a Sewak has no 24/7 option. */}
-        <div className={`grid ${isSewak ? 'grid-cols-2' : 'grid-cols-3'} gap-2.5`}>
+        <div className="grid grid-cols-3 gap-2.5">
           <button
             disabled={statusLoading}
             onClick={() => handleToggleStatus('online')}
@@ -113,7 +111,6 @@ const ProviderSettings = () => {
             </h4>
           </button>
 
-          {!isSewak && (
           <button
             disabled={statusLoading}
             onClick={() => handleToggleStatus('emergency')}
@@ -127,7 +124,6 @@ const ProviderSettings = () => {
               {roundTheClock ? 'ACTIVE' : 'INACTIVE'}
             </h4>
           </button>
-          )}
 
           <button
             disabled={statusLoading}

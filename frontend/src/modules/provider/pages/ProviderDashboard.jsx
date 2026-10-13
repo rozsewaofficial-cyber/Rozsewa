@@ -841,8 +841,6 @@ const ProviderDashboard = () => {
               {isSyncingLocation ? "Syncing..." : "Sync GPS"}
             </button>
 
-            {/* Emergency is the 24/7 setting — a partner option; a Sewak has none. */}
-            {user?.providerCategory !== 'sewak' && (
             <div className="relative flex-1 md:flex-none w-full sm:w-auto" ref={emergencyMenuRef}>
               <button
                 onClick={() => isEmergencyActive ? setShowEmergencyMenu(!showEmergencyMenu) : toggleEmergency()}
@@ -907,7 +905,6 @@ const ProviderDashboard = () => {
                 )}
               </AnimatePresence>
             </div>
-            )}
           </div>
         </section>
 
