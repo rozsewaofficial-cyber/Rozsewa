@@ -83,6 +83,9 @@ const DocumentStatusCard = ({ showVerified = false, className = "" }) => {
   }, []);
 
   if (!user) return null;
+  // Login doesn't return the documents — they arrive with the profile a
+  // moment later. Until then "nothing uploaded" would be wrong, so wait.
+  if (!Array.isArray(user.documents)) return null;
   const status = partnerDocumentStatus(user);
   if (status.state === "verified" && !showVerified) return null;
   const view = STATES[status.state];
@@ -110,6 +113,15 @@ const DocumentStatusCard = ({ showVerified = false, className = "" }) => {
               {status.rejected.map((d) => (
                 <li key={d.id} className="text-[11px] font-bold text-rose-700 dark:text-rose-300">
                   {d.label}{d.reason ? <span className="font-medium text-rose-600/90 dark:text-rose-400"> — {d.reason}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {status.pending.length > 0 && (
+            <ul className="mt-2 space-y-1" data-pending-documents>
+              {status.pending.map((d) => (
+                <li key={d.id} className="flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                  <Clock className="h-3 w-3 shrink-0" /> {d.label} <span className="font-medium text-muted-foreground">— Pending review</span>
                 </li>
               ))}
             </ul>

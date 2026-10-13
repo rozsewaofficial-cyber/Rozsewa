@@ -459,6 +459,12 @@ const ProviderDashboard = () => {
           <div className="space-y-2 mb-6">
             <h3 className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider text-left mb-1">Verification Checklist</h3>
             {getChecklistItem("Live Video Verification", "live_video", true)}
+            {/* Registration documents with their actual status (pending, approved
+                or rejected) — not asked for again, but no longer hidden. */}
+            {user?.documents?.some(d => d.id === 'aadhaar_front') && getChecklistItem("Aadhaar (Front)", "aadhaar_front")}
+            {user?.documents?.some(d => d.id === 'aadhaar_back') && getChecklistItem("Aadhaar (Back)", "aadhaar_back")}
+            {user?.documents?.some(d => d.id === 'aadhaar') && getChecklistItem("Aadhaar Card", "aadhaar")}
+            {user?.documents?.some(d => d.id === 'pan') && getChecklistItem("PAN Card", "pan")}
             {/* Optional ones if uploaded */}
             {user?.documents?.some(d => d.id === 'gst') && getChecklistItem("GST Certificate", "gst")}
             {user?.documents?.some(d => d.id === 'license') && getChecklistItem("Business License", "license")}

@@ -50,6 +50,10 @@ export const partnerDocumentStatus = (provider) => {
     .filter((d) => d.status === "rejected")
     .map((d) => ({ id: d.id, label: documentLabel(d.id), reason: d.rejectionReason || "" }));
   const drafts = docs.filter((d) => d.status === "draft").length;
+  // Waiting for admin — named on the card, the way rejected ones are.
+  const pending = docs
+    .filter((d) => d.status === "pending")
+    .map((d) => ({ id: d.id, label: documentLabel(d.id) }));
 
   let state = "verified";
   if (total === 0) state = "none";
@@ -57,5 +61,5 @@ export const partnerDocumentStatus = (provider) => {
   else if (drafts > 0) state = "draft";
   else if (verified < total) state = "review";
 
-  return { state, total, verified, rejected };
+  return { state, total, verified, rejected, pending };
 };

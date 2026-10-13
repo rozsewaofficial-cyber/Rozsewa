@@ -529,7 +529,11 @@ const ProviderDocuments = () => {
     }
   };
 
-  const verifiedCount = provider?.documents?.filter(d => d.status === "verified").length || 0;
+  // Counted over what this page lists — registration documents, the extras
+  // and Live Video — so it can't read "6/5" once Aadhaar/PAN are verified.
+  const listedIds = new Set([...listedDocTypes.map(t => t.id), "live_video"]);
+  const verifiedCount = (provider?.documents || []).filter(d => d.status === "verified" && listedIds.has(d.id)).length;
+  const totalItems = listedIds.size;
 
   // Validation Rules — Aadhaar/PAN are handled at registration, so Live Video is
   // the only thing this page still gates submission on.
@@ -688,7 +692,7 @@ const ProviderDocuments = () => {
           </motion.button>
           <div className="text-left">
             <h1 className="text-xl font-black text-foreground tracking-tight">KYC Verification</h1>
-            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{verifiedCount}/{docTypes.length + 1} items verified</p>
+            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{verifiedCount}/{totalItems} items verified</p>
           </div>
         </div>
 
@@ -705,7 +709,7 @@ const ProviderDocuments = () => {
                 {provider?.kycVerified ? "Fully Verified Provider" : `KYC Status: ${provider?.kycStatus?.toUpperCase()?.replace('_', ' ') || 'DRAFT'}`}
               </p>
               <div className="mt-4 h-2 rounded-full bg-white/20 overflow-hidden">
-                <motion.div initial={{ width: 0 }} animate={{ width: `${(verifiedCount / (docTypes.length + 1)) * 100}%` }}
+                <motion.div initial={{ width: 0 }} animate={{ width: `${(verifiedCount / totalItems) * 100}%` }}
                   className="h-full rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]" transition={{ duration: 1 }} />
               </div>
             </div>
