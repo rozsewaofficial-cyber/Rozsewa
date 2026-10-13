@@ -72,8 +72,12 @@ const ProviderServices = () => {
   const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "", serviceType: ["home"], visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" });
   const [viewService, setViewService] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // A Sewak's Add Service: pick more of the category's services (Master Rate).
+  const [showSewakAdd, setShowSewakAdd] = useState(false);
+  const [sewakPicks, setSewakPicks] = useState([]);
+  const [sewakAdding, setSewakAdding] = useState(false);
 
-  useScrollLock(showForm || showComboForm || !!viewService);
+  useScrollLock(showForm || showComboForm || !!viewService || showSewakAdd);
 
   const [comboForm, setComboForm] = useState(draft.comboForm || { name: "", description: "", services: [], price: "", image: "", serviceType: ["home"] });
 
@@ -91,12 +95,52 @@ const ProviderServices = () => {
   const [newAmenity, setNewAmenity] = useState("");
   const [newServiceDetail, setNewServiceDetail] = useState("");
 
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   // Services the backend flagged as locked behind an incomplete Skill Session.
   const skillGated = [...services, ...categoryServices].filter(
     (s, i, arr) => s?.locked && arr.findIndex(x => x.name === s.name) === i
   );
+
+  // A Sewak offers the services they picked (Provider.subServices — what
+  // customer search and Skill Sessions go by). Until they have picked any,
+  // the whole category is listed, as before.
+  const sewakPicked = user?.providerCategory === "sewak" && Array.isArray(user?.subServices) ? user.subServices : [];
+  const sewakPickedKeys = new Set(sewakPicked.map(n => String(n).trim().toLowerCase()));
+  const listedServices = sewakPickedKeys.size > 0
+    ? services.filter(s => sewakPickedKeys.has(String(s.name).trim().toLowerCase()))
+    : services;
+  const sewakAddable = user?.providerCategory === "sewak"
+    ? categoryServices.filter(c => Number(c.basePrice) > 0 && !sewakPickedKeys.has(String(c.name).trim().toLowerCase()))
+    : [];
+
+  const openSewakAdd = () => { setSewakPicks([]); setShowSewakAdd(true); };
+  const toggleSewakPick = (name) =>
+    setSewakPicks(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
+
+  // Same endpoint as the dashboard's "Choose your services": it saves the
+  // whole list, so the new picks go on top of what the Sewak already offers.
+  // The current list is read fresh (the signed-in copy can lag, e.g. right
+  // after login, and saving an old copy would drop services). A pick admin
+  // has since hidden from Sewaks is left out; the endpoint refuses it.
+  const saveSewakAdd = async () => {
+    if (!sewakPicks.length || sewakAdding) return;
+    setSewakAdding(true);
+    try {
+      const { data: me } = await API.get("/provider/profile");
+      const available = new Set(categoryServices.map(c => c.name));
+      const current = (Array.isArray(me?.subServices) ? me.subServices : []).filter(n => available.has(n));
+      const subServices = [...current, ...sewakPicks.filter(n => !current.includes(n))];
+      const { data } = await API.put("/provider/select-services", { subServices });
+      updateUser({ subServices: data.subServices });
+      setShowSewakAdd(false);
+      toast({ title: sewakPicks.length === 1 ? "Service added" : `${sewakPicks.length} services added` });
+    } catch (err) {
+      toast({ title: "Couldn't add the service", description: err.response?.data?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      setSewakAdding(false);
+    }
+  };
 
   useEffect(() => {
     fetchProviderInfoAndServices();
@@ -502,6 +546,15 @@ const ProviderServices = () => {
               </motion.button>
             </div>
           )}
+          {/* A Sewak's combos come from admin, so only services can be added. */}
+          {user?.providerCategory === 'sewak' && activeTab === "services" && (
+            <div className="flex items-center justify-end">
+              <motion.button whileTap={{ scale: 0.95 }} onClick={openSewakAdd} data-sewak-add-service
+                className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20">
+                <Plus className="h-4 w-4" /> Add Service
+              </motion.button>
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -607,14 +660,14 @@ const ProviderServices = () => {
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {services.filter(s => serviceSubTab === "active" ? s.visible : !s.visible).length === 0 && activeTab === "services" && (
+              {listedServices.filter(s => serviceSubTab === "active" ? s.visible : !s.visible).length === 0 && activeTab === "services" && (
                 <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border p-12 text-center">
                   <IndianRupee className="h-10 w-10 text-muted-foreground/30 mb-3" />
                   <p className="text-sm font-semibold text-muted-foreground">{serviceSubTab === "active" ? "No active services yet" : "No combo-only services"}</p>
                 </div>
               )}
 
-              {activeTab === "services" && services.filter(s => serviceSubTab === "active" ? s.visible : !s.visible).map((s, i) => (
+              {activeTab === "services" && listedServices.filter(s => serviceSubTab === "active" ? s.visible : !s.visible).map((s, i) => (
                 <motion.div key={s._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
                   className={`flex flex-col rounded-2xl border bg-card overflow-hidden transition-all ${s.visible ? "border-border" : "border-border/50 opacity-60"}`}>
                   <div className="h-28 w-full relative bg-muted">
@@ -1230,6 +1283,57 @@ const ProviderServices = () => {
             </motion.div>
           </motion.div>
         )}
+
+        {/* Sewak: Add Service — pick from the category's services */}
+        <AnimatePresence>
+          {showSewakAdd && (
+            <motion.div key="sewak-add-service-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto" data-sewak-add-modal>
+              <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} transition={{ type: "tween", duration: 0.3 }}
+                className="w-full bg-card max-w-md mx-auto rounded-[32px] overflow-hidden border border-border shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="flex items-center justify-between border-b border-border px-5 py-3 bg-card shrink-0">
+                  <h3 className="text-lg font-black uppercase tracking-tighter">Add Service</h3>
+                  <button type="button" onClick={() => setShowSewakAdd(false)} className="rounded-full h-10 w-10 flex items-center justify-center hover:bg-muted transition-colors"><X className="h-5 w-5" /></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-5 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{categoryName} services · Master Rate</p>
+                  {sewakAddable.length === 0 ? (
+                    <div className="rounded-2xl border-2 border-dashed border-border p-8 text-center">
+                      <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500/60 mb-2" />
+                      <p className="text-sm font-semibold text-muted-foreground">You already offer every service in {categoryName}.</p>
+                    </div>
+                  ) : sewakAddable.map(c => {
+                    const picked = sewakPicks.includes(c.name);
+                    return (
+                      <button key={c._id || c.name} type="button" onClick={() => toggleSewakPick(c.name)} data-sewak-add-option
+                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${picked ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" : "border-border hover:bg-muted"}`}>
+                        <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-muted">
+                          <ServiceVisual src={c.image} name={c.name} hint={c.description || ""} iconClassName="h-5 w-5" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-black text-foreground">{c.name}</span>
+                          <span className="block text-[10px] font-bold text-emerald-600">₹{Number(c.basePrice)}{c.locked ? " · Skill Session needed" : ""}</span>
+                        </span>
+                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ${picked ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 dark:border-slate-600"}`}>
+                          {picked && <CheckCircle2 className="h-3.5 w-3.5" />}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {sewakAddable.length > 0 && (
+                  <div className="border-t border-border p-4 shrink-0">
+                    <button type="button" onClick={saveSewakAdd} disabled={!sewakPicks.length || sewakAdding}
+                      className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-xs font-black uppercase tracking-widest text-primary-foreground disabled:opacity-50">
+                      {sewakAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {sewakPicks.length > 1 ? `Add ${sewakPicks.length} Services` : "Add Service"}
+                    </button>
+                  </div>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* View Service Details Modal */}
         <AnimatePresence>
