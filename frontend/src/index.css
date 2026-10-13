@@ -266,7 +266,21 @@
   }
 }
 
-/* Centralized Toast Customization: Hide close buttons for success, info, default toasts */
-[data-sonner-toast]:not([data-type="error"]):not([data-type="warning"]) [data-close-button="true"] {
+/* Centralized Toast Customization: Hide close buttons for the short success
+   and info toasts. Live notifications (Session Confirmed, Booking Received…)
+   keep their cross so they can be dismissed. */
+[data-sonner-toast][data-type="success"] [data-close-button="true"],
+[data-sonner-toast][data-type="info"] [data-close-button="true"] {
   display: none !important;
+}
+/* The cross sits inside the card at the top right (Sonner puts it half off
+   the top-left corner), and text keeps clear of it. */
+[data-sonner-toaster] [data-sonner-toast] [data-close-button="true"] {
+  left: auto !important;
+  right: 10px !important;
+  top: 10px !important;
+  transform: none !important;
+}
+[data-sonner-toast]:has([data-close-button="true"]) [data-content] {
+  padding-right: 24px;
 }

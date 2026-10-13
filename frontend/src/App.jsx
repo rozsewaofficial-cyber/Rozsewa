@@ -189,7 +189,9 @@ const App = () => (
               <TooltipProvider>
                 <ConfirmDialogProvider>
                   <Toaster />
-                  <Sonner position="bottom-right" expand={true} richColors />
+                  {/* Top, like the other toasts: at the bottom these live
+                      notifications sat over the bottom nav and booking buttons. */}
+                  <Sonner position="top-right" expand={true} richColors />
                   <GlobalAlarm />
                   <ReferralAutoApply />
                   <AnimatePresence mode="wait">
