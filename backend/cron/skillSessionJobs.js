@@ -97,7 +97,9 @@ const runPendingRetry = async () => {
                 durationMinutes: session.durationMinutes,
                 // Never schedule into the past on a retry.
                 preferredDate: session.preferredDate,
-                preferredTimeOfDay: session.preferredTimeOfDay
+                preferredTimeOfDay: session.preferredTimeOfDay,
+                sewakId: session.sewakId,
+                excludeSessionId: session._id
             });
 
             session.allocationAttempts = (session.allocationAttempts || 0) + 1;

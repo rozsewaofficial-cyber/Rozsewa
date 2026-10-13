@@ -220,7 +220,8 @@ const bookSession = async (req, res) => {
             mode: config.mode,
             durationMinutes: config.durationMinutes,
             preferredDate,
-            preferredTimeOfDay
+            preferredTimeOfDay,
+            sewakId: provider._id
         });
 
         if (slot) {
@@ -245,7 +246,9 @@ const bookSession = async (req, res) => {
                     mode: config.mode,
                     durationMinutes: config.durationMinutes,
                     preferredDate,
-                    preferredTimeOfDay
+                    preferredTimeOfDay,
+                    sewakId: provider._id,
+                    excludeSessionId: session._id
                 });
                 if (retry) {
                     Object.assign(session, retry);
@@ -610,7 +613,8 @@ const createReSessionCore = async (parent, { preferredDate, preferredTimeOfDay }
         mode: parent.mode,
         durationMinutes: parent.durationMinutes,
         preferredDate: resolvedDate,
-        preferredTimeOfDay: resolvedTimeOfDay
+        preferredTimeOfDay: resolvedTimeOfDay,
+        sewakId: parent.sewakId
     });
     if (slot) Object.assign(child, slot, { status: 'scheduled' });
     await child.save();

@@ -86,7 +86,13 @@ const allocate = async ({
     mode = 'offline',
     durationMinutes = 60,
     preferredDate,
-    preferredTimeOfDay = 'morning'
+    preferredTimeOfDay = 'morning',
+    // The Sewak being booked: a slot that overlaps one of their own scheduled
+    // sessions is skipped — several services booked for the same day used to
+    // land at the same time. excludeSessionId leaves out the session being
+    // (re)allocated itself.
+    sewakId = null,
+    excludeSessionId = null
 }) => {
     const centerQuery = { isActive: true, categories: categoryId };
     // Online sessions serve any city, so the city constraint only applies offline.
@@ -140,6 +146,26 @@ const allocate = async ({
             });
             if (centerDayCount >= (center.capacity || 0)) continue;
 
+            // This Sewak's own sessions that day, as [start, end) minutes.
+            const busy = [];
+            if (sewakId) {
+                const own = await SkillSession.find({
+                    sewakId,
+                    scheduledDate: iso,
+                    status: 'scheduled',
+                    ...(excludeSessionId ? { _id: { $ne: excludeSessionId } } : {})
+                }).select('scheduledTime durationMinutes').lean();
+                for (const s of own) {
+                    const start = toMinutes(s.scheduledTime);
+                    if (!isNaN(start)) busy.push([start, start + (Number(s.durationMinutes) || 60)]);
+                }
+            }
+            const clashes = (slot) => {
+                const start = toMinutes(slot);
+                const end = start + (Number(durationMinutes) || 60);
+                return busy.some(([s, e]) => start < e && s < end);
+            };
+
             for (const trainer of trainers) {
                 const windows = intersectWindows(center.availability, trainer.availability, day);
                 if (!windows.length) continue;
@@ -155,6 +181,7 @@ const allocate = async ({
                 ];
 
                 for (const slot of slots) {
+                    if (clashes(slot)) continue;
                     const booked = await SkillSession.countDocuments({
                         trainerId: trainer._id,
                         scheduledDate: iso,

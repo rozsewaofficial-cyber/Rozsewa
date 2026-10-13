@@ -48,8 +48,16 @@ const ProviderSkillSessions = () => {
   const [booking, setBooking] = useState(null); // the eligibility row being booked
   const [form, setForm] = useState({ preferredDate: todayISO(), preferredTimeOfDay: "morning" });
   const [saving, setSaving] = useState(false);
+  // Multiple click: pick several services, then book them all with one date
+  // and time — each is still its own booking through the same endpoint.
+  const [multiSelect, setMultiSelect] = useState(false);
+  const [picked, setPicked] = useState([]); // service names
+  const [multiRows, setMultiRows] = useState(null); // the rows being booked together
 
-  useScrollLock(!!booking);
+  // What the booking sheet books: one row (Book Session) or the picked rows.
+  const sheetRows = multiRows || (booking ? [booking] : null);
+
+  useScrollLock(!!sheetRows);
 
   useEffect(() => {
     fetchAll();
@@ -76,29 +84,61 @@ const ProviderSkillSessions = () => {
     setBooking(row);
   };
 
+  const closeSheet = () => { setBooking(null); setMultiRows(null); };
+
+  const togglePick = (name) =>
+    setPicked((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+
+  const exitMultiSelect = () => { setMultiSelect(false); setPicked([]); };
+
+  const openMultiBooking = () => {
+    const rows = pending.filter((r) => picked.includes(r.serviceName));
+    if (!rows.length) return;
+    setForm({ preferredDate: todayISO(), preferredTimeOfDay: "morning" });
+    setMultiRows(rows);
+  };
+
   const confirmBooking = async (e) => {
     e.preventDefault();
+    if (saving || !sheetRows) return;
     setSaving(true);
-    try {
-      await API.post("/skill-sessions/book", {
-        serviceName: booking.serviceName,
-        preferredDate: form.preferredDate,
-        preferredTimeOfDay: form.preferredTimeOfDay,
-      });
+    // One booking per service, one after another, so each gets its own seat;
+    // the server refuses a service that already has a session.
+    const failed = [];
+    let booked = 0;
+    for (const row of sheetRows) {
+      try {
+        await API.post("/skill-sessions/book", {
+          serviceName: row.serviceName,
+          preferredDate: form.preferredDate,
+          preferredTimeOfDay: form.preferredTimeOfDay,
+        });
+        booked += 1;
+      } catch (err) {
+        failed.push({ name: row.serviceName, message: err.response?.data?.message || "Please try again." });
+      }
+    }
+    setSaving(false);
+
+    if (booked > 0) {
       toast({
-        title: "Booking received",
-        description: "We're confirming your session — you'll be notified shortly.",
+        title: booked === 1 ? "Booking received" : `${booked} bookings received`,
+        description: booked === 1
+          ? "We're confirming your session — you'll be notified shortly."
+          : "We're confirming your sessions — you'll be notified shortly.",
       });
-      setBooking(null);
-      fetchAll();
-    } catch (err) {
+    }
+    if (failed.length > 0) {
       toast({
-        title: "Could not book",
-        description: err.response?.data?.message || "Please try again.",
+        title: failed.length === 1 && sheetRows.length === 1 ? "Could not book" : `Could not book ${failed.map((f) => f.name).join(", ")}`,
+        description: failed[0].message,
         variant: "destructive",
       });
-    } finally {
-      setSaving(false);
+    }
+    if (booked > 0) {
+      closeSheet();
+      exitMultiSelect();
+      fetchAll();
     }
   };
 
@@ -143,13 +183,32 @@ const ProviderSkillSessions = () => {
             {/* Needs booking */}
             {pending.length > 0 && (
               <section className="space-y-3">
-                <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-400">Action needed</h2>
-                {pending.map((row) => (
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-400">Action needed</h2>
+                  {/* Multiple click: book several sessions at once. */}
+                  {pending.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => (multiSelect ? exitMultiSelect() : setMultiSelect(true))}
+                      data-skill-multi-toggle
+                      className="text-[11px] font-black uppercase tracking-wider text-emerald-600 hover:text-emerald-700"
+                    >
+                      {multiSelect ? "Cancel" : "Select multiple"}
+                    </button>
+                  )}
+                </div>
+                {pending.map((row) => {
+                  const isPicked = picked.includes(row.serviceName);
+                  return (
                   <motion.div
                     key={row.serviceName}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-white dark:bg-slate-900 p-5"
+                    onClick={multiSelect ? () => togglePick(row.serviceName) : undefined}
+                    data-skill-row
+                    className={`rounded-2xl border bg-white dark:bg-slate-900 p-5 ${multiSelect ? "cursor-pointer" : ""} ${
+                      isPicked ? "border-emerald-500 ring-2 ring-emerald-500/30" : "border-amber-200 dark:border-amber-900/50"
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 p-2.5">
@@ -166,14 +225,42 @@ const ProviderSkillSessions = () => {
                         </p>
                       </div>
                     </div>
+                    {multiSelect ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); togglePick(row.serviceName); }}
+                        className={`mt-4 w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-colors ${
+                          isPicked
+                            ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                            : "border-2 border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                        }`}
+                      >
+                        {isPicked && <CheckCircle2 className="h-4 w-4" />}
+                        {isPicked ? "Selected" : "Select"}
+                      </button>
+                    ) : (
                     <button
                       onClick={() => openBooking(row)}
                       className="mt-4 w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
                     >
                       Book Session
                     </button>
+                    )}
                   </motion.div>
-                ))}
+                  );
+                })}
+                {multiSelect && (
+                  <button
+                    type="button"
+                    onClick={openMultiBooking}
+                    disabled={picked.length === 0}
+                    data-skill-multi-book
+                    className="sticky bottom-24 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    {picked.length > 1 ? `Book ${picked.length} Sessions` : picked.length === 1 ? "Book 1 Session" : "Select sessions to book"}
+                  </button>
+                )}
               </section>
             )}
 
@@ -263,13 +350,14 @@ const ProviderSkillSessions = () => {
 
       {/* Booking sheet — two inputs, nothing else */}
       <AnimatePresence>
-        {booking && (
+        {sheetRows && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
-            onClick={() => setBooking(null)}
+            // Above the bottom nav (also z-50, later in the page), which hid Confirm.
+            className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+            onClick={closeSheet}
           >
             <motion.form
               initial={{ y: 40, opacity: 0 }}
@@ -277,17 +365,32 @@ const ProviderSkillSessions = () => {
               exit={{ y: 40, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               onSubmit={confirmBooking}
-              className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 p-6 space-y-5"
+              className="w-full sm:max-w-md max-h-[90dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white dark:bg-slate-900 p-6 space-y-5"
             >
               <div className="flex items-start justify-between">
+                {sheetRows.length === 1 ? (
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Skill Session</p>
-                  <h2 className="mt-0.5 text-lg font-black text-slate-900 dark:text-white">{booking.serviceName}</h2>
+                  <h2 className="mt-0.5 text-lg font-black text-slate-900 dark:text-white">{sheetRows[0].serviceName}</h2>
                   <p className="mt-1 text-xs text-slate-500">
-                    {booking.mode === "online" ? "Online" : "In-person"} · about {booking.durationMinutes} minutes
+                    {sheetRows[0].mode === "online" ? "Online" : "In-person"} · about {sheetRows[0].durationMinutes} minutes
                   </p>
                 </div>
-                <button type="button" onClick={() => setBooking(null)} className="text-slate-400 hover:text-slate-600">
+                ) : (
+                <div className="min-w-0" data-skill-multi-sheet>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-emerald-600">Skill Sessions</p>
+                  <h2 className="mt-0.5 text-lg font-black text-slate-900 dark:text-white">{sheetRows.length} sessions</h2>
+                  <ul className="mt-1.5 space-y-1">
+                    {sheetRows.map((r) => (
+                      <li key={r.serviceName} className="text-xs text-slate-500">
+                        <span className="font-bold text-slate-700 dark:text-slate-300">{r.serviceName}</span>
+                        {" · "}{r.mode === "online" ? "Online" : "In-person"} · about {r.durationMinutes} minutes
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                )}
+                <button type="button" onClick={closeSheet} className="text-slate-400 hover:text-slate-600">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -344,7 +447,7 @@ const ProviderSkillSessions = () => {
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                Confirm Booking
+                {sheetRows.length > 1 ? `Confirm ${sheetRows.length} Bookings` : "Confirm Booking"}
               </button>
             </motion.form>
           </motion.div>
