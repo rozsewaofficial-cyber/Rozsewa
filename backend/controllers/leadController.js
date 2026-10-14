@@ -24,6 +24,16 @@ const LEAD_FANOUT_CAP = 500;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * What a partner can spend on a lead: the prepaid wallet (what a recharge
+ * adds to) plus earnings. Only the earnings were looked at, so a partner who
+ * had just recharged was told their balance was ₹0 and to recharge.
+ */
+const spendableOf = (wallet) => {
+    if (!wallet) return 0;
+    return Math.max(Number(wallet.balance) || 0, 0) + Math.max(Number(wallet.availableBalance) || 0, 0);
+};
+
 const getSettingVal = async (key, defaultValue) => {
     try {
         const doc = await Setting.findOne({ key });
@@ -198,7 +208,7 @@ const findEligibleProviders = async (lead, category) => {
 
         // Layer 8 — Wallet minimum
         const wallet = walletByProvider.get(String(p._id));
-        const balance = wallet ? (wallet.availableBalance ?? wallet.balance ?? 0) : 0;
+        const balance = spendableOf(wallet);
         const hasFreeLeft = (unlocksByProvider.get(String(p._id)) || 0) < freeLimit;
         if (!hasFreeLeft && balance < minWalletBalance) {
             console.log(`  ➔ [Layer 8] Skip: Insufficient wallet balance (Has ₹${balance}, needs ₹${minWalletBalance}).`);
@@ -720,7 +730,7 @@ const getNearbyLeads = async (req, res) => {
         // Wallet check - bypassed during free trial
         const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
         const wallet = await Wallet.findOne({ providerId: req.user._id });
-        const walletBalance = wallet ? (wallet.availableBalance ?? wallet.balance ?? 0) : 0;
+        const walletBalance = spendableOf(wallet);
 
         if (!hasFreeLeft && walletBalance < minWalletBalance) {
             return res.status(403).json({
@@ -874,7 +884,7 @@ const unlockLead = async (req, res) => {
         if (!wallet) {
             wallet = (await Wallet.create([{ providerId: req.user._id, balance: 0, availableBalance: 0 }], { session }))[0];
         }
-        const walletBalance = wallet.availableBalance ?? wallet.balance ?? 0;
+        const walletBalance = spendableOf(wallet);
         if (!hasFreeLeft && walletBalance < minWalletBalance) {
             await session.abortTransaction();
             session.endSession();
@@ -891,6 +901,7 @@ const unlockLead = async (req, res) => {
 
         let unlockedVia = 'none';
         let actualPrice = 0;
+        let paidFromPrepaid = 0;
 
         if (activeSub) {
             activeSub.creditsRemaining -= 1;
@@ -915,8 +926,12 @@ const unlockLead = async (req, res) => {
                 }
                 return res.status(400).json({ message: 'Insufficient wallet balance.' });
             }
-            if (wallet.availableBalance !== undefined) wallet.availableBalance -= leadPrice;
-            wallet.balance -= leadPrice;
+            // Paid from the prepaid wallet first, the rest from earnings — each
+            // rupee once. Both were charged the full fee, so a ₹50 unlock cost
+            // ₹100.
+            paidFromPrepaid = Math.min(leadPrice, Math.max(Number(wallet.balance) || 0, 0));
+            wallet.balance -= paidFromPrepaid;
+            wallet.availableBalance = (wallet.availableBalance || 0) - (leadPrice - paidFromPrepaid);
             await wallet.save({ session });
             await Transaction.create([{
                 providerId: req.user._id,
@@ -953,6 +968,7 @@ const unlockLead = async (req, res) => {
             lead: lead._id,
             unlockAmount: actualPrice,
             walletUsed:   unlockedVia === 'wallet',
+            paidFromPrepaid: unlockedVia === 'wallet' ? paidFromPrepaid : undefined,
             creditUsed:   unlockedVia === 'credit',
             status: 'success',
             notes: hasFreeLeft ? `Free trial unlock (${unlockedCount + 1}/${freeLimitSetting})` : undefined
@@ -1280,8 +1296,16 @@ const resolveDispute = async (req, res) => {
                     } else if (tx.walletUsed) {
                         const wallet = await Wallet.findOne({ providerId: dispute.provider }).session(session);
                         if (wallet) {
-                            if (wallet.availableBalance !== undefined) wallet.availableBalance += tx.unlockAmount;
-                            wallet.balance += tx.unlockAmount;
+                            if (typeof tx.paidFromPrepaid === 'number') {
+                                // Each part goes back where it came from.
+                                const toPrepaid = Math.min(tx.paidFromPrepaid, tx.unlockAmount);
+                                wallet.balance += toPrepaid;
+                                wallet.availableBalance = (wallet.availableBalance || 0) + (tx.unlockAmount - toPrepaid);
+                            } else {
+                                // Unlocked before the split was recorded: it was charged to both.
+                                if (wallet.availableBalance !== undefined) wallet.availableBalance += tx.unlockAmount;
+                                wallet.balance += tx.unlockAmount;
+                            }
                             await wallet.save({ session });
                             await Transaction.create([{
                                 providerId: dispute.provider,

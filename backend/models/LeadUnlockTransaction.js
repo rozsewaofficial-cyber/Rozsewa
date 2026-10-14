@@ -20,6 +20,12 @@ const leadUnlockTransactionSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    // How much of a wallet-paid unlock came out of the prepaid wallet (the
+    // rest came from earnings), so a refund returns each part where it came
+    // from. Absent on unlocks made before this was recorded.
+    paidFromPrepaid: {
+        type: Number
+    },
     creditUsed: {
         type: Boolean,
         default: false
