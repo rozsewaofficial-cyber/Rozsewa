@@ -219,20 +219,24 @@ const updateWithdrawalStatus = async (req, res) => {
         if (status === 'approved' || status === 'rejected') {
             (async () => {
                 try {
-                    const { sendNotificationToUser } = require('../config/notificationService');
+                    // In-app + live + push (it was a phone push only).
+                    const { notifyUser } = require('../config/notificationService');
                     const message = status === 'approved' 
                         ? `Your withdrawal request of ₹${withdrawal.amount} has been approved.`
                         : `Your withdrawal request of ₹${withdrawal.amount} was rejected. Reason: ${reason || 'N/A'}`;
                     
-                    sendNotificationToUser(withdrawal.providerId, 'provider', {
+                    notifyUser({
+                        userId: withdrawal.providerId,
+                        userRole: 'provider',
                         title: `Withdrawal ${status === 'approved' ? 'Approved' : 'Rejected'}`,
-                        body: message,
+                        message,
+                        type: 'payment',
                         data: {
                             type: 'withdrawal',
                             id: withdrawal._id.toString(),
                             link: '/provider/wallet'
                         }
-                    }).catch(err => console.log('Provider push notification failed:', err.message));
+                    }).catch(err => console.log('Provider withdrawal notification failed:', err.message));
                 } catch (err) {
                     console.log('Push notification failed (skipping):', err.message);
                 }

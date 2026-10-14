@@ -76,8 +76,13 @@ const ProviderNotifications = () => {
       }
     }
 
+    // The link saved with the notification wins (e.g. a KYC message opens the
+    // documents page); otherwise go by its type, as before.
+    const savedLink = typeof notif.link === "string" && notif.link.startsWith("/provider") ? notif.link : "";
     let targetLink = "";
-    if (notif.type === "booking" || notif.bookingId) {
+    if (savedLink) {
+      targetLink = savedLink;
+    } else if (notif.type === "booking" || notif.bookingId) {
       targetLink = `/provider/bookings`;
     } else if (notif.type === "lead" || notif.leadId) {
       targetLink = `/provider/leads`;

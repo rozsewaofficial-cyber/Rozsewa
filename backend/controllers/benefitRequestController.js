@@ -119,18 +119,23 @@ const updateBenefitRequestStatus = async (req, res) => {
         if (status === 'approved' || status === 'rejected') {
             (async () => {
                 try {
-                    const { sendNotificationToUser } = require('../config/notificationService');
+                    // In-app + live + push (it was a phone push only, so an
+                    // applicant without push registered never heard back).
+                    const { notifyUser } = require('../config/notificationService');
                     const policy = await BenefitPolicy.findById(request.policyId);
                     const title = policy?.title || 'a benefit';
                     const message = status === 'approved'
                         ? `Your request for "${title}" has been approved.`
                         : `Your request for "${title}" was rejected.${adminNotes ? ` Reason: ${adminNotes}` : ''}`;
 
-                    sendNotificationToUser(request.applicantId, request.applicantRole, {
+                    notifyUser({
+                        userId: request.applicantId,
+                        userRole: request.applicantRole === 'provider' ? 'provider' : 'user',
                         title: `Benefit Request ${status === 'approved' ? 'Approved' : 'Rejected'}`,
-                        body: message,
+                        message,
+                        type: 'system',
                         data: { type: 'benefit', id: request._id.toString() }
-                    }).catch(err => console.log('Benefit request push notification failed:', err.message));
+                    }).catch(err => console.log('Benefit request notification failed:', err.message));
                 } catch (err) {
                     console.log('Push notification failed (skipping):', err.message);
                 }

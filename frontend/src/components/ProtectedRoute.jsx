@@ -52,7 +52,9 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     !user?.kycVerified &&
     location.pathname !== "/provider" &&
     location.pathname !== "/provider/documents" &&
-    location.pathname !== "/provider/support"
+    location.pathname !== "/provider/support" &&
+    // Admin's KYC/document messages arrive while unverified — readable here.
+    location.pathname !== "/provider/notifications"
   ) {
     return <Navigate to="/provider" replace />;
   }
@@ -63,7 +65,9 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     user?.status !== "verified" &&
     location.pathname !== "/provider" &&
     location.pathname !== "/provider/documents" &&
-    location.pathname !== "/provider/support"
+    location.pathname !== "/provider/support" &&
+    // Admin's KYC/document messages arrive while unverified — readable here.
+    location.pathname !== "/provider/notifications"
   ) {
     return <Navigate to="/provider" replace />;
   }

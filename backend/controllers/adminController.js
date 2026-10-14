@@ -16,6 +16,18 @@ const Coupon = require('../models/Coupon');
 const LoginLog = require('../models/LoginLog');
 const axios = require('axios');
 const { teamCodesFor, sewaksOfTeam, teamSewakIds } = require('../utils/supervisorScope');
+
+// Admin → partner/Sewak messages (KYC, documents, suspension). These went
+// out as a phone push only, so anyone whose phone wasn't registered for push
+// got nothing at all; notifyUser also saves them in-app (bell + list), shows
+// them live and still sends the push. 'system' notifications aren't
+// de-duplicated, so a second rejection of the same document still arrives.
+const notifyProviderInApp = (providerId, { title, body, data = {} }) => {
+    const { notifyUser } = require('../config/notificationService');
+    // A KYC/document message opens the documents page when tapped.
+    const link = data.link || (data.type === 'kyc' ? '/provider/documents' : undefined);
+    return notifyUser({ userId: providerId, userRole: 'provider', title, message: body, type: 'system', data: { ...data, ...(link ? { link } : {}) } });
+};
 // Trigger restart
 
 // @desc    Get all providers for admin
@@ -291,12 +303,11 @@ const updateProviderStatus = async (req, res) => {
         // Push Notification for KYC Update
         if (req.body.status === 'verified' || req.body.status === 'rejected') {
             try {
-                const { sendNotificationToUser } = require('../config/notificationService');
                 const message = req.body.status === 'verified'
                     ? 'Your KYC is approved! You can start working now.'
                     : 'Your KYC request was rejected. Please check your documents.';
 
-                await sendNotificationToUser(provider._id, 'provider', {
+                await notifyProviderInApp(provider._id, {
                     title: `KYC ${req.body.status === 'verified' ? 'Approved' : 'Rejected'}`,
                     body: message,
                     data: {
@@ -328,8 +339,7 @@ const updateProviderStatus = async (req, res) => {
 
             if (req.body.status === 'suspended' && req.body.reason) {
                 try {
-                    const { sendNotificationToUser } = require('../config/notificationService');
-                    await sendNotificationToUser(provider._id, 'provider', {
+                    await notifyProviderInApp(provider._id, {
                         title: 'Account Suspended',
                         body: `Your account has been suspended by Admin. Reason: ${req.body.reason}`,
                         data: { type: 'system', link: '/provider/profile' }
@@ -2863,8 +2873,7 @@ const verifySewak = async (req, res) => {
 
         // Notify Provider
         try {
-            const { sendNotificationToUser } = require('../config/notificationService');
-            await sendNotificationToUser(sewak._id, 'provider', {
+            await notifyProviderInApp(sewak._id, {
                 title: 'KYC Approved',
                 body: 'Your identity verification is complete. Next step: visit your training centre to verify your starter kit items and complete basic training — your profile goes live right after.',
                 data: { type: 'kyc', id: sewak._id.toString() }
@@ -2932,8 +2941,7 @@ const rejectSewak = async (req, res) => {
 
         // Notify Provider
         try {
-            const { sendNotificationToUser } = require('../config/notificationService');
-            await sendNotificationToUser(sewak._id, 'provider', {
+            await notifyProviderInApp(sewak._id, {
                 title: 'KYC Rejected',
                 body: `Your KYC application was rejected. Reason: ${rejectionReason}`,
                 data: { type: 'kyc', id: sewak._id.toString() }
@@ -3006,7 +3014,6 @@ const verifySewakDocument = async (req, res) => {
         // Mark modified so mongoose saves nested updates
         sewak.markModified('documents');
 
-        const { sendNotificationToUser } = require('../config/notificationService');
 
         // Notify the Sewak about individual document status
         try {
@@ -3026,7 +3033,7 @@ const verifySewakDocument = async (req, res) => {
                     : `Your ${docLabel} was rejected. Reason: ${rejectionReason}`;
             }
 
-            await sendNotificationToUser(sewak._id, 'provider', {
+            await notifyProviderInApp(sewak._id, {
                 title,
                 body,
                 data: { type: 'kyc', id: sewak._id.toString() }
@@ -3043,7 +3050,7 @@ const verifySewakDocument = async (req, res) => {
 
             // Notify Sewak: Overall KYC rejected
             try {
-                await sendNotificationToUser(sewak._id, 'provider', {
+                await notifyProviderInApp(sewak._id, {
                     title: 'KYC Rejected',
                     body: `Your KYC application was rejected. Please review and update the rejected items.`,
                     data: { type: 'kyc', id: sewak._id.toString() }
@@ -3068,7 +3075,7 @@ const verifySewakDocument = async (req, res) => {
 
                 // Notify Sewak: documents verified, approval next
                 try {
-                    await sendNotificationToUser(sewak._id, 'provider', {
+                    await notifyProviderInApp(sewak._id, {
                         title: 'Documents Verified',
                         body: 'All your documents are verified. Your application is now with our team for final approval.',
                         data: { type: 'kyc', id: sewak._id.toString() }
@@ -3159,9 +3166,8 @@ const verifyProviderDocument = async (req, res) => {
         provider.markModified('documents');
 
         const docLabel = docId.toUpperCase().replace(/_/g, ' ');
-        const { sendNotificationToUser } = require('../config/notificationService');
         try {
-            await sendNotificationToUser(provider._id, 'provider', {
+            await notifyProviderInApp(provider._id, {
                 title: status === 'verified' ? `${docLabel} Approved` : `${docLabel} Rejected`,
                 body: status === 'verified'
                     ? `Your ${docLabel} has been approved by the admin.`
@@ -3178,7 +3184,7 @@ const verifyProviderDocument = async (req, res) => {
             provider.kycVerified = false;
             provider.kycSubmitted = false;
             try {
-                await sendNotificationToUser(provider._id, 'provider', {
+                await notifyProviderInApp(provider._id, {
                     title: 'KYC Rejected',
                     body: `Your KYC application was rejected. Please review and update the rejected items.`,
                     data: { type: 'kyc', id: provider._id.toString() }
@@ -3207,7 +3213,7 @@ const verifyProviderDocument = async (req, res) => {
                 }
 
                 try {
-                    await sendNotificationToUser(provider._id, 'provider', {
+                    await notifyProviderInApp(provider._id, {
                         title: 'Documents Verified',
                         body: 'All your documents are verified. Your application is now with our team for final approval.',
                         data: { type: 'kyc', id: provider._id.toString() }

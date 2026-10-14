@@ -145,16 +145,15 @@ const ProviderTopNav = ({ title, showBack = false }) => {
                 </Link>
               )}
 
-              {!((user?.role === 'sewak' || user?.providerCategory === 'sewak') ? !user?.kycVerified : user?.status !== 'verified') && (
-                <Link to="/provider/notifications" className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
-                  <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </Link>
-              )}
+              {/* Always shown: admin's KYC/document messages come before approval. */}
+              <Link to="/provider/notifications" className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800">
+                <Bell className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-900">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </Link>
 
               <Link to="/provider/profile" className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-emerald-100 ring-1 ring-emerald-200">
                 {user?.profileImage ? (
