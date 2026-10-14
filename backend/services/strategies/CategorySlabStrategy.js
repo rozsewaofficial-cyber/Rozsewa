@@ -1,5 +1,17 @@
 const CommissionSlab = require('../../models/CommissionSlab');
 
+// A missing slab is an admin setting, not an error, and every commission
+// preview (each dashboard load) hit it — so the same warning filled the log.
+// Said at most once every 6 hours per category/role; the fallback is unchanged.
+const WARN_EVERY_MS = 6 * 60 * 60 * 1000;
+const lastWarned = new Map();
+const warnOnce = (key, message) => {
+    const now = Date.now();
+    if (now - (lastWarned.get(key) || 0) < WARN_EVERY_MS) return;
+    lastWarned.set(key, now);
+    console.warn(message);
+};
+
 class CategorySlabStrategy {
     getMetadata() {
         return {
@@ -27,7 +39,7 @@ class CategorySlabStrategy {
             ]
         }).sort({ minAmount: 1 });
         if (slabs.length === 0) {
-            console.warn(`[CommissionEngine] No CATEGORY_SLAB configured for category="${category.name || catId}" role="${role}" — falling through to GLOBAL_DEFAULT.`);
+            warnOnce(`none:${catId}:${role}`, `[CommissionEngine] No CATEGORY_SLAB configured for category="${category.name || catId}" role="${role}" — falling through to GLOBAL_DEFAULT.`);
             return null;
         }
 
@@ -46,7 +58,7 @@ class CategorySlabStrategy {
             };
         }
 
-        console.warn(`[CommissionEngine] Booking amount ${bookingAmount} falls in a gap between configured CATEGORY_SLAB ranges for category="${category.name || catId}" role="${role}" — falling through to GLOBAL_DEFAULT.`);
+        warnOnce(`gap:${catId}:${role}`, `[CommissionEngine] Booking amount ${bookingAmount} falls in a gap between configured CATEGORY_SLAB ranges for category="${category.name || catId}" role="${role}" — falling through to GLOBAL_DEFAULT.`);
         return null;
     }
 }

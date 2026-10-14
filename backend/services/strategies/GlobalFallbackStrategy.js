@@ -1,6 +1,10 @@
 const CommissionSlab = require('../../models/CommissionSlab');
 const Setting = require('../../models/Setting');
 
+// Said at most once every 6 hours per role — every commission preview hit it.
+const WARN_EVERY_MS = 6 * 60 * 60 * 1000;
+const lastWarned = new Map();
+
 class GlobalFallbackStrategy {
     getMetadata() {
         return {
@@ -25,7 +29,8 @@ class GlobalFallbackStrategy {
         
         const matchedSlab = globalSlabs.find(s => bookingAmount >= s.minAmount && bookingAmount <= s.maxAmount);
 
-        if (!matchedSlab) {
+        if (!matchedSlab && Date.now() - (lastWarned.get(role) || 0) >= WARN_EVERY_MS) {
+            lastWarned.set(role, Date.now());
             console.warn(`[CommissionEngine] Booking amount ${bookingAmount} (role="${role}") matched no GLOBAL_DEFAULT slab either (${globalSlabs.length} configured) — using the platform default rate.`);
         }
 

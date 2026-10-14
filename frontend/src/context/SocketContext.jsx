@@ -333,7 +333,10 @@ export const SocketProvider = ({ children }) => {
                 socket.off('connect', joinRooms);
             };
         }
-    }, [socket, user]);
+        // By account, not the user object: that is replaced on every profile
+        // refresh (each page change), which re-sent the join each time.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [socket, user?._id, user?.role]);
 
     return (
         <SocketContext.Provider value={{
