@@ -47,6 +47,9 @@ const SewakRegister = () => {
     }
   }, [step]);
   const [coords, setCoords] = useState([0, 0]);
+  // Insta Work services a Sewak can take (admin-fixed Sewak rate). Empty when
+  // Insta Work is off or nothing is offered to Sewaks, and then it isn't asked.
+  const [instaCatalog, setInstaCatalog] = useState([]);
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(null);
@@ -545,6 +548,24 @@ const SewakRegister = () => {
     await finalizeSignupDirectly({ bankDetails: null });
   };
 
+  useEffect(() => {
+    if (step !== 4) return;
+    let cancelled = false;
+    API.get("/insta/services", { params: formData.city ? { city: formData.city } : {} })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const list = data?.enabled ? (data.services || []) : [];
+        setInstaCatalog(list.filter(sv => Array.isArray(sv.availableFor) && sv.availableFor.includes("sewak")));
+      })
+      .catch(() => { if (!cancelled) setInstaCatalog([]); });
+    return () => { cancelled = true; };
+  }, [step, formData.city]);
+
+  const toggleInstaService = (id) => setFormData(prev => {
+    const current = Array.isArray(prev.instaServices) ? prev.instaServices : [];
+    return { ...prev, instaServices: current.includes(id) ? current.filter(x => x !== id) : [...current, id] };
+  });
+
   const stepTitles = [
     "Verify Mobile", "Business Type", "Select Industry",
     "Sewak Profile", "Identity Photo", "Bank Details", "Success"
@@ -822,6 +843,10 @@ const SewakRegister = () => {
                   if (formData.password !== formData.confirmPassword) return toast({ title: "Password Mismatch", description: "Passwords do not match.", variant: "destructive" });
 
 
+                  if (formData.instaWork && instaCatalog.length > 0 && !(formData.instaServices || []).length) {
+                    return toast({ title: "Choose Insta Work services", description: "Pick at least one service, or untick Insta Work.", variant: "destructive" });
+                  }
+
                   if (!verificationStatus.aadhaar && !verificationStatus.pan) {
                     return toast({ title: "Verification Required", description: "Please verify EITHER Aadhaar OR PAN.", variant: "destructive" });
                   }
@@ -936,6 +961,47 @@ const SewakRegister = () => {
                       </div>
                     </label>
                   </div>
+
+                  {/* Insta Work: instant jobs near you, at RozSewa's fixed rate. */}
+                  {instaCatalog.length > 0 && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 space-y-3" data-insta-register>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formData.instaWork}
+                          onChange={e => setFormData({ ...formData, instaWork: e.target.checked, instaServices: e.target.checked ? (formData.instaServices || []) : [] })}
+                          className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-800">Insta Work</span>
+                          <span className="text-[9px] font-medium text-slate-500">Get instant jobs near you at RozSewa's fixed rate</span>
+                        </div>
+                      </label>
+                      {formData.instaWork && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {instaCatalog.map(sv => {
+                            const on = (formData.instaServices || []).includes(sv._id);
+                            return (
+                              <button
+                                key={sv._id}
+                                type="button"
+                                onClick={() => toggleInstaService(sv._id)}
+                                className={`flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-colors ${on ? "border-emerald-500 bg-emerald-50" : "border-slate-200 bg-white hover:border-emerald-300"}`}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-xs font-bold text-slate-800">{sv.name}</span>
+                                  <span className="block text-[10px] font-semibold text-emerald-700">₹{sv.sewakRate}{sv.unitLabel ? ` / ${sv.unitLabel}` : ""}</span>
+                                </span>
+                                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${on ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300"}`}>
+                                  {on && <CheckCircle className="h-3 w-3" />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5 group">

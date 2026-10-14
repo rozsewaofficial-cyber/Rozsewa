@@ -256,7 +256,7 @@ const registerSewak = async (req, res) => {
     const {
         mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
         gst, kycAadhaar, kycAadhaarPhoto, kycAadhaarBackPhoto, kycPanNumber, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy,
-        bankDetails, isHomeVisitAvailable, is24x7
+        bankDetails, isHomeVisitAvailable, is24x7, instaServices
     } = req.body;
 
     try {
@@ -338,6 +338,25 @@ const registerSewak = async (req, res) => {
 
         const vendorCardExpiry = await computeVendorCardExpiry();
 
+        // Insta Work chosen at registration (Sewak only): the instant-help
+        // services they'll take, at the admin's fixed Sewak rate. Jobs still
+        // reach them only once verified and with the app open (fresh location).
+        let instaWork;
+        if (Array.isArray(instaServices) && instaServices.length) {
+            const InstaService = require('../models/InstaService');
+            const Pricing = require('../services/InstaPricingService');
+            const ids = instaServices.map(String).filter(id => /^[a-f\d]{24}$/i.test(id));
+            // Only services offered in the Sewak's city (the form lists just those).
+            const offered = (await InstaService.find({ _id: { $in: ids }, isActive: true, availableFor: 'sewak' }))
+                .filter(svc => svc.servesCity(city));
+            const services = offered.map(svc => ({
+                serviceId: svc._id,
+                serviceName: svc.name,
+                rate: Pricing.resolveProviderRate({ service: svc, providerCategory: 'sewak' })
+            }));
+            if (services.length) instaWork = { enabled: true, services };
+        }
+
         const sewak = await Provider.create({
             mobile,
             ownerName,
@@ -370,6 +389,7 @@ const registerSewak = async (req, res) => {
             is24x7: is24x7 || false,
             isEmergencyEnabled: is24x7 || false,
             providerCategory: 'sewak',
+            ...(instaWork ? { instaWork } : {}),
             commissionRate: 100, // 100% to Admin — Sewak earns via incentives, not commission
             kycVerified: false,
             isOnline: false, // Wait until verified
