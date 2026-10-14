@@ -19,7 +19,9 @@ const getWallet = async (req, res) => {
         // Earned and spent are lifetime figures, so they are totalled over the
         // whole statement rather than by the screen over the page it holds.
         const [totals] = await Transaction.aggregate([
-            { $match: query },
+            // A failed row (a rejected payout) moved no money, so it is neither
+            // earned nor spent.
+            { $match: { ...query, status: { $ne: 'failed' } } },
             {
                 $group: {
                     _id: null,

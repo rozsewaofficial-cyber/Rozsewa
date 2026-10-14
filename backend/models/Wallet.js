@@ -38,6 +38,9 @@ const transactionSchema = new mongoose.Schema({
     // and the balance it left, for the statement.
     paymentId: { type: String },
     orderId: { type: String },
+    // The payout request this row belongs to (a withdrawal), so approving or
+    // rejecting it settles this row and not another request's of the same sum.
+    withdrawalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Withdrawal' },
     paymentMethod: { type: String },
     balanceAfter: { type: Number },
     createdAt: {

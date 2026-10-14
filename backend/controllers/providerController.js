@@ -794,10 +794,34 @@ const updateProviderProfile = async (req, res) => {
                 provider.isEmergencyEnabled = !!req.body.is24x7;
             }
 
-            if (req.body.bankDetails) {
+            if (req.body.bankDetails && typeof req.body.bankDetails === 'object') {
+                // Only the payout fields, and in the formats the screens ask for —
+                // the server used to store whatever object it was sent.
+                const incoming = {};
+                for (const key of ['accountNumber', 'ifscCode', 'bankName', 'accountHolderName']) {
+                    if (req.body.bankDetails[key] !== undefined) incoming[key] = String(req.body.bankDetails[key]).trim();
+                }
+                if (incoming.ifscCode) incoming.ifscCode = incoming.ifscCode.toUpperCase();
+                if (incoming.accountNumber && !/^\d{9,18}$/.test(incoming.accountNumber)) {
+                    return res.status(400).json({ message: 'Account number must be 9–18 digits (numbers only).' });
+                }
+                if (incoming.ifscCode && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(incoming.ifscCode)) {
+                    return res.status(400).json({ message: 'Invalid IFSC code. Format: 4 letters + 0 + 6 letters/digits (e.g. HDFC0001234).' });
+                }
+                if (incoming.accountHolderName && !/^[A-Za-z][A-Za-z .'-]{1,59}$/.test(incoming.accountHolderName)) {
+                    return res.status(400).json({ message: 'Account holder name can have letters and spaces only.' });
+                }
+                // One account number belongs to one account (the schema's unique
+                // index would otherwise surface as a raw database error).
+                if (incoming.accountNumber && incoming.accountNumber !== provider.bankDetails?.accountNumber) {
+                    const taken = await Provider.exists({ _id: { $ne: provider._id }, 'bankDetails.accountNumber': incoming.accountNumber });
+                    if (taken) {
+                        return res.status(400).json({ message: 'This bank account is already linked to another RozSewa account.' });
+                    }
+                }
                 provider.bankDetails = {
-                    ...provider.bankDetails,
-                    ...req.body.bankDetails
+                    ...(provider.bankDetails?.toObject ? provider.bankDetails.toObject() : provider.bankDetails),
+                    ...incoming
                 };
             }
 
