@@ -801,6 +801,13 @@ const getNearbyLeads = async (req, res) => {
             return lead;
         });
 
+        // The booking this partner made from each lead, if any (one per lead).
+        const Booking = require('../models/Booking');
+        const booked = await Booking.find({ leadId: { $in: leads.map(l => l._id) }, providerId: req.user._id, status: { $ne: 'cancelled' } })
+            .select('leadId status bookingDate bookingTime totalAmount').lean();
+        const bookingByLead = new Map(booked.map(b => [String(b.leadId), b]));
+        for (const l of leads) l.myBooking = bookingByLead.get(String(l._id)) || null;
+
         res.json({ leads, page, pages: Math.ceil(totalLeads / limit), count: totalLeads, walletBalance });
     } catch (err) {
         console.error('[getNearbyLeads]', err);
@@ -1517,6 +1524,102 @@ const deleteLeadForm = async (req, res) => {
     }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// LEAD → BOOKING
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const LEAD_BOOKING_MAX_PRICE = 100000;
+const LEAD_BOOKING_TIME = /^(0[1-9]|1[0-2]):[0-5]\d (AM|PM)$/;
+
+// @desc  A partner who unlocked a lead books the work they agreed with the
+//        customer: a normal booking (both Bookings tabs, OTP start/finish,
+//        cash after service) with no commission — the lead was paid for.
+// @route POST /api/leads/:id/booking
+// @access Private (Partner who unlocked the lead)
+const createBookingFromLead = async (req, res) => {
+    try {
+        if (req.user?.providerCategory === 'sewak') {
+            return res.status(403).json({ message: 'Leads are for partners. Sewaks get work as bookings.' });
+        }
+        const Booking = require('../models/Booking');
+        const { price, bookingDate, bookingTime } = req.body;
+
+        const lead = await Lead.findById(req.params.id);
+        if (!lead) return res.status(404).json({ message: 'Lead not found.' });
+        const unlocked = (lead.unlockedProviders || []).some(id => id.toString() === req.user._id.toString());
+        if (!unlocked) return res.status(403).json({ message: 'Unlock this lead before booking it.' });
+        if (['cancelled', 'closed', 'disputed', 'refunded'].includes(lead.status)) {
+            return res.status(400).json({ message: 'This request is no longer open.' });
+        }
+
+        const amount = Number(price);
+        if (!Number.isFinite(amount) || amount < 1) return res.status(400).json({ message: 'Enter the price you agreed with the customer.' });
+        if (amount > LEAD_BOOKING_MAX_PRICE) return res.status(400).json({ message: `Price can't be more than ₹${LEAD_BOOKING_MAX_PRICE.toLocaleString('en-IN')}.` });
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(bookingDate || ''))) return res.status(400).json({ message: 'Choose the date you agreed.' });
+        const todayIst = new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10);
+        if (bookingDate < todayIst) return res.status(400).json({ message: "The date can't be in the past." });
+        if (!LEAD_BOOKING_TIME.test(String(bookingTime || ''))) return res.status(400).json({ message: 'Choose the time you agreed.' });
+
+        // One booking per partner per lead (a cancelled one can be booked again).
+        const existing = await Booking.findOne({ leadId: lead._id, providerId: req.user._id, status: { $ne: 'cancelled' } }).select('_id');
+        if (existing) return res.status(409).json({ message: 'You already booked this request.', bookingId: existing._id });
+
+        const category = await Category.findById(lead.categoryId).select('name services').lean();
+        let serviceName = lead.service || '';
+        if (lead.serviceId) {
+            const doc = await Service.findById(lead.serviceId).select('name').lean();
+            serviceName = doc?.name || (category?.services || []).find(s => String(s._id) === String(lead.serviceId))?.name || serviceName;
+        }
+        serviceName = serviceName || lead.requirementTitle || category?.name || 'Service';
+
+        const d = lead.locationDetail || {};
+        const address = [d.houseNo, d.apartment, d.street, d.landmark, d.area, d.city, d.state, d.pincode]
+            .map(v => String(v || '').trim()).filter(Boolean).join(', ')
+            || lead.requirementForm?.address || 'Address shared with the partner';
+
+        const booking = await Booking.create({
+            userId: lead.customer,
+            providerId: req.user._id,
+            requiredProviderCategory: 'partner',
+            leadId: lead._id,
+            serviceName,
+            serviceId: String(lead.serviceId || lead._id),
+            bookingDate,
+            bookingTime,
+            totalAmount: amount,
+            baseServiceAmount: amount,
+            address,
+            location: lead.location?.coordinates?.length === 2 ? { type: 'Point', coordinates: lead.location.coordinates } : undefined,
+            // Agreed with the customer already: the partner goes straight to
+            // "Start Journey"; paid in cash after the work.
+            status: 'confirmed',
+            offerStatus: 'accepted',
+            pricingDecision: 'fixed_price',
+            paymentMode: 'after',
+            serviceLocation: 'home',
+            acceptedAt: new Date()
+        });
+
+        await logActivity(lead._id, req.user._id, 'provider', 'LEAD_BOOKED', { bookingId: booking._id, amount, bookingDate, bookingTime });
+
+        try {
+            await notifyUser({
+                userId: lead.customer,
+                userRole: 'customer',
+                title: 'Booking Confirmed',
+                message: `${req.user.shopName || 'Your partner'} booked "${serviceName}" for ${bookingDate} at ${bookingTime} — ₹${amount}, pay after the service.`,
+                type: 'booking',
+                data: { bookingId: booking._id.toString(), link: '/my-bookings' }
+            });
+        } catch { /* the booking stands even if the push fails */ }
+
+        res.status(201).json({ message: 'Booking created.', booking });
+    } catch (err) {
+        console.error('[createBookingFromLead]', err);
+        res.status(500).json({ message: err.message });
+    }
+};
+
 module.exports = {
     // Which partners a lead goes to (exported for its check script)
     findEligibleProviders,
@@ -1535,6 +1638,7 @@ module.exports = {
     // Provider
     getNearbyLeads,
     unlockLead,
+    createBookingFromLead,
     raiseDispute,
     getLeadPlans,
     // Admin — Leads

@@ -200,8 +200,10 @@ exports.getCommissionAnalytics = async (req, res) => {
         let totalBookingsCount = bookings.length;
 
         // Commission Sources buckets
-        const sourceCounts = { FREE_TRIAL: 0, WAIVER: 0, PROVIDER_OVERRIDE: 0, SUBSCRIPTION: 0, CATEGORY_SLAB: 0, GLOBAL_DEFAULT: 0 };
-        const sourceRevenue = { FREE_TRIAL: 0, WAIVER: 0, PROVIDER_OVERRIDE: 0, SUBSCRIPTION: 0, CATEGORY_SLAB: 0, GLOBAL_DEFAULT: 0 };
+        // LEAD: bookings made from an unlocked lead (no commission) — counted on
+        // their own rather than falling into CATEGORY_SLAB.
+        const sourceCounts = { FREE_TRIAL: 0, WAIVER: 0, PROVIDER_OVERRIDE: 0, SUBSCRIPTION: 0, CATEGORY_SLAB: 0, GLOBAL_DEFAULT: 0, LEAD: 0 };
+        const sourceRevenue = { FREE_TRIAL: 0, WAIVER: 0, PROVIDER_OVERRIDE: 0, SUBSCRIPTION: 0, CATEGORY_SLAB: 0, GLOBAL_DEFAULT: 0, LEAD: 0 };
 
         // Category & Subscription Breakdown maps
         const categoryRevMap = {};

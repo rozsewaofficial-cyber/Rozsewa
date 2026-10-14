@@ -14,6 +14,7 @@ const STATUS_LABELS = {
     slab_commission: 'Slab Rate',
     sewak_revenue: 'Sewak (100%)',
     commissioned: 'Commissioned',
+    lead: 'Lead (No Commission)',
 };
 
 const STATUS_COLORS = {
@@ -25,6 +26,7 @@ const STATUS_COLORS = {
     slab_commission: 'bg-teal-100 text-teal-700',
     sewak_revenue: 'bg-rose-100 text-rose-700',
     commissioned: 'bg-emerald-100 text-emerald-700',
+    lead: 'bg-violet-100 text-violet-700',
 };
 
 const AdminCommission = () => {

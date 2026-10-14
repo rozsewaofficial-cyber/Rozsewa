@@ -2633,7 +2633,11 @@ const verifyEndOTP = async (req, res) => {
                     // Slab boundaries are matched against the gross total (what the admin configured
                     // against), but the matched rate is still applied to commissionableAmount so the
                     // travel charge stays commission-exempt.
-                    const matchedRule = await CommissionRuleEngine.selectRule(grossOrderAmount, provider, provider.vendorType, session);
+                    // A booking made from a lead carries no commission — the partner
+                    // already paid to unlock the lead (the lead screens say so).
+                    const matchedRule = booking.leadId
+                        ? { rate: 0, source: 'LEAD', ruleName: 'Lead booking (no commission)' }
+                        : await CommissionRuleEngine.selectRule(grossOrderAmount, provider, provider.vendorType, session);
                     calculation = CommissionService.calculate(commissionableAmount, matchedRule);
                     adminCommission = calculation.platformAmount;
                     providerPayout = calculation.providerAmount + travelChargeAmount;

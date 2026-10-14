@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import {
   Briefcase,
   MapPin,
@@ -25,6 +25,14 @@ import API from "@/lib/api";
 import { useSocket } from "@/context/SocketContext";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
+
+// Booking times offered when turning a lead into a booking (hh:mm AM/PM,
+// the format the Bookings screens read), 6 AM to 11 PM.
+const BOOKING_TIMES = Array.from({ length: 18 }, (_, i) => {
+  const h = i + 6;
+  return `${String(h % 12 || 12).padStart(2, "0")}:00 ${h < 12 ? "AM" : "PM"}`;
+});
+const todayLocal = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
 // ─── Status Badge Config ──────────────────────────────────────────────────────
 const STATUS = {
@@ -88,7 +96,7 @@ const ExpiryCountdown = ({ expiry }) => {
 };
 
 // ─── Lead Card ────────────────────────────────────────────────────────────────
-const LeadCard = ({ lead, onUnlock, onDispute }) => {
+const LeadCard = ({ lead, onUnlock, onDispute, onBook }) => {
   const conf = STATUS[lead.status] || STATUS.available;
   const isUnlocked = lead.isUnlocked;
 
@@ -300,6 +308,35 @@ const LeadCard = ({ lead, onUnlock, onDispute }) => {
         )}
       </div>
 
+      {/* Booking: the work agreed with the customer becomes a normal booking
+          (both Bookings tabs, OTP start/finish, cash after service). */}
+      {isUnlocked && (!lead.disputeStatus || lead.disputeStatus === "none") && (
+        <div className="px-5 pb-4" data-lead-booking>
+          {lead.myBooking ? (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 p-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3 w-3" /> Booking created
+                </p>
+                <p className="mt-0.5 text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {lead.myBooking.bookingDate} · {lead.myBooking.bookingTime} · ₹{lead.myBooking.totalAmount}
+                </p>
+              </div>
+              <Link to="/provider/bookings" className="shrink-0 rounded-xl bg-emerald-600 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-emerald-700">
+                View
+              </Link>
+            </div>
+          ) : (
+            <button
+              onClick={() => onBook(lead)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-violet-600 hover:bg-violet-700 py-3 text-xs font-black uppercase tracking-widest text-white transition-all active:scale-95 shadow-lg shadow-violet-600/20"
+            >
+              <Calendar className="h-4 w-4" /> Create Booking
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Bottom action strip */}
       <div className="px-5 pb-5 flex flex-row items-center justify-between gap-3 border-t border-slate-50 dark:border-slate-800 pt-4">
         <div>
@@ -365,6 +402,8 @@ const ProviderLeads = () => {
   const [tabLoading, setTabLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [unlockModal, setUnlockModal] = useState(null); // { leadId, price }
+  // Create Booking from an unlocked lead: { lead, price, date, time, saving, error }
+  const [bookModal, setBookModal] = useState(null);
   const [unlocking, setUnlocking] = useState(false);
 
   // Derive activeTab and page from URL, with fallback defaults
@@ -465,6 +504,36 @@ const ProviderLeads = () => {
   }, [fetchLeadsAndWallet, socket]);
 
   const confirmUnlock = (leadId, price) => setUnlockModal({ leadId, price });
+
+  // Prefilled with what the customer asked for; the partner sets the price.
+  const openBooking = (lead) => {
+    const today = todayLocal();
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(lead.preferredDate || "") && lead.preferredDate >= today ? lead.preferredDate : today;
+    const time = BOOKING_TIMES.includes(lead.preferredTime) ? lead.preferredTime : "10:00 AM";
+    setBookModal({ lead, price: "", date, time, saving: false, error: "" });
+  };
+
+  const handleCreateBooking = async () => {
+    if (!bookModal || bookModal.saving) return;
+    const price = Number(bookModal.price);
+    if (!Number.isFinite(price) || price < 1) {
+      setBookModal({ ...bookModal, error: "Enter the price you agreed with the customer." });
+      return;
+    }
+    setBookModal({ ...bookModal, saving: true, error: "" });
+    try {
+      await API.post(`/leads/${bookModal.lead._id}/booking`, {
+        price,
+        bookingDate: bookModal.date,
+        bookingTime: bookModal.time,
+      });
+      toast({ title: "Booking created", description: "It's in your Bookings. The customer has been notified." });
+      setBookModal(null);
+      fetchLeadsAndWallet(true);
+    } catch (err) {
+      setBookModal((m) => m && { ...m, saving: false, error: err.response?.data?.message || "Couldn't create the booking." });
+    }
+  };
 
   const handleUnlock = async () => {
     if (!unlockModal) return;
@@ -704,6 +773,7 @@ const ProviderLeads = () => {
                 key={lead._id}
                 lead={lead}
                 onUnlock={confirmUnlock}
+                onBook={openBooking}
                 onDispute={setDisputingLeadId}
               />
             ))
@@ -773,6 +843,78 @@ const ProviderLeads = () => {
                 className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-black transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
               >
                 {unlocking ? "Unlocking..." : "Confirm Unlock"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Booking Modal */}
+      {bookModal && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" data-lead-booking-modal>
+          <div
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
+            onClick={() => !bookModal.saving && setBookModal(null)}
+          />
+          <div className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl space-y-4 border border-border">
+            <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-violet-500" /> Create Booking
+              </span>
+              <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                #{bookModal.lead._id?.slice(-6).toUpperCase()}
+              </span>
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Book <strong>{bookModal.lead.requirementTitle || "this request"}</strong> at the price and time you agreed with the customer.
+            </p>
+            <label className="block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Agreed price (₹)</span>
+              <input
+                type="text" inputMode="numeric" value={bookModal.price}
+                onChange={(e) => setBookModal({ ...bookModal, price: e.target.value.replace(/[^\d]/g, "").slice(0, 6), error: "" })}
+                placeholder="e.g. 800"
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold outline-none focus:border-violet-500"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Date</span>
+                <input
+                  type="date" value={bookModal.date} min={todayLocal()}
+                  onChange={(e) => setBookModal({ ...bookModal, date: e.target.value, error: "" })}
+                  className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold outline-none focus:border-violet-500"
+                />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Time</span>
+                <select
+                  value={bookModal.time}
+                  onChange={(e) => setBookModal({ ...bookModal, time: e.target.value, error: "" })}
+                  className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-bold outline-none focus:border-violet-500"
+                >
+                  {BOOKING_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+            </div>
+            <p className="text-xs text-slate-400 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl">
+              The customer pays you after the service. No commission — you already unlocked this lead.
+            </p>
+            {bookModal.error && <p className="text-xs font-bold text-rose-600">{bookModal.error}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBookModal(null)}
+                disabled={bookModal.saving}
+                className="flex-1 py-3 border border-border rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateBooking}
+                disabled={bookModal.saving}
+                className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-black transition-all active:scale-95 shadow-lg shadow-violet-600/20"
+              >
+                {bookModal.saving ? "Creating..." : "Create Booking"}
               </button>
             </div>
           </div>

@@ -280,6 +280,9 @@ const bookingSchema = new mongoose.Schema({
     providerPayout: { type: Number, default: 0 },
     employeeCommission: { type: Number, default: 0 },
     commissionStatus: { type: String, default: 'free' },
+    // Set when a partner turned an unlocked lead into this booking. The lead
+    // was already paid for, so the booking carries no commission.
+    leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead', default: null, index: true },
     transactionId: { type: String, unique: true, sparse: true },
     commissionTransactionId: { type: String, unique: true, sparse: true },
     commissionSnapshot: {

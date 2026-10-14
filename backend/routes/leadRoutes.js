@@ -17,6 +17,7 @@ const {
     // Provider
     getNearbyLeads,
     unlockLead,
+    createBookingFromLead,
     raiseDispute,
     getLeadPlans,
     // Admin — Leads
@@ -51,6 +52,7 @@ router.put('/:id',            protect, updateLead);
 router.get('/nearby',         protect, getNearbyLeads);
 router.get('/plans',          protect, getLeadPlans);
 router.post('/:id/unlock',    protect, unlockLead);
+router.post('/:id/booking',   protect, createBookingFromLead);   // Unlocked lead → booking
 router.post('/:id/dispute',   protect, raiseDispute);
 
 // ─── Admin — Lead Management ─────────────────────────────────────────────────

@@ -27,6 +27,7 @@ const leadActivitySchema = new mongoose.Schema({
             'LEAD_VIEWED',          // provider viewed lead detail
             'LEAD_UNLOCKED',
             'LEAD_EDIT_LOCKED',     // triggered on first unlock
+            'LEAD_BOOKED',          // the partner turned the unlocked lead into a booking
             'LEAD_EXPIRED',
             'LEAD_CANCELLED',
             'LEAD_DISPUTED',
