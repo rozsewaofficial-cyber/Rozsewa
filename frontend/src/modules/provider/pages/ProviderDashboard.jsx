@@ -1199,6 +1199,8 @@ const ProviderDashboard = () => {
               if (item.title === "Registration") return user?.providerCategory !== 'sewak';
               // Promotional (paid) banners are for partners; a Sewak sees RozSewa's own.
               if (item.title === "Promotions" || item.path === "/provider/banner-promotions") return user?.providerCategory !== 'sewak';
+              // Leads are for partners; a Sewak gets work as bookings.
+              if (item.title === "Leads" || item.path === "/provider/leads") return user?.providerCategory !== 'sewak';
               if (item.title === "Skill Sessions") return user?.providerCategory === 'sewak';
               if (item.title === "Starter Kits") return user?.providerCategory === 'sewak';
               return true;

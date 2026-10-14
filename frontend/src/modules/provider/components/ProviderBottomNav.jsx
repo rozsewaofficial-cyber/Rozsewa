@@ -45,11 +45,14 @@ const ProviderBottomNav = () => {
         ? !effectiveUser?.kycVerified
         : effectiveUser?.status !== 'verified';
 
+  // Leads are for partners; a Sewak gets work as bookings.
+  const isSewakUser = effectiveUser?.role === 'sewak' || effectiveUser?.providerCategory === 'sewak';
+
   const navItems = [
     { icon: Home, label: "Home", path: "/provider" },
     ...(!isRestricted ? [
       { icon: Calendar, label: "Bookings", path: "/provider/bookings" },
-      { icon: Briefcase, label: "Leads", path: "/provider/leads" },
+      ...(!isSewakUser ? [{ icon: Briefcase, label: "Leads", path: "/provider/leads" }] : []),
       { icon: LayoutGrid, label: "Services", path: "/provider/services" },
       { icon: Wallet, label: "Wallet", path: "/provider/wallet" },
     ] : [])

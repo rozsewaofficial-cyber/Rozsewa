@@ -23,6 +23,7 @@ const Provider = require('../models/Provider');
 const Service = require('../models/Service');
 const Setting = require('../models/Setting');
 const { Wallet } = require('../models/Wallet');
+const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
 const { findEligibleProviders } = require('../controllers/leadController');
 
 const root = path.join(__dirname, '..', '..');
@@ -55,6 +56,7 @@ const own = [
     Wallet.find = () => lean(Object.values(P).map(p => ({ providerId: p._id, balance: 1000 })));
     Service.find = () => lean(own);
     Service.findById = () => lean({ _id: catalogId, name: 'Fan Repair' });
+    LeadUnlockTransaction.aggregate = async () => []; // no unlocks yet
     const lead = { _id: id(), categoryId: category._id, location: { coordinates: [75.8, 22.7] } };
     const names = (ids) => Object.entries(P).filter(([, p]) => ids.some(x => String(x) === String(p._id))).map(([k]) => k).sort();
 

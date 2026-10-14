@@ -178,6 +178,15 @@ const RootRedirect = () => {
   return <Navigate to="/home" replace />;
 };
 
+// Leads are for partners; a Sewak who opens the page goes to their dashboard.
+const NoSewak = ({ children }) => {
+  const { user } = useAuth();
+  if (user?.role === "sewak" || user?.providerCategory === "sewak") {
+    return <Navigate to="/provider" replace />;
+  }
+  return children;
+};
+
 const App = () => (
   <BrowserRouter>
     <ScrollToTop />
@@ -283,7 +292,7 @@ const App = () => (
                       <Route path="/provider/coins" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderCoins /></ProtectedRoute>} />
                       <Route path="/provider/insta-work" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderInstaWork /></ProtectedRoute>} />
                       <Route path="/provider/subscriptions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderSubscriptions /></ProtectedRoute>} />
-                      <Route path="/provider/leads" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderLeads /></ProtectedRoute>} />
+                      <Route path="/provider/leads" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><NoSewak><ProviderLeads /></NoSewak></ProtectedRoute>} />
                       <Route path="/provider/banner-promotions" element={<ProtectedRoute allowedRoles={["provider", "sewak"]}><ProviderBannerPromotion /></ProtectedRoute>} />
 
                       {/* Admin Routes with Persistent Layout */}

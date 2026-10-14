@@ -114,9 +114,13 @@ const findEligibleProviders = async (lead, category) => {
     // sensible rule ("the nearest N") instead of an arbitrary slice.
     const geoQuery = {
         vendorType:     lead.categoryId,
+        // Leads are for partners; a Sewak gets work as bookings.
+        providerCategory: { $ne: 'sewak' },
         status:         'verified',                     // Layer 4
         isOnline:       true,                           // Layer 5
-        canReceiveLead: true,                           // Layer 7
+        // Layer 7. Missing counts as yes (the field's default): partners saved
+        // before it existed never matched "true" and got no leads at all.
+        canReceiveLead: { $ne: false },
         location: {
             $nearSphere: {
                 $geometry: { type: 'Point', coordinates: [lng, lat] },
@@ -140,6 +144,16 @@ const findEligibleProviders = async (lead, category) => {
         .select('providerId balance availableBalance')
         .lean();
     const walletByProvider = new Map(wallets.map(w => [String(w.providerId), w]));
+
+    // A partner still on free unlocks needs no wallet balance — the same rule
+    // the leads list uses. Requiring it here meant a new partner (empty
+    // wallet) was never sent a lead, so the free trial could never be used.
+    const freeLimit = Number(await getSettingVal('lead_free_unlock_limit', 3));
+    const unlockCounts = await LeadUnlockTransaction.aggregate([
+        { $match: { provider: { $in: candidates.map(p => p._id) }, status: 'success' } },
+        { $group: { _id: '$provider', n: { $sum: 1 } } }
+    ]);
+    const unlocksByProvider = new Map(unlockCounts.map(r => [String(r._id), r.n]));
 
     // Layer 2 input. The lead names a catalog service by id; a partner's
     // chosen services are kept as names (registration) and as the services
@@ -185,7 +199,8 @@ const findEligibleProviders = async (lead, category) => {
         // Layer 8 — Wallet minimum
         const wallet = walletByProvider.get(String(p._id));
         const balance = wallet ? (wallet.availableBalance ?? wallet.balance ?? 0) : 0;
-        if (balance < minWalletBalance) {
+        const hasFreeLeft = (unlocksByProvider.get(String(p._id)) || 0) < freeLimit;
+        if (!hasFreeLeft && balance < minWalletBalance) {
             console.log(`  ➔ [Layer 8] Skip: Insufficient wallet balance (Has ₹${balance}, needs ₹${minWalletBalance}).`);
             continue;
         }
@@ -690,7 +705,8 @@ const getNearbyLeads = async (req, res) => {
     try {
         const provider = await Provider.findById(req.user._id);
         if (!provider) return res.status(404).json({ message: 'Provider not found.' });
-        if (!provider.vendorType) return res.json({ leads: [], page, pages: 0, count: 0 });
+        // Leads are for partners; a Sewak gets work as bookings.
+        if (!provider.vendorType || provider.providerCategory === 'sewak') return res.json({ leads: [], page, pages: 0, count: 0 });
 
         // Query successful unlocks to determine free trial status
         const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
@@ -801,6 +817,10 @@ const getNearbyLeads = async (req, res) => {
 // @access Private (Provider)
 const unlockLead = async (req, res) => {
     const leadId  = req.params.id;
+    // Leads are for partners; a Sewak gets work as bookings.
+    if (req.user?.providerCategory === 'sewak') {
+        return res.status(403).json({ message: 'Leads are for partners. Sewaks get work as bookings.' });
+    }
     const session = await mongoose.startSession();
     try {
         session.startTransaction();
