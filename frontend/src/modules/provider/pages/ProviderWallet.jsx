@@ -15,6 +15,12 @@ import {
   CheckCircle,
   Loader2,
   Landmark,
+  AlertTriangle,
+  ShieldCheck,
+  Plus,
+  Pencil,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
@@ -22,6 +28,71 @@ import API from "@/lib/api";
 // The server enforces the same bounds (paymentController).
 const RECHARGE_MIN = 1;
 const RECHARGE_MAX = 100000;
+
+// ₹ amount with real paise, the paise a little smaller.
+const Amount = ({ value, className = "" }) => {
+  const [rupees, paise] = Number(value || 0)
+    .toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .split(".");
+  return (
+    <span className={className}>
+      ₹{rupees}
+      <span className="text-[0.5em] font-bold opacity-70">.{paise}</span>
+    </span>
+  );
+};
+
+const SectionTitle = ({ icon: Icon, count, children }) => (
+  <div className="flex items-center gap-2">
+    <Icon className="h-4 w-4 text-muted-foreground" />
+    <h2 className="text-sm font-black text-foreground">{children}</h2>
+    {count ? (
+      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">{count}</span>
+    ) : null}
+  </div>
+);
+
+const Pager = ({ page, totalPages, onChange }) => (
+  <div className="flex items-center justify-between gap-3 px-4 py-3 bg-muted/30">
+    <button
+      disabled={page <= 1}
+      onClick={() => onChange(page - 1)}
+      className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-bold text-foreground disabled:opacity-40 hover:bg-muted transition-colors"
+    >
+      <ChevronLeft className="h-3.5 w-3.5" /> Prev
+    </button>
+    <span className="text-xs font-semibold text-muted-foreground">
+      Page {page} of {totalPages}
+    </span>
+    <button
+      disabled={page >= totalPages}
+      onClick={() => onChange(page + 1)}
+      className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-bold text-foreground disabled:opacity-40 hover:bg-muted transition-colors"
+    >
+      Next <ChevronRight className="h-3.5 w-3.5" />
+    </button>
+  </div>
+);
+
+// "14 Oct 2026, 3:05 pm"
+const formatDateTime = (value) => {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}, ${d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+};
+
+// A short label for what a transaction was (same rules as before, no emoji).
+const txnTag = (txn) => {
+  const t = txn.title || "";
+  const d = txn.description || "";
+  if (t.includes("Cash Collected")) return { label: "Cash", tone: "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" };
+  if (t.includes("Commission Deducted")) return { label: "Commission", tone: "bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" };
+  if (t.includes("Service Earnings")) return { label: "Online", tone: "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" };
+  if (d.includes("Free") || t.includes("Free")) return { label: "Free service", tone: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" };
+  if (t.includes("Penalty")) return { label: "Penalty", tone: "bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" };
+  if (t.includes("Bonus")) return { label: "Bonus", tone: "bg-purple-50 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" };
+  return null;
+};
 
 const ProviderWallet = () => {
   const { toast } = useToast();
@@ -501,291 +572,206 @@ const ProviderWallet = () => {
           <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
         </div>
       ) : (
-        <main className="container max-w-4xl px-4 py-6 md:py-8 space-y-6 md:space-y-8">
-          <div className="flex justify-between items-center">
+        <main className="container max-w-4xl px-4 pt-6 pb-28 md:py-8 space-y-6">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground">
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight text-foreground">
                 Wallet
               </h1>
-              <p className="text-[10px] md:text-xs text-muted-foreground uppercase font-bold tracking-widest mt-1">
-                Earnings & Payouts
+              <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
+                Earnings, payouts and dues
               </p>
             </div>
             <button
               onClick={handleDownload}
-              className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center hover:bg-accent transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground shadow-sm hover:bg-muted transition-colors"
             >
-              <Download className="h-4 w-4 text-foreground" />
+              <Download className="h-4 w-4" /> Statement
             </button>
           </div>
 
-          {/* Two Cards: Balance + Cash Limit */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Earnings & Withdrawal Card */}
-            <section className="rounded-2xl md:rounded-3xl bg-emerald-600 dark:bg-emerald-900/40 p-5 md:p-6 text-white shadow-lg relative border border-emerald-500/20 overflow-hidden flex flex-col">
-              <div className="absolute top-0 right-0 h-32 w-32 -mr-10 -mt-10 rounded-full bg-white/10 blur-2xl"></div>
-              <div className="relative z-10 flex-1 flex flex-col">
-                <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-[0.2em] mb-0.5">
-                  Available Balance
+            {/* Earnings — what can be withdrawn */}
+            <section
+              className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 to-teal-700 dark:from-emerald-800 dark:to-teal-900 p-4 md:p-5 text-white shadow-lg shadow-emerald-900/10 flex flex-col"
+              data-wallet-earnings
+            >
+              <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/10" />
+              <div className="relative flex-1 flex flex-col">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-50/90">
+                    Available to withdraw
+                  </p>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15">
+                    <Wallet className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+                <Amount value={availableBalance > 0 ? availableBalance : 0} className="mt-1 text-3xl font-black tracking-tight" />
+                <p className="mt-0.5 text-[11px] text-emerald-50/80 truncate">
+                  {availableBalance > 0 ? "Earnings after commission" : "Earnings from completed jobs appear here"}
+                  {" · "}
+                  {provider?.bankDetails?.accountNumber
+                    ? `to ${provider.bankDetails.bankName || "your bank"} ••••${provider.bankDetails.accountNumber.slice(-4)}`
+                    : "add a bank to withdraw"}
                 </p>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-3xl font-black tracking-tighter">
-                    ₹
-                    {availableBalance > 0
-                      ? availableBalance.toLocaleString()
-                      : "0"}
-                  </span>
-                  <span className="text-emerald-300 text-xs font-bold">
-                    .00
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-emerald-200/80 font-semibold mb-2">
-                  <CheckCircle className="h-3 w-3" />
-                  {availableBalance > 0
-                    ? "Net earnings after commission"
-                    : "No earnings yet"}
-                </div>
-                {availableBalance > 0 && (
-                  <div className="bg-white/10 rounded-xl px-3 py-2 mb-3">
-                    <p className="text-[10px] font-black text-emerald-100 uppercase tracking-widest">
-                      Withdrawable
-                    </p>
-                    <p className="text-sm font-black text-white">
-                      ₹{availableBalance.toLocaleString()} ready to withdraw
-                    </p>
-                  </div>
-                )}
-                <div className="mt-auto flex gap-2">
+                <div className="mt-auto pt-3">
                   <button
                     onClick={handleWithdraw}
                     disabled={availableBalance <= 0}
-                    className={`flex-1 py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${availableBalance <= 0 ? "bg-white/20 text-emerald-100/50 cursor-not-allowed" : "bg-white text-emerald-900 shadow-md hover:bg-emerald-50 active:scale-95"}`}
+                    className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-black transition-all ${availableBalance <= 0 ? "bg-white/20 text-white/60 cursor-not-allowed" : "bg-white text-emerald-800 shadow-md hover:bg-emerald-50 active:scale-[0.98]"}`}
                   >
-                    Withdraw
-                  </button>
-                  <button
-                    onClick={() => openRechargeModal()}
-                    className="flex-1 py-2.5 md:py-3 rounded-xl font-black text-xs transition-all bg-white text-emerald-900 shadow-md hover:bg-emerald-50 active:scale-95"
-                  >
-                    Recharge
+                    <ArrowUpRight className="h-4 w-4" /> Withdraw
                   </button>
                 </div>
               </div>
             </section>
 
-            {/* Cash Limit / Debt Card */}
+            {/* Prepaid wallet — commission & leads, or dues owed */}
             <section
-              className={`rounded-2xl md:rounded-3xl p-5 md:p-6 shadow-lg relative overflow-hidden border flex flex-col ${balance < 0 ? "bg-rose-600 border-rose-500/20 text-white" : "bg-slate-800 border-slate-700/20 text-white"}`}
+              className={`rounded-3xl border p-4 md:p-5 shadow-sm flex flex-col ${balance < 0 ? "border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/30" : "border-border bg-card"}`}
             >
-              <div className="absolute top-0 right-0 h-32 w-32 -mr-10 -mt-10 rounded-full bg-white/5 blur-2xl"></div>
-              <div className="relative z-10 flex-1 flex flex-col">
-                {/* The prepaid wallet a recharge adds to. It was only ever shown
-                    when negative (as dues), so a recharge changed nothing on
-                    screen and looked like it had failed. */}
-                <p className="text-[10px] font-bold text-white/60 uppercase tracking-[0.2em] mb-0.5" data-wallet-balance={balance}>
-                  {balance < 0 ? "Cash Commission Dues" : "Wallet Balance"}
-                </p>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className="text-3xl font-black tracking-tighter">
-                    ₹{Math.abs(balance || 0).toLocaleString("en-IN")}
-                  </span>
-                  <span className="text-white/40 text-xs font-bold">.00</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-white/60 font-semibold mb-2">
-                  {balance < 0 ? (
-                    <>
-                      <span className="text-rose-200">
-                        ⚠ Commission owed to admin
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-3 w-3 text-emerald-400" />
-                      <span className="text-emerald-400">No dues pending · used for commission & leads</span>
-                    </>
-                  )}
-                </div>
-                {balance < 0 && (
-                  <div className="bg-white/10 rounded-xl px-3 py-2 mb-3 border border-white/20">
-                    <p className="text-[10px] font-black text-rose-200 uppercase tracking-widest">
-                      ⚠ Action Required
-                    </p>
-                    <p className="text-sm font-black text-white">
-                      Pay ₹{Math.abs(balance).toLocaleString()} to unlock
-                      bookings
-                    </p>
-                  </div>
-                )}
-                <div className="mt-auto">
-                  <button
-                    onClick={balance < 0 ? handlePayAdmin : () => openRechargeModal()}
-                    disabled={isProcessing}
-                    className={`w-full py-2.5 md:py-3 rounded-xl font-black text-xs transition-all ${
-                      balance < 0
-                        ? "bg-white text-rose-700 shadow-md hover:bg-rose-50 active:scale-95"
-                        : "bg-white/15 text-white hover:bg-white/25 active:scale-95"
-                    }`}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  {/* The prepaid wallet a recharge adds to. It was only ever shown
+                      when negative (as dues), so a recharge changed nothing on
+                      screen and looked like it had failed. */}
+                  <p
+                    className={`text-[11px] font-bold uppercase tracking-wider ${balance < 0 ? "text-rose-700 dark:text-rose-300" : "text-muted-foreground"}`}
+                    data-wallet-balance={balance}
                   >
-                    {isProcessing
-                      ? "Processing..."
-                      : balance < 0
-                        ? "Pay Admin Now"
-                        : "Recharge Wallet"}
-                  </button>
+                    {balance < 0 ? "Cash Commission Dues" : "Wallet Balance"}
+                  </p>
+                  <Amount
+                    value={Math.abs(balance || 0)}
+                    className={`mt-1 block text-3xl font-black tracking-tight ${balance < 0 ? "text-rose-700 dark:text-rose-300" : "text-foreground"}`}
+                  />
                 </div>
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${balance < 0 ? "bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300" : "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"}`}>
+                  {balance < 0 ? <AlertTriangle className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
+                </span>
+              </div>
+              <p className={`mt-0.5 text-[11px] ${balance < 0 ? "text-rose-700/90 dark:text-rose-300/90" : "text-muted-foreground"}`}>
+                {balance < 0
+                  ? "Commission owed to RozSewa. Pay it to keep receiving bookings."
+                  : "Prepaid balance used for commission and lead unlocks. No dues pending."}
+              </p>
+              <div className="mt-auto pt-3">
+                <button
+                  onClick={balance < 0 ? handlePayAdmin : () => openRechargeModal()}
+                  disabled={isProcessing}
+                  className={`w-full inline-flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-black transition-all active:scale-[0.98] disabled:opacity-60 ${
+                    balance < 0
+                      ? "bg-rose-600 text-white shadow-md hover:bg-rose-700"
+                      : "border border-border bg-background text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {isProcessing ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+                  ) : balance < 0 ? (
+                    <>Pay ₹{Math.abs(balance).toLocaleString("en-IN")} now</>
+                  ) : (
+                    <><Plus className="h-4 w-4" /> Add money</>
+                  )}
+                </button>
               </div>
             </section>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Dynamic Bank Card */}
+          {/* Payout account */}
+          <section className="space-y-3">
+            <SectionTitle icon={Building2}>Payout account</SectionTitle>
             {provider?.bankDetails?.accountNumber ? (
-              <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4 transition-all shadow-sm">
-                <div className="flex h-11 w-11 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 items-center justify-center shrink-0">
+              <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4 shadow-sm">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
                   <Building2 className="h-5 w-5" />
                 </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-sm text-foreground truncate">
-                      {provider.bankDetails.bankName} ••••{" "}
-                      {provider.bankDetails.accountNumber.slice(-4)}
-                    </h4>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-black uppercase text-emerald-600 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
-                        Primary
-                      </span>
-                      <button
-                        onClick={handleEditBank}
-                        className="text-[10px] font-black uppercase text-blue-600 hover:text-blue-700 transition-colors"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground font-medium truncate uppercase tracking-widest">
-                    {provider.bankDetails.verified
-                      ? "Verified Account • Rozsewa"
-                      : "Verification Pending"}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-foreground">
+                    {provider.bankDetails.bankName || "Bank account"} ••••{provider.bankDetails.accountNumber.slice(-4)}
                   </p>
+                  <div className="mt-0.5 flex items-center gap-2">
+                    <span className="truncate text-xs text-muted-foreground">
+                      {provider.bankDetails.accountHolderName || "Primary account"}
+                    </span>
+                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${provider.bankDetails.verified ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>
+                      {provider.bankDetails.verified ? "Verified" : "Pending verification"}
+                    </span>
+                  </div>
                 </div>
+                <button
+                  onClick={handleEditBank}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </button>
               </div>
             ) : (
-              <motion.div
-                whileHover={{ scale: 0.99 }}
+              <button
                 onClick={() => openBankModal()}
-                className="rounded-2xl border-2 border-dashed border-border p-4 flex items-center gap-4 cursor-pointer hover:bg-muted/50 transition-all group"
+                className="w-full rounded-2xl border-2 border-dashed border-border bg-card/50 p-4 flex items-center gap-4 text-left hover:border-emerald-400 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 transition-colors group"
               >
-                <div className="h-11 w-11 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                  <LinkIcon className="h-5 w-5 text-muted-foreground group-hover:text-emerald-600" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground group-hover:bg-emerald-100 group-hover:text-emerald-700 dark:group-hover:bg-emerald-900/40 dark:group-hover:text-emerald-300">
+                  <Plus className="h-5 w-5" />
                 </div>
-                <div className="text-left">
-                  <h3 className="font-bold text-sm text-muted-foreground group-hover:text-foreground">
-                    Add Bank Account
-                  </h3>
-                  <p className="text-[10px] text-muted-foreground font-medium">
-                    Link your payout method
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-foreground">Add bank account</p>
+                  <p className="text-xs text-muted-foreground">Needed to withdraw your earnings</p>
                 </div>
-              </motion.div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </button>
             )}
-          </div>
+          </section>
 
-          {/* Withdrawal Status Section */}
+          {/* Withdrawal requests */}
           {withdrawals.length > 0 && (
-            <section className="mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                  <Landmark className="h-3.5 w-3.5" /> Withdrawal Requests
-                </h3>
-              </div>
-              <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border mb-6">
+            <section className="space-y-3">
+              <SectionTitle icon={Landmark} count={withdrawals.length}>Withdrawal requests</SectionTitle>
+              <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border">
                 {(() => {
                   const itemsPerPage = 10;
-                  const totalPages = Math.ceil(
-                    withdrawals.length / itemsPerPage,
-                  );
+                  const totalPages = Math.ceil(withdrawals.length / itemsPerPage);
                   const startIndex = (withdrawalsPage - 1) * itemsPerPage;
-                  const paginated = withdrawals.slice(
-                    startIndex,
-                    startIndex + itemsPerPage,
-                  );
+                  const paginated = withdrawals.slice(startIndex, startIndex + itemsPerPage);
+                  const tone = (s) =>
+                    s === "approved"
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                      : s === "rejected"
+                        ? "bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                        : "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300";
 
                   return (
                     <>
                       {paginated.map((req) => (
-                        <div
-                          key={req._id}
-                          className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`flex h-9 w-9 items-center justify-center rounded-xl ${
-                                req.status === "approved"
-                                  ? "bg-emerald-50 text-emerald-600"
-                                  : req.status === "rejected"
-                                    ? "bg-rose-50 text-rose-600"
-                                    : "bg-amber-50 text-amber-600"
-                              }`}
-                            >
-                              <ArrowUpRight className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="text-xs font-bold text-foreground">
-                                  Withdrawal Request
-                                </p>
-                                <span
-                                  className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
-                                    req.status === "approved"
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : req.status === "rejected"
-                                        ? "bg-rose-100 text-rose-700"
-                                        : "bg-amber-100 text-amber-700"
-                                  }`}
-                                >
-                                  {req.status}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                                {new Date(req.createdAt).toLocaleDateString()} •{" "}
-                                {req._id.slice(-6).toUpperCase()}
-                              </p>
-                              {req.reason && (
-                                <p className="text-[9px] text-rose-600 mt-1 italic">
-                                  Reason: {req.reason}
-                                </p>
-                              )}
-                            </div>
+                        <div key={req._id} className="p-4 flex items-start gap-3">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone(req.status)}`}>
+                            <ArrowUpRight className="h-4 w-4" />
                           </div>
-                          <div
-                            className={`font-black text-sm text-right text-rose-600`}
-                          >
-                            - ₹{req.amount.toLocaleString()}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-bold text-foreground">Withdrawal to bank</p>
+                              <p className="shrink-0 text-sm font-black text-foreground">
+                                ₹{Number(req.amount || 0).toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold capitalize ${tone(req.status)}`}>
+                                {req.status}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDateTime(req.createdAt)}
+                              </span>
+                            </div>
+                            {req.reason && (
+                              <p className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">
+                                Reason: {req.reason}
+                              </p>
+                            )}
                           </div>
                         </div>
                       ))}
-
-                      {/* Pagination Controls */}
                       {totalPages > 1 && (
-                        <div className="flex justify-center gap-3 p-4 bg-muted/10 border-t border-border">
-                          <button
-                            disabled={withdrawalsPage <= 1}
-                            onClick={() => setWithdrawalsPage((p) => p - 1)}
-                            className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
-                          >
-                            ← Prev
-                          </button>
-                          <span className="flex items-center px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                            {withdrawalsPage} / {totalPages}
-                          </span>
-                          <button
-                            disabled={withdrawalsPage >= totalPages}
-                            onClick={() => setWithdrawalsPage((p) => p + 1)}
-                            className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
-                          >
-                            Next →
-                          </button>
-                        </div>
+                        <Pager page={withdrawalsPage} totalPages={totalPages} onChange={setWithdrawalsPage} />
                       )}
                     </>
                   );
@@ -794,142 +780,79 @@ const ProviderWallet = () => {
             </section>
           )}
 
-          <section>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <History className="h-3.5 w-3.5" /> History
-              </h3>
-            </div>
+          {/* Transactions */}
+          <section className="space-y-3">
+            <SectionTitle icon={History} count={transactionsTotal || undefined}>Transactions</SectionTitle>
             <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden divide-y divide-border">
               {(() => {
                 const itemsPerPage = TRANSACTIONS_PER_PAGE;
                 // Over every row there is, not over the ones in hand.
-                const totalPages = Math.max(1, Math.ceil(
-                  transactionsTotal / itemsPerPage,
-                ));
+                const totalPages = Math.max(1, Math.ceil(transactionsTotal / itemsPerPage));
                 // Already this page; nothing left to slice.
                 const paginated = transactions;
 
                 if (transactionsTotal === 0) {
                   return (
-                    <div className="p-8 text-center text-muted-foreground text-[10px] font-black uppercase tracking-widest opacity-40 italic">
-                      No Activity Yet
+                    <div className="px-6 py-12 text-center">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                        <History className="h-5 w-5" />
+                      </div>
+                      <p className="mt-3 text-sm font-bold text-foreground">No transactions yet</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Earnings, recharges and commission will show up here.
+                      </p>
                     </div>
                   );
                 }
 
                 return (
                   <>
-                    {paginated.map((txn) => (
-                      <div
-                        key={txn._id}
-                        className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`flex h-9 w-9 items-center justify-center rounded-xl ${txn.type === "credit" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"}`}
-                          >
-                            {txn.type === "credit" ? (
-                              <ArrowDownRight className="h-4 w-4" />
-                            ) : (
-                              <ArrowUpRight className="h-4 w-4" />
-                            )}
+                    {paginated.map((txn) => {
+                      const credit = txn.type === "credit";
+                      const tag = txnTag(txn);
+                      return (
+                        <div key={txn._id} className="p-4 flex items-start gap-3">
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${credit ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"}`}>
+                            {credit ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-xs font-bold text-foreground">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-sm font-bold text-foreground leading-snug line-clamp-2">
                                 {txn.title}
                               </p>
-                              {(() => {
-                                const t = txn.title || "";
-                                const d = txn.description || "";
-                                if (t.includes("Cash Collected"))
-                                  return (
-                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                                      💵 Cash
-                                    </span>
-                                  );
-                                if (t.includes("Commission Deducted"))
-                                  return (
-                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
-                                      🏛 Commission
-                                    </span>
-                                  );
-                                if (t.includes("Service Earnings"))
-                                  return (
-                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                                      💳 Online
-                                    </span>
-                                  );
-                                if (d.includes("Free") || t.includes("Free"))
-                                  return (
-                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40">
-                                      Free Service
-                                    </span>
-                                  );
-                                if (t.includes("Penalty"))
-                                  return (
-                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">
-                                      Penalty
-                                    </span>
-                                  );
-                                if (t.includes("Bonus"))
-                                  return (
-                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
-                                      Bonus
-                                    </span>
-                                  );
-                                return null;
-                              })()}
+                              <p className={`shrink-0 text-sm font-black ${credit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                {credit ? "+" : "−"}₹{Number(txn.amount || 0).toLocaleString("en-IN")}
+                              </p>
                             </div>
-                            <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                              {new Date(txn.createdAt).toLocaleDateString()} •{" "}
-                              {txn._id.slice(-6).toUpperCase()}
-                            </p>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              {tag && (
+                                <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${tag.tone}`}>
+                                  {tag.label}
+                                </span>
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                {formatDateTime(txn.createdAt)}
+                              </span>
+                            </div>
                             {txn.paymentId ? (
-                              <p className="text-[9px] text-muted-foreground mt-1">
+                              <p className="mt-1 text-[11px] text-muted-foreground break-all">
                                 {txn.paymentMethod || "Razorpay"} · Txn {txn.paymentId}
                                 {txn.balanceAfter !== undefined && txn.balanceAfter !== null && (
                                   <> · Balance after ₹{Number(txn.balanceAfter).toLocaleString("en-IN")}</>
                                 )}
                               </p>
                             ) : txn.description && (
-                              <p className="text-[9px] text-muted-foreground mt-1 italic">
+                              <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">
                                 {txn.description}
                               </p>
                             )}
                           </div>
                         </div>
-                        <div
-                          className={`font-black text-sm text-right ${txn.type === "credit" ? "text-emerald-600" : "text-rose-600"}`}
-                        >
-                          {txn.type === "credit" ? "+" : "-"} ₹
-                          {txn.amount.toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
-                    {/* Pagination Controls */}
                     {totalPages > 1 && (
-                      <div className="flex justify-center gap-3 p-4 bg-muted/10 border-t border-border">
-                        <button
-                          disabled={currentPage <= 1}
-                          onClick={() => setCurrentPage((p) => p - 1)}
-                          className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
-                        >
-                          ← Prev
-                        </button>
-                        <span className="flex items-center px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          {currentPage} / {totalPages}
-                        </span>
-                        <button
-                          disabled={currentPage >= totalPages}
-                          onClick={() => setCurrentPage((p) => p + 1)}
-                          className="px-4 py-2 rounded-xl border border-border bg-background text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-30 hover:shadow-sm transition-all"
-                        >
-                          Next →
-                        </button>
-                      </div>
+                      <Pager page={currentPage} totalPages={totalPages} onChange={setCurrentPage} />
                     )}
                   </>
                 );
