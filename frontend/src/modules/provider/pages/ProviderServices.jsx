@@ -525,32 +525,42 @@ const ProviderServices = () => {
           {/* Combos need prices; a lead-based partner keeps the tab only to
               manage combos made before the category moved to leads. */}
           {(!leadBased || combos.length > 0) && (
-          <div className="flex p-1 bg-muted rounded-xl">
-            {["services", "combos"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t)}
-                className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] rounded-lg transition-all ${activeTab === t ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {t === "services" ? "Individual Jobs" : "Discounted Combos"}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted/70 p-1 ring-1 ring-border/60">
+            {["services", "combos"].map((t) => {
+              const active = activeTab === t;
+              const count = t === "services" ? services.length : combos.length;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setActiveTab(t)}
+                  aria-pressed={active}
+                  className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-bold transition-all ${active ? "bg-card text-primary shadow-sm ring-1 ring-border/60" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  <span className="truncate">{t === "services" ? "Individual Jobs" : "Combos"}</span>
+                  <span className={`min-w-[1.4rem] rounded-full px-1.5 py-0.5 text-[10px] font-black leading-none ${active ? "bg-primary/10 text-primary" : "bg-background/70 text-muted-foreground"}`}>{count}</span>
+                </button>
+              );
+            })}
           </div>
           )}
 
           {user?.providerCategory !== 'sewak' && (
-            <div className="flex items-center justify-end">
-              <motion.button whileTap={{ scale: 0.95 }} onClick={() => { activeTab === "services" ? (resetForm(), setShowForm(true)) : (resetComboForm(), setShowComboForm(true)) }}
-                className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20">
+            <div className="flex items-center justify-between gap-3 px-1">
+              <p className="text-xs font-semibold text-muted-foreground">
+                {activeTab === "services" ? "Services you offer to customers" : "Bundles that give customers a discount"}
+              </p>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={() => { activeTab === "services" ? (resetForm(), setShowForm(true)) : (resetComboForm(), setShowComboForm(true)) }}
+                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/25 transition-shadow hover:shadow-md">
                 <Plus className="h-4 w-4" /> {activeTab === "services" ? "Add Service" : "Create Combo"}
               </motion.button>
             </div>
           )}
           {/* A Sewak's combos come from admin, so only services can be added. */}
           {user?.providerCategory === 'sewak' && activeTab === "services" && (
-            <div className="flex items-center justify-end">
-              <motion.button whileTap={{ scale: 0.95 }} onClick={openSewakAdd} data-sewak-add-service
-                className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20">
+            <div className="flex items-center justify-between gap-3 px-1">
+              <p className="text-xs font-semibold text-muted-foreground">Services you offer to customers</p>
+              <motion.button whileTap={{ scale: 0.96 }} onClick={openSewakAdd} data-sewak-add-service
+                className="flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/25 transition-shadow hover:shadow-md">
                 <Plus className="h-4 w-4" /> Add Service
               </motion.button>
             </div>
@@ -591,11 +601,17 @@ const ProviderServices = () => {
             {/* Catalog for this category, grouped by subcategory */}
             {catalogGroups.length > 0 && !showForm && !showComboForm && activeTab === "services" && !isSewakUser && (
               <section className="space-y-5 mb-8">
-                <div className="flex items-center justify-between px-1">
-                  <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                    <Gift className="h-4 w-4 text-emerald-500" /> Catalog for {categoryName}
-                  </h2>
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-100 dark:border-emerald-800 uppercase">Tap to add</span>
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-3.5 py-3 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-600 shadow-sm dark:bg-emerald-950/60">
+                      <Gift className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <h2 className="truncate text-sm font-extrabold text-foreground">Catalog for {categoryName}</h2>
+                      <p className="text-[11px] font-medium text-muted-foreground">Pick a service to add it</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">Tap to add</span>
                 </div>
                 {catalogGroups.map(group => (
                   <div key={group.key} className="space-y-2.5">
