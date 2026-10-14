@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { motion } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
@@ -73,6 +73,15 @@ const Pager = ({ page, totalPages, onChange }) => (
     </button>
   </div>
 );
+
+// 1949 -> "1,949", 1948.5 -> "1,948.50": rupees, with paise only when there are some.
+const formatRupees = (value) => {
+  const n = Number(value) || 0;
+  return n.toLocaleString("en-IN", {
+    minimumFractionDigits: Number.isInteger(n) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+};
 
 // "14 Oct 2026, 3:05 pm"
 const formatDateTime = (value) => {
@@ -149,6 +158,29 @@ const ProviderWallet = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
 
+  // The wallet moves without this screen's help — admin approves or rejects a
+  // payout, a recharge is credited, a job pays out. The page only refreshed
+  // on its own actions, so it showed the old balance and a payout as
+  // "Pending" until it was reloaded. A burst of events is one refresh.
+  useEffect(() => {
+    let timer = null;
+    const refresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        fetchWallet(currentPage);
+        fetchWithdrawals();
+      }, 500);
+    };
+    window.addEventListener("WALLET_UPDATED", refresh);
+    window.addEventListener("NEW_NOTIFICATION", refresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("WALLET_UPDATED", refresh);
+      window.removeEventListener("NEW_NOTIFICATION", refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
   const fetchProfile = async () => {
     try {
       const { data } = await API.get("/provider/profile");
@@ -203,6 +235,12 @@ const ProviderWallet = () => {
 
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
+  // True while a request is on its way, so a second tap can't send another.
+  const [withdrawing, setWithdrawing] = useState(false);
+  // The ref is what actually blocks a second tap: state only updates after
+  // the render, and taps that land before it all saw "not sending" (three
+  // fast taps sent three requests and held three payouts).
+  const withdrawingRef = useRef(false);
 
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [rechargeError, setRechargeError] = useState("");
@@ -444,32 +482,47 @@ const ProviderWallet = () => {
 
   const submitWithdrawal = async (e) => {
     e.preventDefault();
-    const amount = parseFloat(withdrawAmount);
-    if (isNaN(amount) || amount <= 0) {
+    if (withdrawingRef.current) return;
+    const raw = String(withdrawAmount).trim();
+    const amount = Number(raw);
+    if (raw === "" || !Number.isFinite(amount) || amount <= 0) {
       setWithdrawError("Please enter a valid amount.");
+      return;
+    }
+    // Rupees and paise only.
+    if (Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6) {
+      setWithdrawError("Amount can have at most 2 decimal places.");
       return;
     }
     if (amount > availableBalance) {
       setWithdrawError(
-        `Amount cannot exceed your balance of ₹${availableBalance}.`,
+        `Amount cannot exceed your available balance of ₹${formatRupees(availableBalance)}.`,
       );
       return;
     }
     setWithdrawError("");
+    withdrawingRef.current = true;
+    setWithdrawing(true);
     try {
       await API.post("/provider/withdraw", { amount });
       toast({
-        title: "Withdrawal Requested",
-        description: "Your request has been submitted successfully.",
+        title: "Withdrawal requested",
+        description: `₹${formatRupees(amount)} is on hold until RozSewa processes your payout.`,
       });
       closeWithdrawModal();
-      fetchWallet();
+      fetchWallet(1);
+      setCurrentPage(1);
       fetchWithdrawals();
       window.dispatchEvent(new CustomEvent("WALLET_UPDATED"));
     } catch (err) {
       setWithdrawError(
         err.response?.data?.message || "Failed to submit request. Try again.",
       );
+      // The balance may have changed under us (another device, another tap).
+      fetchWallet();
+    } finally {
+      withdrawingRef.current = false;
+      setWithdrawing(false);
     }
   };
 
@@ -500,7 +553,11 @@ const ProviderWallet = () => {
       closeBankModal();
       fetchProfile();
     } catch (err) {
-      toast({ title: "Failed to save bank details", variant: "destructive" });
+      toast({
+        title: "Couldn't save bank details",
+        description: err.response?.data?.message || "Please check the details and try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -514,8 +571,34 @@ const ProviderWallet = () => {
     openBankModal();
   };
 
-  const handleDownload = () => {
-    if (!transactions || transactions.length === 0) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    if (!transactionsTotal) {
+      toast({ title: "No transactions to download", variant: "destructive" });
+      return;
+    }
+
+    // The screen holds one page. The statement is the whole ledger, so every
+    // page is fetched (it used to export just the ten rows on screen).
+    setDownloading(true);
+    let all = [];
+    try {
+      const pageSize = 500;
+      for (let page = 1; page <= 100; page++) {
+        const { data } = await API.get("/wallet", { params: { page, limit: pageSize } });
+        const rows = data?.transactions || [];
+        all = all.concat(rows);
+        if (rows.length < pageSize || all.length >= (data?.transactionsTotal ?? Infinity)) break;
+      }
+    } catch (err) {
+      toast({ title: "Couldn't prepare the statement", description: "Please try again.", variant: "destructive" });
+      setDownloading(false);
+      return;
+    }
+    setDownloading(false);
+    if (all.length === 0) {
       toast({ title: "No transactions to download", variant: "destructive" });
       return;
     }
@@ -533,10 +616,10 @@ const ProviderWallet = () => {
     ];
     const csvContent = [
       headers.join(","),
-      ...transactions.map((txn) => {
+      ...all.map((txn) => {
         const dateObj = new Date(txn.createdAt);
-        const date = dateObj.toLocaleDateString();
-        const time = dateObj.toLocaleTimeString();
+        const date = dateObj.toLocaleDateString("en-IN");
+        const time = dateObj.toLocaleTimeString("en-IN");
         const type = txn.type === "credit" ? "Credit" : "Debit";
         const status = txn.status
           ? txn.status.charAt(0).toUpperCase() + txn.status.slice(1)
@@ -550,7 +633,8 @@ const ProviderWallet = () => {
       }),
     ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    // The BOM makes Excel read the ₹ in the header as UTF-8 instead of garbage.
+    const blob = new Blob(["﻿" + csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
@@ -587,7 +671,7 @@ const ProviderWallet = () => {
               onClick={handleDownload}
               className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold text-foreground shadow-sm hover:bg-muted transition-colors"
             >
-              <Download className="h-4 w-4" /> Statement
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Statement
             </button>
           </div>
 
@@ -694,9 +778,11 @@ const ProviderWallet = () => {
                     <span className="truncate text-xs text-muted-foreground">
                       {provider.bankDetails.accountHolderName || "Primary account"}
                     </span>
-                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold ${provider.bankDetails.verified ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>
-                      {provider.bankDetails.verified ? "Verified" : "Pending verification"}
-                    </span>
+                    {provider.bankDetails.verified && (
+                      <span className="shrink-0 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        Verified
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button
@@ -810,6 +896,9 @@ const ProviderWallet = () => {
                     {paginated.map((txn) => {
                       const credit = txn.type === "credit";
                       const tag = txnTag(txn);
+                      // A held payout is pending; a rejected one moved no money.
+                      const failed = txn.status === "failed";
+                      const pending = txn.status === "pending";
                       return (
                         <div key={txn._id} className="p-4 flex items-start gap-3">
                           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${credit ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"}`}>
@@ -820,11 +909,21 @@ const ProviderWallet = () => {
                               <p className="text-sm font-bold text-foreground leading-snug line-clamp-2">
                                 {txn.title}
                               </p>
-                              <p className={`shrink-0 text-sm font-black ${credit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                                {credit ? "+" : "−"}₹{Number(txn.amount || 0).toLocaleString("en-IN")}
+                              <p className={`shrink-0 text-sm font-black ${failed ? "text-muted-foreground line-through" : credit ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                                {credit ? "+" : "−"}₹{formatRupees(txn.amount)}
                               </p>
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                              {pending && (
+                                <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                  Pending
+                                </span>
+                              )}
+                              {failed && (
+                                <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                  Not processed · returned to wallet
+                                </span>
+                              )}
                               {tag && (
                                 <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${tag.tone}`}>
                                   {tag.label}
@@ -1007,12 +1106,15 @@ const ProviderWallet = () => {
             <form onSubmit={submitWithdrawal} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">
-                  Amount (Max: ₹{availableBalance})
+                  Amount (Max: ₹{formatRupees(availableBalance)})
                 </label>
                 <input
                   required
                   type="number"
                   min="1"
+                  max={availableBalance}
+                  step="0.01"
+                  inputMode="decimal"
                   value={withdrawAmount}
                   onChange={(e) => {
                     const v = e.target.value;
@@ -1034,25 +1136,23 @@ const ProviderWallet = () => {
                     {withdrawError}
                   </p>
                 )}
-                {/* Quick Presets */}
+                {/* Quick Presets: only amounts that are within what can be withdrawn */}
                 <div className="grid grid-cols-3 gap-2 mt-2">
+                  {[500, 1000].filter((v) => v <= availableBalance).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => { setWithdrawAmount(String(v)); setWithdrawError(""); }}
+                      className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors"
+                    >
+                      ₹{v.toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                  {/* The whole of the earnings (availableBalance) — this used
+                      to fill the prepaid wallet figure, a different amount. */}
                   <button
                     type="button"
-                    onClick={() => setWithdrawAmount("500")}
-                    className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors"
-                  >
-                    ₹500
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWithdrawAmount("1000")}
-                    className="h-10 rounded-xl bg-muted hover:bg-accent font-bold text-xs transition-colors"
-                  >
-                    ₹1000
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWithdrawAmount(balance.toString())}
+                    onClick={() => { setWithdrawAmount(String(Math.floor(availableBalance * 100) / 100)); setWithdrawError(""); }}
                     className="h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 hover:bg-emerald-100 font-bold text-xs transition-colors"
                   >
                     All
@@ -1061,9 +1161,10 @@ const ProviderWallet = () => {
               </div>
               <button
                 type="submit"
-                className="w-full h-16 mt-4 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all"
+                disabled={withdrawing}
+                className="w-full h-16 mt-4 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-xs tracking-widest shadow-xl shadow-emerald-600/20 hover:scale-[1.01] active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Submit Request
+                {withdrawing ? "Submitting..." : "Submit Request"}
               </button>
             </form>
           </motion.div>
@@ -1091,7 +1192,8 @@ const ProviderWallet = () => {
               Add money to your wallet to pay for commission dues or leads.
             </p>
             <p className="text-xs font-bold text-muted-foreground mb-6">
-              Current wallet balance: <span className="text-foreground">₹{Number(balance || 0).toLocaleString("en-IN")}</span>
+              {balance < 0 ? "Cash commission dues: " : "Current wallet balance: "}
+              <span className={balance < 0 ? "text-rose-600" : "text-foreground"}>₹{formatRupees(Math.abs(balance || 0))}</span>
             </p>
 
             <form onSubmit={handleRecharge} className="space-y-4">
