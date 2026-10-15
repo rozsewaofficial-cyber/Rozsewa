@@ -4,6 +4,7 @@ import DocumentStatusCard from "@/modules/provider/components/DocumentStatusCard
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
+import InstaWorkHomeCard from "@/modules/provider/components/InstaWorkHomeCard";
 import WelfareFundCard from "@/modules/provider/components/WelfareFundCard";
 import SewakBanners from "@/modules/provider/components/SewakBanners";
 import ServiceVisual from "@/components/ServiceVisual";
@@ -806,8 +807,8 @@ const ProviderDashboard = () => {
         {user?.providerCategory === 'sewak' && <SewakBanners />}
 
         {/* Superior Welcome Bar */}
-        <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-          <div className="space-y-1.5 w-full md:w-auto">
+        <section className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-5">
+          <div className="space-y-1.5 w-full lg:w-auto">
             <div className="flex sm:hidden items-center gap-1.5 text-[10px] font-bold text-muted-foreground bg-slate-50 dark:bg-slate-900/50 px-3 py-1.5 rounded-lg border border-border/50 w-fit mb-2 shadow-sm">
               <Clock className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
               <span>{currentTime.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} • {currentTime.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
@@ -827,27 +828,27 @@ const ProviderDashboard = () => {
             </div>
           </div>
 
-          <div className="relative z-30 flex flex-wrap bg-white/60 dark:bg-slate-900/50 backdrop-blur-xl border border-emerald-100 dark:border-white/5 rounded-2xl p-1.5 gap-2 shadow-xl shadow-emerald-900/5 w-full md:w-auto shrink-0">
+          <div className="relative z-30 grid grid-cols-3 gap-1.5 lg:flex bg-card/80 dark:bg-slate-900/50 backdrop-blur-xl border border-border rounded-2xl p-1.5 shadow-sm w-full lg:w-auto shrink-0">
             <button onClick={toggleOnline}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all ${isOnline ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30" : "bg-emerald-50/50 dark:bg-slate-800 text-emerald-300 dark:text-slate-500 border border-emerald-100 dark:border-slate-700"
+              className={`min-w-0 lg:flex-none flex h-11 items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-5 rounded-xl font-black text-[10px] uppercase tracking-wider whitespace-nowrap transition-all ${isOnline ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30" : "bg-muted text-muted-foreground border border-border"
                 }`}>
               <div className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-white animate-pulse" : "bg-emerald-200"}`} />
               {isOnline ? "Online" : "Offline"}
             </button>
 
             <button onClick={syncLocation} disabled={isSyncingLocation}
-              className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 bg-white dark:bg-slate-800 text-blue-500 dark:text-blue-400 border border-slate-100 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50`}>
+              className={`min-w-0 lg:flex-none flex h-11 items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-5 rounded-xl font-black text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-500 bg-blue-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50`}>
               {isSyncingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
               {isSyncingLocation ? "Syncing..." : "Sync GPS"}
             </button>
 
-            <div className="relative flex-1 md:flex-none w-full sm:w-auto" ref={emergencyMenuRef}>
+            <div className="relative min-w-0 lg:flex-none" ref={emergencyMenuRef}>
               <button
                 onClick={() => isEmergencyActive ? setShowEmergencyMenu(!showEmergencyMenu) : toggleEmergency()}
-                className={`w-full flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest whitespace-nowrap transition-all duration-500 relative overflow-hidden isolate ${
+                className={`w-full flex h-11 items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-5 rounded-xl font-black text-[10px] uppercase tracking-wider whitespace-nowrap transition-all duration-500 relative overflow-hidden isolate ${
                   isEmergencyActive
-                    ? "bg-rose-500 text-white shadow-[0_0_20px_rgba(244,63,94,0.4)]"
-                    : "bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-100 dark:border-slate-700 hover:border-rose-200 hover:text-rose-400"
+                    ? "bg-rose-500 text-white shadow-sm shadow-rose-500/30"
+                    : "bg-rose-50 dark:bg-slate-800 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-slate-700 hover:bg-rose-100"
                 }`}>
                 {isEmergencyActive && (
                   <motion.div
@@ -906,6 +907,11 @@ const ProviderDashboard = () => {
               </AnimatePresence>
             </div>
           </div>
+        </section>
+
+        {/* Insta Work: the way in used to be a small icon in the top bar only. */}
+        <section className="-mt-2 md:-mt-6">
+          <InstaWorkHomeCard />
         </section>
 
         {/* Activity Stream */}
