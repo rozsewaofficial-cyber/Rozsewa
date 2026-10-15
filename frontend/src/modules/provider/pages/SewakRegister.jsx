@@ -12,6 +12,7 @@ import logoImg from "@/assets/RozSewa.png";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import useSelfieCamera from "@/hooks/useSelfieCamera";
 import { validateEmail, sanitizeEmail } from "@/lib/emailValidation";
 import { validatePhone, sanitizePhone } from "@/lib/phoneValidation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
@@ -66,9 +67,6 @@ const SewakRegister = () => {
     return () => clearInterval(interval);
   }, [otpTimer]);
 
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [cameraStream, setCameraStream] = useState(null);
-  const videoRef = useRef(null);
 
   const [categories, setCategories] = useState([]);
   const [fetchingCats, setFetchingCats] = useState(false);
@@ -231,57 +229,29 @@ const SewakRegister = () => {
     }
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
-      setCameraStream(stream);
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      }, 100);
-      setIsCameraOpen(true);
-    } catch (err) {
-      toast({ title: "Camera Error", description: "Could not access camera. Please check permissions.", variant: "destructive" });
+  // Identity photo: the camera, with a file picker when it can't be used.
+  const [selfiePreview, setSelfiePreview] = useState("");
+  const { videoRef, isCameraOpen, cameraReady, startCamera, stopCamera, takePhoto } = useSelfieCamera({
+    onUnavailable: (reason) => {
+      toast({ title: "Camera not available", description: `${reason} Choose a photo from your device instead.`, variant: "destructive" });
+      document.getElementById("fallback-file-input")?.click();
+    },
+  });
+
+  const capturePhoto = async () => {
+    const file = await takePhoto();
+    if (!file) {
+      toast({ title: "Photo not captured", description: "Wait until your face shows on screen, then tap again.", variant: "destructive" });
+      return;
     }
-  };
-
-  const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-    }
-    setIsCameraOpen(false);
-  };
-
-  const dataURLtoFile = (dataurl, filename) => {
-    let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
-      bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new File([u8arr], filename, { type: mime });
-  };
-
-  const capturePhoto = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg");
-
-    const file = dataURLtoFile(dataUrl, "selfie.jpg");
     uploadSelfie(file);
-
-    stopCamera();
   };
 
   const uploadSelfie = async (file) => {
     const upData = new FormData();
     upData.append("image", file);
+    // Show the picture at once; it is kept only if the upload works.
+    setSelfiePreview(URL.createObjectURL(file));
     setUploadingDoc('profileImage');
     try {
       const { data } = await API.post("/upload", upData, {
@@ -290,6 +260,7 @@ const SewakRegister = () => {
       setFormData(prev => ({ ...prev, profileImage: data.url }));
       toast({ title: "Photo Captured & Uploaded" });
     } catch {
+      setSelfiePreview("");
       toast({ title: "Upload Failed", variant: "destructive" });
     } finally {
       setUploadingDoc(null);
@@ -1141,9 +1112,9 @@ const SewakRegister = () => {
                     className={`w-full h-full rounded-2xl border-4 border-dashed flex items-center justify-center bg-slate-50 overflow-hidden relative shadow-inner ${formData.profileImage ? 'border-emerald-500 bg-white' : 'border-slate-200'}`}
                   >
                     {isCameraOpen ? (
-                      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                    ) : formData.profileImage ? (
-                      <img src={formData.profileImage} className="w-full h-full object-cover scale-110" />
+                      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover -scale-x-100" />
+                    ) : (formData.profileImage || selfiePreview) ? (
+                      <img src={formData.profileImage || selfiePreview} alt="Your photo" className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex flex-col items-center space-y-3">
                         <User className="h-16 w-16 text-slate-200" />
@@ -1156,6 +1127,7 @@ const SewakRegister = () => {
                   <button
                     type="button"
                     onClick={isCameraOpen ? capturePhoto : startCamera}
+                    disabled={uploadingDoc === 'profileImage' || (isCameraOpen && !cameraReady)}
                     className="absolute -bottom-4 -right-4 h-14 w-14 bg-slate-950 rounded-xl flex items-center justify-center text-white cursor-pointer shadow-2xl border-4 border-white transition-all hover:scale-110 active:scale-90 active:rotate-12 group"
                   >
                     {uploadingDoc === 'profileImage' ? <Loader2 className="h-6 w-6 animate-spin" /> : isCameraOpen ? <CheckCircle className="h-6 w-6 text-emerald-400" /> : <Camera className="h-6 w-6 group-hover:text-emerald-400 transition-colors" />}
