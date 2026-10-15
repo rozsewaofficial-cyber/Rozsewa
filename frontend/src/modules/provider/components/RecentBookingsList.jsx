@@ -828,7 +828,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                 filtered list must unmount at once. Animating it out kept the old
                 card on screen after the worker acted on it, still offering Accept
                 and Reject on a booking they had already accepted. */}
-            {instaShown.map(job => <InstaJobCard key={job._id} job={job} />)}
+            {instaShown.map(job => <InstaJobCard key={job._id} job={job} onChanged={fetchBookings} />)}
             {filteredRequests.map(req => (
               <motion.div key={req._id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                 className={`relative overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all hover:shadow-md border-border`}>
