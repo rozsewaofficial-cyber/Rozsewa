@@ -5,6 +5,7 @@ import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import CommissionOverviewCard from "@/modules/provider/components/CommissionOverviewCard";
+import useProviderAutoLocation from "@/hooks/useProviderAutoLocation";
 import InstaWorkHomeCard from "@/modules/provider/components/InstaWorkHomeCard";
 import WelfareFundCard from "@/modules/provider/components/WelfareFundCard";
 import SewakBanners from "@/modules/provider/components/SewakBanners";
@@ -51,6 +52,8 @@ import { useSocket } from "@/context/SocketContext";
 const ProviderDashboard = () => {
   const { toast } = useToast();
   const { user, updateUser, syncFCMToken } = useAuth();
+  // Keeps this partner's location saved and current without a button press.
+  useProviderAutoLocation();
   const { socket, incomingRequest, setIncomingRequest } = useSocket();
   const [isOnline, setIsOnline] = useState(user?.isOnline ?? true);
   // The Timing screen's "24/7 Emergency" switch (is24x7) is the same setting.

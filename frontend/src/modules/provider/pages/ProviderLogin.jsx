@@ -83,7 +83,9 @@ const ProviderLogin = () => {
             navigate(from, { replace: true });
           }, () => {
             navigate(from, { replace: true });
-          });
+          // Without a timeout, a prompt left unanswered kept the partner on
+          // the login screen. The home page retries location on its own.
+          }, { timeout: 8000, maximumAge: 5 * 60 * 1000 });
         } else {
           navigate(from, { replace: true });
         }

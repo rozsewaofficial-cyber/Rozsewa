@@ -826,7 +826,21 @@ const updateProviderProfile = async (req, res) => {
             }
 
             if (req.body.location) {
-                provider.location = req.body.location;
+                // A point on earth, not a placeholder: a bad one would take
+                // the partner out of every nearby search.
+                const c = req.body.location.coordinates;
+                const lng = Number(Array.isArray(c) ? c[0] : NaN);
+                const lat = Number(Array.isArray(c) ? c[1] : NaN);
+                const inRange = Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lng) <= 180 && Math.abs(lat) <= 90;
+                if (!inRange) {
+                    return res.status(400).json({ message: 'Invalid location. Please try detecting it again.' });
+                }
+                // The profile form sends back whatever it loaded; a partner
+                // with no location yet loads the (0, 0) default. That is "not
+                // set", so it is left alone rather than saved over a real one.
+                if (!(lng === 0 && lat === 0)) {
+                    provider.location = { type: 'Point', coordinates: [lng, lat] };
+                }
             }
 
             if (req.body.surakshaNidhiOptIn !== undefined) {

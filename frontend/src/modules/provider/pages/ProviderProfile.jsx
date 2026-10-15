@@ -9,11 +9,13 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
+import useProviderAutoLocation from "@/hooks/useProviderAutoLocation";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const ProviderProfile = () => {
   const navigate = useNavigate();
   const { user, logout, syncFCMToken } = useAuth();
+  const autoLoc = useProviderAutoLocation();
   // Partners registered as Individual; accounts from before this was recorded
   // keep the business wording.
   const isIndividual = user?.accountType === "individual";
@@ -296,6 +298,38 @@ const ProviderProfile = () => {
                 </div>
               </div>
             ))}
+
+            {/* Location is detected and saved on its own; this shows where it stands. */}
+            <div className="flex items-center gap-4 border-b border-border/50 pb-4" data-auto-location>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                {autoLoc.status === "detecting"
+                  ? <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                  : <Navigation className="h-5 w-5 text-muted-foreground" />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-muted-foreground">Service Location</p>
+                <p className={`text-sm font-semibold ${autoLoc.status === "error" || !autoLoc.hasLocation ? "text-rose-600" : "text-foreground"}`}>
+                  {autoLoc.status === "detecting"
+                    ? "Detecting your location…"
+                    : autoLoc.status === "error"
+                      ? autoLoc.error
+                      : autoLoc.hasLocation
+                        ? "Saved automatically from your device"
+                        : "Not set yet"}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={autoLoc.status === "detecting"}
+                onClick={async () => {
+                  const r = await autoLoc.refresh({ force: true });
+                  if (r) toast({ title: "Location updated" });
+                }}
+                className="shrink-0 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-50"
+              >
+                Detect now
+              </button>
+            </div>
 
             {isEditing && (
               <div className="space-y-4 mt-6 pt-4 border-t border-border text-left">
