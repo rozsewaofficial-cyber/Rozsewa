@@ -703,6 +703,61 @@ const getCustomerLeads = async (req, res) => {
 // PROVIDER — NEARBY LEADS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Offers this partner the open leads in their area that were created before
+ * they were eligible.
+ *
+ * Who a lead goes to is decided once, when it is created. A partner who then
+ * went online, got verified, synced their GPS or recharged was never on that
+ * list, so every lead already open stayed invisible to them until a brand new
+ * one arrived. This applies the same rules (category, radius, service) to
+ * this one partner and adds them, so the list is right the moment they open it.
+ */
+const joinOpenLeadsNearby = async (provider) => {
+    try {
+        const coords = provider.location?.coordinates;
+        if (!provider.vendorType || !Array.isArray(coords) || coords.length < 2) return;
+        if (provider.status !== 'verified' || provider.isOnline !== true || provider.canReceiveLead === false) return;
+
+        const radiusKm = Number(await getSettingVal('lead_geofence_radius', 15)) || 15;
+        const open = await Lead.find({
+            categoryId: provider.vendorType,
+            status: { $in: ['available', 'partially_unlocked'] },
+            expiry: { $gt: new Date() },
+            nearbyProviders: { $ne: provider._id },
+            location: { $geoWithin: { $centerSphere: [[Number(coords[0]), Number(coords[1])], radiusKm / 6378.1] } }
+        }).select('serviceId subServiceId').limit(100).lean();
+        if (!open.length) return;
+
+        // A lead that names a service goes only to partners who offer it.
+        let offers = null, added = null, category = null;
+        if (open.some(l => l.serviceId || l.subServiceId)) {
+            category = await Category.findById(provider.vendorType).select('services').lean();
+            offers = serviceScopeFor(provider, category?.services || []);
+            const own = await Service.find({ providerId: provider._id }).select('name').lean();
+            added = new Set(own.map(x => serviceNameKey(x.name)));
+        }
+
+        const ids = [];
+        for (const l of open) {
+            const key = l.serviceId?.toString() || l.subServiceId || null;
+            if (key) {
+                const doc = mongoose.Types.ObjectId.isValid(String(key)) ? await Service.findById(key).select('name').lean() : null;
+                const fromCat = (category?.services || []).find(x => String(x._id) === String(key));
+                const requested = { _id: String(key), name: doc?.name || fromCat?.name || String(key) };
+                const listsAnything = !!offers || (added && added.size > 0);
+                const ok = !listsAnything || (offers && offers(requested)) || (added && added.has(serviceNameKey(requested.name)));
+                if (!ok) continue;
+            }
+            ids.push(l._id);
+        }
+        if (ids.length) await Lead.updateMany({ _id: { $in: ids } }, { $addToSet: { nearbyProviders: provider._id } });
+    } catch (err) {
+        // The list still works from what it already knows.
+        console.warn('[joinOpenLeadsNearby]', err.message);
+    }
+};
+
 // @desc  Get nearby available leads for a provider
 // @route GET /api/leads/nearby
 // @access Private (Provider)
@@ -738,6 +793,8 @@ const getNearbyLeads = async (req, res) => {
                 walletBalance
             });
         }
+
+        if (tab === 'available') await joinOpenLeadsNearby(provider);
 
         let statusFilter;
         switch (tab) {

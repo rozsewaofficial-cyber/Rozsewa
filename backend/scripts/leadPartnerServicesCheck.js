@@ -86,7 +86,7 @@ const own = [
         assert.ok(/if \(!leadBased\) \{\s*if \(form\.price === ""/.test(page));
         assert.ok(/\.\.\.\(leadBased \? \{\} : \{ price: Number\(form\.price\) \|\| 0 \}\)/.test(page));
         // Combos tab only to manage combos made before the category moved to leads.
-        assert.ok(/\{\(!leadBased \|\| combos\.length > 0\) && \(\s*<div className="flex p-1 bg-muted rounded-xl">/.test(page));
+        assert.ok(/\{\(!leadBased \|\| combos\.length > 0\) && \(\s*<div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted\/70/.test(page));
         // A price set earlier still shows on the shop page, so it shows here too.
         assert.ok(/\{\(!leadBased \|\| s\.price > 0\) && <span[^>]*>Price ₹\{s\.price\}<\/span>\}/.test(page));
         assert.ok(/data-lead-based-note/.test(page) && /You get leads for this/.test(page));
