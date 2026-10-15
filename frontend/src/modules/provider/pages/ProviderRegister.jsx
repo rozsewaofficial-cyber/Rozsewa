@@ -96,6 +96,7 @@ const ProviderRegister = () => {
       address: "",
       city: "",
       state: "",
+      pincode: "",
       password: "",
       confirmPassword: "",
       bankDetails: {
@@ -237,7 +238,9 @@ const ProviderRegister = () => {
                 ...prev,
                 address: fullAddress,
                 city: addr.city || addr.town || addr.village || addr.county || "",
-                state: addr.state || ""
+                state: addr.state || "",
+                // The PIN comes with the address; kept to its 6 digits.
+                pincode: (String(addr.postcode || "").match(/\d{6}/) || [""])[0]
               }));
             }
           } catch (err) {
@@ -1136,6 +1139,7 @@ const ProviderRegister = () => {
                     ...(isBusiness ? {} : { shopName: sanitizedOwnerName, gst: "" }),
                   }));
 
+                  if (!/^\d{6}$/.test(formData.pincode || "")) return toast({ title: "PIN Code Required", description: "Tap Auto-Locate or enter your 6-digit PIN code.", variant: "destructive" });
                   if (formData.email && !validateEmail(formData.email)) return toast({ title: "Invalid Email", description: "Please enter a valid email address.", variant: "destructive" });
                   if (isBusiness && formData.shopName.trim().length < 3) return toast({ title: "Invalid Business Name", description: "Business name must be at least 3 characters long.", variant: "destructive" });
                   if (isBusiness && !/^[a-zA-Z0-9 ]+$/.test(formData.shopName)) return toast({ title: "Invalid Business Name", description: "Business name must contain only letters and numbers.", variant: "destructive" });
@@ -1413,6 +1417,20 @@ const ProviderRegister = () => {
                         onKeyDown={e => { if (!/[a-zA-Z\s]/.test(e.key) && !['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(e.key)) e.preventDefault(); }}
                         onChange={e => { const v = e.target.value.replace(/[^a-zA-Z\s]/g, ''); setFormData(prev => ({ ...prev, city: v })); }}
                         className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs text-slate-900 placeholder:text-slate-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block px-1 text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">PIN Code</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="postal-code"
+                        maxLength={6}
+                        data-pincode
+                        placeholder="6-digit PIN code"
+                        value={formData.pincode || ""}
+                        onChange={e => { const v = e.target.value.replace(/\D/g, "").slice(0, 6); setFormData(prev => ({ ...prev, pincode: v })); }}
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-2.5 font-semibold text-xs tracking-widest text-slate-900 placeholder:text-slate-300 placeholder:tracking-normal outline-none focus:bg-white focus:border-emerald-500"
                       />
                     </div>
                     <textarea

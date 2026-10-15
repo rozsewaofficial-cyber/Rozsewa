@@ -56,7 +56,7 @@ const ALREADY_REGISTERED = {
 // @access  Public
 const registerProvider = async (req, res) => {
     const {
-        mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
+        mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state, pincode,
         gst, kycAadhaar, kycAadhaarPhoto, kycAadhaarBackPhoto, kycPanNumber, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy,
         bankDetails, isHomeVisitAvailable, is24x7
     } = req.body;
@@ -64,6 +64,11 @@ const registerProvider = async (req, res) => {
     try {
         if (!mobile || !/^\d{10}$/.test(mobile)) {
             return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+        }
+
+        // PIN code is optional for older app builds; when sent it must be 6 digits.
+        if (pincode && !/^\d{6}$/.test(String(pincode).trim())) {
+            return res.status(400).json({ message: 'Enter a valid 6-digit PIN code.' });
         }
 
         // Individual or Business (older app builds send it as `type`). An
@@ -183,6 +188,7 @@ const registerProvider = async (req, res) => {
                 address,
                 city,
                 state,
+                pincode: String(pincode || '').trim(),
                 gst: finalGst,
                 kycAadhaar,
                 kycAadhaarPhoto,
@@ -254,7 +260,7 @@ const registerProvider = async (req, res) => {
 // @access  Public
 const registerSewak = async (req, res) => {
     const {
-        mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state,
+        mobile, ownerName, email, shopName, password, businessType, vendorType, subServices, profileImage, address, city, state, pincode,
         gst, kycAadhaar, kycAadhaarPhoto, kycAadhaarBackPhoto, kycPanNumber, kycPanPhoto, referralCode, employeeCode, registrationType, referredBy,
         bankDetails, isHomeVisitAvailable, is24x7, instaServices
     } = req.body;
@@ -262,6 +268,11 @@ const registerSewak = async (req, res) => {
     try {
         if (!mobile || !/^\d{10}$/.test(mobile)) {
             return res.status(400).json({ message: 'Valid 10-digit mobile number is required' });
+        }
+
+        // PIN code is optional for older app builds; when sent it must be 6 digits.
+        if (pincode && !/^\d{6}$/.test(String(pincode).trim())) {
+            return res.status(400).json({ message: 'Enter a valid 6-digit PIN code.' });
         }
 
         // Check for duplicates across unique fields
@@ -371,6 +382,7 @@ const registerSewak = async (req, res) => {
             address,
             city,
             state,
+            pincode: String(pincode || '').trim(),
             gst,
             kycAadhaar,
             kycAadhaarPhoto,

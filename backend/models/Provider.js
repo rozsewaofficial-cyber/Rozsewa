@@ -17,6 +17,8 @@ const providerSchema = mongoose.Schema({
     address: { type: String, required: true },
     city: { type: String, required: true },
     state: { type: String, required: true },
+    // 6-digit PIN code of the address; filled by Auto-Locate at registration.
+    pincode: { type: String, trim: true, default: '' },
     addresses: [
         {
             label: { type: String },
