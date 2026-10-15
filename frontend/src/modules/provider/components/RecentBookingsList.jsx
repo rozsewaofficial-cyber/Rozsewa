@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, Clock, MapPin, AlertTriangle, Loader2, Navigation, ImagePlus, Plus, Map as MapIcon, ExternalLink, MessageCircle, CalendarDays, Search } from "lucide-react";
 import LiveTrackingView from "./LiveTrackingView";
+import InstaJobCard, { INSTA_NEW, INSTA_ACTIVE } from "./InstaJobCard";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { useScrollLock } from "@/lib/scrollLock";
@@ -40,6 +41,8 @@ const itemAway = (req) => ['pickup_pending', 'at_workshop', 'return_pending'].in
 
 const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'bookings' }) => {
   const [requests, setRequests] = useState([]);
+  // Insta Work jobs are a separate collection; they join the New / Active tabs.
+  const [instaJobs, setInstaJobs] = useState([]);
   // Counts across every booking this worker has, not just the page on screen.
   const [counts, setCounts] = useState({ pending: 0, active: 0, cancelled: 0, completed: 0 });
   const [loading, setLoading] = useState(true);
@@ -192,6 +195,13 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
       ]);
       setRequests(data);
       setCounts(tabCounts);
+      // Optional: a failure here must not hide the bookings.
+      try {
+        const { data: insta } = await API.get("/insta/provider/jobs");
+        setInstaJobs(Array.isArray(insta?.jobs) ? insta.jobs : []);
+      } catch {
+        setInstaJobs([]);
+      }
 
       // Fetch staff from API
       const { data: staffData } = await API.get("/provider/staff");
@@ -253,7 +263,9 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
       // request, one another partner took, and the customer's answers used
       // to leave the tab numbers stale until a reload.
       const events = ["EXTRA_CHARGES_UPDATE", "PAYMENT_COMPLETED", "NEW_NOTIFICATION", "BOOKING_UPDATE",
-        "NEW_BOOKING_REQUEST", "BOOKING_TAKEN", "COUNTER_DECISION", "SCHEDULE_ACCEPTED", "SCHEDULE_REJECTED"];
+        "NEW_BOOKING_REQUEST", "BOOKING_TAKEN", "COUNTER_DECISION", "SCHEDULE_ACCEPTED", "SCHEDULE_REJECTED",
+        "INSTA_JOB_CREATED", "INSTA_JOB_ACCEPTED", "INSTA_JOB_REASSIGNED", "INSTA_ON_THE_WAY", "INSTA_ARRIVED", "INSTA_WORK_STARTED",
+        "INSTA_WORK_COMPLETED", "INSTA_JOB_PAID", "INSTA_JOB_CANCELLED"];
       events.forEach((e) => socket.on(e, handleSocketUpdate));
 
       return () => {
@@ -428,6 +440,16 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
       setFilterToDate('');
     }
   };
+
+  const instaForTab = (tabId) => {
+    if (tabId === "pending") return instaJobs.filter(j => INSTA_NEW.includes(j.status));
+    if (tabId === "active") return instaJobs.filter(j => INSTA_ACTIVE.includes(j.status));
+    return [];
+  };
+  // The city / date filters describe bookings; an Insta Work job is shown
+  // only when none is set, so a filtered list never contains stray cards.
+  const filtersActive = !!(filterCity || filterFromDate || filterToDate);
+  const instaShown = filtersActive ? [] : instaForTab(activeTab);
 
   const filteredRequests = requests.filter(req => {
     if (activeTab === "pending" && req.status !== "pending") return false;
@@ -676,7 +698,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
     <div className="space-y-6">
       {/* Every tab fits on a phone in one row (the Bookings page has four;
           "Rejected" used to sit off-screen behind a sideways scroll). */}
-      <div role="tablist" aria-label="Bookings" className={`flex w-full rounded-2xl border border-border bg-muted/60 sm:w-fit sm:gap-1.5 sm:p-1.5 ${tabIds.length > 2 ? "gap-0.5 p-1" : "gap-1.5 p-1.5"}`} data-booking-tabs>
+      <div role="tablist" aria-label="Bookings" className={`flex w-full rounded-2xl border border-border bg-muted/60 lg:w-fit sm:gap-1.5 sm:p-1.5 ${tabIds.length > 2 ? "gap-0.5 p-1" : "gap-1.5 p-1.5"}`} data-booking-tabs>
         {/* Driven by the same list the remembered tab is validated against,
             so the two can never disagree about what exists. Each tab has its
             own colour; the selected one is filled with it, so New and Active
@@ -688,13 +710,13 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
           cancelled: { id: "cancelled", label: "Rejected", on: "bg-rose-600 text-white shadow-md shadow-rose-600/25", off: "text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950/40", badgeOff: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-200", ring: "focus-visible:ring-rose-500" }
         }[id])).map((tab) => {
           const selected = activeTab === tab.id;
-          const count = counts[tab.id] || 0;
+          const count = (counts[tab.id] || 0) + (instaForTab(tab.id).length);
           // New requests waiting while the partner looks elsewhere: a pulse on New.
           const waiting = tab.id === "pending" && count > 0 && !selected;
           return (
             <button key={tab.id} role="tab" aria-selected={selected} data-tab={tab.id} data-selected={selected}
               onClick={() => setActiveTab(tab.id)}
-              className={`relative flex min-w-0 items-center justify-center rounded-xl py-2.5 font-black transition-all whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] sm:gap-2 sm:px-5 sm:text-sm ${tab.ring} ${tabIds.length > 2 ? "flex-auto gap-0.5 px-1 text-[11px] tracking-tight" : "flex-1 gap-2 px-3 text-sm"} sm:flex-none ${selected ? tab.on : tab.off}`}>
+              className={`relative flex min-w-0 items-center justify-center rounded-xl py-2.5 font-black transition-all whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] sm:gap-2 sm:px-5 sm:text-sm ${tab.ring} ${tabIds.length > 2 ? "flex-auto gap-0.5 px-1 text-[11px] tracking-tight" : "flex-1 gap-2 px-3 text-sm"} lg:flex-none ${selected ? tab.on : tab.off}`}>
               {waiting && (
                 <span className="absolute right-1.5 top-1.5 flex h-2 w-2" aria-hidden="true">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-500 opacity-75" />
@@ -793,7 +815,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
       <AnimatePresence initial={false}>
         {loading ? (
           <div key="loading" className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-        ) : filteredRequests.length === 0 ? (
+        ) : filteredRequests.length === 0 && instaShown.length === 0 ? (
           <motion.div key={`empty-${activeTab}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-border rounded-3xl">
             <div className="rounded-full bg-muted p-6 mb-4"><Clock className="h-10 w-10 text-muted-foreground opacity-40" /></div>
@@ -806,6 +828,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                 filtered list must unmount at once. Animating it out kept the old
                 card on screen after the worker acted on it, still offering Accept
                 and Reject on a booking they had already accepted. */}
+            {instaShown.map(job => <InstaJobCard key={job._id} job={job} />)}
             {filteredRequests.map(req => (
               <motion.div key={req._id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
                 className={`relative overflow-hidden rounded-2xl border bg-card p-4 shadow-sm transition-all hover:shadow-md border-border`}>
