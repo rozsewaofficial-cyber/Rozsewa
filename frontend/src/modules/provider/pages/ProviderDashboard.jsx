@@ -6,6 +6,7 @@ import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
 import CommissionOverviewCard from "@/modules/provider/components/CommissionOverviewCard";
 import useProviderAutoLocation from "@/hooks/useProviderAutoLocation";
+import LeadsHomeSection from "@/modules/provider/components/LeadsHomeSection";
 import InstaWorkHomeCard from "@/modules/provider/components/InstaWorkHomeCard";
 import WelfareFundCard from "@/modules/provider/components/WelfareFundCard";
 import SewakBanners from "@/modules/provider/components/SewakBanners";
@@ -917,6 +918,9 @@ const ProviderDashboard = () => {
         <section className="-mt-2 md:-mt-6">
           <InstaWorkHomeCard />
         </section>
+
+        {/* Leads used to be reachable only through the Leads tab. */}
+        <LeadsHomeSection />
 
         {/* Activity Stream */}
         <section className="animate-in slide-in-from-bottom-3 duration-700 delay-100">
