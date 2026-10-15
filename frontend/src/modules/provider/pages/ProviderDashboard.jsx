@@ -4,6 +4,7 @@ import DocumentStatusCard from "@/modules/provider/components/DocumentStatusCard
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import EarningsWidget from "@/modules/provider/components/EarningsWidget";
 import RecentBookingsList from "@/modules/provider/components/RecentBookingsList";
+import CommissionOverviewCard from "@/modules/provider/components/CommissionOverviewCard";
 import InstaWorkHomeCard from "@/modules/provider/components/InstaWorkHomeCard";
 import WelfareFundCard from "@/modules/provider/components/WelfareFundCard";
 import SewakBanners from "@/modules/provider/components/SewakBanners";
@@ -926,114 +927,9 @@ const ProviderDashboard = () => {
 
         {/* Commission Status / Partner Program Card */}
         {commissionPreview && (
-          <section className="animate-in fade-in duration-700 mt-6 text-left">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[1.5rem] shadow-sm space-y-6">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-100 dark:border-emerald-900/40 text-[9px] font-bold uppercase tracking-wider">
-                    Local Expert Program Active
-                  </div>
-                  <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 mt-1.5">
-                    Your Commission Overview
-                  </h3>
-                  <p className="text-slate-400 text-xs mt-0.5">
-                    Current active strategy: <span className="text-emerald-500 font-bold">{commissionPreview.currentRule}</span>
-                  </p>
-                </div>
-                <div className="h-11 w-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40 shrink-0">
-                  <Percent className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 border-t border-slate-100 dark:border-slate-800/60 pt-4">
-                {/* State 1: Free Trial */}
-                {commissionPreview.appliedSource === 'FREE_TRIAL' && (
-                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100/50 dark:border-emerald-900/30 rounded-2xl text-left">
-                    <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest px-2.5 py-1 bg-emerald-100 dark:bg-emerald-900/40 rounded-full">Free Trial Active</span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Current Commission</span>
-                        <span className="text-base font-black text-emerald-600">0%</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Free Jobs Left</span>
-                        <span className="text-base font-black text-slate-800 dark:text-slate-100">{commissionPreview.remainingFreeServices} / 3</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Next Strategy</span>
-                        <span className="text-xs font-black text-slate-700 dark:text-slate-350">Category Default</span>
-                      </div>
-                      <div className="flex items-center">
-                        <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-800 flex items-center gap-1">
-                          Upgrade early <ArrowRight className="h-3 w-3" />
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* State 2: Active Subscription */}
-                {commissionPreview.appliedSource === 'SUBSCRIPTION' && commissionPreview.activeSubscription && (
-                  <div className="p-4 bg-purple-50/50 dark:bg-purple-950/10 border border-purple-100/50 dark:border-purple-900/30 rounded-2xl text-left">
-                    <div className="flex justify-between items-start">
-                      <span className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 tracking-widest px-2.5 py-1 bg-purple-100 dark:bg-purple-900/40 rounded-full">Active Member: {commissionPreview.activeSubscription.planName}</span>
-                      <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase text-purple-600 dark:text-purple-400 hover:text-purple-800 tracking-wider">Manage</Link>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Commission Rate</span>
-                        <span className="text-base font-black text-purple-600">{commissionPreview.currentCommissionPercentage}%</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Days Left</span>
-                        <span className="text-base font-black text-slate-800 dark:text-slate-100">{commissionPreview.activeSubscription.daysRemaining} Days</span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Benefits</span>
-                        <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block mt-1 truncate">
-                          {commissionPreview.activeSubscription.benefits?.join(', ') || 'Featured badge, priority client listings'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* State 3: Category Slab / Global fallback / Override / Waiver */}
-                {commissionPreview.appliedSource !== 'FREE_TRIAL' && commissionPreview.appliedSource !== 'SUBSCRIPTION' && (
-                  <div className="p-4 bg-slate-50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/40 rounded-2xl text-left">
-                    <div className="flex justify-between items-start">
-                      <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
-                        {commissionPreview.appliedSource === 'PROVIDER_OVERRIDE' ? 'Override Applied' : 
-                         (commissionPreview.appliedSource === 'WAIVER' ? 'Waiver Active' : 'Category Defaults')}
-                      </span>
-                      <Link to="/provider/subscriptions" className="text-[9px] font-black uppercase text-blue-600 dark:text-blue-400 hover:text-blue-850 tracking-widest flex items-center gap-1">
-                        Get Discount <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Current Category</span>
-                        <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase block truncate">{commissionPreview.categoryCommission.categoryName}</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Commission Rate</span>
-                        <span className="text-base font-black text-emerald-600">{commissionPreview.currentCommissionPercentage}%</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Active Slab Range</span>
-                        <span className="text-xs font-black text-slate-700 dark:text-slate-350">{commissionPreview.categoryCommission.activeSlabRange}</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Slab Rule Description</span>
-                        <span className="text-[10px] text-slate-400 font-medium block">Commission rate scales dynamically based on booking price.</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-            </div>
-          </section>
+          <div className="animate-in fade-in duration-700">
+            <CommissionOverviewCard preview={commissionPreview} />
+          </div>
         )}
 
         {/* Registration Status / Elite Banner */}
