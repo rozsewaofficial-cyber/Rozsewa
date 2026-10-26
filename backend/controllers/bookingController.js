@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const Service = require('../models/Service');
 const Category = require('../models/Category');
 const Setting = require('../models/Setting');
+const { cashLimitStatus } = require('../utils/cashLimit');
 const SewakIncentiveLog = require('../models/SewakIncentiveLog');
 const Combo = require('../models/Combo');
 const Coupon = require('../models/Coupon');
@@ -171,6 +172,11 @@ const createBooking = async (req, res) => {
             }
             if (hasOffer && specificProvider.providerCategory === 'sewak') {
                 return res.status(400).json({ message: 'Bargaining is not available for Sewak bookings.' });
+            }
+            // A partner who has reached the cash limit is shown "Pay to Admin" and
+            // cannot accept, so a booking sent to them would just sit unanswered.
+            if ((await cashLimitStatus(specificProvider, serviceId)).over) {
+                return res.status(409).json({ message: 'This partner is not taking new bookings right now. Please choose another partner.', code: 'PROVIDER_UNAVAILABLE' });
             }
             // Online payment is switched off for this provider: pay-after only.
             if (specificProvider.razorpayDisabled && paymentMode === 'now') {
