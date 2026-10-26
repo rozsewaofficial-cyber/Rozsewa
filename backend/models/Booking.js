@@ -29,6 +29,10 @@ const bookingSchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    // Minutes-before values a reminder has already gone out for (60, 30, 15, 5),
+    // so each is sent once however the clock lines up with the cron.
+    remindersSent: { type: [Number], default: [] },
+
     bookingDate: {
         type: String,
         required: true,
