@@ -22,6 +22,8 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
     if (result === "success") {
       toast({ title: "Payment received", description: "Your payment was successful and your account is updated." });
+    } else if (result === "wallet") {
+      toast({ title: "Lead no longer available", description: "Your payment has been added to your wallet." });
     } else if (result === "pending") {
       toast({ title: "Payment received", description: "We have your payment. It will show in your wallet within a few minutes." });
       API.post("/payment/wallet/reconcile").catch(() => {});
@@ -256,7 +258,7 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
             Account Restricted
           </h2>
           <p className="text-sm font-medium text-slate-500 mb-6">
-            You have exceeded your maximum allowed debt limit. You must settle
+            You have reached your maximum allowed debt limit. You must settle
             your pending dues to continue receiving service requests and
             accessing your dashboard.
           </p>

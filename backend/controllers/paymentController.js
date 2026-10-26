@@ -44,6 +44,10 @@ const MAX_TIP = 10000;
  */
 const SIMULATED_PAYMENTS_ALLOWED = process.env.ALLOW_SIMULATED_PAYMENTS === 'true';
 
+// The one place a Razorpay signature is computed (HMAC-SHA256, hex), so no
+// endpoint rolls its own.
+const hmacSha256Hex = (secret, data) => crypto.createHmac('sha256', secret).update(data).digest('hex');
+
 /**
  * Is this signature genuinely Razorpay's?
  *
@@ -58,10 +62,7 @@ const signatureIsValid = (orderId, paymentId, signature) => {
         console.error('RAZORPAY_KEY_SECRET is not set — refusing to verify any payment.');
         return false;
     }
-    const expected = crypto
-        .createHmac('sha256', secret)
-        .update(`${orderId}|${paymentId}`)
-        .digest('hex');
+    const expected = hmacSha256Hex(secret, `${orderId}|${paymentId}`);
     // Both are hex digests of the same length; compared without leaking where
     // they first differ.
     const a = Buffer.from(String(signature || ''), 'utf8');
@@ -196,6 +197,36 @@ const createOrder = async (req, res) => {
             amount += tipAmount;
         }
 
+        // A lead unlock is priced by the lead itself, not by what the caller says,
+        // and the order records which lead it is for so any confirmation path can finish it.
+        let leadMeta = null;
+        if (purpose === 'lead') {
+            // Leads are a partner feature: a Sewak gets work as bookings.
+            if (!req.user || (req.user.role !== 'provider' && req.user.role !== 'sewak') || req.user.providerCategory === 'sewak' || req.user.role === 'sewak') {
+                return res.status(403).json({ message: 'Only a partner can pay to unlock a lead.' });
+            }
+            const Lead = require('../models/Lead');
+            const lead = mongoose.Types.ObjectId.isValid(String(req.body.leadId))
+                ? await Lead.findById(req.body.leadId).select('leadPrice status expiry unlockedProviders maxUnlockLimit')
+                : null;
+            if (!lead) return res.status(404).json({ message: 'Lead not found.' });
+            if ((lead.unlockedProviders || []).some(id => String(id) === String(req.user._id))) {
+                return res.status(400).json({ message: 'You already unlocked this lead.' });
+            }
+            const stillOpen = ['available', 'partially_unlocked'].includes(lead.status)
+                && (!lead.expiry || new Date(lead.expiry) > new Date())
+                && (lead.unlockedProviders || []).length < lead.maxUnlockLimit;
+            if (!stillOpen) return res.status(400).json({ message: 'This lead is no longer available.' });
+            let price = Number(lead.leadPrice);
+            if (!(price > 0)) {
+                const Setting = require('../models/Setting');
+                const s = await Setting.findOne({ key: 'lead_unlock_price' });
+                price = Number(s?.value) > 0 ? Number(s.value) : 50;
+            }
+            amount = price;
+            leadMeta = { leadId: String(lead._id) };
+        }
+
         if (!amount || isNaN(amount) || amount <= 0) {
             return res.status(400).json({ message: 'A valid amount is required' });
         }
@@ -223,7 +254,7 @@ const createOrder = async (req, res) => {
             currency: options.currency,
             purpose: PURPOSES.includes(purpose) ? purpose : (bookingId ? 'booking' : 'other'),
             bookingId: booking?._id,
-            meta: tipAmount ? { tipAmount } : undefined,
+            meta: leadMeta || (tipAmount ? { tipAmount } : undefined),
             // `protect` does not run on this route — registration pays before
             // there is an account — so this is recorded only when known.
             userId: req.user?.role === 'customer' ? req.user._id : undefined,
@@ -574,6 +605,75 @@ const creditWalletRecharge = async (order, paymentId, method) => {
     return { wallet, transaction, isDebtSettlement };
 };
 
+/**
+ * Unlock a lead for a partner whose Razorpay payment has just been claimed.
+ * The lead and the partner come off the recorded order, never off the request.
+ * Shared by the page's confirmation, the bank-page callback and the webhook,
+ * so it does not matter which of them hears about the payment first.
+ *
+ * If the lead can no longer be unlocked (it filled up, expired or was closed
+ * while the person was paying) the money is not lost: it goes to their wallet.
+ */
+const completeLeadPayment = async (order, paymentId) => {
+    const Lead = require('../models/Lead');
+    const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
+    const LeadActivity = require('../models/LeadActivity');
+    const providerId = order.providerId;
+    const leadId = order.meta?.leadId;
+
+    const toWallet = async (why) => {
+        console.error('Lead payment could not unlock the lead; credited to wallet:', order.orderId, why);
+        await creditWalletRecharge(order, paymentId, 'Razorpay');
+        return { status: 'refunded_to_wallet', reason: why };
+    };
+    if (!leadId || !providerId) return toWallet('order has no lead');
+
+    const session = await mongoose.startSession();
+    try {
+        session.startTransaction();
+        const lead = await Lead.findById(leadId).session(session);
+        if (!lead) { await session.abortTransaction(); return toWallet('lead not found'); }
+
+        if ((lead.unlockedProviders || []).some(id => String(id) === String(providerId))) {
+            await session.abortTransaction();
+            return { status: 'already' };
+        }
+        const open = ['available', 'partially_unlocked'].includes(lead.status)
+            && (!lead.expiry || new Date(lead.expiry) > new Date())
+            && (lead.unlockedProviders || []).length < lead.maxUnlockLimit;
+        if (!open) { await session.abortTransaction(); return toWallet('lead no longer open'); }
+
+        lead.unlockedProviders.push(providerId);
+        const count = lead.unlockedProviders.length;
+        lead.status = count >= lead.maxUnlockLimit ? 'fully_unlocked' : 'partially_unlocked';
+        if (count === 1) lead.isEditLocked = true;
+        await lead.save({ session });
+
+        await LeadUnlockTransaction.create([{
+            provider: providerId,
+            lead: lead._id,
+            unlockAmount: Number(order.amount),
+            paymentGateway: 'Razorpay',
+            status: 'success',
+            notes: `Paid via Razorpay · ${paymentId}`
+        }], { session });
+        await session.commitTransaction();
+
+        try {
+            await LeadActivity.create({ leadId: lead._id, actorId: providerId, actorRole: 'provider', event: 'LEAD_UNLOCKED', detail: { unlockedVia: 'razorpay', leadPrice: Number(order.amount) } });
+        } catch (e) { /* the unlock stands without its audit line */ }
+        return { status: 'unlocked' };
+    } catch (err) {
+        try { await session.abortTransaction(); } catch (e) { /* already ended */ }
+        // Give the claim back so the payment can be completed again (webhook,
+        // callback or a retry), instead of being spent on nothing.
+        await PaymentOrder.updateOne({ orderId: order.orderId, consumedBy: paymentId }, { consumedBy: null, consumedAt: null }).catch(() => {});
+        throw err;
+    } finally {
+        session.endSession();
+    }
+};
+
 // @desc    Verify Razorpay Payment for Wallet Recharge / Debt Settlement
 // @route   POST /api/payment/verify-wallet
 // @access  Private (Provider)
@@ -628,21 +728,31 @@ const razorpayCallback = async (req, res) => {
         const reportedError = Object.keys(body).some(k => k === 'error' || k.startsWith('error['));
         if (reportedError || !body.razorpay_payment_id) return back('failed');
 
+        // What the order was for decides how it is finished.
+        const recorded = await PaymentOrder.findOne({ orderId: body.razorpay_order_id }).lean();
+        const isLead = recorded?.purpose === 'lead';
+        const landing = isLead ? '/provider/leads' : '/provider';
+        const to = (result) => res.redirect(303, `${front}${landing}?payment=${result}`);
+
         // Signature and the once-only claim, exactly as the in-page verify does.
-        const claim = await claimPayment(req, { purpose: 'wallet' });
+        const claim = await claimPayment(req, { purpose: isLead ? 'lead' : 'wallet' });
         if (claim.error) {
             // The in-page confirmation (or reconcile) already credited this
             // very payment: that is a success for the person, not a failure.
             if (claim.status === 409) {
                 const done = await PaymentOrder.findOne({ orderId: body.razorpay_order_id, consumedBy: body.razorpay_payment_id }).lean();
-                if (done) return back('success');
+                if (done) return to('success');
             }
-            return back('failed');
+            return to('failed');
         }
 
+        if (isLead) {
+            const result = await completeLeadPayment(claim.order, body.razorpay_payment_id);
+            return to(result.status === 'refunded_to_wallet' ? 'wallet' : 'success');
+        }
         const method = await paymentMethodOf(body.razorpay_payment_id);
         await creditWalletRecharge(claim.order, body.razorpay_payment_id, method);
-        return back('success');
+        return to('success');
     } catch (error) {
         // Money may have been taken: say so, and let reconcile finish the job.
         console.error('Razorpay callback failed:', error.message);
@@ -667,7 +777,7 @@ const razorpayWebhook = async (req, res) => {
     // The signature is over the exact bytes Razorpay sent, so the route must
     // hand us the raw body (not a re-serialised object).
     if (!Buffer.isBuffer(req.body)) return res.status(400).json({ message: 'Expected a raw body.' });
-    const expected = crypto.createHmac('sha256', secret).update(req.body).digest('hex');
+    const expected = hmacSha256Hex(secret, req.body);
     const given = Buffer.from(String(req.headers['x-razorpay-signature'] || ''), 'utf8');
     const want = Buffer.from(expected, 'utf8');
     if (given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
@@ -686,9 +796,9 @@ const razorpayWebhook = async (req, res) => {
             const pay = event.payload?.payment?.entity;
             if (pay?.id && pay?.order_id) {
                 const recorded = await PaymentOrder.findOne({ orderId: pay.order_id }).lean();
-                // Only wallet / dues orders are settled here; every other
-                // purpose has its own confirmation and is left to it.
-                if (recorded && recorded.purpose === 'wallet') {
+                // Wallet / dues and lead-unlock orders are settled here; every
+                // other purpose has its own confirmation and is left to it.
+                if (recorded && (recorded.purpose === 'wallet' || recorded.purpose === 'lead')) {
                     // What Razorpay captured must be what the order was raised for.
                     if (Math.round(Number(recorded.amount) * 100) !== Number(pay.amount)) {
                         console.error('Razorpay webhook amount mismatch for', pay.order_id, pay.amount, recorded.amount);
@@ -697,7 +807,8 @@ const razorpayWebhook = async (req, res) => {
                         // the app (or reconcile) already credited is not credited twice.
                         const order = await PaymentOrder.consume(pay.order_id, pay.id);
                         if (order) {
-                            await creditWalletRecharge(order, pay.id, PAYMENT_METHODS[pay.method] || 'Razorpay');
+                            if (recorded.purpose === 'lead') await completeLeadPayment(order, pay.id);
+                            else await creditWalletRecharge(order, pay.id, PAYMENT_METHODS[pay.method] || 'Razorpay');
                         }
                     }
                 }
@@ -834,58 +945,26 @@ const checkExpiringSubscriptions = async () => {
 // @route   POST /api/payment/verify-lead-payment
 // @access  Private (Provider)
 const verifyLeadPayment = async (req, res) => {
-    const { leadId } = req.body;
-
     const claim = await claimPayment(req, { purpose: 'lead', principal: req.user._id });
     if (claim.error) {
+        // This very payment already unlocked the lead (the callback or webhook got there first).
+        if (claim.status === 409) {
+            const done = await PaymentOrder.findOne({ orderId: req.body.razorpay_order_id, consumedBy: req.body.razorpay_payment_id, providerId: req.user._id, purpose: 'lead' }).lean();
+            if (done) return res.json({ success: true, alreadyUnlocked: true, message: 'Lead unlocked.' });
+        }
         return res.status(claim.status).json({ message: claim.error, success: false });
     }
-
-    {
-        const session = await mongoose.startSession();
-        try {
-            session.startTransaction();
-            
-            const Lead = require('../models/Lead');
-            const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
-
-            const lead = await Lead.findById(leadId).session(session);
-            if (!lead) {
-                await session.abortTransaction();
-                session.endSession();
-                return res.status(404).json({ message: "Lead not found" });
-            }
-
-            if (lead.unlockedProviders.includes(req.user._id)) {
-                await session.abortTransaction();
-                session.endSession();
-                return res.json({ success: true, message: "Lead already unlocked" });
-            }
-
-            lead.unlockedProviders.push(req.user._id);
-            lead.status = lead.unlockedProviders.length >= lead.maxUnlockLimit ? 'closed' : 'unlocked';
-            await lead.save({ session });
-
-            await LeadUnlockTransaction.create([{
-                provider: req.user._id,
-                lead: lead._id,
-                unlockAmount: lead.leadPrice,
-                paymentGateway: 'Razorpay',
-                status: 'success'
-            }], { session });
-
-            await session.commitTransaction();
-            session.endSession();
-
-            res.json({ message: "Payment verified and lead unlocked successfully", success: true });
-        } catch (err) {
-            await session.abortTransaction();
-            session.endSession();
-            res.status(500).json({ message: err.message });
+    try {
+        const result = await completeLeadPayment(claim.order, req.body.razorpay_payment_id);
+        if (result.status === 'refunded_to_wallet') {
+            return res.json({ success: true, unlocked: false, message: 'That lead is no longer available. Your payment has been added to your wallet.' });
         }
+        return res.json({ success: true, unlocked: true, message: 'Payment verified and lead unlocked successfully' });
+    } catch (err) {
+        console.error('Lead payment verify failed:', err.message);
+        return res.status(500).json({ success: false, message: 'Payment received but the lead could not be unlocked yet. It will be completed automatically.' });
     }
 };
-
 module.exports = {
     reconcileWalletRecharges,
     razorpayCallback,
