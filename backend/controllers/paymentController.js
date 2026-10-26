@@ -650,6 +650,69 @@ const razorpayCallback = async (req, res) => {
     }
 };
 
+// @desc    Razorpay tells the server a payment was captured. This is the one
+//          confirmation that does not depend on the person's browser or phone
+//          (closed app, lost network, a checkout that redirected away), so a
+//          wallet payment is credited here whether or not the app ever heard.
+// @route   POST /api/payment/webhook  (Razorpay -> server, signed)
+// @access  Public, but only a request signed with RAZORPAY_WEBHOOK_SECRET is acted on
+const razorpayWebhook = async (req, res) => {
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    // No secret, no way to tell Razorpay from anyone else: act on nothing.
+    if (!secret) {
+        console.error('RAZORPAY_WEBHOOK_SECRET is not set — ignoring Razorpay webhook.');
+        return res.status(503).json({ message: 'Webhook is not configured.' });
+    }
+
+    // The signature is over the exact bytes Razorpay sent, so the route must
+    // hand us the raw body (not a re-serialised object).
+    if (!Buffer.isBuffer(req.body)) return res.status(400).json({ message: 'Expected a raw body.' });
+    const expected = crypto.createHmac('sha256', secret).update(req.body).digest('hex');
+    const given = Buffer.from(String(req.headers['x-razorpay-signature'] || ''), 'utf8');
+    const want = Buffer.from(expected, 'utf8');
+    if (given.length !== want.length || !crypto.timingSafeEqual(given, want)) {
+        return res.status(400).json({ message: 'Invalid signature.' });
+    }
+
+    let event;
+    try {
+        event = JSON.parse(req.body.toString('utf8'));
+    } catch {
+        return res.status(400).json({ message: 'Invalid payload.' });
+    }
+
+    try {
+        if (event.event === 'payment.captured' || event.event === 'order.paid') {
+            const pay = event.payload?.payment?.entity;
+            if (pay?.id && pay?.order_id) {
+                const recorded = await PaymentOrder.findOne({ orderId: pay.order_id }).lean();
+                // Only wallet / dues orders are settled here; every other
+                // purpose has its own confirmation and is left to it.
+                if (recorded && recorded.purpose === 'wallet') {
+                    // What Razorpay captured must be what the order was raised for.
+                    if (Math.round(Number(recorded.amount) * 100) !== Number(pay.amount)) {
+                        console.error('Razorpay webhook amount mismatch for', pay.order_id, pay.amount, recorded.amount);
+                    } else {
+                        // The same once-only claim as every other path: a payment
+                        // the app (or reconcile) already credited is not credited twice.
+                        const order = await PaymentOrder.consume(pay.order_id, pay.id);
+                        if (order) {
+                            await creditWalletRecharge(order, pay.id, PAYMENT_METHODS[pay.method] || 'Razorpay');
+                        }
+                    }
+                }
+            }
+        }
+        // Everything else (failed, refunded, other purposes) is acknowledged so
+        // Razorpay stops retrying; there is nothing for us to do.
+        return res.json({ received: true });
+    } catch (error) {
+        // A 5xx makes Razorpay retry; the claim was given back on failure.
+        console.error('Razorpay webhook handling failed:', error.message);
+        return res.status(500).json({ message: 'Could not process the event.' });
+    }
+};
+
 // @desc    Credit any wallet recharge that was paid but never confirmed
 //          (the app closed, or the network dropped, after paying)
 // @route   POST /api/payment/wallet/reconcile
@@ -826,6 +889,7 @@ const verifyLeadPayment = async (req, res) => {
 module.exports = {
     reconcileWalletRecharges,
     razorpayCallback,
+    razorpayWebhook,
     creditWalletRecharge,
     claimPayment,
     createRecordedOrder,

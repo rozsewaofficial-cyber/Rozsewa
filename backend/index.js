@@ -85,6 +85,9 @@ const corsMiddleware = cors({
 // posts the result here as a form from its own origin.
 const CORS_EXEMPT_PATHS = new Set(['/api/auth/google/redirect', '/api/payment/callback']);
 app.use((req, res, next) => (CORS_EXEMPT_PATHS.has(req.path) ? next() : corsMiddleware(req, res, next)));
+// Razorpay signs the exact bytes it sends, so its webhook is read raw, before
+// the JSON parser below turns the body into an object.
+app.post('/api/payment/webhook', express.raw({ type: 'application/json', limit: '1mb' }), require('./controllers/paymentController').razorpayWebhook);
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds
 
