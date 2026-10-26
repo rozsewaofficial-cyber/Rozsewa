@@ -103,6 +103,23 @@ const LeadCard = ({ lead, onEdit, onView }) => {
         </div>
       </div>
 
+      {/* Meeting OTP: shown once a partner has unlocked the request. The customer
+          gives it to the partner only when they meet; typing it in confirms it. */}
+      {lead.meetOtp && (
+        <div className="mx-5 mb-3 rounded-xl border border-violet-100 bg-violet-50 p-3" data-meet-otp-customer>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-widest text-violet-600">Your meeting OTP</p>
+              <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                Give this to the partner only when they meet you.
+                {lead.meetVerifiedCount > 0 && <span className="font-black text-emerald-600"> {lead.meetVerifiedCount} partner{lead.meetVerifiedCount > 1 ? "s" : ""} confirmed.</span>}
+              </p>
+            </div>
+            <span className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xl font-black tracking-[0.3em] text-slate-900 shadow-sm">{lead.meetOtp}</span>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="px-5 pb-4 flex items-center justify-between gap-3 border-t border-slate-50 pt-3">
         <div className="space-y-0.5">

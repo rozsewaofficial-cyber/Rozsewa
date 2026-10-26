@@ -1,5 +1,6 @@
 const { pageParams, paginate } = require('../utils/pagination');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const Lead = require('../models/Lead');
 const LeadForm = require('../models/LeadForm');
 const LeadActivity = require('../models/LeadActivity');
@@ -33,6 +34,20 @@ const spendableOf = (wallet) => {
     if (!wallet) return 0;
     return Math.max(Number(wallet.balance) || 0, 0) + Math.max(Number(wallet.availableBalance) || 0, 0);
 };
+
+/**
+ * Free services left. One allowance of three is shared by every kind of
+ * work: a lead unlocked, an Insta Work job and a normal booking each use one
+ * of the same three. Bookings and Insta Work already counted into
+ * freeTrial.usedServices; leads were counted on their own, so a partner got
+ * three of each.
+ */
+const FREE_BASE = 3;
+const freeLeftOf = (p) => Math.max(0, FREE_BASE + (Number(p?.freeTrial?.extraFreeServices) || 0) - (Number(p?.freeTrial?.usedServices) || 0));
+
+// The 4-digit code the customer gives the partner when they meet.
+const newMeetOtp = () => String(crypto.randomInt(1000, 10000));
+const MAX_OTP_TRIES = 5;
 
 const getSettingVal = async (key, defaultValue) => {
     try {
@@ -110,7 +125,7 @@ const logActivity = async (leadId, actorId, actorRole, event, detail = {}) => {
  */
 const findEligibleProviders = async (lead, category) => {
     console.log(`[LeadTargeting] Finding eligible providers for lead #${lead._id} in category "${category.name}"`);
-    const geofenceRadius = await getSettingVal('lead_geofence_radius', 15);
+    const geofenceRadius = await getSettingVal('lead_geofence_radius', 10);
     const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
     const [lng, lat] = lead.location.coordinates;
     const radiusInRadians = Number(geofenceRadius) / 6371;
@@ -143,7 +158,7 @@ const findEligibleProviders = async (lead, category) => {
     // catches. Nearest first so the ceiling keeps the closest, and only the
     // fields the eligibility layers below actually read.
     const candidates = await Provider.find(geoQuery)
-        .select('shopName ownerName subServices isSubscribed subscriptionExpiry location vendorType')
+        .select('shopName ownerName subServices isSubscribed subscriptionExpiry location vendorType freeTrial')
         .limit(LEAD_FANOUT_CAP)
         .lean();
     console.log(`[LeadTargeting] Found ${candidates.length} candidates in database matching geo-queries & online/verified criteria.`);
@@ -158,12 +173,7 @@ const findEligibleProviders = async (lead, category) => {
     // A partner still on free unlocks needs no wallet balance — the same rule
     // the leads list uses. Requiring it here meant a new partner (empty
     // wallet) was never sent a lead, so the free trial could never be used.
-    const freeLimit = Number(await getSettingVal('lead_free_unlock_limit', 3));
-    const unlockCounts = await LeadUnlockTransaction.aggregate([
-        { $match: { provider: { $in: candidates.map(p => p._id) }, status: 'success' } },
-        { $group: { _id: '$provider', n: { $sum: 1 } } }
-    ]);
-    const unlocksByProvider = new Map(unlockCounts.map(r => [String(r._id), r.n]));
+    // The free allowance is shared with bookings and Insta Work (freeLeftOf).
 
     // Layer 2 input. The lead names a catalog service by id; a partner's
     // chosen services are kept as names (registration) and as the services
@@ -209,7 +219,7 @@ const findEligibleProviders = async (lead, category) => {
         // Layer 8 — Wallet minimum
         const wallet = walletByProvider.get(String(p._id));
         const balance = spendableOf(wallet);
-        const hasFreeLeft = (unlocksByProvider.get(String(p._id)) || 0) < freeLimit;
+        const hasFreeLeft = freeLeftOf(p) > 0;
         if (!hasFreeLeft && balance < minWalletBalance) {
             console.log(`  ➔ [Layer 8] Skip: Insufficient wallet balance (Has ₹${balance}, needs ₹${minWalletBalance}).`);
             continue;
@@ -486,6 +496,7 @@ const createLead = async (req, res) => {
             maxUnlockLimit:   maxUnlockCount,
             expiry:           expiryDate,
             status:           'available',
+            meetOtp:          newMeetOtp(),
             // Legacy compat
             requirementForm: {
                 description:   desc,
@@ -534,7 +545,9 @@ const createLead = async (req, res) => {
                     data: {
                         leadId: lead._id.toString(),
                         link: '/provider/leads',
-                        userRole: 'provider'
+                        userRole: 'provider',
+                        // Rings like a call on the partner's phone, not a quiet notice.
+                        alarm: 'true'
                     }
                 });
                 
@@ -680,12 +693,23 @@ const getCustomerLeads = async (req, res) => {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
+            .select('+meetOtp')
             .populate('categoryId', 'name icon')
             .lean();
+
+        // Leads made before the code existed get one now.
+        const noOtp = leads.filter(l => !l.meetOtp);
+        if (noOtp.length) {
+            for (const l of noOtp) l.meetOtp = newMeetOtp();
+            await Lead.bulkWrite(noOtp.map(l => ({ updateOne: { filter: { _id: l._id, meetOtp: { $exists: false } }, update: { $set: { meetOtp: l.meetOtp } } } })));
+        }
 
         const enriched = leads.map(l => ({
             ...l,
             unlockCount:    l.unlockedProviders?.length || 0,
+            // Worth showing only once a partner has unlocked the lead.
+            meetOtp:        (l.unlockedProviders?.length ? l.meetOtp : undefined),
+            meetVerifiedCount: (l.meetVerifiedProviders || []).length,
             viewCount:      l.viewedProviders?.length   || 0,
             canEdit:        !l.isEditLocked && ['draft', 'available'].includes(l.status),
             isDraft:        l.status === 'draft',
@@ -719,12 +743,13 @@ const joinOpenLeadsNearby = async (provider) => {
         if (!provider.vendorType || !Array.isArray(coords) || coords.length < 2) return;
         if (provider.status !== 'verified' || provider.isOnline !== true || provider.canReceiveLead === false) return;
 
-        const radiusKm = Number(await getSettingVal('lead_geofence_radius', 15)) || 15;
+        const radiusKm = Number(await getSettingVal('lead_geofence_radius', 10)) || 10;
         const open = await Lead.find({
             categoryId: provider.vendorType,
             status: { $in: ['available', 'partially_unlocked'] },
             expiry: { $gt: new Date() },
             nearbyProviders: { $ne: provider._id },
+            declinedProviders: { $ne: provider._id },
             location: { $geoWithin: { $centerSphere: [[Number(coords[0]), Number(coords[1])], radiusKm / 6378.1] } }
         }).select('serviceId subServiceId').limit(100).lean();
         if (!open.length) return;
@@ -773,14 +798,8 @@ const getNearbyLeads = async (req, res) => {
         // Leads are for partners; a Sewak gets work as bookings.
         if (!provider.vendorType || provider.providerCategory === 'sewak') return res.json({ leads: [], page, pages: 0, count: 0 });
 
-        // Query successful unlocks to determine free trial status
-        const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
-        const unlockedCount = await LeadUnlockTransaction.countDocuments({
-            provider: req.user._id,
-            status: 'success'
-        });
-        const freeLimitSetting = await getSettingVal('lead_free_unlock_limit', 3);
-        const hasFreeLeft = unlockedCount < Number(freeLimitSetting);
+        // The free allowance is one shared with bookings and Insta Work.
+        const hasFreeLeft = freeLeftOf(provider) > 0;
 
         // Wallet check - bypassed during free trial
         const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
@@ -808,6 +827,8 @@ const getNearbyLeads = async (req, res) => {
             nearbyProviders: req.user._id
         };
         if (tab !== 'expired') baseQuery.expiry = { $gt: new Date() };
+        // A lead the partner turned down stays out of their list.
+        if (tab === 'available') baseQuery.declinedProviders = { $ne: req.user._id };
 
         const totalLeads = await Lead.countDocuments(baseQuery);
         const rawLeads = await Lead.find(baseQuery)
@@ -834,6 +855,11 @@ const getNearbyLeads = async (req, res) => {
         const leads = rawLeads.map((l, idx) => {
             const hasUnlocked = l.unlockedProviders?.some(id => id.toString() === req.user._id.toString());
             const lead = { ...l };
+            // Whether this partner has confirmed meeting the customer. Who else
+            // did, and who turned the lead down, is nobody else's business.
+            lead.myMeetVerified = (l.meetVerifiedProviders || []).some(v => String(v.provider) === String(req.user._id));
+            delete lead.meetVerifiedProviders;
+            delete lead.declinedProviders;
 
             // Dynamic lead price for this provider
             if (hasFreeLeft) {
@@ -895,6 +921,7 @@ const unlockLead = async (req, res) => {
     if (req.user?.providerCategory === 'sewak') {
         return res.status(403).json({ message: 'Leads are for partners. Sewaks get work as bookings.' });
     }
+    if (!mongoose.Types.ObjectId.isValid(leadId)) return res.status(404).json({ message: 'Lead not found.' });
     const session = await mongoose.startSession();
     try {
         session.startTransaction();
@@ -928,12 +955,9 @@ const unlockLead = async (req, res) => {
 
         // Query successful unlocks to determine free trial status
         const LeadUnlockTransaction = require('../models/LeadUnlockTransaction');
-        const unlockedCount = await LeadUnlockTransaction.countDocuments({
-            provider: req.user._id,
-            status: 'success'
-        }).session(session);
-        const freeLimitSetting = await getSettingVal('lead_free_unlock_limit', 3);
-        const hasFreeLeft = unlockedCount < Number(freeLimitSetting);
+        const trialProvider = await Provider.findById(req.user._id).select('freeTrial').session(session);
+        const hasFreeLeft = freeLeftOf(trialProvider) > 0;
+        let freeUsedAfter = 0;
 
         // Wallet minimum check - bypassed during free trial
         const minWalletBalance = await getSettingVal('lead_min_wallet_balance', 200);
@@ -967,6 +991,22 @@ const unlockLead = async (req, res) => {
             unlockedVia = 'credit';
             actualPrice = 0;
         } else if (hasFreeLeft) {
+            // One of the three shared free services. Claimed in a single update, so
+            // two unlocks racing for the last one cannot both take it.
+            const claimed = await Provider.findOneAndUpdate(
+                { _id: req.user._id, $expr: { $lt: [{ $ifNull: ['$freeTrial.usedServices', 0] }, { $add: [FREE_BASE, { $ifNull: ['$freeTrial.extraFreeServices', 0] }] }] } },
+                { $inc: { 'freeTrial.usedServices': 1 } },
+                { new: true, session }
+            ).select('freeTrial');
+            if (!claimed) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(409).json({ message: 'Your free services were just used. Please try again.' });
+            }
+            freeUsedAfter = claimed.freeTrial.usedServices;
+            if (freeLeftOf(claimed) === 0 && !claimed.freeTrial.trialCompletedAt) {
+                await Provider.updateOne({ _id: req.user._id }, { $set: { 'freeTrial.trialCompletedAt': new Date() } }, { session });
+            }
             unlockedVia = 'free_trial';
             actualPrice = 0;
         } else {
@@ -1027,8 +1067,9 @@ const unlockLead = async (req, res) => {
             walletUsed:   unlockedVia === 'wallet',
             paidFromPrepaid: unlockedVia === 'wallet' ? paidFromPrepaid : undefined,
             creditUsed:   unlockedVia === 'credit',
+            freeServiceUsed: unlockedVia === 'free_trial',
             status: 'success',
-            notes: hasFreeLeft ? `Free trial unlock (${unlockedCount + 1}/${freeLimitSetting})` : undefined
+            notes: unlockedVia === 'free_trial' ? `Free service (${freeUsedAfter}/${FREE_BASE + (Number(trialProvider?.freeTrial?.extraFreeServices) || 0)})` : undefined
         }], { session });
 
         await session.commitTransaction();
@@ -1091,8 +1132,18 @@ const unlockLead = async (req, res) => {
 
         res.json({ success: true, message: 'Lead unlocked! Customer details are now visible.', lead: populatedLead });
     } catch (err) {
-        await session.abortTransaction();
+        try { await session.abortTransaction(); } catch (e) { /* already ended */ }
         session.endSession();
+        // A partner answering two cards at once, or tapping twice, has two
+        // unlocks touching the same wallet and free-service count. The database
+        // makes all but one start over; starting over is done here, not shown to
+        // the person as a failure.
+        const transient = (typeof err?.hasErrorLabel === 'function' && err.hasErrorLabel('TransientTransactionError')) || err?.code === 112;
+        req._unlockTries = (req._unlockTries || 0) + 1;
+        if (transient && req._unlockTries < 8) {
+            await new Promise(r => setTimeout(r, 30 + Math.random() * 120 * req._unlockTries));
+            return unlockLead(req, res);
+        }
         console.error('[unlockLead]', err);
         res.status(500).json({ message: err.message });
     }
@@ -1346,6 +1397,10 @@ const resolveDispute = async (req, res) => {
             if (refundEnabled) {
                 const tx = await LeadUnlockTransaction.findOne({ provider: dispute.provider, lead: dispute.lead, status: 'success' }).session(session);
                 if (tx) {
+                    // A refunded free unlock gives the free service back.
+                    if (tx.freeServiceUsed) {
+                        await Provider.updateOne({ _id: dispute.provider, 'freeTrial.usedServices': { $gt: 0 } }, { $inc: { 'freeTrial.usedServices': -1 } }, { session });
+                    }
                     if (tx.creditUsed) {
                         const sub = await ProviderSubscription.findOne({ provider: dispute.provider, status: 'active' }).session(session);
                         if (sub) { sub.creditsRemaining += 1; await sub.save({ session }); }
@@ -1701,7 +1756,89 @@ const createBookingFromLead = async (req, res) => {
     }
 };
 
+// @desc  A partner confirms meeting the customer with the customer's OTP
+// @route POST /api/leads/:id/verify-otp   { otp }
+// @access Private (Provider who unlocked the lead)
+const verifyMeetOtp = async (req, res) => {
+    try {
+        const raw = req.body?.otp;
+        const otp = (typeof raw === 'string' || typeof raw === 'number') ? String(raw).trim() : '';
+        if (!/^\d{4}$/.test(otp)) return res.status(400).json({ message: 'Enter the 4-digit OTP from the customer.' });
+
+        const me = String(req.user._id);
+        const found = await Lead.findById(req.params.id).select('unlockedProviders meetVerifiedProviders customer');
+        if (!found) return res.status(404).json({ message: 'Lead not found.' });
+        if (!(found.unlockedProviders || []).some(id => String(id) === me)) {
+            return res.status(403).json({ message: 'Unlock this lead first.' });
+        }
+        if ((found.meetVerifiedProviders || []).some(v => String(v.provider) === me)) {
+            return res.json({ success: true, alreadyVerified: true });
+        }
+
+        // Count the attempt before looking at it, in one step, so many requests
+        // sent at once cannot each get a free guess.
+        const bumped = await Lead.updateOne({ _id: found._id, 'meetAttempts.provider': req.user._id }, { $inc: { 'meetAttempts.$.count': 1 } });
+        if (!bumped.modifiedCount) {
+            await Lead.updateOne({ _id: found._id, 'meetAttempts.provider': { $ne: req.user._id } }, { $push: { meetAttempts: { provider: req.user._id, count: 1 } } });
+        }
+        const lead = await Lead.findById(found._id).select('+meetOtp +meetAttempts');
+        const tries = (lead.meetAttempts || []).find(a => String(a.provider) === me)?.count || 1;
+        if (tries > MAX_OTP_TRIES) {
+            return res.status(429).json({ message: 'Too many wrong attempts. Please contact support.', triesLeft: 0 });
+        }
+
+        if (!lead.meetOtp) {
+            // A lead from before the code existed: it gets one now, so this try fails.
+            await Lead.updateOne({ _id: lead._id, meetOtp: { $exists: false } }, { $set: { meetOtp: newMeetOtp() } });
+            return res.status(400).json({ message: 'Ask the customer to open My Leads for the OTP, then try again.', triesLeft: Math.max(0, MAX_OTP_TRIES - tries) });
+        }
+
+        const a = Buffer.from(lead.meetOtp);
+        const b = Buffer.from(otp);
+        const same = a.length === b.length && crypto.timingSafeEqual(a, b);
+        if (!same) {
+            const triesLeft = Math.max(0, MAX_OTP_TRIES - tries);
+            return res.status(400).json({ message: triesLeft ? `Wrong OTP. ${triesLeft} ${triesLeft === 1 ? 'try' : 'tries'} left.` : 'Wrong OTP. No tries left. Please contact support.', triesLeft });
+        }
+
+        await Lead.updateOne(
+            { _id: lead._id, 'meetVerifiedProviders.provider': { $ne: req.user._id } },
+            { $push: { meetVerifiedProviders: { provider: req.user._id, verifiedAt: new Date() } }, $pull: { meetAttempts: { provider: req.user._id } } }
+        );
+        await logActivity(lead._id, req.user._id, 'provider', 'LEAD_MEET_VERIFIED', {});
+        try {
+            await notifyUser({ userId: found.customer, userRole: 'customer', title: 'Partner confirmed', message: 'A partner confirmed meeting you with your OTP.', type: 'lead', data: { leadId: lead._id.toString(), link: '/my-leads', userRole: 'customer' } });
+        } catch (e) { /* the confirmation stands even if the notice does not go */ }
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[verifyMeetOtp]', err);
+        res.status(500).json({ message: 'Could not verify the OTP.' });
+    }
+};
+
+// @desc  A partner turns a lead down; it is not shown to them again
+// @route POST /api/leads/:id/decline
+// @access Private (Provider)
+const declineLead = async (req, res) => {
+    try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Lead not found.' });
+        const lead = await Lead.findById(req.params.id).select('unlockedProviders');
+        if (!lead) return res.status(404).json({ message: 'Lead not found.' });
+        if ((lead.unlockedProviders || []).some(id => String(id) === String(req.user._id))) {
+            return res.status(400).json({ message: 'You already unlocked this lead.' });
+        }
+        await Lead.updateOne({ _id: lead._id }, { $addToSet: { declinedProviders: req.user._id }, $pull: { nearbyProviders: req.user._id } });
+        await logActivity(lead._id, req.user._id, 'provider', 'LEAD_DECLINED', {});
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[declineLead]', err);
+        res.status(500).json({ message: 'Could not decline the lead.' });
+    }
+};
+
 module.exports = {
+    verifyMeetOtp,
+    declineLead,
     // Which partners a lead goes to (exported for its check script)
     findEligibleProviders,
     // Form Schema

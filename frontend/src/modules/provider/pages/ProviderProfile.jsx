@@ -10,6 +10,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import API from "@/lib/api";
 import useProviderAutoLocation from "@/hooks/useProviderAutoLocation";
+import LivePhotoCapture from "@/components/LivePhotoCapture";
+import PermissionsCard from "@/modules/provider/components/PermissionsCard";
 import { validateName, sanitizeName, sanitizeNameOnChange } from "@/lib/nameValidation";
 
 const ProviderProfile = () => {
@@ -227,8 +229,9 @@ const ProviderProfile = () => {
     }
   };
 
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
+  // The profile photo is a live one: it arrives from the camera window, never
+  // from the gallery.
+  const handleImageChange = async (file) => {
     if (file) {
       setUploading(true);
       try {
@@ -253,6 +256,7 @@ const ProviderProfile = () => {
   };
 
   const [uploading, setUploading] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
 
   return (
@@ -261,16 +265,21 @@ const ProviderProfile = () => {
       <main className="container max-w-3xl px-4 py-8 space-y-8">
         <div className="flex flex-col items-center justify-center space-y-4 rounded-3xl bg-emerald-600 p-8 text-center shadow-lg">
           <div className="relative">
-            <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+            <LivePhotoCapture open={cameraOpen} onClose={() => setCameraOpen(false)} onCapture={handleImageChange} title="Take your profile photo" />
             <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-background bg-emerald-100 text-3xl font-bold text-emerald-700 shadow-sm">
               {uploading ? <Loader2 className="h-8 w-8 animate-spin text-emerald-600" /> : (
                 profileData.profileImage ? <img src={profileData.profileImage} alt="Profile" className="h-full w-full object-cover" /> : profileData.shopName?.split(' ').map(n => n[0]).join('').toUpperCase() || "RS"
               )}
             </div>
-            <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 rounded-full bg-background p-2 text-emerald-600 shadow-md transition-transform hover:scale-110"><Camera className="h-4 w-4" /></button>
+            <button onClick={() => setCameraOpen(true)} aria-label="Take a live profile photo" data-profile-camera className="absolute bottom-0 right-0 rounded-full bg-background p-2 text-emerald-600 shadow-md transition-transform hover:scale-110"><Camera className="h-4 w-4" /></button>
           </div>
           <div><h1 className="text-2xl font-black text-white">{profileData.shopName}</h1><p className="flex items-center justify-center gap-1 text-sm text-emerald-100 font-medium mt-1"><ShieldCheck className="h-4 w-4" /> Verified Provider</p></div>
         </div>
+
+        <PermissionsCard
+          onAllowLocation={() => autoLoc.refresh({ force: true })}
+          onAllowNotifications={() => syncFCMToken?.()}
+        />
 
         <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-bold text-foreground">{isIndividual ? "Your Information" : "Business Information"}</h2><button onClick={toggleEdit} className="text-sm font-semibold text-emerald-600 hover:text-emerald-500">{isEditing ? "Save Changes" : "Edit Profile"}</button></div>

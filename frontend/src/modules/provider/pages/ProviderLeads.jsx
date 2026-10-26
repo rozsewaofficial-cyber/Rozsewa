@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import {
   Briefcase,
@@ -19,10 +19,12 @@ import {
   Sparkles,
   Shield,
   Mail,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
 import { useSocket } from "@/context/SocketContext";
+import { useAuth } from "@/context/AuthContext";
 import ProviderBottomNav from "@/modules/provider/components/ProviderBottomNav";
 import ProviderTopNav from "@/modules/provider/components/ProviderTopNav";
 
@@ -95,8 +97,62 @@ const ExpiryCountdown = ({ expiry }) => {
   );
 };
 
+// ─── Meeting OTP ──────────────────────────────────────────────────────────────
+// The customer sees a 4-digit code in My Leads and gives it to the partner when
+// they meet. Typing it here confirms the meeting.
+const MeetOtpBox = ({ leadId, onVerified }) => {
+  const { toast } = useToast();
+  const [otp, setOtp] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const sending = useRef(false);
+
+  const verify = async (e) => {
+    e.preventDefault();
+    if (sending.current) return;
+    if (!/^\d{4}$/.test(otp)) { setError("Enter the 4-digit OTP the customer gives you."); return; }
+    sending.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      await API.post(`/leads/${leadId}/verify-otp`, { otp });
+      toast({ title: "Meeting confirmed", description: "The customer has been told you met." });
+      onVerified?.();
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not verify the OTP. Please try again.");
+      setOtp("");
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={verify} className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-900/50 dark:bg-violet-950/20" data-meet-otp>
+      <p className="text-[10px] font-black uppercase tracking-widest text-violet-700 dark:text-violet-300">Met the customer?</p>
+      <p className="mt-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">Ask them for the 4-digit OTP in their My Leads, and enter it here.</p>
+      <div className="mt-2 flex gap-2">
+        <input
+          value={otp}
+          onChange={(e) => { setOtp(e.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={4}
+          placeholder="• • • •"
+          aria-label="Customer OTP"
+          className="h-11 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-center text-lg font-black tracking-[0.5em] text-slate-900 outline-none focus:border-violet-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+        />
+        <button type="submit" disabled={busy || otp.length !== 4} className="h-11 shrink-0 rounded-xl bg-violet-600 px-4 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify"}
+        </button>
+      </div>
+      {error && <p className="mt-1.5 text-[11px] font-bold text-rose-600" role="alert">{error}</p>}
+    </form>
+  );
+};
+
 // ─── Lead Card ────────────────────────────────────────────────────────────────
-const LeadCard = ({ lead, onUnlock, onDispute, onBook }) => {
+const LeadCard = ({ lead, onUnlock, onDispute, onBook, onRefresh }) => {
   const conf = STATUS[lead.status] || STATUS.available;
   const isUnlocked = lead.isUnlocked;
 
@@ -308,6 +364,19 @@ const LeadCard = ({ lead, onUnlock, onDispute, onBook }) => {
         )}
       </div>
 
+      {/* Confirm the meeting with the customer's OTP. */}
+      {isUnlocked && (!lead.disputeStatus || lead.disputeStatus === "none") && (
+        <div className="px-5 pb-4">
+          {lead.myMeetVerified ? (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-[11px] font-black uppercase tracking-widest text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-400" data-meet-verified>
+              <CheckCircle2 className="h-4 w-4" /> Meeting confirmed with customer OTP
+            </div>
+          ) : (
+            <MeetOtpBox leadId={lead._id} onVerified={onRefresh} />
+          )}
+        </div>
+      )}
+
       {/* Booking: the work agreed with the customer becomes a normal booking
           (both Bookings tabs, OTP start/finish, cash after service). */}
       {isUnlocked && (!lead.disputeStatus || lead.disputeStatus === "none") && (
@@ -394,6 +463,7 @@ const VALID_TABS = ["available", "unlocked", "expired"];
 const ProviderLeads = () => {
   const { toast } = useToast();
   const { socket } = useSocket();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [leads, setLeads] = useState([]);
@@ -505,6 +575,17 @@ const ProviderLeads = () => {
 
   const confirmUnlock = (leadId, price) => setUnlockModal({ leadId, price });
 
+  // A lead accepted on the home page that needs a payment lands here with
+  // ?unlock=<id>: the unlock window opens for it, once the list has loaded.
+  useEffect(() => {
+    const wanted = searchParams.get("unlock");
+    if (!wanted || loading) return;
+    const lead = leads.find((l) => l._id === wanted);
+    setSearchParams((prev) => { prev.delete("unlock"); return prev; }, { replace: true });
+    if (lead && !lead.isUnlocked) setUnlockModal({ leadId: lead._id, price: lead.leadPrice });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads, loading]);
+
   // Prefilled with what the customer asked for; the partner sets the price.
   const openBooking = (lead) => {
     const today = todayLocal();
@@ -565,42 +646,44 @@ const ProviderLeads = () => {
     }
   };
 
-  const handleRazorpayCheckout = async (leadId, amount) => {
+  const handleRazorpayCheckout = async (leadId) => {
     try {
-      const { data: orderData } = await API.post("/payment/order", {
-        amount,
-        type: "lead_unlock",
-        purpose: "lead",
-        leadId,
-      });
+      // The server prices the unlock from the lead itself; no amount is sent.
+      const { data: orderData } = await API.post("/payment/order", { purpose: "lead", leadId });
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_mock",
+        key: orderData.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: orderData.amount,
         currency: "INR",
         name: "RozSewa",
         description: "Lead Unlock Fee",
         order_id: orderData.id,
+        // Who is paying, so the checkout does not ask for it again.
+        prefill: { name: user?.ownerName || user?.name, email: user?.email, contact: user?.mobile },
+        // When the payment goes through a bank page and this page is not told,
+        // the server unlocks the lead there instead.
+        callback_url: `${API.defaults.baseURL}/payment/callback`,
+        modal: { ondismiss: () => toast({ title: "Payment cancelled", description: "No money was taken." }) },
         handler: async (response) => {
           try {
-            await API.post("/payment/verify-lead-payment", {
-              ...response,
-              leadId,
-            });
-            toast({
-              title: "Payment Successful",
-              description: "Lead unlocked!",
-            });
+            const { data } = await API.post("/payment/verify-lead-payment", response);
+            toast(data?.unlocked === false
+              ? { title: "Lead no longer available", description: data.message }
+              : { title: "Payment Successful", description: "Lead unlocked!" });
             fetchLeadsAndWallet();
-          } catch {
-            toast({ title: "Verification Failed", variant: "destructive" });
+            window.dispatchEvent(new CustomEvent("WALLET_UPDATED"));
+          } catch (err) {
+            toast({ title: "Verification Failed", description: err.response?.data?.message || "If money was deducted, the lead is unlocked automatically within a few minutes.", variant: "destructive" });
           }
         },
         theme: { color: "#7c3aed" },
       };
       if (window.Razorpay) {
-        new window.Razorpay(options).open();
-      } else
+        const rzp = new window.Razorpay(options);
+        rzp.on("payment.failed", (r) => toast({ title: "Payment failed", description: `${r.error?.description || "The payment didn't go through."} Nothing was unlocked.`, variant: "destructive" }));
+        rzp.open();
+      } else {
         toast({ title: "Payment gateway not loaded", variant: "destructive" });
+      }
     } catch (err) {
       toast({
         title: "Payment Failed",
@@ -775,6 +858,7 @@ const ProviderLeads = () => {
                 onUnlock={confirmUnlock}
                 onBook={openBooking}
                 onDispute={setDisputingLeadId}
+                onRefresh={() => fetchLeadsAndWallet(true)}
               />
             ))
           )}

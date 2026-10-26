@@ -22,13 +22,18 @@ check('a partner without canReceiveLead saved counts as yes; switched off stays 
     assert.ok(targeting.includes('canReceiveLead: { $ne: false },'));
     assert.ok(!/canReceiveLead:\s*true/.test(targeting));
 });
-check('the wallet minimum is skipped while the partner has free unlocks left', () => {
-    assert.ok(/const freeLimit = Number\(await getSettingVal\('lead_free_unlock_limit', 3\)\);/.test(targeting));
-    assert.ok(/LeadUnlockTransaction\.aggregate\(\[\s*\{ \$match: \{ provider: \{ \$in: candidates\.map\(p => p\._id\) \}, status: 'success' \} \}/.test(targeting));
-    assert.ok(/const hasFreeLeft = \(unlocksByProvider\.get\(String\(p\._id\)\) \|\| 0\) < freeLimit;\s*if \(!hasFreeLeft && balance < minWalletBalance\) \{/.test(targeting));
+check('the wallet minimum is skipped while the partner has free services left', () => {
+    assert.ok(/const hasFreeLeft = freeLeftOf\(p\) > 0;\s*if \(!hasFreeLeft && balance < minWalletBalance\) \{/.test(targeting));
 });
-check('the leads list and unlock use the same free-unlock rule', () => {
-    assert.ok((ctrl.match(/getSettingVal\('lead_free_unlock_limit', 3\)/g) || []).length >= 3);
+check('the leads list and unlock use the one free allowance shared with bookings and Insta Work', () => {
+    assert.ok(/const freeLeftOf = \(p\) =>/.test(ctrl) && /freeTrial\?\.usedServices/.test(ctrl));
+    assert.ok(/const hasFreeLeft = freeLeftOf\(provider\) > 0;/.test(ctrl));          // the leads list
+    assert.ok(/const hasFreeLeft = freeLeftOf\(trialProvider\) > 0;/.test(ctrl));      // unlock
+    assert.ok(/'freeTrial\.usedServices': 1/.test(ctrl));                               // unlock uses one
+    assert.ok(!/lead_free_unlock_limit/.test(ctrl));                                    // no separate lead allowance
+});
+check('a lead goes to partners within 10 km by default', () => {
+    assert.ok(/getSettingVal\('lead_geofence_radius', 10\)/.test(targeting));
 });
 
 console.log(`\n${passed} lead targeting checks passed.`);

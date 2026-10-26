@@ -143,6 +143,26 @@ const leadSchema = new mongoose.Schema({
         ref: 'Provider'
     }],
 
+    // ── Partner actions on the home list ──────────────────────────────────────
+    // A partner who turned this lead down: it is never offered to them again.
+    declinedProviders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Provider' }],
+
+    // ── Meeting OTP ───────────────────────────────────────────────────────────
+    // Shown to the customer only. The partner who unlocked the lead types it in
+    // when they meet, which confirms the meeting. Never sent to a partner, so it
+    // is left out of every query unless it is asked for by name.
+    meetOtp: { type: String, select: false },
+    meetVerifiedProviders: [{
+        _id: false,
+        provider: { type: mongoose.Schema.Types.ObjectId, ref: 'Provider' },
+        verifiedAt: { type: Date, default: Date.now }
+    }],
+    // Wrong-code attempts per partner, so a 4-digit code cannot be guessed.
+    meetAttempts: {
+        type: [{ _id: false, provider: { type: mongoose.Schema.Types.ObjectId }, count: { type: Number, default: 0 } }],
+        select: false
+    },
+
     // ── Full 9-Status Lifecycle ───────────────────────────────────────────────
     status: {
         type: String,

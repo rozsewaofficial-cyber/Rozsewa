@@ -18,7 +18,7 @@ const page = read('frontend', 'src', 'modules', 'provider', 'pages', 'ProviderSe
 const routes = read('backend', 'routes', 'providerRoutes.js');
 
 check('a Sewak sees Add Service on the services tab', () => {
-    assert.ok(/\{user\?\.providerCategory === 'sewak' && activeTab === "services" && \([\s\S]{0,200}onClick=\{openSewakAdd\} data-sewak-add-service/.test(page));
+    assert.ok(/\{user\?\.providerCategory === 'sewak' && activeTab === "services" && \([\s\S]{0,500}onClick=\{openSewakAdd\} data-sewak-add-service/.test(page));
 });
 check("it offers only priced category services the Sewak doesn't offer yet", () => {
     assert.ok(/categoryServices\.filter\(c => Number\(c\.basePrice\) > 0 && !sewakPickedKeys\.has\(/.test(page));
@@ -36,7 +36,7 @@ check("the list shows the services the Sewak offers (whole category until they p
     assert.ok((page.match(/listedServices\.filter\(s => serviceSubTab/g) || []).length === 2);
 });
 check('partners keep their own Add Service form', () => {
-    assert.ok(/\{user\?\.providerCategory !== 'sewak' && \([\s\S]{0,300}resetForm\(\), setShowForm\(true\)/.test(page));
+    assert.ok(/\{user\?\.providerCategory !== 'sewak' && \([\s\S]{0,700}resetForm\(\), setShowForm\(true\)/.test(page));
 });
 
 console.log(`\n${passed} sewak add service checks passed.`);

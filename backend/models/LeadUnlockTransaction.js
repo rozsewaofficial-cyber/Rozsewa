@@ -30,6 +30,9 @@ const leadUnlockTransactionSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    // Taken from the shared free allowance (given back if the lead is refunded).
+    freeServiceUsed: { type: Boolean, default: false },
+    notes: { type: String },
     paymentGateway: {
         type: String,
         enum: ['none', 'Razorpay', 'PhonePe', 'GPay'],

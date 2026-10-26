@@ -18,10 +18,19 @@ export const SocketProvider = ({ children }) => {
             return null;
         }
     });
+    // A new-lead alert survives a reload only while it is still fresh. It used
+    // to come back whenever the tab did, hours later, for a lead that had gone
+    // (taken, expired, declined) with its alarm ringing again.
     const [incomingLeadRequest, setIncomingLeadRequest] = useState(() => {
         try {
             const saved = sessionStorage.getItem('activeLeadRequest');
-            return saved && saved !== "undefined" ? JSON.parse(saved) : null;
+            const parsed = saved && saved !== "undefined" ? JSON.parse(saved) : null;
+            const fresh = parsed && parsed.receivedAt && (Date.now() - parsed.receivedAt) < 10 * 60 * 1000;
+            if (!fresh) {
+                sessionStorage.removeItem('activeLeadRequest');
+                return null;
+            }
+            return parsed;
         } catch (e) {
             return null;
         }
@@ -131,8 +140,9 @@ export const SocketProvider = ({ children }) => {
 
         newSocket.on("NEW_LEAD_REQUEST", (data) => {
             console.log("Global Socket: New lead received", data);
-            sessionStorage.setItem('activeLeadRequest', JSON.stringify(data));
-            setIncomingLeadRequest(data);
+            const stamped = { ...data, receivedAt: Date.now() };
+            sessionStorage.setItem('activeLeadRequest', JSON.stringify(stamped));
+            setIncomingLeadRequest(stamped);
 
             const path = window.location.pathname;
             if (path.startsWith('/provider') || path.startsWith('/sewak')) {

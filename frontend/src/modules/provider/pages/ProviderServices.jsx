@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useScrollLock } from "@/lib/scrollLock";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -410,9 +410,40 @@ const ProviderServices = () => {
   // in: their own price and duration. ("Quick Add" used to add it at once at
   // the catalog price, or ₹299 when it had none.) One already added opens
   // for editing instead of being added twice.
+  // A lead-based partner has no price to set, so there is nothing to fill in:
+  // tapping a catalog service adds it straight away (the form was an extra
+  // step that asked for nothing).
+  const quickAdding = useRef(new Set());
+  const quickAddLeadService = async (item) => {
+    const key = nameKey(item.name);
+    if (quickAdding.current.has(key)) return;
+    quickAdding.current.add(key);
+    try {
+      await API.post("/services", {
+        name: item.name,
+        description: item.description || "",
+        duration: "",
+        serviceType: Array.isArray(item.serviceType) && item.serviceType.length ? item.serviceType : (item.serviceType ? [item.serviceType] : ["home"]),
+        visible: true,
+        image: item.image || "",
+        amenities: item.amenities || [],
+        serviceDetails: item.serviceDetails || [],
+        category: categoryName,
+        subcategory: item.subcategory || subcategories.find(sub => String(sub._id) === String(item.subcategoryId))?.name || "",
+      });
+      toast({ title: "Service added", description: `${item.name} — you will now get leads for it.` });
+      await fetchProviderInfoAndServices(false);
+    } catch (err) {
+      toast({ title: "Could not add service", description: err.response?.data?.message || "Please try again.", variant: "destructive" });
+    } finally {
+      quickAdding.current.delete(key);
+    }
+  };
+
   const openServiceForm = (item) => {
     const existing = ownedService(item.name);
     if (existing) { handleEdit(existing); return; }
+    if (leadBased) { quickAddLeadService(item); return; }
     setErrors({});
     setPhotoError("");
     setForm({
@@ -646,7 +677,7 @@ const ProviderServices = () => {
                                 {leadBased ? (owned ? "You get leads for this" : "Tap to add") : (owned ? `Your price ₹${owned.price}` : (suggested ? `Catalog ₹${suggested}` : "Set your price"))}
                               </p>
                               <p className="mt-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground">
-                                {owned ? <><Edit3 className="h-2.5 w-2.5" /> Edit</> : <><Plus className="h-2.5 w-2.5" /> Add details</>}
+                                {owned ? <><Edit3 className="h-2.5 w-2.5" /> Edit</> : <><Plus className="h-2.5 w-2.5" /> {leadBased ? "Add now" : "Add details"}</>}
                               </p>
                             </div>
                           </motion.button>
