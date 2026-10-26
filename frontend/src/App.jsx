@@ -56,6 +56,7 @@ import Privacy from "./modules/user/pages/Privacy";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GlobalAlarm from "./components/GlobalAlarm";
 import LocationGate from "./components/LocationGate";
+import AppTranslator from "./components/AppTranslator";
 import ScrollToTop from "./components/ScrollToTop";
 
 // Provider Pages
@@ -202,6 +203,7 @@ const App = () => (
                       notifications sat over the bottom nav and booking buttons. */}
                   <Sonner position="top-right" expand={true} richColors />
                   <GlobalAlarm />
+                  <AppTranslator />
                   <ReferralAutoApply />
                   <AnimatePresence mode="wait">
                     <Routes>

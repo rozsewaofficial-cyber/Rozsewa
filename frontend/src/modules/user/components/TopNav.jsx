@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { GoogleMap, useJsApiLoader, MarkerF } from "@react-google-maps/api";
 import API from "@/lib/api";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const navLinks = [
   { label: "Home", path: "/", icon: Home },
@@ -266,6 +267,8 @@ const libraries = ['places'];
                   )}
                 </Link>
 
+                <LanguageSwitcher className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm text-slate-700 dark:text-slate-300" />
+
                 <motion.button 
                   whileTap={{ scale: 0.9 }} 
                   onClick={toggleTheme} 
@@ -328,6 +331,7 @@ const libraries = ['places'];
                   </span>
                 )}
               </Link>
+              <LanguageSwitcher className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm text-slate-700 dark:text-slate-300" />
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={toggleTheme}

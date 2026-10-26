@@ -36,6 +36,7 @@ const tipRoutes = require('./routes/tipRoutes');
 const trainingPanelRoutes = require('./routes/trainingPanelRoutes');
 const coinRoutes = require('./routes/coinRoutes');
 const instaRoutes = require('./routes/instaRoutes');
+const translateRoutes = require('./routes/translateRoutes');
 
 const http = require('http');
 const path = require('path');
@@ -119,6 +120,7 @@ app.use('/api/insta', instaRoutes);
 
 // V2 Versioned Commission APIs
 const { adminV2Router, providerV2Router } = require('./routes/v2Routes');
+app.use('/api/translate', translateRoutes);
 app.use('/api/v2/admin', adminV2Router);
 app.use('/api/v2/provider', providerV2Router);
 

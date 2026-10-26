@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useState, useEffect } from "react";
 import API from "@/lib/api";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const ProviderTopNav = ({ title, showBack = false }) => {
   const navigate = useNavigate();
@@ -72,7 +73,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/70 bg-white/90 backdrop-blur-md dark:border-white/5 dark:bg-slate-950/85">
-      <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
+      <div className="container mx-auto flex h-14 max-w-6xl items-center justify-between gap-1.5 px-3 sm:gap-2 sm:px-4">
         <div className="flex min-w-0 items-center gap-2.5">
           <Link to="/provider" className="group shrink-0">
             <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white p-1 ring-1 ring-black/5 transition-transform group-hover:scale-105 dark:ring-white/10">
@@ -94,7 +95,7 @@ const ProviderTopNav = ({ title, showBack = false }) => {
           )}
 
           <div className="flex min-w-0 flex-col leading-tight">
-            <span className="text-[15px] font-black tracking-tight text-slate-900 dark:text-white">
+            <span data-no-translate className="text-[15px] font-black tracking-tight text-slate-900 dark:text-white">
               Roz<span className="text-emerald-600 dark:text-emerald-400">Sewa</span>
             </span>
             <span className="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">
@@ -108,7 +109,8 @@ const ProviderTopNav = ({ title, showBack = false }) => {
           <span>{currentTime.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · {currentTime.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <LanguageSwitcher className={iconBtn} />
           <motion.button onClick={toggleTheme} whileTap={{ scale: 0.9 }} className={iconBtn} aria-label="Switch theme" title="Switch theme">
             {theme === "dark" ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4" />}
           </motion.button>
