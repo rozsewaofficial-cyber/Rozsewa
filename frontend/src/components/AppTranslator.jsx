@@ -19,10 +19,27 @@ import { getLanguage, LANGUAGE_EVENT } from "@/lib/language";
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "OPTION", "CODE", "PRE", "SVG", "CANVAS", "IFRAME"]);
 const SKIP_SELECTOR = "[data-no-translate],.notranslate,[translate='no'],.razorpay-container";
 const CHUNK = 80;
-const CACHE_PREFIX = "rozsewa_tx4_";
+const CACHE_PREFIX = "rozsewa_tx6_";
 const CACHE_LIMIT = 3000;
 // Already written in an Indian script: leave it alone.
 const INDIAN_SCRIPT = /[ऀ-෿]/;
+
+// Numbers change (a clock, a countdown, an amount) but the words around them
+// do not. The sentence is asked for once with every number written as 7, and
+// the real numbers are put back. Otherwise the clock in the header alone sent
+// a new phrase to Google every minute.
+const NUMBER = /\d+/g;
+const withoutNumbers = (text) => {
+  const nums = text.match(NUMBER) || [];
+  return { key: nums.length ? text.replace(NUMBER, "7") : text, nums };
+};
+// null when the translation lost or gained a number: better English than wrong figures.
+const withNumbers = (translated, nums) => {
+  if (!nums.length) return translated;
+  if ((translated.match(NUMBER) || []).length !== nums.length) return null;
+  let i = 0;
+  return translated.replace(NUMBER, () => nums[i++]);
+};
 
 // Worth translating: has real words, is not a link or an email.
 const translatable = (raw) => {
@@ -31,6 +48,8 @@ const translatable = (raw) => {
   if (!/[A-Za-z]{2,}/.test(t)) return false;
   if (/^(https?:\/\/|www\.)/i.test(t) || /^\S+@\S+\.\S+$/.test(t)) return false;
   if (INDIAN_SCRIPT.test(t)) return false;
+  // A code or reference on its own (IWP5J16D45, D983C3): never rewritten.
+  if (!/\s/.test(t) && /\d/.test(t) && /[A-Za-z]/.test(t)) return false;
   return true;
 };
 
@@ -102,8 +121,10 @@ const AppTranslator = () => {
         seen.set(node, rec);
         const n = node;
         const r = rec;
+        const { key, nums } = withoutNumbers(r.orig.trim());
         jobs.push({
-          orig: r.orig.trim(),
+          orig: key,
+          nums,
           lead: r.orig.match(/^\s*/)[0],
           trail: r.orig.match(/\s*$/)[0],
           apply: (t) => { r.shown = t; n.data = t; },
@@ -118,7 +139,8 @@ const AppTranslator = () => {
         if (!translatable(cur)) return;
         const r = { orig: cur, shown: null };
         attrSeen.set(el, r);
-        jobs.push({ orig: cur.trim(), lead: "", trail: "", apply: (t) => { r.shown = t; el.setAttribute("placeholder", t); } });
+        const { key, nums } = withoutNumbers(cur.trim());
+        jobs.push({ orig: key, nums, lead: "", trail: "", apply: (t) => { r.shown = t; el.setAttribute("placeholder", t); } });
       });
       return jobs;
     };
@@ -147,7 +169,11 @@ const AppTranslator = () => {
           }
           if (cancelled) break;
           saveCache(lang, cache);
-          jobs.forEach((j) => { const t = cache.get(j.orig); if (t) j.apply(`${j.lead}${t}${j.trail}`); });
+          jobs.forEach((j) => {
+            const t = cache.get(j.orig);
+            const out = t ? withNumbers(t, j.nums) : null;
+            if (out) j.apply(`${j.lead}${out}${j.trail}`);
+          });
         } while (again && !cancelled);
       } finally {
         running = false;

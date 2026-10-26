@@ -56,6 +56,16 @@ TranslationCache.bulkWrite = async (ops) => { ops.forEach((o) => stored.set(o.up
         assert.ok(!protect('Pinned panel').includes('<span'));
     });
 
+    await check('codes and references are kept exactly as written', async () => {
+        for (const code of ['IWP5J16D45', 'D983C3', 'DE57C6', 'RSVND10234']) {
+            assert.ok(protect(`Job ${code} is confirmed`).includes(`<span translate="no">${code}</span>`), code);
+        }
+        // ordinary words and plain numbers are still translated
+        assert.ok(!protect('Pay 500 rupees today').includes('<span'));
+        assert.ok(!protect('Room 12').includes('<span'));
+        assert.strictEqual(unprotect(protect('Job IWP5J16D45 is confirmed')), 'Job IWP5J16D45 is confirmed');
+    });
+
     await check('text is escaped before it goes to Google, and entities come back', async () => {
         assert.strictEqual(protect('a < b & c'), 'a &lt; b &amp; c');
         assert.strictEqual(decode('You&#39;re &quot;in&quot; &amp; ready'), 'You\'re "in" & ready');

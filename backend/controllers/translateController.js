@@ -19,7 +19,7 @@ const MEMORY_LIMIT = 5000;
 
 // Bump when the way text is prepared changes, so older cached answers (made
 // without the protected terms below) are not served any more.
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 
 // One- and two-word labels (menus, tabs, buttons) have no sentence around them
 // for Google to go by, and it picks odd words ("Bookings" came back as "of
@@ -30,7 +30,9 @@ const OVERRIDES = {
         wallet: 'वॉलेट', account: 'खाता', notifications: 'सूचनाएँ', login: 'लॉगिन', logout: 'लॉगआउट',
         'sign up': 'साइन अप', settings: 'सेटिंग्स', support: 'सहायता', accept: 'स्वीकार करें', reject: 'अस्वीकार करें',
         new: 'नया', active: 'सक्रिय', completed: 'पूर्ण', rejected: 'अस्वीकृत', cancelled: 'रद्द', online: 'ऑनलाइन', offline: 'ऑफ़लाइन',
-        'view all': 'सभी देखें', 'local expert': 'लोकल एक्सपर्ट'
+        'view all': 'सभी देखें', 'local expert': 'लोकल एक्सपर्ट',
+        location: 'लोकेशन', 'service location': 'सर्विस लोकेशन', camera: 'कैमरा', allow: 'अनुमति दें', 'allow all': 'सभी की अनुमति दें',
+        blocked: 'ब्लॉक है', on: 'चालू', off: 'बंद', 'app permissions': 'ऐप की अनुमतियाँ', 'detect now': 'अभी लोकेशन लें', verify: 'सत्यापित करें'
     }
 };
 const overrideFor = (lang, text) => OVERRIDES[lang]?.[text.trim().toLowerCase()];
@@ -42,8 +44,15 @@ const keyOf = (lang, text) => crypto.createHash('sha1').update(`${CACHE_VERSION}
 // exactly as written and the rest of the sentence is translated around them.
 const PROTECTED = /\b(RozSewa|Sewaks?|Insta Work|Leads?|Live|KYC|OTP|GPS|PIN|UPI|Razorpay|Aadhaar|PAN|GST|IFSC|SOS|WhatsApp)\b/gi;
 
+// Codes and references (a job code IWP5J16D45, a booking ref D983C3, a lead
+// #DE57C6): letters mixed with digits in one word. Left to itself Google
+// spells them out in Devanagari, and a code that cannot be read back to
+// support is no use.
+const ID_LIKE = /\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{4,}\b/g;
+
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const protect = (text) => escapeHtml(text).replace(PROTECTED, (m) => `<span translate="no">${m}</span>`);
+const keep = (m) => `<span translate="no">${m}</span>`;
+const protect = (text) => escapeHtml(text).replace(PROTECTED, keep).replace(ID_LIKE, keep);
 const unprotect = (html) => String(html).replace(/<\/?span[^>]*>/gi, '');
 
 const remember = (key, value) => {
