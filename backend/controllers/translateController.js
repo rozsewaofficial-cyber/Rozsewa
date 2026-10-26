@@ -32,7 +32,11 @@ const OVERRIDES = {
         new: 'नया', active: 'सक्रिय', completed: 'पूर्ण', rejected: 'अस्वीकृत', cancelled: 'रद्द', online: 'ऑनलाइन', offline: 'ऑफ़लाइन',
         'view all': 'सभी देखें', 'local expert': 'लोकल एक्सपर्ट',
         location: 'लोकेशन', 'service location': 'सर्विस लोकेशन', camera: 'कैमरा', allow: 'अनुमति दें', 'allow all': 'सभी की अनुमति दें',
-        blocked: 'ब्लॉक है', on: 'चालू', off: 'बंद', 'app permissions': 'ऐप की अनुमतियाँ', 'detect now': 'अभी लोकेशन लें', verify: 'सत्यापित करें'
+        blocked: 'ब्लॉक है', on: 'चालू', off: 'बंद', 'app permissions': 'ऐप की अनुमतियाँ', 'detect now': 'अभी लोकेशन लें', verify: 'सत्यापित करें',
+        mon: 'सोम', tue: 'मंगल', wed: 'बुध', thu: 'गुरु', fri: 'शुक्र', sat: 'शनि', sun: 'रवि',
+        docs: 'दस्तावेज़', vault: 'सुरक्षित तिजोरी', hotline: 'हेल्पलाइन', 'push notifications': 'पुश नोटिफिकेशन',
+        upgrade: 'अपग्रेड करें', 'upgrade now': 'अभी अपग्रेड करें', 'upgrade early': 'जल्दी अपग्रेड करें',
+        'delete account': 'खाता हटाएँ', 'sign out': 'साइन आउट'
     }
 };
 const overrideFor = (lang, text) => OVERRIDES[lang]?.[text.trim().toLowerCase()];

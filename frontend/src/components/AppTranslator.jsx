@@ -19,7 +19,7 @@ import { getLanguage, LANGUAGE_EVENT } from "@/lib/language";
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "OPTION", "CODE", "PRE", "SVG", "CANVAS", "IFRAME"]);
 const SKIP_SELECTOR = "[data-no-translate],.notranslate,[translate='no'],.razorpay-container";
 const CHUNK = 80;
-const CACHE_PREFIX = "rozsewa_tx6_";
+const CACHE_PREFIX = "rozsewa_tx7_";
 const CACHE_LIMIT = 3000;
 // Already written in an Indian script: leave it alone.
 const INDIAN_SCRIPT = /[ऀ-෿]/;
