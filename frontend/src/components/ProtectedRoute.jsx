@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
@@ -9,6 +9,40 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
   const location = useLocation();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+
+  // Coming back from a payment that went through a bank page: the server has
+  // already credited it (or not), and says so in the address.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("payment");
+    if (!result) return;
+    params.delete("payment");
+    const rest = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+    if (result === "success") {
+      toast({ title: "Payment received", description: "Your payment was successful and your account is updated." });
+    } else if (result === "pending") {
+      toast({ title: "Payment received", description: "We have your payment. It will show in your wallet within a few minutes." });
+      API.post("/payment/wallet/reconcile").catch(() => {});
+    } else {
+      toast({ title: "Payment not completed", description: "No money was taken, or any amount deducted is returned by your bank in a few days.", variant: "destructive" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A restricted partner who paid but never saw the confirmation (the app
+  // closed, the network dropped) must not stay locked out of the very screen
+  // they would use to find out. Money Razorpay has already captured is
+  // credited here, and the screen lifts.
+  useEffect(() => {
+    if (!user?.debtLimitExceeded) return undefined;
+    let live = true;
+    API.post("/payment/wallet/reconcile")
+      .then(({ data }) => { if (live && data?.credited?.length) window.location.reload(); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [user?.debtLimitExceeded]);
 
   if (loading) {
     return (
@@ -86,42 +120,85 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
     });
   };
 
-  const handlePayAdmin = async () => {
-    setIsProcessing(true);
-    toast({
-      title: "Debt cleared successfully! Reloading... (Simulated)",
-      variant: "default",
-    });
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
-    return;
-    /*
-    const res = await loadRazorpay();
+  // "I already paid": asks the server to credit any payment Razorpay has
+  // captured that this app never got to confirm.
+  const handleCheckStatus = async () => {
+    if (isChecking) return;
+    setIsChecking(true);
+    try {
+      const { data } = await API.post("/payment/wallet/reconcile");
+      if (data?.credited?.length) {
+        toast({ title: "Payment found", description: "Your dues are cleared. Opening your account…" });
+        setTimeout(() => window.location.reload(), 1000);
+        return;
+      }
+      toast({
+        title: "No completed payment yet",
+        description: "If you paid in the last minute or two, UPI and bank confirmations can take a few minutes. Wait a little and check again. Please do not pay twice.",
+      });
+    } catch (error) {
+      toast({
+        title: "Could not check right now",
+        description: error.response?.data?.message || "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
 
-    if (!res) {
+  // Pays the dues through Razorpay, the same way the Wallet page does. This
+  // used to be a stub that showed "Debt cleared" and reloaded without taking
+  // any payment, so a restricted partner could never actually get unblocked.
+  const handlePayAdmin = async () => {
+    if (isProcessing) return;
+    const debt = Number(user?.currentDebt) || 0;
+    if (debt <= 0) {
+      toast({ title: "Nothing to pay", description: "Your dues are already clear.", variant: "default" });
+      window.location.reload();
+      return;
+    }
+
+    setIsProcessing(true);
+    const loaded = await loadRazorpay();
+    if (!loaded) {
       toast({ title: "Razorpay SDK failed to load. Are you online?", variant: "destructive" });
       setIsProcessing(false);
       return;
     }
 
     try {
-      const { data: order } = await API.post("/payment/order", { amount: user.currentDebt, currency: "INR", purpose: "wallet" });
+      const { data: order } = await API.post("/payment/order", { amount: debt, currency: "INR", purpose: "wallet" });
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa Admin Settlement",
-        description: "Clearing outstanding debt limits",
+        description: "Clearing outstanding dues",
         order_id: order.id,
+        // Where Razorpay sends the browser when the payment went through a bank page and
+        // this page could not be told (phone WebViews): the server credits it there.
+        callback_url: `${API.defaults.baseURL}/payment/callback`,
+        modal: {
+          ondismiss: () => {
+            setIsProcessing(false);
+            toast({ title: "Payment cancelled", description: "No money was taken. Your dues are unchanged." });
+          },
+        },
         handler: async function (response) {
           try {
+            // No amount sent: the server credits what the order was paid for.
             await API.post("/payment/verify-wallet", response);
-            toast({ title: "Debt cleared successfully! Reloading...", variant: "default" });
-            window.location.reload();
+            toast({ title: "Dues cleared", description: "Your account is active again.", variant: "default" });
+            setTimeout(() => window.location.reload(), 1200);
           } catch (error) {
-            toast({ title: "Payment verification failed", description: error.response?.data?.message || "Please contact support.", variant: "destructive" });
+            setIsProcessing(false);
+            toast({
+              title: "Payment verification failed",
+              description: error.response?.data?.message || "If money was deducted, it will be credited shortly. Please contact support.",
+              variant: "destructive",
+            });
           }
         },
         prefill: {
@@ -133,16 +210,23 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
       };
 
       const paymentObject = new window.Razorpay(options);
-      paymentObject.on('payment.failed', function (response) {
-        toast({ title: "Payment Failed", description: response.error.description, variant: "destructive" });
+      paymentObject.on("payment.failed", function (response) {
+        setIsProcessing(false);
+        toast({
+          title: "Payment failed",
+          description: `${response.error?.description || "The payment didn't go through."} Your dues are unchanged.`,
+          variant: "destructive",
+        });
       });
       paymentObject.open();
     } catch (error) {
-      toast({ title: "Failed to initialize payment", description: error.response?.data?.message || "Server error", variant: "destructive" });
-    } finally {
       setIsProcessing(false);
+      toast({
+        title: "Failed to start payment",
+        description: error.response?.data?.message || "Server error. Please try again.",
+        variant: "destructive",
+      });
     }
-    */
   };
 
   // Check Debt Limit Enforcer for Providers
@@ -224,6 +308,18 @@ const ProtectedRoute = ({ children, allowedRoles = ["customer"] }) => {
                 </>
               )}
             </button>
+            <button
+              type="button"
+              onClick={handleCheckStatus}
+              disabled={isChecking || isProcessing}
+              className="w-full h-11 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 disabled:opacity-60 transition-colors"
+            >
+              {isChecking ? "Checking…" : "Already paid? Check status"}
+            </button>
+            <p className="text-[11px] font-medium text-slate-400 leading-snug">
+              If the payment window is still processing, please wait and do not press back or pay again.
+              Confirmation can take a few minutes; it is credited automatically.
+            </p>
           </div>
         </div>
       </div>

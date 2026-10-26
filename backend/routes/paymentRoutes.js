@@ -11,6 +11,10 @@ const noteWhoIfSignedIn = (req, res, next) =>
     req.headers.authorization ? protect(req, res, (err) => err ? next(err) : next()) : next();
 
 router.post('/order', noteWhoIfSignedIn, createOrder);
+// Where Razorpay sends the browser after paying when the checkout cannot call
+// back into the page (bank-page redirects, phone WebViews). No login: it is a
+// form post from Razorpay; the signature and the recorded order are the proof.
+router.post('/callback', express.urlencoded({ extended: false }), require('../controllers/paymentController').razorpayCallback);
 router.post('/verify', verifyPayment);
 router.post('/verify-subscription', protect, verifySubscriptionPayment);
 router.post('/verify-wallet', protect, verifyWalletRecharge);

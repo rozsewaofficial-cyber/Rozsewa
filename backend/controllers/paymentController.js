@@ -9,6 +9,16 @@ const razorpay = new Razorpay({
 
 const PaymentOrder = require('../models/PaymentOrder');
 
+/**
+ * Razorpay's SDK has no timeout of its own, so a slow gateway left a request
+ * (and the person waiting behind it on "processing") hanging with no end.
+ * Anything we only ask Razorpay for goes through this.
+ */
+const withTimeout = (promise, ms, label) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error(`${label} timed out`), { timedOut: true })), ms))
+]);
+
 const PURPOSES = ['booking', 'wallet', 'subscription', 'lead', 'bazaar', 'kit', 'registration', 'banner', 'tip', 'other'];
 
 /**
@@ -205,7 +215,7 @@ const createOrder = async (req, res) => {
             options.amount = Math.round(amount * 100);
         }
 
-        const order = await razorpay.orders.create(options);
+        const order = await withTimeout(razorpay.orders.create(options), 15000, 'Razorpay order');
 
         await PaymentOrder.create({
             orderId: order.id,
@@ -227,6 +237,9 @@ const createOrder = async (req, res) => {
         res.json({ ...order, key: process.env.RAZORPAY_KEY_ID });
     } catch (error) {
         console.error("Razorpay Error:", error);
+        if (error.timedOut) {
+            return res.status(504).json({ message: 'The payment gateway is slow to respond. No money was taken. Please try again in a moment.' });
+        }
         res.status(500).json({ message: error.message, details: error });
     }
 };
@@ -506,7 +519,8 @@ const PAYMENT_METHODS = { upi: 'UPI', card: 'Card', netbanking: 'Net Banking', w
 /** How it was paid ("UPI", "Card"...), for the statement. Never blocks the credit. */
 const paymentMethodOf = async (paymentId) => {
     try {
-        const p = await razorpay.payments.fetch(paymentId);
+        // Only a label for the statement: never worth making the person wait.
+        const p = await withTimeout(razorpay.payments.fetch(paymentId), 3000, 'Razorpay payment lookup');
         return PAYMENT_METHODS[p?.method] || (p?.method ? String(p.method).toUpperCase() : 'Razorpay');
     } catch {
         return 'Razorpay';
@@ -601,6 +615,41 @@ const verifyWalletRecharge = async (req, res) => {
     }
 };
 
+// @desc    Razorpay sends the browser here after a payment that went through a
+//          bank page. The page that opened the checkout is gone by then, so
+//          its success handler never runs: confirming here is what credits
+//          the money, and the browser is sent back to the app.
+// @route   POST /api/payment/callback  (form post from Razorpay)
+const razorpayCallback = async (req, res) => {
+    const front = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
+    const back = (result) => res.redirect(303, `${front}/provider?payment=${result}`);
+    try {
+        const body = req.body || {};
+        const reportedError = Object.keys(body).some(k => k === 'error' || k.startsWith('error['));
+        if (reportedError || !body.razorpay_payment_id) return back('failed');
+
+        // Signature and the once-only claim, exactly as the in-page verify does.
+        const claim = await claimPayment(req, { purpose: 'wallet' });
+        if (claim.error) {
+            // The in-page confirmation (or reconcile) already credited this
+            // very payment: that is a success for the person, not a failure.
+            if (claim.status === 409) {
+                const done = await PaymentOrder.findOne({ orderId: body.razorpay_order_id, consumedBy: body.razorpay_payment_id }).lean();
+                if (done) return back('success');
+            }
+            return back('failed');
+        }
+
+        const method = await paymentMethodOf(body.razorpay_payment_id);
+        await creditWalletRecharge(claim.order, body.razorpay_payment_id, method);
+        return back('success');
+    } catch (error) {
+        // Money may have been taken: say so, and let reconcile finish the job.
+        console.error('Razorpay callback failed:', error.message);
+        return back('pending');
+    }
+};
+
 // @desc    Credit any wallet recharge that was paid but never confirmed
 //          (the app closed, or the network dropped, after paying)
 // @route   POST /api/payment/wallet/reconcile
@@ -619,7 +668,7 @@ const reconcileWalletRecharges = async (req, res) => {
         for (const o of open) {
             let payments;
             try {
-                payments = await razorpay.orders.fetchPayments(o.orderId);
+                payments = await withTimeout(razorpay.orders.fetchPayments(o.orderId), 8000, 'Razorpay payments lookup');
             } catch (err) {
                 continue; // gateway unreachable: try again next time
             }
@@ -776,6 +825,7 @@ const verifyLeadPayment = async (req, res) => {
 
 module.exports = {
     reconcileWalletRecharges,
+    razorpayCallback,
     creditWalletRecharge,
     claimPayment,
     createRecordedOrder,

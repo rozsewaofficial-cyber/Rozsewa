@@ -333,6 +333,9 @@ const ProviderWallet = () => {
         name: "RozSewa Admin Settlement",
         description: "Clearing outstanding debt limits",
         order_id: order.id,
+        // Where Razorpay sends the browser when the payment went through a bank page and
+        // this page could not be told (phone WebViews): the server credits it there.
+        callback_url: `${API.defaults.baseURL}/payment/callback`,
         modal: {
           ondismiss: () => toast({ title: "Payment cancelled", description: "No money was taken. Your wallet is unchanged." }),
         },
@@ -421,6 +424,9 @@ const ProviderWallet = () => {
         name: "RozSewa Wallet Recharge",
         description: "Add money to wallet",
         order_id: order.id,
+        // Where Razorpay sends the browser when the payment went through a bank page and
+        // this page could not be told (phone WebViews): the server credits it there.
+        callback_url: `${API.defaults.baseURL}/payment/callback`,
         modal: {
           // Closed without paying: nothing taken, nothing added.
           ondismiss: () => toast({ title: "Payment cancelled", description: "No money was taken. Your wallet balance is unchanged." }),

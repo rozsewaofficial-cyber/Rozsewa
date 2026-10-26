@@ -80,7 +80,10 @@ const corsMiddleware = cors({
 // Google posts the redirect-mode sign-in result here as a plain form from
 // accounts.google.com. That is a page navigation, not a cross-origin read, so
 // the origin check would only break it; the sign-in is bound by its nonce.
-const CORS_EXEMPT_PATHS = new Set(['/api/auth/google/redirect']);
+// Razorpay does the same after a payment that took the person to a bank page
+// (the checkout cannot report back in the page, as on a phone's WebView): it
+// posts the result here as a form from its own origin.
+const CORS_EXEMPT_PATHS = new Set(['/api/auth/google/redirect', '/api/payment/callback']);
 app.use((req, res, next) => (CORS_EXEMPT_PATHS.has(req.path) ? next() : corsMiddleware(req, res, next)));
 app.use(express.json());
 app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds
@@ -117,10 +120,10 @@ app.use('/api/tips', tipRoutes);
 app.use('/api/training-panel', trainingPanelRoutes);
 app.use('/api/coins', coinRoutes);
 app.use('/api/insta', instaRoutes);
+app.use('/api/translate', translateRoutes);
 
 // V2 Versioned Commission APIs
 const { adminV2Router, providerV2Router } = require('./routes/v2Routes');
-app.use('/api/translate', translateRoutes);
 app.use('/api/v2/admin', adminV2Router);
 app.use('/api/v2/provider', providerV2Router);
 
