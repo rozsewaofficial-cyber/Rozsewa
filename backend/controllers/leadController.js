@@ -107,6 +107,56 @@ const logActivity = async (leadId, actorId, actorRole, event, detail = {}) => {
     }
 };
 
+/**
+ * Why this partner is (not) being sent new leads, in the partner's words.
+ * The targeting below drops a partner silently at the first layer they fail,
+ * so someone offline, without a saved location, or short of wallet balance
+ * simply never heard of a lead and had no way to know why.
+ */
+const leadReadinessOf = async (provider) => {
+    const problems = [];
+    const add = (code, message, link) => problems.push({ code, message, link });
+
+    if (provider.providerCategory === 'sewak') {
+        add('sewak', 'Leads are for partners. A Sewak gets work as bookings.');
+        return problems;
+    }
+    if (provider.status !== 'verified') add('not_verified', 'Your profile is not verified yet, so leads are not sent to you.', '/provider/documents');
+    if (!provider.isOnline) add('offline', 'You are offline. Switch to Online on the home page to get leads.', '/provider');
+    if (provider.canReceiveLead === false) add('leads_off', 'Lead requests are switched off for your account. Contact support to switch them on.', '/provider/support');
+    const c = provider.location?.coordinates;
+    if (!Array.isArray(c) || c.length < 2 || (Number(c[0]) === 0 && Number(c[1]) === 0)) {
+        add('no_location', 'Your location is not saved, so we cannot find leads near you. Tap Detect now in your profile.', '/provider/profile');
+    }
+    if (provider.vendorType && provider.vendorType.businessModel && provider.vendorType.businessModel !== 'lead') {
+        add('not_lead_category', 'Your category earns from bookings, not leads.');
+    }
+    if (freeLeftOf(provider) <= 0) {
+        const min = Number(await getSettingVal('lead_min_wallet_balance', 200));
+        const wallet = await Wallet.findOne({ providerId: provider._id }).select('balance availableBalance').lean();
+        const balance = spendableOf(wallet);
+        if (balance < min) add('low_balance', `Your free leads are used up. Keep at least ₹${min} in your wallet to get new leads (you have ₹${balance}).`, '/provider/wallet');
+    }
+    return problems;
+};
+
+// @desc    Is this partner set up to receive leads, and if not, why
+// @route   GET /api/leads/readiness
+// @access  Private (Provider)
+const getLeadReadiness = async (req, res) => {
+    try {
+        const provider = await Provider.findById(req.user._id)
+            .select('status isOnline canReceiveLead location vendorType freeTrial providerCategory')
+            .populate('vendorType', 'businessModel')
+            .lean();
+        if (!provider) return res.status(404).json({ message: 'Partner not found.' });
+        const problems = await leadReadinessOf(provider);
+        res.json({ ready: problems.length === 0, problems });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // ─── 9-Layer Provider Targeting Pipeline ─────────────────────────────────────
 
 /**
@@ -441,6 +491,10 @@ const createLead = async (req, res) => {
         return res.status(400).json({ message: 'Valid location coordinates are required.' });
 
     try {
+        // A PIN code entered with the address has to be one we serve.
+        const pinProblem = await require('../utils/servicePincodes').pincodeProblem(locationDetail?.pincode);
+        if (pinProblem) return res.status(400).json({ message: pinProblem, code: 'PINCODE_NOT_SERVED' });
+
         const category = await Category.findById(catId);
         if (!category) return res.status(404).json({ message: 'Category not found.' });
         if (category.businessModel !== 'lead')
@@ -1841,6 +1895,8 @@ module.exports = {
     declineLead,
     // Which partners a lead goes to (exported for its check script)
     findEligibleProviders,
+    getLeadReadiness,
+    leadReadinessOf,
     // Form Schema
     getFormSchema,
     // Draft

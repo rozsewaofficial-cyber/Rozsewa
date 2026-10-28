@@ -206,6 +206,24 @@ const findInCatalog = (catalog, name) => {
 // A service photo is a link from the upload API (or the catalog), never raw data.
 const validImage = (v) => v === undefined || v === null || v === '' || (typeof v === 'string' && /^https?:\/\/\S+$/i.test(v) && v.length <= 1000);
 
+/**
+ * A discount as the partner entered it: whole percent, 0 (none) to 90.
+ * Null when it is not a usable number.
+ */
+const cleanDiscount = (value) => {
+    if (value === undefined || value === null || value === '') return 0;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0 || n > 90) return null;
+    return Math.round(n);
+};
+
+/** The listed price, the discount and what the customer pays, kept together. */
+const priced = (listed, discount) => {
+    const original = Number(listed);
+    if (!discount) return { price: original, originalPrice: 0, discountPercent: 0 };
+    return { price: Math.max(1, Math.round(original * (100 - discount) / 100)), originalPrice: original, discountPercent: discount };
+};
+
 /** Why a partner's service price is refused, or null when it is fine. */
 const servicePriceError = (price) => {
     if (price === undefined || price === null || price === "" || !Number.isFinite(Number(price)) || Number(price) <= 0) {
@@ -249,6 +267,9 @@ const createService = async (req, res) => {
         const leadBased = provider?.providerCategory !== 'sewak' && catalog.category.businessModel === 'lead';
         const priceError = leadBased ? null : servicePriceError(price);
         if (priceError) return res.status(400).json({ message: priceError });
+        // A Sewak's price is fixed by RozSewa, so they offer no discount.
+        const discount = leadBased || provider?.providerCategory === 'sewak' ? 0 : cleanDiscount(req.body.discountPercent);
+        if (discount === null) return res.status(400).json({ message: 'Discount must be between 0% and 90%.' });
         // Once each: a second copy would show twice on the shop page.
         const mine = await Service.find({ providerId: req.user._id }).select('name').lean();
         if (mine.some(s => normalizeKey(s.name) === normalizeKey(name))) {
@@ -286,7 +307,7 @@ const createService = async (req, res) => {
             providerId: req.user._id,
             name,
             description,
-            price: leadBased ? 0 : Number(price),
+            ...(leadBased ? { price: 0 } : priced(price, discount)),
             duration,
             category: catalog.category.name,
             // The subcategory and service types the partner picked were sent
@@ -349,8 +370,16 @@ const updateService = async (req, res) => {
                 } else {
                     const priceError = servicePriceError(req.body.price);
                     if (priceError) return res.status(400).json({ message: priceError });
-                    service.price = Number(req.body.price);
+                    const discount = owner?.providerCategory === 'sewak' ? 0
+                        : cleanDiscount(req.body.discountPercent !== undefined ? req.body.discountPercent : service.discountPercent);
+                    if (discount === null) return res.status(400).json({ message: 'Discount must be between 0% and 90%.' });
+                    Object.assign(service, priced(req.body.price, discount));
                 }
+            } else if (req.body.discountPercent !== undefined && service.price > 0) {
+                // Only the discount changed: re-apply it to the price before it.
+                const discount = cleanDiscount(req.body.discountPercent);
+                if (discount === null) return res.status(400).json({ message: 'Discount must be between 0% and 90%.' });
+                Object.assign(service, priced(service.originalPrice || service.price, discount));
             }
             if (req.body.subcategory !== undefined) service.subcategory = req.body.subcategory || undefined;
             if (cleanServiceTypes(req.body.serviceType)) service.serviceType = cleanServiceTypes(req.body.serviceType);

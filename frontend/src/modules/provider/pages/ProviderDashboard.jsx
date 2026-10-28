@@ -8,6 +8,7 @@ import CommissionOverviewCard from "@/modules/provider/components/CommissionOver
 import useProviderAutoLocation from "@/hooks/useProviderAutoLocation";
 import LeadsHomeSection from "@/modules/provider/components/LeadsHomeSection";
 import { PermissionsBanner } from "@/modules/provider/components/PermissionsCard";
+import LeadReadinessBanner from "@/modules/provider/components/LeadReadinessBanner";
 import InstaWorkHomeCard from "@/modules/provider/components/InstaWorkHomeCard";
 import WelfareFundCard from "@/modules/provider/components/WelfareFundCard";
 import SewakBanners from "@/modules/provider/components/SewakBanners";
@@ -921,6 +922,7 @@ const ProviderDashboard = () => {
         </section>
 
         <PermissionsBanner />
+        <LeadReadinessBanner />
 
         {/* Leads used to be reachable only through the Leads tab. */}
         <LeadsHomeSection />

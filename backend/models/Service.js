@@ -18,7 +18,12 @@ const serviceSchema = mongoose.Schema({
     description: { type: String },
     category: { type: String },
     subcategory: { type: String },
+    // What customers pay. With a discount this is already the reduced figure,
+    // so every booking calculation keeps reading one price.
     price: { type: Number, required: true },
+    // The partner's discount: the price before it, and the percentage off.
+    originalPrice: { type: Number, default: 0 },
+    discountPercent: { type: Number, default: 0, min: 0, max: 90 },
     duration: { type: String, default: '30 min' },
     serviceType: { type: [String], default: ['home'] }, // 'home', 'shop', '24x7'
     visible: { type: Boolean, default: true },

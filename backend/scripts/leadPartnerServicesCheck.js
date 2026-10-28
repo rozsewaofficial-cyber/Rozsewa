@@ -75,7 +75,7 @@ const own = [
     await check('server: a lead-based partner saves a service without a price; others still need one', async () => {
         assert.ok(/const leadBased = provider\?\.providerCategory !== 'sewak' && catalog\.category\.businessModel === 'lead';/.test(svcCtrl));
         assert.ok(/const priceError = leadBased \? null : servicePriceError\(price\);/.test(svcCtrl));
-        assert.ok(/price: leadBased \? 0 : Number\(price\),/.test(svcCtrl));
+        assert.ok(/\.\.\.\(leadBased \? \{ price: 0 \} : priced\(price, discount\)\),/.test(svcCtrl));
         // editing can no longer set 0 or a negative price on a priced service
         const upd = svcCtrl.slice(svcCtrl.indexOf('const updateService'));
         assert.ok(/const priceError = servicePriceError\(req\.body\.price\);/.test(upd));
@@ -88,7 +88,7 @@ const own = [
         // Combos tab only to manage combos made before the category moved to leads.
         assert.ok(/\{\(!leadBased \|\| combos\.length > 0\) && \(\s*<div className="grid grid-cols-2 gap-1 rounded-2xl bg-muted\/70/.test(page));
         // A price set earlier still shows on the shop page, so it shows here too.
-        assert.ok(/\{\(!leadBased \|\| s\.price > 0\) && <span[^>]*>Price ₹\{s\.price\}<\/span>\}/.test(page));
+        assert.ok(/\{\(!leadBased \|\| s\.price > 0\) && <span[^>]*>[\s\S]{0,260}Price ₹\{s\.price\}<\/>\}[\s\S]{0,60}<\/span>\}/.test(page));
         assert.ok(/data-lead-based-note/.test(page) && /You get leads for this/.test(page));
     });
     await check('page: a service under "Other services" can be added (no subcategory demanded)', async () => {

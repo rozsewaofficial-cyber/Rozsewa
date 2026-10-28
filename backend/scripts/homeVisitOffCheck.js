@@ -16,6 +16,8 @@ const path = require('path');
 require('mongoose').set('bufferCommands', false);
 const Provider = require('../models/Provider');
 const Service = require('../models/Service');
+const { Wallet } = require('../models/Wallet');
+const Setting = require('../models/Setting');
 const { createBooking } = require('../controllers/bookingController');
 
 let passed = 0;
@@ -30,6 +32,10 @@ const call = (body) => new Promise((resolve) => {
     createBooking({ body: { serviceName: 'Geyser Repair', providerId: PID, serviceId: SID, totalAmount: 399, paymentMode: 'after', items: [{ id: SID }], ...body }, user: { _id: 'u1', role: 'customer' } }, res)
         .catch(e => resolve({ code: 500, body: { message: e.message } }));
 });
+
+// A partner with no dues: the cash limit check passes and the rules under test decide.
+Wallet.findOne = () => ({ select: () => ({ lean: async () => null }) });
+Setting.findOne = () => ({ lean: async () => null });
 
 (async () => {
     await check('Home Visit off: a home booking is refused', async () => {

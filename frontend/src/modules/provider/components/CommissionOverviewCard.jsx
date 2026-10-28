@@ -13,6 +13,16 @@ const Stat = ({ label, value }) => (
   </div>
 );
 
+const rupees = (n) => `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+
+/** "21.41-13000" → "₹21 – ₹13,000"; anything else is shown as it came. */
+const prettyRange = (range) => {
+  const m = String(range || "").match(/^s*([d.]+)s*[-–]s*([d.]+)s*$/);
+  return m ? `${rupees(m[1])} – ${rupees(m[2])}` : range || "All";
+};
+
+const FREE_JOBS = 3;
+
 const CommissionOverviewCard = ({ preview }) => {
   if (!preview) return null;
 
@@ -52,7 +62,7 @@ const CommissionOverviewCard = ({ preview }) => {
         ]
       : [
           { label: "Category", value: preview.categoryCommission?.categoryName || "—" },
-          { label: "Applies to bookings", value: preview.categoryCommission?.activeSlabRange || "All" },
+          { label: "Applies to bookings", value: prettyRange(preview.categoryCommission?.activeSlabRange) },
         ];
 
   const cta = isMember
@@ -64,7 +74,8 @@ const CommissionOverviewCard = ({ preview }) => {
   return (
     <section className="text-left" data-commission-overview>
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="flex items-center justify-between gap-3 px-5 pt-5">
+        <div className={`h-1.5 w-full bg-gradient-to-r ${isTrial ? "from-emerald-400 to-teal-500" : isMember ? "from-violet-500 to-fuchsia-500" : "from-emerald-500 to-sky-500"}`} />
+        <div className="flex items-center justify-between gap-3 px-5 pt-4">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
               <Percent className="h-5 w-5" />
@@ -89,12 +100,27 @@ const CommissionOverviewCard = ({ preview }) => {
               <span className="text-2xl">%</span>
             </p>
           </div>
-          {isTrial && (
-            <p className="max-w-[11rem] pb-0.5 text-right text-[11px] font-medium text-muted-foreground">
-              No commission on your first free jobs.
-            </p>
-          )}
+          <div className="max-w-[12rem] pb-0.5 text-right" data-commission-example>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">On a ₹1,000 job you keep</p>
+            <p className="text-lg font-black leading-tight text-foreground">{rupees(1000 - (1000 * rate) / 100)}</p>
+          </div>
         </div>
+
+        {isTrial && (
+          <div className="mt-4 px-5" data-free-jobs-progress>
+            <div className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              <span>Free jobs used</span>
+              <span>{Math.max(0, FREE_JOBS - Number(preview.remainingFreeServices ?? 0))} of {FREE_JOBS}</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 transition-all"
+                style={{ width: `${Math.min(100, (Math.max(0, FREE_JOBS - Number(preview.remainingFreeServices ?? 0)) / FREE_JOBS) * 100)}%` }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] font-medium text-muted-foreground">No commission on your first free jobs.</p>
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-2.5 px-5">
           {stats.map((s) => <Stat key={s.label} label={s.label} value={s.value} />)}

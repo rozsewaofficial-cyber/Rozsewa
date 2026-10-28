@@ -69,7 +69,7 @@ const ProviderServices = () => {
   const [showComboForm, setShowComboForm] = useState(draft.showComboForm || false);
   const [errors, setErrors] = useState({});
   const [editId, setEditId] = useState(draft.editId || null);
-  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", duration: "", serviceType: ["home"], visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" });
+  const [form, setForm] = useState(draft.form || { name: "", customName: "", description: "", basic: "", standard: "", premium: "", express: "", discountPercent: "", duration: "", serviceType: ["home"], visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" });
   const [viewService, setViewService] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   // A Sewak's Add Service: pick more of the category's services (Master Rate).
@@ -352,6 +352,8 @@ const ProviderServices = () => {
       subcategory: form.subcategory,
       // No price for a lead-based category; the server keeps none either.
       ...(leadBased ? {} : { price: Number(form.price) || 0 }),
+      // A Sewak's price is fixed by RozSewa: no discount.
+      ...(leadBased || user?.providerCategory === 'sewak' ? {} : { discountPercent: Number(form.discountPercent) || 0 }),
     };
 
     try {
@@ -467,7 +469,7 @@ const ProviderServices = () => {
     setShowForm(true);
   };
 
-  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", duration: "", visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
+  const resetForm = () => { setForm({ name: "", customName: "", description: "", price: "", discountPercent: "", duration: "", visible: true, image: "", amenities: [], serviceDetails: [], subcategory: "" }); setShowForm(false); setEditId(null); setNewAmenity(""); setNewServiceDetail(""); clearDraft(); setErrors({}); };
   const resetComboForm = () => { setComboForm({ name: "", description: "", services: [], price: "", image: "", serviceType: ["home"] }); setComboPending(null); setShowComboForm(false); setEditId(null); clearDraft(); setErrors({}); };
 
   const handleEdit = (s) => {
@@ -476,7 +478,9 @@ const ProviderServices = () => {
       name: isCustom ? "custom" : s.name,
       customName: isCustom ? s.name : "",
       description: s.description,
-      price: s.price || "",
+      // With a discount, the listed price is the one before it.
+      price: s.originalPrice || s.price || "",
+      discountPercent: s.discountPercent || "",
       duration: s.duration || "",
       visible: s.visible,
       image: s.image || "",
@@ -740,7 +744,9 @@ const ProviderServices = () => {
                       {leadBased && <span className="rounded-lg bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300">Leads</span>}
                       {/* A price set before the category moved to leads still
                           shows on the shop page, so the partner sees it too. */}
-                      {(!leadBased || s.price > 0) && <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">Price ₹{s.price}</span>}
+                      {(!leadBased || s.price > 0) && <span className="rounded-lg bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
+                        {s.discountPercent > 0 ? <><span className="line-through opacity-60">₹{s.originalPrice}</span> ₹{s.price} · {s.discountPercent}% off</> : <>Price ₹{s.price}</>}
+                      </span>}
                       {s.duration && <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300">{s.duration}</span>}
                       {s.subcategory && <span className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-bold text-slate-600 dark:text-slate-300">{s.subcategory}</span>}
                     </div>
@@ -1016,6 +1022,19 @@ const ProviderServices = () => {
                       readOnly={user?.providerCategory === 'sewak'}
                       className={`w-full rounded-2xl border ${errors.price ? 'border-rose-500' : 'border-border'} p-4 text-xs font-black focus:border-primary focus:outline-none ${user?.providerCategory === 'sewak' ? 'bg-slate-50 cursor-not-allowed opacity-80' : 'bg-background'}`} />
                     {errors.price && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.price}</p>}
+                    {user?.providerCategory !== 'sewak' && (
+                      <div className="mt-3" data-discount-field>
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] mb-2 text-muted-foreground">Discount (%) <span className="normal-case tracking-normal font-bold">optional</span></label>
+                        <input type="number" min="0" max="90" inputMode="numeric" placeholder="0" value={form.discountPercent ?? ""}
+                          onChange={e => { const v = e.target.value; if (v === "" || (Number(v) >= 0 && Number(v) <= 90)) setForm({ ...form, discountPercent: v }); }}
+                          className="w-full rounded-2xl border border-border bg-background p-4 text-xs font-black focus:border-primary focus:outline-none" />
+                        {Number(form.discountPercent) > 0 && Number(form.price) > 0 && (
+                          <p className="mt-1.5 text-[11px] font-bold text-emerald-600" data-discount-preview>
+                            Customers pay ₹{Math.max(1, Math.round(Number(form.price) * (100 - Number(form.discountPercent)) / 100))} <span className="text-muted-foreground line-through">₹{Number(form.price)}</span> · {Math.round(Number(form.discountPercent))}% off
+                          </p>
+                        )}
+                      </div>
+                    )}
                     {!errors.price && form.suggestedPrice && String(form.price) !== String(form.suggestedPrice) && user?.providerCategory !== 'sewak' && (
                       <button type="button" onClick={() => setForm({ ...form, price: String(form.suggestedPrice) })}
                         className="mt-1.5 text-[10px] font-bold text-emerald-600 hover:underline">
@@ -1332,7 +1351,7 @@ const ProviderServices = () => {
         )}
 
         {/* Sewak: Add Service — pick from the category's services */}
-        <AnimatePresence>
+        <AnimatePresence key="sewak-add-presence">
           {showSewakAdd && (
             <motion.div key="sewak-add-service-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto" data-sewak-add-modal>
@@ -1383,7 +1402,7 @@ const ProviderServices = () => {
         </AnimatePresence>
 
         {/* View Service Details Modal */}
-        <AnimatePresence>
+        <AnimatePresence key="view-service-presence">
           {viewService && (
             <motion.div key="view-service-modal" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
               <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-card w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl border border-border flex flex-col max-h-[90vh]">

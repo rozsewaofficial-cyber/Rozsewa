@@ -16,6 +16,7 @@ const {
     getCustomerLeads,
     // Provider
     getNearbyLeads,
+    getLeadReadiness,
     unlockLead,
     verifyMeetOtp,
     declineLead,
@@ -52,6 +53,7 @@ router.put('/:id',            protect, updateLead);
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 router.get('/nearby',         protect, getNearbyLeads);
+router.get('/readiness',       protect, getLeadReadiness);
 router.get('/plans',          protect, getLeadPlans);
 router.post('/:id/unlock',    protect, unlockLead);
 router.post('/:id/verify-otp', protect, verifyMeetOtp);   // Partner confirms meeting the customer

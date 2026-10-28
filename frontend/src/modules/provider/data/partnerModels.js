@@ -77,9 +77,15 @@ const MODELS = [
   },
 ];
 
+// RozSewa signs partners up for direct service work only, so registration
+// offers just this card (Service Expert for an individual, Service Agency for a
+// business). The other models stay defined, for partners already registered
+// under them and for tagging categories in admin.
+const OFFERED_AT_SIGNUP = ["service_provider"];
+
 /** The cards an account type sees, worded for that type. */
 export const partnerModelsFor = (accountType) =>
-  MODELS.filter((m) => m[accountType]).map((m) => ({ id: m.id, icon: m.icon, ...m[accountType] }));
+  MODELS.filter((m) => m[accountType] && OFFERED_AT_SIGNUP.includes(m.id)).map((m) => ({ id: m.id, icon: m.icon, ...m[accountType] }));
 
 /** Whether a card is offered to an account type. */
 export const isModelFor = (modelId, accountType) =>

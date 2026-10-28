@@ -39,12 +39,22 @@ const ProviderRegister = () => {
     if (step === 10) {
       sessionStorage.removeItem("providerRegStep");
       sessionStorage.removeItem("providerRegData");
+      sessionStorage.removeItem("providerRegCoords");
       sessionStorage.removeItem("providerRegStatus");
     } else {
       sessionStorage.setItem("providerRegStep", step.toString());
     }
   }, [step]);
-  const [coords, setCoords] = useState([0, 0]);
+  // Kept with the rest of the draft: a page that is reloaded half-way through
+  // registration used to lose the located point and save [0, 0], and a partner
+  // with no location is never matched for nearby work.
+  const [coords, setCoords] = useState(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("providerRegCoords") || "null");
+      if (Array.isArray(saved) && saved.length === 2 && saved.every(Number.isFinite)) return saved;
+    } catch { /* an unreadable draft just starts again */ }
+    return [0, 0];
+  });
   const [isFetchingLocation, setIsFetchingLocation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(null);
@@ -154,6 +164,7 @@ const ProviderRegister = () => {
 
   useEffect(() => {
     coordsRef.current = coords;
+    if (coords[0] !== 0 || coords[1] !== 0) sessionStorage.setItem("providerRegCoords", JSON.stringify(coords));
   }, [coords]);
 
   const [referredByName, setReferredByName] = useState("");
@@ -722,7 +733,7 @@ const ProviderRegister = () => {
     try {
       const { data: order } = await API.post("/payment/order", { amount: cardConfig.price });
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa",

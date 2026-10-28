@@ -1528,12 +1528,45 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
               <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
                 {newExtraCharges.map((charge, idx) => (
                   <div key={idx} className="flex gap-2 items-center">
-                    {extraMode === 'services' ? (
+                    {extraMode === 'services' && charge.custom ? (
+                      // The partner's own item, not one from their list.
+                      <div className="flex flex-1 items-center gap-1.5" data-extra-custom>
+                        <input
+                          autoFocus
+                          maxLength={120}
+                          placeholder="Item or service name"
+                          value={charge.item}
+                          onChange={(e) => {
+                            const updated = [...newExtraCharges];
+                            updated[idx] = { ...updated[idx], item: e.target.value };
+                            setNewExtraCharges(updated);
+                          }}
+                          className="min-w-0 flex-1 h-11 rounded-xl bg-muted border-none px-4 text-xs font-bold"
+                        />
+                        <button
+                          type="button"
+                          title="Choose from my services"
+                          onClick={() => {
+                            const updated = [...newExtraCharges];
+                            updated[idx] = { item: '', amount: '' };
+                            setNewExtraCharges(updated);
+                          }}
+                          className="h-11 shrink-0 rounded-xl bg-muted px-2.5 text-[10px] font-black uppercase text-muted-foreground"
+                        >
+                          List
+                        </button>
+                      </div>
+                    ) : extraMode === 'services' ? (
                       <select
                         value={charge.item}
                         onChange={(e) => {
                           const updated = [...newExtraCharges];
                           const selectedName = e.target.value;
+                          if (selectedName === '__other__') {
+                            updated[idx] = { item: '', amount: '', custom: true };
+                            setNewExtraCharges(updated);
+                            return;
+                          }
                           const svc = providerServices.find(s => s.name === selectedName);
                           updated[idx].item = selectedName;
                           if (svc && (svc.price !== undefined && svc.price !== null)) {
@@ -1547,6 +1580,7 @@ const RecentBookingsList = ({ hideCompletedAndCancelled = false, surface = 'book
                         {providerServices.map((s, i) => (
                           <option key={i} value={s.name}>{s.name}</option>
                         ))}
+                        <option value="__other__">Other item (type your own)…</option>
                       </select>
                     ) : (
                       <input

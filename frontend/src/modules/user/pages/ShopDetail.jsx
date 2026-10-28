@@ -137,7 +137,7 @@ const ShopDetail = () => {
         amenities: s.amenities || [],
         serviceDetails: s.serviceDetails || [],
         plans: [
-          { id: s._id, name: "Standard Service", price: s.price || 299, desc: "Standard service" }
+          { id: s._id, name: "Standard Service", price: s.price || 299, originalPrice: s.discountPercent > 0 ? s.originalPrice : 0, discountPercent: s.discountPercent || 0, desc: "Standard service" }
         ]
       }));
       setServicesList(mappedServices);
@@ -525,7 +525,15 @@ const ShopDetail = () => {
                               <div key={plan.id} className={`p-4 flex flex-row items-center justify-between gap-4 ${i !== service.plans.length - 1 ? "border-b border-slate-100 dark:border-slate-700" : ""}`}>
                                 <div className="flex-1 min-w-0">
                                   <h4 className="text-[14px] font-bold text-slate-900 dark:text-white truncate">{plan.name}</h4>
-                                  <p className="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5">₹{plan.price}</p>
+                                  <p className="text-base font-black text-blue-600 dark:text-blue-400 mt-0.5">
+                                    ₹{plan.price}
+                                    {plan.discountPercent > 0 && (
+                                      <span className="ml-2 text-xs font-bold text-slate-400 line-through" data-original-price>₹{plan.originalPrice}</span>
+                                    )}
+                                    {plan.discountPercent > 0 && (
+                                      <span className="ml-2 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-black text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">{plan.discountPercent}% OFF</span>
+                                    )}
+                                  </p>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                   {cart[plan.id] ? (

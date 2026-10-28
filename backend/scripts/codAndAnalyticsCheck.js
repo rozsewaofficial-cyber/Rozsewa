@@ -512,7 +512,7 @@ check('the reminder cron looks at the days it reminds about', () => {
     // booking that never completes stays in that set forever.
     const src = read('cron/bookingReminders.js');
     assert.ok(!/Booking\.find\(\{ status: 'confirmed' \}\)/.test(src), 'no unfiltered read may remain');
-    assert.ok(/bookingDate: \{ \$in: \[dayStamp/.test(src), 'it must be pinned to today and tomorrow');
+    assert.ok(/bookingDate: \{ \$in: \[today, tomorrow\] \}/.test(src), 'it must be pinned to today and tomorrow');
 });
 
 

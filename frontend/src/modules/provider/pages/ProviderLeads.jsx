@@ -1,3 +1,4 @@
+import LeadReadinessBanner from "@/modules/provider/components/LeadReadinessBanner";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import {
@@ -739,6 +740,7 @@ const ProviderLeads = () => {
       <ProviderTopNav />
 
       <main className="container max-w-3xl px-4 py-6 space-y-5 animate-in fade-in duration-500">
+        <LeadReadinessBanner />
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
