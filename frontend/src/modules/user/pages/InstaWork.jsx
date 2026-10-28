@@ -545,7 +545,8 @@ const InstaWork = () => {
                   {activeJob.workStartedAt ? clock((nowMs - new Date(activeJob.workStartedAt).getTime()) / 1000) : `${live?.workedMinutes ?? 0} min`}
                 </p>
                 {activeJob.isTimed && activeJob.workStartedAt && (() => {
-                  const left = new Date(activeJob.workStartedAt).getTime() + activeJob.bookedQuantity * 3600000 - nowMs;
+                  // The booked hours plus any extra time the customer has approved.
+                  const left = new Date(activeJob.workStartedAt).getTime() + (activeJob.bookedQuantity * 60 + (Number(activeJob.approvedExtraMinutes) || 0)) * 60000 - nowMs;
                   return (
                     <p className={`mt-1 text-[11px] font-bold ${left > 0 ? "text-muted-foreground" : "text-rose-600"}`}>
                       {left > 0 ? `Booked time left: ${clock(left / 1000)}` : "Booked time is over — extra time is billed at the same rate"}

@@ -51,4 +51,8 @@ check('booking checkout opens Razorpay with the key the server raised the order 
     assert.ok(!checkout.includes('rzp_test_8sYbzHWidwe5Zw'));
 });
 
+check('the booked-time countdown includes extra time the customer approved', () => {
+    assert.ok(page.includes('(Number(activeJob.approvedExtraMinutes) || 0)) * 60000 - nowMs'));
+});
+
 console.log(`\n${passed} insta customer checks passed.`);
