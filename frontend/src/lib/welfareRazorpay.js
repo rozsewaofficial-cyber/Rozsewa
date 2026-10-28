@@ -35,7 +35,7 @@ export const payWelfareByRazorpay = async ({ amount, user }) => {
       API.post("/welfare-fund/close", { razorpay_order_id: order.id, outcome, reason }).catch(() => {});
 
     const checkout = new window.Razorpay({
-      key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+      key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
       amount: order.amount,
       currency: order.currency,
       name: "RozSewa Welfare Fund",

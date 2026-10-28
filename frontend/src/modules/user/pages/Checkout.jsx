@@ -1141,7 +1141,9 @@ const Checkout = () => {
       });
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        // The key the server raised the order under; a build-time test key
+        // against a live order is what made Razorpay refuse the payment.
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa",

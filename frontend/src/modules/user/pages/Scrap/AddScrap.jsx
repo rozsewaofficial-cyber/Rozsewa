@@ -263,7 +263,7 @@ const AddScrap = () => {
       const { data: order } = await api.post('/payment/order', { amount: listingFee, currency: 'INR', purpose: 'bazaar' });
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa",

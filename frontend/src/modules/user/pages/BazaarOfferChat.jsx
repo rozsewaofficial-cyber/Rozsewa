@@ -360,7 +360,7 @@ const BazaarOfferChat = () => {
       });
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        key: orderRes.data.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: orderRes.data.amount,
         currency: "INR",
         name: "Rozsewa Bazaar",

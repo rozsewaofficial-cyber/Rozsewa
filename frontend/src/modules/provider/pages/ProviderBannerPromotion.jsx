@@ -269,7 +269,7 @@ const ProviderBannerPromotion = () => {
       // 2. Pay, then hand the signed payment back; the banner is created only
       //    once the server has verified it.
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_8sYbzHWidwe5Zw",
+        key: order.key || import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
         name: "RozSewa Banner Promotion",

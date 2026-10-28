@@ -161,7 +161,7 @@ const createWelfareFundOrder = async (req, res) => {
             status: 'pending'
         });
 
-        res.json(order);
+        res.json({ ...order, key: process.env.RAZORPAY_KEY_ID });
     } catch (error) {
         console.error('Welfare Fund order creation failed:', error);
         res.status(500).json({ message: error.message });

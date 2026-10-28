@@ -19,6 +19,8 @@ process.env.RAZORPAY_WEBHOOK_SECRET = 'hook_secret';
 const PaymentOrder = require('../models/PaymentOrder');
 const { Wallet, Transaction } = require('../models/Wallet');
 const Provider = require('../models/Provider');
+const InstaJob = require('../models/InstaJob');
+const Settlement = require('../services/InstaSettlementService');
 const { razorpayWebhook } = require('../controllers/paymentController');
 
 let passed = 0;
@@ -58,8 +60,19 @@ Wallet.findOneAndUpdate = async (q, u) => { wallet.balance = Math.round((wallet.
 Transaction.create = async (t) => { txs.push(t); return t; };
 Provider.updateOne = async () => ({});
 
+// Insta Work bills are settled from the job itself, by the order it raised.
+let instaJobs, settled;
+const instaJob = (over = {}) => ({
+    razorpayOrderId: 'order_i', status: 'CUSTOMER_CONFIRMED', paymentMode: 'online', paymentStatus: 'pending', finalAmount: 100,
+    jobCode: 'IWTEST', providerId: 'p1', customerId: 'c1', pushStatus() {}, async save() { return this; }, ...over
+});
+InstaJob.findOne = async (q) => instaJobs[q.razorpayOrderId] || null;
+InstaJob.exists = async () => null;
+Settlement.settle = async (job) => { settled.push(job.jobCode); return { ok: true }; };
+
 (async () => {
     reset();
+    instaJobs = {}; settled = [];
 
     await check('without a configured secret nothing is acted on', async () => {
         const keep = process.env.RAZORPAY_WEBHOOK_SECRET;
@@ -117,6 +130,24 @@ Provider.updateOne = async () => ({});
         assert.strictEqual((await send({ event: 'refund.processed', payload: {} })).code, 200);
         assert.strictEqual(wallet.balance, -600.75);
         assert.strictEqual(txs.length, 0);
+    });
+
+    await check('a captured Insta Work payment settles the job once, for the right amount only', async () => {
+        instaJobs = { order_i: instaJob() }; settled = [];
+        assert.strictEqual((await send(captured('order_i', 'pay_i1', 1))).code, 200);   // wrong amount
+        assert.strictEqual(instaJobs.order_i.paymentStatus, 'pending');
+        assert.strictEqual((await send(captured('order_i', 'pay_i1', 100))).code, 200);
+        assert.strictEqual(instaJobs.order_i.paymentStatus, 'paid');
+        assert.strictEqual(instaJobs.order_i.razorpayPaymentId, 'pay_i1');
+        await send(captured('order_i', 'pay_i1', 100));                                 // Razorpay retries
+        assert.deepStrictEqual(settled, ['IWTEST']);
+    });
+
+    await check('an Insta Work bill that is not awaiting payment is left alone', async () => {
+        instaJobs = { order_i: instaJob({ status: 'WORK_STARTED' }) }; settled = [];
+        await send(captured('order_i', 'pay_i2', 100));
+        assert.strictEqual(instaJobs.order_i.paymentStatus, 'pending');
+        assert.strictEqual(settled.length, 0);
     });
 
     await check('an unreadable payload is a 400, not a crash', async () => {

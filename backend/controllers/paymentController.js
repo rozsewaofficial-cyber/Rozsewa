@@ -133,7 +133,9 @@ const createRecordedOrder = async ({ amount, purpose, providerId, userId, meta }
         userId,
         meta
     });
-    return order;
+    // With the key it was raised under, so the app opens the checkout with
+    // the same one (a build-time key that differs makes Razorpay refuse it).
+    return { ...order, key: process.env.RAZORPAY_KEY_ID };
 };
 
 // @desc    Create Razorpay Order
@@ -726,6 +728,19 @@ const razorpayCallback = async (req, res) => {
     try {
         const body = req.body || {};
         const reportedError = Object.keys(body).some(k => k === 'error' || k.startsWith('error['));
+
+        // A customer paying for an Insta Work job comes back here too, and goes
+        // back to their own screen rather than the partner dashboard.
+        const InstaJob = require('../models/InstaJob');
+        const instaOrderId = body.razorpay_order_id || body['error[metadata][order_id]'];
+        if (instaOrderId && await InstaJob.exists({ razorpayOrderId: instaOrderId })) {
+            const home = (result) => res.redirect(303, `${front}/insta-work?payment=${result}`);
+            if (reportedError || !body.razorpay_payment_id) return home('failed');
+            if (!signatureIsValid(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature)) return home('failed');
+            const outcome = await require('./instaCustomerController').settleOnlinePayment(body.razorpay_order_id, body.razorpay_payment_id);
+            return home(['paid', 'already'].includes(outcome) ? 'success' : 'failed');
+        }
+
         if (reportedError || !body.razorpay_payment_id) return back('failed');
 
         // What the order was for decides how it is finished.
@@ -795,6 +810,11 @@ const razorpayWebhook = async (req, res) => {
         if (event.event === 'payment.captured' || event.event === 'order.paid') {
             const pay = event.payload?.payment?.entity;
             if (pay?.id && pay?.order_id) {
+                // An Insta Work bill is settled from the job itself (its own
+                // order), by the same rule as the customer's confirmation.
+                const outcome = await require('./instaCustomerController').settleOnlinePayment(pay.order_id, pay.id, Number(pay.amount));
+                if (outcome === 'amount_mismatch') console.error('Razorpay webhook amount mismatch for Insta order', pay.order_id, pay.amount);
+                if (outcome !== 'unknown') return res.json({ received: true });
                 const recorded = await PaymentOrder.findOne({ orderId: pay.order_id }).lean();
                 // Wallet / dues and lead-unlock orders are settled here; every
                 // other purpose has its own confirmation and is left to it.
