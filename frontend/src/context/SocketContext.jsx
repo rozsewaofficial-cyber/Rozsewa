@@ -46,6 +46,9 @@ export const SocketProvider = ({ children }) => {
     // Alarm Sound Player Management
     const [alarmSoundPlaying, setAlarmSoundPlaying] = useState(false);
     const alarmAudioRef = React.useRef(null);
+    // Phones only let a page play sound after the person has touched it. This
+    // says whether that has happened, so the app can ask for one tap if not.
+    const [soundUnlocked, setSoundUnlocked] = useState(false);
 
     const playAlarmSound = () => {
         if (alarmAudioRef.current) {
@@ -70,36 +73,47 @@ export const SocketProvider = ({ children }) => {
         }
     };
 
+    // Unlocks the alarm sound. Must run inside a tap: it is what the Alert
+    // sound button on the Permissions card calls, and what the first tap
+    // anywhere in the app does on its own.
+    const unlockSound = React.useCallback(() => {
+        const audio = alarmAudioRef.current;
+        if (!audio) return Promise.resolve(false);
+        audio.muted = true;
+        return audio.play()
+            .then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+                setSoundUnlocked(true);
+                return true;
+            })
+            .catch(err => {
+                console.log("Global Socket Alarm: Audio unlock attempt failed:", err);
+                return false;
+            });
+    }, []);
+
     // Global interaction listener to unlock audio autoplay
     useEffect(() => {
         const audio = new Audio('/sounds/alert.mp3');
         audio.loop = true;
         audio.volume = 1.0;
+        audio.preload = 'auto';
         alarmAudioRef.current = audio;
 
+        // iPhone counts a finished tap (touchend / click), not the first touch,
+        // as the touch that allows sound, so those are what is listened for.
+        const EVENTS = ['click', 'touchend', 'pointerup'];
         const unlockAudio = () => {
-            if (alarmAudioRef.current) {
-                alarmAudioRef.current.muted = true;
-                alarmAudioRef.current.play()
-                    .then(() => {
-                        alarmAudioRef.current.pause();
-                        alarmAudioRef.current.currentTime = 0;
-                        console.log("Global Socket Alarm: Audio unlocked successfully!");
-                        window.removeEventListener('click', unlockAudio);
-                        window.removeEventListener('touchstart', unlockAudio);
-                    })
-                    .catch(err => {
-                        console.log("Global Socket Alarm: Audio unlock attempt failed:", err);
-                    });
-            }
+            unlockSound().then((ok) => {
+                if (ok) EVENTS.forEach(e => window.removeEventListener(e, unlockAudio));
+            });
         };
 
-        window.addEventListener('click', unlockAudio);
-        window.addEventListener('touchstart', unlockAudio);
+        EVENTS.forEach(e => window.addEventListener(e, unlockAudio));
 
         return () => {
-            window.removeEventListener('click', unlockAudio);
-            window.removeEventListener('touchstart', unlockAudio);
+            EVENTS.forEach(e => window.removeEventListener(e, unlockAudio));
             if (alarmAudioRef.current) {
                 alarmAudioRef.current.pause();
                 alarmAudioRef.current = null;
@@ -369,7 +383,9 @@ export const SocketProvider = ({ children }) => {
             clearWithdrawalsCount: () => setPendingWithdrawalsCount(0),
             playAlarmSound,
             stopAlarmSound,
-            alarmSoundPlaying
+            alarmSoundPlaying,
+            soundUnlocked,
+            unlockSound
         }}>
             {children}
         </SocketContext.Provider>

@@ -247,58 +247,58 @@ const Index = () => {
   const topBanners = adminBanners.length > 0 ? adminBanners : defaultBanners;
 
   const quickLinksGrid = (
-    <section className="grid grid-cols-2 gap-3 pt-2 pb-4">
+    <section className="grid grid-cols-2 gap-3.5 pt-2 pb-5">
       <Link
         to="/bazaar"
-        className="flex items-start gap-2.5 rounded-[16px] border border-teal-100 dark:border-teal-800/50 bg-teal-50/70 dark:bg-teal-900/20 p-3.5 active:scale-95 transition-all"
+        className="flex items-start gap-3 rounded-[20px] border border-teal-100 dark:border-teal-800/50 bg-teal-50/70 dark:bg-teal-900/20 p-4 min-h-[88px] active:scale-95 transition-all"
       >
-        <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
-          <ShoppingBag className="w-4 h-4 text-teal-600" />
+        <div className="h-12 w-12 shrink-0 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+          <ShoppingBag className="w-6 h-6 text-teal-600" />
         </div>
         <div className="min-w-0">
-          <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">RozSewa Bazaar</h3>
-          <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Buy & sell nearby</p>
+          <h3 className="font-black text-slate-900 dark:text-white text-[14px] leading-tight">RozSewa Bazaar</h3>
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">Buy & sell nearby</p>
         </div>
       </Link>
 
       {instaEnabled && (
         <Link
           to="/insta-work"
-          className="flex items-start gap-2.5 rounded-[16px] border border-amber-100 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-900/20 p-3.5 active:scale-95 transition-all"
+          className="flex items-start gap-3 rounded-[20px] border border-amber-100 dark:border-amber-800/50 bg-amber-50/70 dark:bg-amber-900/20 p-4 min-h-[88px] active:scale-95 transition-all"
         >
-          <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
-            <Zap className="w-4 h-4 text-amber-500" />
+          <div className="h-12 w-12 shrink-0 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+            <Zap className="w-6 h-6 text-amber-500" />
           </div>
           <div className="min-w-0">
-            <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">Insta Work</h3>
-            <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Book by the hour</p>
+            <h3 className="font-black text-slate-900 dark:text-white text-[14px] leading-tight">Insta Work</h3>
+            <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">Book by the hour</p>
           </div>
         </Link>
       )}
 
       <Link
         to="/refer-earn"
-        className="flex items-start gap-2.5 rounded-[16px] border border-fuchsia-100 dark:border-fuchsia-800/50 bg-fuchsia-50/70 dark:bg-fuchsia-900/20 p-3.5 active:scale-95 transition-all"
+        className="flex items-start gap-3 rounded-[20px] border border-fuchsia-100 dark:border-fuchsia-800/50 bg-fuchsia-50/70 dark:bg-fuchsia-900/20 p-4 min-h-[88px] active:scale-95 transition-all"
       >
-        <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
-          <Gift className="w-4 h-4 text-fuchsia-600" />
+        <div className="h-12 w-12 shrink-0 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+          <Gift className="w-6 h-6 text-fuchsia-600" />
         </div>
         <div className="min-w-0">
-          <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">Refer & Earn</h3>
-          <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Earn RozSewa Coins</p>
+          <h3 className="font-black text-slate-900 dark:text-white text-[14px] leading-tight">Refer & Earn</h3>
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">Earn RozSewa Coins</p>
         </div>
       </Link>
 
       <Link
         to="/scrap/add"
-        className="flex items-start gap-2.5 rounded-[16px] border border-blue-100 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-900/20 p-3.5 active:scale-95 transition-all"
+        className="flex items-start gap-3 rounded-[20px] border border-blue-100 dark:border-blue-800/50 bg-blue-50/70 dark:bg-blue-900/20 p-4 min-h-[88px] active:scale-95 transition-all"
       >
-        <div className="h-9 w-9 shrink-0 rounded-xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
-          <Recycle className="w-4 h-4 text-blue-600" />
+        <div className="h-12 w-12 shrink-0 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center shadow-sm">
+          <Recycle className="w-6 h-6 text-blue-600" />
         </div>
         <div className="min-w-0">
-          <h3 className="font-black text-slate-900 dark:text-white text-[11px] leading-tight">Sell Scrap</h3>
-          <p className="text-[9px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">Get instant pickup</p>
+          <h3 className="font-black text-slate-900 dark:text-white text-[14px] leading-tight">Sell Scrap</h3>
+          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">Get instant pickup</p>
         </div>
       </Link>
     </section>

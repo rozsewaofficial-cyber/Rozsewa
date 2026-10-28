@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Bell, Camera, Check, ShieldAlert, Loader2, ChevronRight } from "lucide-react";
+import { MapPin, Bell, Camera, Volume2, Check, ShieldAlert, Loader2, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useSocket } from "@/context/SocketContext";
 
 /**
  * What the partner app needs the phone's permission for, in one place: the
@@ -15,6 +16,8 @@ const ITEMS = [
   { key: "location", icon: MapPin, title: "Location", why: "To get requests and leads near you." },
   { key: "notifications", icon: Bell, title: "Notifications", why: "To hear about new requests and reminders." },
   { key: "camera", icon: Camera, title: "Camera", why: "For your live profile photo." },
+  // Not a phone permission: a phone only plays an alarm once the app has been tapped.
+  { key: "sound", icon: Volume2, title: "Alert sound", why: "So the alarm rings when a request comes in while the app is open." },
 ];
 
 const read = async (key) => {
@@ -23,6 +26,7 @@ const read = async (key) => {
       if (!("Notification" in window)) return "unsupported";
       return Notification.permission === "default" ? "prompt" : Notification.permission;
     }
+    if (key === "sound") return "prompt"; // decided by the socket context, see below
     if (!navigator.permissions?.query) return "prompt";
     const status = await navigator.permissions.query({ name: key === "camera" ? "camera" : "geolocation" });
     return status.state; // granted | prompt | denied
@@ -32,11 +36,14 @@ const read = async (key) => {
 };
 
 export const usePermissions = () => {
-  const [state, setState] = useState({ location: "prompt", notifications: "prompt", camera: "prompt" });
+  const socketCtx = useSocket();
+  const soundOn = !!socketCtx?.soundUnlocked;
+  const [base, setBase] = useState({ location: "prompt", notifications: "prompt", camera: "prompt" });
   const refresh = useCallback(async () => {
-    const [location, notifications, camera] = await Promise.all(ITEMS.map((i) => read(i.key)));
-    setState({ location, notifications, camera });
+    const [location, notifications, camera] = await Promise.all(["location", "notifications", "camera"].map(read));
+    setBase({ location, notifications, camera });
   }, []);
+  const state = { ...base, sound: soundOn ? "granted" : "prompt" };
   useEffect(() => {
     refresh();
     // Coming back from the phone's settings page.
@@ -55,6 +62,7 @@ const WHERE_TO_ENABLE = "It is blocked. Open your browser or phone Settings → 
 const PermissionsCard = ({ onAllowLocation, onAllowNotifications }) => {
   const { toast } = useToast();
   const { state, refresh } = usePermissions();
+  const { unlockSound } = useSocket() || {};
   const [busy, setBusy] = useState(null);
 
   const allow = async (key) => {
@@ -65,6 +73,8 @@ const PermissionsCard = ({ onAllowLocation, onAllowNotifications }) => {
       } else if (key === "notifications") {
         if ("Notification" in window) await Notification.requestPermission();
         await onAllowNotifications?.();
+      } else if (key === "sound") {
+        await unlockSound?.();
       } else if (key === "camera") {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach((t) => t.stop());
@@ -80,7 +90,8 @@ const PermissionsCard = ({ onAllowLocation, onAllowNotifications }) => {
   };
 
   const needing = ITEMS.filter((i) => state[i.key] === "prompt");
-  const allowAll = async () => { for (const i of needing) await allow(i.key); };
+  // Sound first: it only works inside the tap that started this.
+  const allowAll = async () => { for (const i of [...needing].sort((a) => (a.key === "sound" ? -1 : 1))) await allow(i.key); };
 
   return (
     <section id="permissions" className="rounded-2xl border border-border bg-card p-5 shadow-sm" data-permissions-card>

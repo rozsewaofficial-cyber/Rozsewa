@@ -24,7 +24,7 @@ import {
 // `redirect` ({ loginUri, nonce }) switches Google to redirect mode — see
 // useGoogleRedirect below. Google only reads its settings when the button is
 // first drawn, so the button is redrawn (keyed) whenever the nonce changes.
-const GoogleSignInTile = ({ onSuccess, onError, redirect }) => {
+const GoogleSignInTile = ({ onSuccess, onError, redirect, onUnavailable }) => {
   const ref = useRef(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -36,6 +36,7 @@ const GoogleSignInTile = ({ onSuccess, onError, redirect }) => {
   return (
     <div
       ref={ref}
+      onClick={() => { if (redirect && !redirect.nonce) onUnavailable?.(redirect.failed); }}
       className="relative flex h-11 items-center justify-center gap-2 overflow-hidden rounded-xl border border-border bg-card text-xs font-bold text-foreground"
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>
@@ -66,6 +67,11 @@ const GOOGLE_NONCE_KEY = "rozsewa_google_nonce";
 const GOOGLE_FROM_KEY = "rozsewa_google_from";
 const NONCE_REFRESH_MS = 8 * 60 * 1000; // the server keeps a nonce for 10 minutes
 
+// Google refuses to sign anyone in from the browser built into another app
+// (Instagram, Facebook, WhatsApp and so on): the page just says access blocked.
+const inAppBrowser = () =>
+  typeof navigator !== "undefined" && /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Snapchat|WhatsApp/i.test(navigator.userAgent || "");
+
 const needsGoogleRedirect = () => {
   if (typeof window === "undefined") return false;
   const ua = navigator.userAgent || "";
@@ -90,29 +96,38 @@ const storageSet = (key, value) => {
 
 const useGoogleRedirect = (enabled, from) => {
   const [nonce, setNonce] = useState(null);
+  // The button is only drawn once the server has handed out a nonce. If that
+  // one request failed (a bad signal on opening the page), nothing was drawn
+  // and the tile looked dead, so it is retried a few times and the tile says
+  // so if it still cannot start.
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!enabled) return undefined;
     let cancelled = false;
-    const start = async () => {
+    let retry = null;
+    const start = async (attempt = 1) => {
       try {
         const { data } = await API.post("/auth/google/start", { returnOrigin: window.location.origin });
         if (cancelled || !data?.nonce) return;
         storageSet(GOOGLE_NONCE_KEY, data.nonce);
         setNonce(data.nonce);
+        setFailed(false);
       } catch {
-        if (!cancelled) setNonce(null);
+        if (cancelled) return;
+        if (attempt < 4) retry = setTimeout(() => start(attempt + 1), 2000 * attempt);
+        else setFailed(true);
       }
     };
     start();
     const timer = setInterval(start, NONCE_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(timer); };
+    return () => { cancelled = true; clearTimeout(retry); clearInterval(timer); };
   }, [enabled]);
   // Where to go after signing in, kept across the trip to Google.
   useEffect(() => {
     if (enabled && nonce) storageSet(GOOGLE_FROM_KEY, from);
   }, [enabled, nonce, from]);
   if (!enabled) return null;
-  return { nonce, loginUri: `${API.defaults.baseURL.replace(/\/$/, "")}/auth/google/redirect` };
+  return { nonce, failed, loginUri: `${API.defaults.baseURL.replace(/\/$/, "")}/auth/google/redirect` };
 };
 
 const CustomerLogin = () => {
@@ -1082,6 +1097,11 @@ const CustomerLogin = () => {
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
                 <div className="relative flex justify-center text-xs"><span className="bg-card px-3 font-semibold text-muted-foreground">Or continue with</span></div>
               </div>
+              {inAppBrowser() && (
+                <p className="mb-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                  Google sign-in does not work inside this app's browser. Open this page in Safari or Chrome, or log in with email or OTP.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 {googleClientId ? (
                   <GoogleOAuthProvider clientId={googleClientId}>
@@ -1089,6 +1109,11 @@ const CustomerLogin = () => {
                       redirect={googleRedirect}
                       onSuccess={handleGoogleSuccess}
                       onError={() => setError("Google Sign-In failed. Please try again.")}
+                      onUnavailable={(failed) => setError(
+                        failed
+                          ? "Google Sign-In could not start. Check your connection and reload, or log in with email or OTP."
+                          : "Google Sign-In is getting ready. Please try again in a moment."
+                      )}
                     />
                   </GoogleOAuthProvider>
                 ) : (

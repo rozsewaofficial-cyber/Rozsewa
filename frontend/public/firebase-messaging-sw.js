@@ -39,6 +39,10 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: payload.notification?.body || payload.data?.body || '',
     icon: '/RozSewa.png',
+    // Let the phone play its alert sound and buzz; jobs and leads stay up until tapped.
+    silent: false,
+    vibrate: [200, 100, 200],
+    requireInteraction: ['booking', 'lead', 'sos'].includes(payload.data?.type),
     data: payload.data
   };
 

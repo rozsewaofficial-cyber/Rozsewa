@@ -166,6 +166,10 @@ const stringifyFcmData = (data = {}) =>
         Object.entries(data).map(([key, value]) => [key, value == null ? '' : String(value)])
     );
 
+// Notifications that need an answer soon: they break through Focus modes and
+// stay on screen until dealt with.
+const URGENT_TYPES = new Set(['booking', 'lead', 'sos']);
+
 /**
  * Send FCM push notification (direct or called via notifyUser)
  */
@@ -243,12 +247,18 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
             },
             apns: {
                 headers: {
-                    'apns-priority': '10'
+                    'apns-priority': '10',
+                    // An alert that has to be shown and heard, not a silent wake-up.
+                    'apns-push-type': 'alert'
                 },
                 payload: {
                     aps: {
                         sound: 'default',
-                        'content-available': 1
+                        'content-available': 1,
+                        // Jobs and leads should still ring through a Focus mode
+                        // (needs the Time Sensitive capability on the iOS app;
+                        // without it iOS just treats it as a normal alert).
+                        ...(URGENT_TYPES.has(typeKey) ? { 'interruption-level': 'time-sensitive' } : {})
                     }
                 }
             },
@@ -257,7 +267,11 @@ async function sendNotificationToUser(userId, userRole, payload, bypassDuplicate
                     Urgency: 'high'
                 },
                 notification: {
-                    icon: '/RozSewa.png'
+                    icon: '/RozSewa.png',
+                    // Plays the phone's alert sound and buzzes (iPhone web push too).
+                    silent: false,
+                    vibrate: [200, 100, 200],
+                    ...(URGENT_TYPES.has(typeKey) ? { requireInteraction: true } : {})
                 }
             },
             data: stringifiedData
@@ -316,6 +330,7 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
     let pushStatus = 'skipped';
     let emailStatus = 'skipped';
     let smsStatus = 'skipped';
+    let whatsappStatus = 'skipped';
     let errorMessage = null;
     let errorStack = null;
     let hasErrors = false;
@@ -413,7 +428,19 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
             console.error('[Notification Channel Error] FCM Push failed:', fcmErr);
         }
 
-        // 5. Channels 4 & 5: Email & SMS/WhatsApp (Provider booking/payment events only)
+        // WhatsApp copy of job, lead and booking alerts. Not awaited: a slow
+        // gateway must never hold up the booking or lead that caused it.
+        try {
+            require('../services/whatsappService')
+                .sendAlert({ userId, userRole, title, message, type, bookingId })
+                .then((s) => console.log(`[WhatsApp alert] ${type} to ${userRole} ${userId}: ${s}`))
+                .catch(() => {});
+            whatsappStatus = 'queued';
+        } catch (waErr) {
+            whatsappStatus = 'fail';
+        }
+
+        // 5. Channels 4 & 5: Email & SMS (Provider booking/payment events only)
         if (userRole === 'provider' && (type === 'booking' || type === 'payment') && bookingId) {
             try {
                 const Provider = require('../models/Provider');
@@ -526,7 +553,8 @@ async function notifyUser({ userId, userRole, title, message, type = 'system', d
                 socket: socketStatus,
                 push: pushStatus,
                 email: emailStatus,
-                sms: smsStatus
+                sms: smsStatus,
+                whatsapp: whatsappStatus
             }
         };
 

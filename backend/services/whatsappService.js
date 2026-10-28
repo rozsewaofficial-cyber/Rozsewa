@@ -47,6 +47,50 @@ const sendWhatsAppMessage = async (mobile, message) => {
     }
 };
 
+/**
+ * Which in-app notifications are also sent on WhatsApp, and to whom.
+ *
+ * Partners get every job, lead and booking alert. A customer's booking
+ * messages are already sent by the booking flow itself (confirmed, on the way,
+ * started, completed, cancelled), so for a customer only what that flow does
+ * not cover is sent here: an Insta Work job has no booking behind it.
+ * Reminders (several per booking) stay on push only.
+ */
+const PARTNER_TYPES = new Set(['booking', 'booking_update', 'cancel', 'lead']);
+const CUSTOMER_TYPES = new Set(['booking', 'booking_update', 'lead']);
+
+const alertWanted = ({ userRole, type, title, bookingId }) => {
+    if (String(process.env.WHATSAPP_ALERTS || '').toLowerCase() === 'off') return false;
+    if (/^reminder:/i.test(String(title || ''))) return false;
+    if (userRole === 'provider') return PARTNER_TYPES.has(type);
+    // A customer notification that carries a booking is the booking flow's own.
+    if (CUSTOMER_TYPES.has(type)) return !bookingId || type === 'lead';
+    return false;
+};
+
+const looksDummy = (digits) => digits.length < 10 || /^0+$/.test(digits) || /^1+$/.test(digits) || digits === '1234567890';
+
+/**
+ * Send an in-app notification on WhatsApp too. Never throws; resolves to a
+ * short status for the notification log.
+ */
+const sendAlert = async ({ userId, userRole, title, message, type, bookingId }) => {
+    if (!alertWanted({ userRole, type, title, bookingId })) return 'skipped (not a WhatsApp alert)';
+    if (!WHATSAPP_API_KEY) return 'skipped (not configured)';
+    try {
+        const Model = userRole === 'provider' ? require('../models/Provider') : require('../models/User');
+        const who = await Model.findById(userId).select('mobile').lean();
+        const digits = String(who?.mobile || '').replace(/\D/g, '');
+        if (!digits || looksDummy(digits)) return 'skipped (no valid mobile)';
+        const site = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
+        const link = site ? `\n\nOpen the app: ${site}` : '';
+        const res = await sendWhatsAppMessage(digits, `*${title}*\n${message}${link}\n\n- Team RozSewa`);
+        return res.success ? 'success' : `fail (${res.error})`;
+    } catch (err) {
+        return `fail (${err.message})`;
+    }
+};
+
 const bookingRef = (booking) => booking._id.toString().slice(-6).toUpperCase();
 
 const STATUS_COPY = {
@@ -112,6 +156,8 @@ const sendReviewThanks = async (user, booking, rating) => {
 
 module.exports = {
     sendWhatsAppMessage,
+    sendAlert,
+    alertWanted,
     sendBookingConfirmed,
     sendBookingStatusUpdate,
     sendInvoice,
