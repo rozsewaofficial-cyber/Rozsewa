@@ -541,7 +541,11 @@ const stopWork = async (req, res) => {
         if (!service) return res.status(404).json({ message: 'Service record missing for this job.' });
 
         job.workCompletedAt = new Date();
-        job.workedMinutes = Pricing.minutesBetween(job.workStartedAt, job.workCompletedAt);
+        // Work the customer started with their OTP is at least one minute: a
+        // timer stopped inside its first minute would otherwise bill ₹0, leave a
+        // bill the customer cannot pay (no gateway order for zero) and pay the
+        // worker nothing for a visit that happened.
+        job.workedMinutes = Math.max(1, Pricing.minutesBetween(job.workStartedAt, job.workCompletedAt));
 
         // Time past the booked duration is only billable once the customer has
         // approved it. Without this cap the approval prompt is decorative: a

@@ -56,6 +56,21 @@ const isUpcoming = (j, now = Date.now()) =>
   j.bookingMode === "scheduled" && NOT_STARTED.includes(j.status) && j.scheduledFor &&
   new Date(j.scheduledFor).getTime() - now > 2 * 60 * 60 * 1000;
 
+/** 125 seconds -> "2:05"; an hour or more -> "1:02:05". */
+const clock = (totalSeconds) => {
+  const t = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = String(t % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+};
+
+/** When the job moved into a status (from its history), as a time in ms. */
+const enteredAt = (job, status) => {
+  const h = [...(job?.statusHistory || [])].reverse().find((x) => x.status === status);
+  return h?.at ? new Date(h.at).getTime() : null;
+};
+
 const InstaWork = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -89,6 +104,14 @@ const InstaWork = () => {
 
   const [activeJob, setActiveJob] = useState(null);
   const [live, setLive] = useState(null);
+  // Ticks every second while a job is on screen, so the countdowns run
+  // smoothly between the 5-second refreshes.
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    if (!activeJob) return undefined;
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [activeJob]);
 
   // Where the worker comes: the location the customer picked and confirmed.
   const location = place.lat !== null
@@ -346,6 +369,12 @@ const InstaWork = () => {
         name: "RozSewa",
         description: `Insta Work ${order.jobCode}`,
         order_id: order.orderId,
+        // Who is paying, so the checkout does not ask for it again.
+        prefill: { name: user?.name, email: user?.email, contact: (user?.mobile || "").replace(/D/g, "").slice(-10) },
+        // When the payment goes through a bank page and this page is not told
+        // (the app's browser closed, a redirect), the server settles the job
+        // there and sends the customer back here.
+        callback_url: `${API.defaults.baseURL}/payment/callback`,
         handler: async (response) => {
           try {
             // Straight through to the server, which checks the signature and
@@ -473,6 +502,17 @@ const InstaWork = () => {
               </div>
             )}
 
+            {activeJob.status === "ON_THE_WAY" && activeJob.matchedEtaMinutes > 0 && enteredAt(activeJob, "ON_THE_WAY") && (
+              <div className="mt-3 rounded-xl bg-card p-4 text-center" data-insta-eta>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Worker arrives in about</p>
+                <p className="mt-1 text-2xl font-black tabular-nums text-foreground">
+                  {nowMs - enteredAt(activeJob, "ON_THE_WAY") < activeJob.matchedEtaMinutes * 60000
+                    ? clock((enteredAt(activeJob, "ON_THE_WAY") + activeJob.matchedEtaMinutes * 60000 - nowMs) / 1000)
+                    : "Any moment now"}
+                </p>
+              </div>
+            )}
+
             {/* The OTP is the customer's to hand over — it is never shown to the worker. */}
             {activeJob.status === "ARRIVED" && activeJob.startOTP && (
               <div className="mt-3 rounded-xl bg-card p-4 text-center">
@@ -482,10 +522,16 @@ const InstaWork = () => {
                 <p className="mt-1 font-mono text-3xl font-black tracking-[0.3em] text-foreground">
                   {activeJob.startOTP}
                 </p>
-                {live?.idleMinutes > 0 && (
-                  <p className="mt-2 text-[11px] font-bold text-rose-600">
-                    Waiting charges running: {live.idleMinutes} min
-                  </p>
+                {activeJob.arrivedAt && live?.graceMinutes > 0 && (
+                  nowMs < new Date(activeJob.arrivedAt).getTime() + live.graceMinutes * 60000 ? (
+                    <p className="mt-2 text-[11px] font-bold text-emerald-600" data-insta-grace>
+                      Free waiting time left: <span className="tabular-nums">{clock((new Date(activeJob.arrivedAt).getTime() + live.graceMinutes * 60000 - nowMs) / 1000)}</span>
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-[11px] font-bold text-rose-600">
+                      Waiting charges running{live?.idleMinutes > 0 ? `: ${live.idleMinutes} min` : ""}
+                    </p>
+                  )
                 )}
               </div>
             )}
@@ -495,9 +541,17 @@ const InstaWork = () => {
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                   Time worked
                 </p>
-                <p className="mt-1 text-2xl font-black tabular-nums text-foreground">
-                  {live?.workedMinutes ?? 0} min
+                <p className="mt-1 text-2xl font-black tabular-nums text-foreground" data-insta-timer>
+                  {activeJob.workStartedAt ? clock((nowMs - new Date(activeJob.workStartedAt).getTime()) / 1000) : `${live?.workedMinutes ?? 0} min`}
                 </p>
+                {activeJob.isTimed && activeJob.workStartedAt && (() => {
+                  const left = new Date(activeJob.workStartedAt).getTime() + activeJob.bookedQuantity * 3600000 - nowMs;
+                  return (
+                    <p className={`mt-1 text-[11px] font-bold ${left > 0 ? "text-muted-foreground" : "text-rose-600"}`}>
+                      {left > 0 ? `Booked time left: ${clock(left / 1000)}` : "Booked time is over — extra time is billed at the same rate"}
+                    </p>
+                  );
+                })()}
               </div>
             )}
 

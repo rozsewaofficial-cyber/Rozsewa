@@ -54,6 +54,8 @@ const ServiceHistory = () => {
   // several screens call this endpoint and expect a bare array back.
   const [totalBookings, setTotalBookings] = useState(null);
   const [filter, setFilter] = useState("all");
+  // Insta Work jobs are a separate record from bookings; they are listed here too.
+  const [instaJobs, setInstaJobs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Modals state
@@ -68,6 +70,7 @@ const ServiceHistory = () => {
 
   const fetchBookings = async () => {
     try {
+      API.get("/insta/jobs").then(r => setInstaJobs(r.data?.jobs || [])).catch(() => {});
       const res = await API.get("/bookings");
       const data = res.data;
       const reported = Number(res.headers?.['x-total-count']);
@@ -120,6 +123,8 @@ const ServiceHistory = () => {
   }, []);
 
   const filtered = filter === "all" ? bookings : bookings.filter(b => b.status === filter);
+  const instaGroup = (j) => (j.status === "CANCELLED" ? "cancelled" : ["PAYMENT_COMPLETED", "CLOSED"].includes(j.status) ? "completed" : "confirmed");
+  const shownInsta = instaJobs.filter(j => filter === "all" || instaGroup(j) === filter);
 
   const handleCancel = async () => {
     try {
@@ -358,7 +363,7 @@ const ServiceHistory = () => {
             </motion.button>
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Bookings</h1>
-              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{totalBookings ?? bookings.length} total bookings</p>
+              <p className="text-[13px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">{(totalBookings ?? bookings.length) + instaJobs.length} total bookings</p>
             </div>
           </div>
 
@@ -379,12 +384,34 @@ const ServiceHistory = () => {
 
         {/* List */}
         <div className="space-y-4">
-          {filtered.length === 0 && (
+          {filtered.length === 0 && shownInsta.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-900">
               <Package className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-3" />
               <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">No bookings found</p>
             </div>
           )}
+          {shownInsta.map((j) => (
+            <div key={j._id} data-insta-job={j.jobCode} onClick={() => navigate("/insta-work")}
+              className="cursor-pointer rounded-[24px] border border-amber-200 dark:border-amber-900/40 bg-white dark:bg-slate-900 p-5 transition-all hover:border-amber-400">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:bg-amber-900/30">Insta Work</span>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:bg-slate-800 dark:text-slate-300">{String(j.status).replace(/_/g, " ")}</span>
+                    <span className="text-[10px] font-bold text-slate-400">{j.jobCode}</span>
+                  </div>
+                  <h3 className="truncate text-base font-bold text-slate-900 dark:text-white">{j.serviceName}</h3>
+                  {j.providerId?.ownerName && <p className="truncate text-[12px] font-bold text-blue-600 dark:text-blue-400">with {j.providerId.ownerName}</p>}
+                  <p className="mt-1 line-clamp-2 text-[13px] font-medium text-slate-500 dark:text-slate-400"><MapPin className="-mt-0.5 mr-1 inline h-3.5 w-3.5" /> {j.address}</p>
+                </div>
+                <p className="shrink-0 text-lg font-black text-slate-900 dark:text-white">₹{j.finalAmount || j.estimateAmount || 0}</p>
+              </div>
+              <div className="mt-3 flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-[13px] font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <CalendarDays className="h-4 w-4 text-amber-500" />
+                {new Date(j.scheduledFor || j.createdAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })}
+              </div>
+            </div>
+          ))}
           {filtered.map((booking, i) => (
             <motion.div key={booking.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               onClick={() => openDetails(booking)}

@@ -57,6 +57,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import GlobalAlarm from "./components/GlobalAlarm";
 import LocationGate from "./components/LocationGate";
 import AppTranslator from "./components/AppTranslator";
+import InstaPresence from "./components/InstaPresence";
 import ScrollToTop from "./components/ScrollToTop";
 
 // Provider Pages
@@ -204,6 +205,7 @@ const App = () => (
                   <Sonner position="top-right" expand={true} richColors />
                   <GlobalAlarm />
                   <AppTranslator />
+                  <InstaPresence />
                   <ReferralAutoApply />
                   <AnimatePresence mode="wait">
                     <Routes>

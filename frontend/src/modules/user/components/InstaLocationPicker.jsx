@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { GoogleMap, MarkerF, Autocomplete, useJsApiLoader } from "@react-google-maps/api";
 import { Crosshair, Home, Briefcase, MapPin, Loader2, Check } from "lucide-react";
 import API from "@/lib/api";
+import useServicePincodes, { pincodeMessage } from "@/hooks/useServicePincodes";
 
 // Same loader options as everywhere else in the app, so the one script tag is shared.
 const libraries = ["places"];
@@ -161,7 +162,9 @@ const InstaLocationPicker = ({ value, onChange, user }) => {
   };
 
   const hasPin = v.lat !== null && v.lng !== null;
-  const canConfirm = hasPin && formatAddress(v.details).length > 3 && (v.details.house || "").trim()
+  const servedPins = useServicePincodes();
+  const pinProblem = pincodeMessage(servedPins, v.details.pincode, { required: true });
+  const canConfirm = hasPin && !pinProblem && formatAddress(v.details).length > 3
     && /^\d{10}$/.test((v.contactMobile || "").replace(/\D/g, "")) && (v.contactName || "").trim();
   const field = "h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-medium outline-none focus:border-amber-500";
 
@@ -212,13 +215,16 @@ const InstaLocationPicker = ({ value, onChange, user }) => {
 
       {hasPin && (
         <div className="grid grid-cols-2 gap-2">
-          <input className={`${field} col-span-2`} placeholder="House / Flat No. *" value={v.details.house} onChange={(e) => setDetail("house", e.target.value)} />
+          <input className={`${field} col-span-2`} placeholder="House / Flat No. (optional)" value={v.details.house} onChange={(e) => setDetail("house", e.target.value)} />
           <input className={`${field} col-span-2`} placeholder="Building / Street" value={v.details.building} onChange={(e) => setDetail("building", e.target.value)} />
           <input className={field} placeholder="Landmark" value={v.details.landmark} onChange={(e) => setDetail("landmark", e.target.value)} />
           <input className={field} placeholder="Area / Locality" value={v.details.area} onChange={(e) => setDetail("area", e.target.value)} />
           <input className={field} placeholder="City" value={v.details.city} onChange={(e) => setDetail("city", e.target.value)} />
           <input className={field} placeholder="State" value={v.details.state} onChange={(e) => setDetail("state", e.target.value)} />
-          <input className={field} placeholder="PIN Code" inputMode="numeric" maxLength={6} value={v.details.pincode} onChange={(e) => setDetail("pincode", e.target.value.replace(/\D/g, ""))} />
+          <input className={`${field} ${pinProblem && v.details.pincode ? "border-red-400" : ""}`} placeholder="PIN Code *" inputMode="numeric" maxLength={6} value={v.details.pincode} onChange={(e) => setDetail("pincode", e.target.value.replace(/\D/g, ""))} />
+          {pinProblem && v.details.pincode && (
+            <p className="col-span-2 text-[11px] font-bold text-red-600" data-pincode-problem>{pinProblem}</p>
+          )}
           <div />
           <input className={field} placeholder="Contact person *" value={v.contactName} onChange={(e) => set({ contactName: e.target.value })} />
           <input className={field} placeholder="Contact mobile *" inputMode="numeric" maxLength={10} value={v.contactMobile} onChange={(e) => set({ contactMobile: e.target.value.replace(/\D/g, "") })} />

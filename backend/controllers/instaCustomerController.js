@@ -245,6 +245,10 @@ const createJob = async (req, res) => {
         }
         if (!address || !String(address).trim()) return res.status(400).json({ message: 'A service address is required.' });
 
+        // Only PIN codes in the cities we serve (when the admin has listed them).
+        const pinProblem = await require('../utils/servicePincodes').pincodeProblem(req.body.addressDetails?.pincode, { required: true });
+        if (pinProblem) return res.status(400).json({ message: pinProblem, code: 'PINCODE_NOT_SERVED' });
+
         // Coordinates are not optional for Insta Work. Without them the
         // matcher cannot apply its radius, so it falls back to "anyone who is
         // live" — which silently books a worker who may be a hundred
@@ -624,6 +628,47 @@ const createPaymentOrder = async (req, res) => {
     }
 };
 
+/**
+ * The job is paid: mark it, settle the worker's share, tell both sides.
+ * Shared by the customer's own confirmation (payJob) and by the gateway's
+ * callback and webhook, which finish an online payment even when the app
+ * never got to ask.
+ */
+const markPaidAndSettle = async (job) => {
+    job.paymentStatus = 'paid';
+    job.paidAt = new Date();
+    job.pushStatus('PAYMENT_COMPLETED', 'customer', `Paid ₹${job.finalAmount} by ${job.paymentMode}`);
+
+    // Settlement runs after the job is marked paid and never throws, so a
+    // commission problem cannot undo a payment the customer actually made.
+    const result = await Settlement.settle(job);
+    job.pushStatus('CLOSED', 'system', result.ok ? 'Settled' : `Settlement deferred: ${result.reason}`);
+    await job.save();
+
+    notify(job.providerId, 'provider', 'Insta Work payment received',
+        `₹${job.finalAmount} settled for ${job.jobCode}.`);
+    emitJob(job, 'INSTA_JOB_CLOSED', { finalAmount: job.finalAmount });
+    return result;
+};
+
+/**
+ * Finish an online payment the gateway has confirmed (callback or webhook).
+ * The job is found by the order it raised, and only a bill that is awaiting
+ * payment, for exactly that amount, is settled. Returns 'paid', 'already',
+ * or a reason it was not applied.
+ */
+const settleOnlinePayment = async (orderId, paymentId, paidPaise) => {
+    const job = await InstaJob.findOne({ razorpayOrderId: orderId });
+    if (!job) return 'unknown';
+    if (job.paymentStatus === 'paid') return 'already';
+    if (job.status !== 'CUSTOMER_CONFIRMED' || job.paymentMode !== 'online') return 'not_awaiting_payment';
+    if (paidPaise !== undefined && Math.round(Number(job.finalAmount) * 100) !== Number(paidPaise)) return 'amount_mismatch';
+    if (await InstaJob.exists({ razorpayPaymentId: paymentId })) return 'already';
+    job.razorpayPaymentId = paymentId;
+    await markPaidAndSettle(job);
+    return 'paid';
+};
+
 // @desc    Record payment and settle the job
 // @route   PATCH /api/insta/jobs/:id/pay
 // @access  Private (Customer)
@@ -682,20 +727,7 @@ const payJob = async (req, res) => {
             job.razorpayPaymentId = razorpay_payment_id;
         }
 
-        job.paymentStatus = 'paid';
-        job.paidAt = new Date();
-        job.pushStatus('PAYMENT_COMPLETED', 'customer', `Paid ₹${job.finalAmount} by ${job.paymentMode}`);
-
-        // Settlement runs after the job is marked paid and never throws, so a
-        // commission problem cannot undo a payment the customer actually made.
-        const result = await Settlement.settle(job);
-        job.pushStatus('CLOSED', 'system', result.ok ? 'Settled' : `Settlement deferred: ${result.reason}`);
-        await job.save();
-
-        notify(job.providerId, 'provider', 'Insta Work payment received',
-            `₹${job.finalAmount} settled for ${job.jobCode}.`);
-        emitJob(job, 'INSTA_JOB_CLOSED', { finalAmount: job.finalAmount });
-
+        const result = await markPaidAndSettle(job);
         res.json({ job, settled: result.ok });
     } catch (error) {
         console.error('[InstaWork] payJob failed:', error);
@@ -854,5 +886,6 @@ module.exports = {
     respondToExtension,
     confirmWork,
     payJob,
-    cancelJob
+    cancelJob,
+    settleOnlinePayment
 };
