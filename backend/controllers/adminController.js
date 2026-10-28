@@ -1854,7 +1854,9 @@ async function getZones(req, res) {
 // @access  Private/Admin
 async function addZone(req, res) {
     try {
-        const zone = await Zone.create(req.body);
+        const ServicePincodes = require('../utils/servicePincodes');
+        const zone = await Zone.create({ ...req.body, pincodes: ServicePincodes.parsePincodes(req.body.pincodes) });
+        ServicePincodes.refresh();
         res.status(201).json(zone);
     } catch (error) {
         if (error.code === 11000) {
@@ -1864,12 +1866,31 @@ async function addZone(req, res) {
     }
 }
 
+// @desc    Change the PIN codes (or active flag) of a zone
+// @route   PUT /api/admin/zones/:id
+// @access  Private/Admin
+async function updateZone(req, res) {
+    try {
+        const ServicePincodes = require('../utils/servicePincodes');
+        const update = {};
+        if (req.body.pincodes !== undefined) update.pincodes = ServicePincodes.parsePincodes(req.body.pincodes);
+        if (req.body.isActive !== undefined) update.isActive = !!req.body.isActive;
+        const zone = await Zone.findByIdAndUpdate(req.params.id, { $set: update }, { new: true });
+        if (!zone) return res.status(404).json({ message: 'Zone not found.' });
+        ServicePincodes.refresh();
+        res.json(zone);
+    } catch (error) {
+        res.status(400).json({ message: 'Could not update the zone.' });
+    }
+}
+
 // @desc    Delete zone
 // @route   DELETE /api/admin/zones/:id
 // @access  Private/Admin
 async function deleteZone(req, res) {
     try {
         await Zone.findByIdAndDelete(req.params.id);
+        require('../utils/servicePincodes').refresh();
         res.json({ message: 'Zone removed' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -4307,6 +4328,7 @@ module.exports = {
     deletePromotion,
     getZones,
     addZone,
+    updateZone,
     deleteZone,
     getEmployees,
     getEmployeeStats,

@@ -47,6 +47,7 @@ const {
     deletePromotion,
     getZones,
     addZone,
+    updateZone,
     deleteZone,
     getEmployees,
     getEmployeeStats,
@@ -250,6 +251,7 @@ router.delete('/promotions/:id', protect, admin, deletePromotion);
 // Zone Management
 router.get('/zones', protect, admin, getZones);
 router.post('/zones', protect, admin, addZone);
+router.put('/zones/:id', protect, admin, updateZone);
 router.delete('/zones/:id', protect, admin, deleteZone);
 
 // Super Admin & Admin Management

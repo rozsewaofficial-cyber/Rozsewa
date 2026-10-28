@@ -10,6 +10,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import API from "@/lib/api";
+import useServicePincodes, { pincodeMessage } from "@/hooks/useServicePincodes";
 
 const CustomDatePicker = ({ value, onChange, min, className, placeholder = "Select Date" }) => {
   const formatDisplayDate = (dateStr) => {
@@ -413,6 +414,7 @@ const SectionRenderer = ({ section, formValues, onFieldChange, renderField }) =>
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const LeadRequirementForm = () => {
+  const servedPins = useServicePincodes();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -794,6 +796,7 @@ const LeadRequirementForm = () => {
         );
       case 'pincode':
         return (
+          <>
           <input type="text" inputMode="numeric" required={field.required} value={locationDetail.pincode || ''} placeholder={field.placeholder || "e.g. 201301"}
             maxLength={6}
             onChange={e => setLocationDetail(prev => ({ ...prev, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
@@ -805,6 +808,10 @@ const LeadRequirementForm = () => {
             pattern="[0-9]{6}"
             title="Pincode must be exactly 6 digits"
             className="w-full px-4 py-3.5 bg-slate-50/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-semibold text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-950 focus:ring-4 focus:ring-emerald-500/15 focus:border-emerald-500 outline-none transition-all" />
+          {pincodeMessage(servedPins, locationDetail.pincode) && (
+            <p className="mt-1 text-[11px] font-bold text-red-600" data-pincode-problem>{pincodeMessage(servedPins, locationDetail.pincode)}</p>
+          )}
+          </>
         );
 
       case 'contactName':
@@ -1170,6 +1177,11 @@ const LeadRequirementForm = () => {
       : null;
     if (missing) {
       toast({ title: 'Almost there', description: `Please choose ${missing}.`, variant: 'destructive' });
+      return;
+    }
+    const pinProblem = pincodeMessage(servedPins, locationDetail.pincode);
+    if (pinProblem) {
+      toast({ title: 'We do not serve this PIN code', description: pinProblem, variant: 'destructive' });
       return;
     }
     // The submit button is not a native submit, so the * marked address fields

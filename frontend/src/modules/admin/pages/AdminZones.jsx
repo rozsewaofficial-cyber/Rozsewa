@@ -16,9 +16,22 @@ const AdminZones = () => {
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(true);
     const [zones, setZones] = useState([]);
-    const [newZone, setNewZone] = useState({ name: "", type: "Tier 1 Metro", location: center });
+    const [newZone, setNewZone] = useState({ name: "", type: "Tier 1 Metro", location: center, pincodes: "" });
     const [map, setMap] = useState(null);
     const [autocomplete, setAutocomplete] = useState(null);
+    // The zone whose PIN codes are being edited, and what is typed so far.
+    const [editing, setEditing] = useState(null);
+
+    const savePincodes = async (zone) => {
+        try {
+            const { data } = await API.put(`/admin/zones/${zone._id}`, { pincodes: editing.text });
+            setZones(zs => zs.map(z => (z._id === zone._id ? data : z)));
+            setEditing(null);
+            toast({ title: "PIN codes saved", description: data.pincodes.length ? `${data.pincodes.length} PIN codes for ${zone.name}.` : "No PIN codes: this city is not restricted." });
+        } catch (error) {
+            toast({ title: "Could not save", description: error.response?.data?.message, variant: "destructive" });
+        }
+    };
 
     const onPlaceChanged = () => {
         if (autocomplete !== null) {
@@ -91,7 +104,7 @@ const AdminZones = () => {
             const { data } = await API.post("/admin/zones", newZone);
             setZones([data, ...zones]);
             setShowModal(false);
-            setNewZone({ name: "", type: "Tier 1 Metro", location: center });
+            setNewZone({ name: "", type: "Tier 1 Metro", location: center, pincodes: "" });
             toast({ title: "Zone Added", description: `${newZone.name} is now operational.` });
         } catch (error) {
             toast({ title: "Error", description: error.response?.data?.message || "Could not add zone.", variant: "destructive" });
@@ -207,6 +220,28 @@ const AdminZones = () => {
                                         <div>
                                             <h4 className="font-black text-sm text-gray-900">{zone.name}</h4>
                                             <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">{zone.type}</p>
+                                            {editing?.id === zone._id ? (
+                                                <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                                                    <textarea
+                                                        value={editing.text}
+                                                        onChange={(e) => setEditing({ id: zone._id, text: e.target.value })}
+                                                        rows={3}
+                                                        placeholder="PIN codes served here, separated by commas or spaces"
+                                                        className="w-72 rounded-xl border border-gray-200 bg-gray-50 p-2 text-xs font-semibold focus:border-emerald-500 focus:outline-none"
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => savePincodes(zone)} className="rounded-lg bg-emerald-600 px-3 py-1 text-[11px] font-black text-white">Save</button>
+                                                        <button onClick={() => setEditing(null)} className="rounded-lg bg-gray-100 px-3 py-1 text-[11px] font-black text-gray-600">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setEditing({ id: zone._id, text: (zone.pincodes || []).join(", ") }); }}
+                                                    className="mt-1 text-[10px] font-bold text-gray-500 underline decoration-dotted"
+                                                >
+                                                    {(zone.pincodes || []).length ? `${zone.pincodes.length} PIN codes` : "Set PIN codes"}
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-6">
@@ -283,6 +318,16 @@ const AdminZones = () => {
                                             <option>Tier 2 City</option>
                                             <option>New Market</option>
                                         </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Service PIN codes (optional)</label>
+                                        <textarea
+                                            value={newZone.pincodes}
+                                            onChange={e => setNewZone({ ...newZone, pincodes: e.target.value })}
+                                            rows={2}
+                                            placeholder="452001, 452010, 452016"
+                                            className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-3 text-sm focus:outline-none focus:border-emerald-500 transition font-bold"
+                                        />
                                     </div>
                                     <div className="pt-4 border-t border-gray-50">
                                         <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center gap-2">

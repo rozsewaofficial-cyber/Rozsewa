@@ -20,6 +20,12 @@ const zoneSchema = new mongoose.Schema({
         lat: { type: Number, required: true, default: 28.6139 }, // Default Delhi
         lng: { type: Number, required: true, default: 77.2090 }
     },
+    // PIN codes served in this city. While no active zone lists any, addresses
+    // are not restricted; once one does, only listed PIN codes are accepted.
+    pincodes: {
+        type: [String],
+        default: []
+    },
     isActive: {
         type: Boolean,
         default: true

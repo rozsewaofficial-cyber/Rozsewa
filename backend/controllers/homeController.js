@@ -110,6 +110,17 @@ const sewakCatalogServices = async (cat) => {
 // @desc    Get all active zones/cities
 // @route   GET /api/public/zones
 // @access  Public
+// @desc    The PIN codes RozSewa serves (empty list = not restricted)
+// @route   GET /api/public/service-pincodes
+// @access  Public
+const getServicePincodes = async (req, res) => {
+    try {
+        res.json(await require('../utils/servicePincodes').summary());
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const getPublicZones = async (req, res) => {
     try {
         const zones = await Zone.find({ isActive: true }).sort({ name: 1 });
@@ -811,5 +822,6 @@ module.exports = {
     validateCoupon,
     verifyReferralCode,
     getPublicZones,
+    getServicePincodes,
     getPublicSearchSuggestions
 };

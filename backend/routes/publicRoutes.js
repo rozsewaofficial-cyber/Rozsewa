@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getPublicBanners, getPublicCategories, getFeaturedProviders, getPublicProviders, getPublicConfig, getPublicServiceByProvider, getPublicProviderById, getPublicCategoryByName, getPublicCoupons, validateCoupon, verifyReferralCode, getPublicZones, getPublicSearchSuggestions } = require('../controllers/homeController');
+const { getPublicBanners, getPublicCategories, getFeaturedProviders, getPublicProviders, getPublicConfig, getPublicServiceByProvider, getPublicProviderById, getPublicCategoryByName, getPublicCoupons, validateCoupon, verifyReferralCode, getPublicZones, getServicePincodes, getPublicSearchSuggestions } = require('../controllers/homeController');
 const { getPublicProviderReviews } = require('../controllers/bookingController');
 
 router.get('/banners', getPublicBanners);
@@ -19,6 +19,7 @@ router.post('/coupons/validate', validateCoupon);
 router.get('/verify-referral/:code', verifyReferralCode);
 router.get('/config', getPublicConfig);
 router.get('/zones', getPublicZones);
+router.get('/service-pincodes', getServicePincodes);
 router.get('/search-suggestions', getPublicSearchSuggestions);
 router.get('/benefit-policies', require('../controllers/benefitPolicyController').getPublicBenefitPolicies);
 
