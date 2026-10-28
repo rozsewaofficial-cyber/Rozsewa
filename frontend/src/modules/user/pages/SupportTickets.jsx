@@ -7,6 +7,7 @@ import TopNav from "@/modules/user/components/TopNav";
 import BottomNav from "@/modules/user/components/BottomNav";
 import { useToast } from "@/components/ui/use-toast";
 import API from "@/lib/api";
+import { useSocket } from "@/context/SocketContext";
 import SupportTicketThread, { ticketNumber, lastSpeaker } from "@/components/support/SupportTicketThread";
 
 const SupportTickets = () => {
@@ -18,12 +19,22 @@ const SupportTickets = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openTicket, setOpenTicket] = useState(null);
+  const socketCtx = useSocket();
+  const socket = socketCtx?.socket;
 
   useScrollLock(showCreate || openTicket);
 
   useEffect(() => {
     fetchTickets();
   }, []);
+
+  // A reply or a status change on any ticket shows in the list straight away.
+  useEffect(() => {
+    if (!socket) return undefined;
+    const refresh = () => fetchTickets();
+    socket.on("SUPPORT_TICKET_UPDATED", refresh);
+    return () => socket.off("SUPPORT_TICKET_UPDATED", refresh);
+  }, [socket]);
 
   const fetchTickets = async () => {
     try {
@@ -36,7 +47,7 @@ const SupportTickets = () => {
     }
   };
 
-  const statusColors = { open: "bg-blue-100 text-blue-700", closed: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700" };
+  const statusColors = { open: "bg-blue-100 text-blue-700", resolved: "bg-emerald-100 text-emerald-700", closed: "bg-slate-200 text-slate-700", pending: "bg-amber-100 text-amber-700" };
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -52,8 +63,10 @@ const SupportTickets = () => {
       
       const ticket = res.data;
       setTickets([ticket, ...tickets]);
-      toast({ title: "Ticket Created", description: `ID: ${ticket._id}` });
+      toast({ title: "Ticket Created", description: `Ticket ${ticketNumber(ticket)}` });
       setSubject(""); setMessage(""); setShowCreate(false);
+      // Straight into the ticket's chat, where replies and updates arrive.
+      setOpenTicket(ticket);
     } catch (err) {
       toast({ title: "Failed to create ticket", description: err.response?.data?.message || "Something went wrong", variant: "destructive" });
     }

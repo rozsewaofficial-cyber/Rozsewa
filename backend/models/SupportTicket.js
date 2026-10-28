@@ -41,7 +41,9 @@ const supportTicketSchema = new mongoose.Schema({
     // The conversation on this ticket (Live Chat). `reply` above is the
     // single answer admin could give before; it's kept for old tickets.
     messages: [{
-        sender: { type: String, enum: ['provider', 'user', 'admin'], required: true },
+        // 'system' is a line the app adds when the ticket changes (resolved,
+        // reopened, a call asked for), so the chat tells the whole story.
+        sender: { type: String, enum: ['provider', 'user', 'admin', 'system'], required: true },
         senderId: { type: mongoose.Schema.Types.ObjectId },
         senderName: { type: String },
         text: { type: String, required: true, maxlength: 2000 },

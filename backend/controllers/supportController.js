@@ -74,6 +74,17 @@ const notifyOwner = async (ticket, title, message) => {
     }
 };
 
+/** A line in the ticket's chat saying what just happened to it. */
+const systemNote = (ticket, text) => {
+    ticket.messages.push({ sender: 'system', senderName: 'RozSewa', text });
+};
+const STATUS_NOTE = {
+    pending: 'Ticket is waiting for our team.',
+    open: 'Ticket is open: our team is on it.',
+    resolved: 'Ticket was marked resolved. Reply here if you still need help.',
+    closed: 'Ticket was closed.'
+};
+
 const CALL_TIMES = ['As soon as possible', 'Morning (9am - 12pm)', 'Afternoon (12pm - 4pm)', 'Evening (4pm - 8pm)'];
 
 // @desc    Raise a support ticket
@@ -109,6 +120,14 @@ const createTicket = async (req, res) => {
             };
         }
 
+        // The chat starts with a line saying the ticket is raised.
+        ticketData.messages = [{
+            sender: 'system',
+            senderName: 'RozSewa',
+            text: requestCall
+                ? 'Ticket raised with a call-back request. Our team will reply here and call you.'
+                : 'Ticket raised. Our team will reply here.'
+        }];
         const ticket = await SupportTicket.create(ticketData);
         announce(ticket);
         if (requestCall) {
@@ -211,6 +230,7 @@ const replyTicket = async (req, res) => {
         }
         
         ticket.reply = reply;
+        if (ticket.status !== 'resolved') systemNote(ticket, STATUS_NOTE.resolved);
         ticket.status = 'resolved';
         if (reply && String(reply).trim()) {
             ticket.messages.push({ sender: 'admin', senderId: req.user._id, senderName: 'RozSewa Support', text: String(reply).trim().slice(0, 2000) });
@@ -326,16 +346,19 @@ const addMessage = async (req, res) => {
         if (!ticket) return;
 
         const fromAdmin = isAdmin(req.user);
+        // A reply moves the ticket along; a partner writing on a resolved or
+        // closed ticket reopens it (the note goes in before their message).
+        if (fromAdmin && ticket.status === 'pending') ticket.status = 'open';
+        if (!fromAdmin && ['resolved', 'closed'].includes(ticket.status)) {
+            ticket.status = 'open';
+            systemNote(ticket, 'Ticket reopened.');
+        }
         ticket.messages.push({
             sender: senderRole(req.user),
             senderId: req.user._id,
             senderName: fromAdmin ? 'RozSewa Support' : displayName(req.user),
             text
         });
-        // A reply moves the ticket along; a partner writing on a resolved or
-        // closed ticket reopens it.
-        if (fromAdmin && ticket.status === 'pending') ticket.status = 'open';
-        if (!fromAdmin && ['resolved', 'closed'].includes(ticket.status)) ticket.status = 'open';
         ticket.updatedAt = new Date();
         await ticket.save();
         announce(ticket);
@@ -368,7 +391,11 @@ const requestCall = async (req, res) => {
             requestedAt: now,
             updatedAt: now
         };
-        if (['resolved', 'closed'].includes(ticket.status)) ticket.status = 'open';
+        if (['resolved', 'closed'].includes(ticket.status)) {
+            ticket.status = 'open';
+            systemNote(ticket, STATUS_NOTE.open);
+        }
+        systemNote(ticket, `Call requested (${ticket.callRequest.preferredTime}). Our team will call you.`);
         ticket.updatedAt = now;
         await ticket.save();
         announce(ticket);
@@ -400,6 +427,11 @@ const updateCallRequest = async (req, res) => {
         ticket.callRequest.updatedAt = new Date();
         if (admin) ticket.callRequest.handledBy = req.user.name || 'Admin';
         ticket.markModified('callRequest');
+        systemNote(ticket, {
+            in_progress: 'Our team is calling you now.',
+            completed: 'The call is marked completed.',
+            cancelled: admin ? 'The call request was cancelled by support.' : 'The call request was cancelled.'
+        }[status]);
         ticket.updatedAt = new Date();
         await ticket.save();
         announce(ticket);
@@ -421,7 +453,9 @@ const updateTicketStatus = async (req, res) => {
         }
         const ticket = await loadTicket(req, res);
         if (!ticket) return;
+        const changed = ticket.status !== status;
         ticket.status = status;
+        if (changed) systemNote(ticket, STATUS_NOTE[status]);
         ticket.updatedAt = new Date();
         await ticket.save();
         announce(ticket);

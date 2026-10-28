@@ -41,7 +41,8 @@ export const CALL_STATUS = {
 
 /** Who sent the latest message: "admin", "owner", or null when nobody has replied yet. */
 export const lastSpeaker = (t) => {
-  const msgs = t?.messages || [];
+  // Lines the app adds on its own (resolved, call requested) are nobody speaking.
+  const msgs = (t?.messages || []).filter((m) => m.sender !== "system");
   if (msgs.length) return msgs[msgs.length - 1].sender === "admin" ? "admin" : "owner";
   return t?.reply ? "admin" : null;
 };
@@ -54,7 +55,7 @@ const fmt = (d) => new Date(d).toLocaleString("en-IN", { day: "numeric", month: 
 const conversation = (t) => {
   const items = [{ key: "issue", mine: "owner", name: "Issue raised", text: t.description, at: t.createdAt }];
   for (const m of t.messages || []) {
-    items.push({ key: m._id || `${m.createdAt}-${m.text}`, mine: m.sender === "admin" ? "admin" : "owner", name: m.senderName, text: m.text, at: m.createdAt });
+    items.push({ key: m._id || `${m.createdAt}-${m.text}`, mine: m.sender === "system" ? "system" : m.sender === "admin" ? "admin" : "owner", name: m.senderName, text: m.text, at: m.createdAt });
   }
   // Tickets answered before chat existed carry their answer in `reply` only.
   if (t.reply && !(t.messages || []).some((m) => m.sender === "admin")) {
@@ -198,6 +199,15 @@ const SupportTicketThread = ({ ticketId, viewer = "provider", onChange, showCall
       {/* Conversation */}
       <div className="max-h-[45vh] min-h-[160px] overflow-y-auto rounded-2xl border border-border bg-background p-3 space-y-2.5" data-ticket-chat>
         {items.map((m) => {
+          if (m.mine === "system") {
+            return (
+              <div key={m.key} className="flex justify-center" data-ticket-note>
+                <p className="max-w-[90%] rounded-full bg-muted px-3 py-1 text-center text-[10px] font-bold text-muted-foreground">
+                  {m.text} · {fmt(m.at)}
+                </p>
+              </div>
+            );
+          }
           const mine = (viewer === "admin") === (m.mine === "admin");
           return (
             <div key={m.key} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
