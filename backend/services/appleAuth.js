@@ -15,9 +15,12 @@ const defaultKeys = (...args) => {
 
 // `keys` can be swapped for a local key resolver in tests.
 const verifyAppleIdentityToken = async (identityToken, clientId, keys = defaultKeys) => {
+    // The audience is the Services ID for web sign-in and the Bundle ID for the
+    // native iOS app, so APPLE_CLIENT_ID may list both, comma separated.
+    const audience = String(clientId).split(',').map(s => s.trim()).filter(Boolean);
     const { payload } = await jwtVerify(identityToken, keys, {
         issuer: APPLE_ISSUER,
-        audience: clientId,
+        audience,
         algorithms: ['RS256'],
     });
     if (!payload.sub) throw new Error('Apple token has no subject');
