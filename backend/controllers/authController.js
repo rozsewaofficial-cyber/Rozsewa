@@ -4,6 +4,7 @@ const { Wallet } = require('../models/Wallet');
 const generateToken = require('../utils/generateToken');
 const OTP = require('../models/OTP');
 const { sendSMSOTP } = require('../utils/smsService');
+const otpGuard = require('../utils/otpGuard');
 const { sendEmail } = require('../utils/emailService');
 const LoginLog = require('../models/LoginLog');
 
@@ -34,7 +35,7 @@ const sendOTP = async (req, res) => {
 
     try {
         // Handle test number bypass
-        if (mobile === '9999900000' || mobile === '8888888888' || mobile === '9999911111') {
+        if (otpGuard.isTestMobile(mobile)) {
             await OTP.findOneAndUpdate(
                 { mobile },
                 { otp: '123456', createdAt: new Date() },
@@ -43,8 +44,12 @@ const sendOTP = async (req, res) => {
             return res.json({ success: true, message: 'Test OTP generated' });
         }
 
+        if (!otpGuard.canSend(`send:${mobile}`)) {
+            return res.status(429).json({ message: 'Please wait 30 seconds before asking for another OTP.' });
+        }
+
         // Generate 6 digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp = otpGuard.generateOtp();
 
         // Save OTP to DB (upsert)
         await OTP.findOneAndUpdate(
@@ -74,13 +79,16 @@ const verifyOTP = async (req, res) => {
     if (!mobile || !/^\d{10}$/.test(mobile) || !otp) return res.status(400).json({ message: 'Valid 10-digit mobile and OTP required' });
 
     try {
-        const otpDoc = await OTP.findOne({ mobile, otp });
+        if (otpGuard.isLocked(mobile)) return res.status(429).json({ success: false, message: 'Too many wrong attempts. Please try again after some time.' });
+        const otpDoc = await OTP.findOne({ mobile, otp: String(otp) });
 
         if (otpDoc) {
+            otpGuard.clearFails(mobile);
             // Delete OTP after verification
             await OTP.deleteOne({ _id: otpDoc._id });
             res.json({ success: true, message: 'OTP verified successfully' });
         } else {
+            otpGuard.recordFail(mobile);
             res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
         }
     } catch (error) {
@@ -119,7 +127,9 @@ const registerUser = async (req, res) => {
             address,
             city,
             state,
-            role: role || 'customer',
+            // Public signup only ever makes a customer; staff and admin
+            // accounts are created by an admin, never by choosing a role here.
+            role: 'customer',
             location: req.body.location || { type: 'Point', coordinates: [0, 0] }
         });
 
@@ -463,13 +473,16 @@ const loginWithOTP = async (req, res) => {
 
     try {
         // Handle test number bypass
-        if ((mobile === '9999900000' || mobile === '8888888888' || mobile === '9999911111') && otp === '123456') {
+        if (otpGuard.isTestLogin(mobile, otp)) {
             // Allow bypass
         } else {
-            const otpDoc = await OTP.findOne({ mobile, otp });
+            if (otpGuard.isLocked(mobile)) return res.status(429).json({ message: 'Too many wrong attempts. Please try again after some time.' });
+            const otpDoc = await OTP.findOne({ mobile, otp: String(otp) });
             if (!otpDoc) {
+                otpGuard.recordFail(mobile);
                 return res.status(400).json({ message: 'Invalid or expired OTP' });
             }
+            otpGuard.clearFails(mobile);
             // Delete OTP after successful login
             await OTP.deleteOne({ _id: otpDoc._id });
         }
@@ -957,17 +970,21 @@ const getFavorites = async (req, res) => {
 // @access  Public
 const forgotPassword = async (req, res) => {
     const { mobile, otp, newPassword, type } = req.body;
+    if (typeof mobile !== 'string' || typeof otp !== 'string' || typeof newPassword !== 'string') return res.status(400).json({ message: 'Mobile, OTP and new password are required' });
     if (!mobile || !otp || !newPassword) return res.status(400).json({ message: 'Mobile, OTP and new password are required' });
 
     try {
         // Handle test number bypass
-        if ((mobile === '9999900000' || mobile === '8888888888' || mobile === '9999911111') && otp === '123456') {
+        if (otpGuard.isTestLogin(mobile, otp)) {
             // Allow bypass
         } else {
-            const otpDoc = await OTP.findOne({ mobile, otp });
+            if (otpGuard.isLocked(mobile)) return res.status(429).json({ message: 'Too many wrong attempts. Please try again after some time.' });
+            const otpDoc = await OTP.findOne({ mobile, otp: String(otp) });
             if (!otpDoc) {
+                otpGuard.recordFail(mobile);
                 return res.status(400).json({ message: 'Invalid or expired OTP' });
             }
+            otpGuard.clearFails(mobile);
             // Delete OTP after successful verification
             await OTP.deleteOne({ _id: otpDoc._id });
         }
@@ -1003,12 +1020,16 @@ const verifyEmailOtp = async (req, res) => {
     if (!email || !otp) return res.status(400).json({ message: 'Email and OTP required' });
 
     try {
-        const otpDoc = await OTP.findOne({ email, otp });
+        const emailKey = String(email);
+        if (otpGuard.isLocked(emailKey)) return res.status(429).json({ message: 'Too many wrong attempts. Please try again after some time.' });
+        const otpDoc = await OTP.findOne({ email: emailKey, otp: String(otp) });
 
         if (otpDoc) {
+            otpGuard.clearFails(emailKey);
             await OTP.deleteOne({ _id: otpDoc._id });
             res.json({ success: true, message: 'Email verified successfully' });
         } else {
+            otpGuard.recordFail(emailKey);
             res.status(400).json({ message: 'Invalid or expired OTP' });
         }
     } catch (error) {
@@ -1031,12 +1052,16 @@ const sendEmailOtp = async (req, res) => {
             return res.status(400).json({ message: 'Email is already registered with another account' });
         }
 
+        if (!otpGuard.canSend(`send:${String(email)}`)) {
+            return res.status(429).json({ message: 'Please wait 30 seconds before asking for another OTP.' });
+        }
+
         // Generate 6 digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp = otpGuard.generateOtp();
 
         // Save OTP to DB (upsert)
         await OTP.findOneAndUpdate(
-            { email },
+            { email: String(email) },
             { otp, createdAt: new Date() },
             { upsert: true, new: true }
         );

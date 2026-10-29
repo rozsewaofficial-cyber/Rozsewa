@@ -12,7 +12,11 @@ const protect = async (req, res, next) => {
             try {
                 decoded = jwt.verify(token, process.env.JWT_SECRET);
             } catch (err) {
-                if (err.name === 'TokenExpiredError' && req.originalUrl.includes('/fcm-tokens/remove')) {
+                // Only the sign-out cleanup may use an expired token, matched on
+                // the path itself: a substring match on originalUrl also matched
+                // the query string, so "?x=/fcm-tokens/remove" on any route
+                // made an expired token valid there.
+                if (err.name === 'TokenExpiredError' && req.originalUrl.split('?')[0].endsWith('/fcm-tokens/remove')) {
                     decoded = jwt.decode(token);
                 } else {
                     throw err;

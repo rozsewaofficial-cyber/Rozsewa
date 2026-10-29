@@ -18,35 +18,74 @@ const initSocket = (server) => {
         }
     });
 
+    // Every connection must carry a valid session token. Who the socket is
+    // comes from that token, never from ids the client sends afterwards —
+    // otherwise anyone could join another account's room (or the admin room)
+    // just by naming its id.
+    io.use(async (socket, next) => {
+        try {
+            const jwt = require('jsonwebtoken');
+            const token = socket.handshake.auth && socket.handshake.auth.token;
+            if (!token) return next(new Error('Not authorized, no token'));
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+            const User = require('../models/User');
+            const Provider = require('../models/Provider');
+            let principal = await User.findById(decoded.id).select('role isActive');
+            let role = principal ? (principal.role || 'customer') : null;
+            if (!principal) {
+                principal = await Provider.findById(decoded.id).select('_id');
+                role = principal ? 'provider' : null;
+            }
+            if (!principal) return next(new Error('Not authorized, user not found'));
+            if (role === 'customer' && principal.isActive === false) return next(new Error('Account blocked'));
+
+            socket.data.id = principal._id.toString();
+            socket.data.role = role;
+            next();
+        } catch (err) {
+            next(new Error('Not authorized, token failed'));
+        }
+    });
+
     io.on("connection", (socket) => {
         console.log("Connect:", socket.id);
+        const selfId = socket.data.id;
+        const selfRole = socket.data.role;
 
         socket.on("join_provider", (providerId) => {
-            socket.join(`provider_${providerId}`);
-            console.log(`Provider ${providerId} joined room`);
+            if (selfRole !== 'provider' || String(providerId) !== selfId) return;
+            socket.join(`provider_${selfId}`);
+            console.log(`Provider ${selfId} joined room`);
         });
 
-        socket.on("join_user", async (userId) => {
-            socket.join(`user_${userId}`);
-            console.log(`User ${userId} joined room`);
-            try {
-                const User = require('../models/User');
-                const user = await User.findById(userId);
-                if (user && ['admin', 'superadmin', 'supervisor'].includes(user.role)) {
-                    socket.join('admin_room');
-                    console.log(`Admin ${userId} joined admin_room`);
-                }
-            } catch (err) {
-                console.error("Error joining admin to admin_room:", err.message);
+        socket.on("join_user", (userId) => {
+            if (String(userId) !== selfId) return;
+            socket.join(`user_${selfId}`);
+            console.log(`User ${selfId} joined room`);
+            if (['admin', 'superadmin', 'supervisor'].includes(selfRole)) {
+                socket.join('admin_room');
+                console.log(`Admin ${selfId} joined admin_room`);
             }
         });
 
-        socket.on("join_chat_room", (bookingId) => {
-            socket.join(`booking_${bookingId}`);
-            console.log(`Client ${socket.id} joined chat room booking_${bookingId}`);
+        socket.on("join_chat_room", async (bookingId) => {
+            try {
+                const Booking = require('../models/Booking');
+                const booking = await Booking.findById(bookingId).select('userId providerId');
+                if (!booking) return;
+                const isParty = [booking.userId, booking.providerId].some(p => p && p.toString() === selfId);
+                if (!isParty && !['admin', 'superadmin', 'supervisor'].includes(selfRole)) return;
+                socket.join(`booking_${bookingId}`);
+                console.log(`Client ${socket.id} joined chat room booking_${bookingId}`);
+            } catch (err) {
+                console.error("Error joining chat room:", err.message);
+            }
         });
 
-        socket.on("reject_booking", async ({ providerId, bookingId, reason }) => {
+        socket.on("reject_booking", async ({ bookingId, reason } = {}) => {
+            if (selfRole !== 'provider') return;
+            const providerId = selfId;
             const actReason = reason || 'reject';
             console.log(`Provider ${providerId} rejected booking ${bookingId} with reason: ${actReason}`);
 

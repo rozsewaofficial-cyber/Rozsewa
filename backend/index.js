@@ -89,7 +89,9 @@ app.use((req, res, next) => (CORS_EXEMPT_PATHS.has(req.path) ? next() : corsMidd
 // the JSON parser below turns the body into an object.
 app.post('/api/payment/webhook', express.raw({ type: 'application/json', limit: '1mb' }), require('./controllers/paymentController').razorpayWebhook);
 app.use(express.json());
-app.use('/sounds', express.static(path.join(__dirname, '/'))); // Serve root for sounds
+// Only the alert sound is public. This used to serve the whole backend folder,
+// which exposed source files and config/rozsewa.json (the Firebase private key).
+app.get('/sounds/alert.mp3', (req, res) => res.sendFile(path.join(__dirname, 'alert.mp3')));
 
 // Routes
 app.use('/api/auth', authRoutes);

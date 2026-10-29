@@ -137,6 +137,7 @@ export const SocketProvider = ({ children }) => {
 
         const newSocket = io(socketUrl, {
             withCredentials: true,
+            auth: { token: user.token },
             transports: ['polling', 'websocket']
         });
         setSocket(newSocket);
