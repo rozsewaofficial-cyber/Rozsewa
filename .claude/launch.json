@@ -46,6 +46,55 @@
         "backend/scripts/devLocalDb.js"
       ],
       "port": 5050
+    },
+    {
+      "name": "frontend-api5050",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_API_URL=http://localhost:5050/api&& npm --prefix frontend run dev"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "backend-5051",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set LOCAL_PORT=5051&& node backend/scripts/devLocalDb.js"
+      ],
+      "port": 5051,
+      "autoPort": false
+    },
+    {
+      "name": "frontend-api5051",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_API_URL=http://localhost:5051/api&& npm --prefix frontend run dev"
+      ],
+      "port": 8080,
+      "autoPort": false
+    },
+    {
+      "name": "frontend-api5002",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_API_URL=http://localhost:5002/api&& npm --prefix frontend run dev"
+      ],
+      "port": 8080,
+      "autoPort": false
+    },
+    {
+      "name": "frontend-api5001",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_API_URL=http://localhost:5001/api&& npm --prefix frontend run dev"
+      ],
+      "port": 8080,
+      "autoPort": false
     }
   ]
 }
