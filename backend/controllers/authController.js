@@ -420,15 +420,24 @@ const appleAuth = async (req, res) => {
                 user.appleId = appleId;
                 await user.save();
             } else {
-                user = await User.create({
-                    name: (name && String(name).trim()) || email.split('@')[0],
-                    email,
-                    appleId,
-                    role: 'customer',
-                    location: { type: 'Point', coordinates: [0, 0] },
-                });
-                await Wallet.create({ userId: user._id, balance: 0 });
-                isNewUser = true;
+                try {
+                    user = await User.create({
+                        name: (name && String(name).trim()) || email.split('@')[0],
+                        email,
+                        appleId,
+                        role: 'customer',
+                        location: { type: 'Point', coordinates: [0, 0] },
+                    });
+                    await Wallet.create({ userId: user._id, balance: 0 });
+                    isNewUser = true;
+                } catch (createErr) {
+                    // A double-tap sends two first sign-ins at once; the second
+                    // loses the race on the unique email/appleId. The account
+                    // the first one made is the right one to sign in to.
+                    if (createErr.code !== 11000) throw createErr;
+                    user = await User.findOne({ appleId });
+                    if (!user) throw createErr;
+                }
             }
         }
 
