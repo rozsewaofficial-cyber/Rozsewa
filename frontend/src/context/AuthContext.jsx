@@ -528,19 +528,23 @@ export const AuthProvider = ({ children }) => {
       const sessionData = { ...authData, token, role: 'customer' };
       setAuth(sessionData);
 
-      try {
-        const { requestForToken } = await import("@/lib/firebase");
-        const fcmToken = await requestForToken();
-        if (fcmToken) {
-          await API.post("/notifications/fcm-tokens/save",
-            { token: fcmToken, platform: 'web' },
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          localStorage.setItem("rozsewa_last_fcm_token", fcmToken);
+      // In the background, like Google: waiting on the notification prompt
+      // held the sign-in (and left the session half-open) on iPhone.
+      (async () => {
+        try {
+          const { requestForToken } = await import("@/lib/firebase");
+          const fcmToken = await requestForToken();
+          if (fcmToken) {
+            await API.post("/notifications/fcm-tokens/save",
+              { token: fcmToken, platform: 'web' },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            localStorage.setItem("rozsewa_last_fcm_token", fcmToken);
+          }
+        } catch (err) {
+          console.error("Error saving FCM token on Apple login", err);
         }
-      } catch (err) {
-        console.error("Error saving FCM token on Apple login", err);
-      }
+      })();
 
       return { success: true, data: sessionData, needsProfileCompletion };
     } catch (error) {

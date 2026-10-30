@@ -172,11 +172,17 @@ const CustomerLogin = () => {
   const [profileAddress, setProfileAddress] = useState("");
   const [isCompletingProfile, setIsCompletingProfile] = useState(false);
 
+  // A Google/Apple sign-in sets the session before we learn whether this person
+  // still has to complete their profile. Without this hold the page saw
+  // "signed in, nothing to complete" in between and sent a brand-new signup
+  // straight to the home page, skipping the details form.
+  const socialSignInInFlight = useRef(false);
+
   useEffect(() => {
-    if (isAuthenticated && !needsProfileCompletion) {
+    if (isAuthenticated && !needsProfileCompletion && !socialSignInInFlight.current) {
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, from]);
+  }, [isAuthenticated, needsProfileCompletion, navigate, from]);
 
   useEffect(() => {
     let timer;
@@ -234,15 +240,19 @@ const CustomerLogin = () => {
     (async () => {
       setIsVerifying(true);
       setError("");
+      socialSignInInFlight.current = true;
       const result = await loginWithGoogleCode(code, nonce);
       setIsVerifying(false);
       if (!result.success) {
+        socialSignInInFlight.current = false;
         setError(result.error);
         return;
       }
       if (result.needsProfileCompletion) {
         setNeedsProfileCompletion(true);
+        socialSignInInFlight.current = false;
       } else {
+        socialSignInInFlight.current = false;
         clearDraftAndNavigate(target.startsWith("/") ? target : "/");
       }
     })();
@@ -460,15 +470,19 @@ const CustomerLogin = () => {
     }
     setIsVerifying(true);
     setError("");
+    socialSignInInFlight.current = true;
     const result = await loginWithGoogle(credentialResponse.credential);
     setIsVerifying(false);
     if (!result.success) {
+      socialSignInInFlight.current = false;
       setError(result.error);
       return;
     }
     if (result.needsProfileCompletion) {
       setNeedsProfileCompletion(true);
+      socialSignInInFlight.current = false;
     } else {
+      socialSignInInFlight.current = false;
       clearDraftAndNavigate();
     }
   };
@@ -483,18 +497,23 @@ const CustomerLogin = () => {
       const apple = await signInWithApple();
       if (apple.cancelled) return;
       setIsVerifying(true);
+      socialSignInInFlight.current = true;
       const result = await loginWithApple(apple.identityToken, apple.name);
       setIsVerifying(false);
       if (!result.success) {
+        socialSignInInFlight.current = false;
         setError(result.error);
         return;
       }
       if (result.needsProfileCompletion) {
         setNeedsProfileCompletion(true);
+        socialSignInInFlight.current = false;
       } else {
+        socialSignInInFlight.current = false;
         clearDraftAndNavigate();
       }
     } catch (err) {
+      socialSignInInFlight.current = false;
       setIsVerifying(false);
       setError("Apple Sign-In failed. Please try again.");
     }
